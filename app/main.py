@@ -1,7 +1,6 @@
 import asyncio
 import contextlib
 import re
-import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -12,7 +11,6 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import AuthMiddleware
 from app.csrf import CSRFMiddleware
-from app.db import close_db, get_db, get_feature_flags, init_db
 from app.rate_limit import RateLimitMiddleware
 from app.security_headers import SecurityHeadersMiddleware
 
@@ -76,7 +74,10 @@ def _md_block(text: str) -> markupsafe.Markup:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    await init_db()
+    from app.central_db import close_central_db, init_central_db, promote_admin_emails
+
+    await init_central_db()
+    await promote_admin_emails()
     from app.services.scheduler import scheduler_loop
 
     task = asyncio.create_task(scheduler_loop())
@@ -84,7 +85,7 @@ async def lifespan(app: FastAPI):
     task.cancel()
     with contextlib.suppress(asyncio.CancelledError):
         await task
-    await close_db()
+    await close_central_db()
 
 
 app = FastAPI(title="Virgil", lifespan=lifespan)
@@ -100,20 +101,15 @@ templates.env.filters["strip_md"] = lambda t: re.sub(r"\*\*(.+?)\*\*", r"\1", t)
 templates.env.filters["md_block"] = _md_block
 
 
-_flags_cache: dict | None = None
-_flags_cache_ts: float = 0
-_FLAGS_TTL_SECONDS = 30
-
-
 @app.middleware("http")
 async def inject_feature_flags(request, call_next):
-    global _flags_cache, _flags_cache_ts
-    now = time.monotonic()
-    if _flags_cache is None or now - _flags_cache_ts > _FLAGS_TTL_SECONDS:
-        db = await get_db()
-        _flags_cache = await get_feature_flags(db)
-        _flags_cache_ts = now
-    request.state.features = _flags_cache
+    user_db = getattr(request.state, "user_db", None)
+    if user_db:
+        from app.db import get_feature_flags
+
+        request.state.features = await get_feature_flags(user_db)
+    else:
+        request.state.features = {}
     return await call_next(request)
 
 
@@ -130,6 +126,7 @@ async def service_worker():
 
 
 from app.routers import (  # noqa: E402
+    admin,
     auth,
     bloodwork,
     daily,
@@ -145,6 +142,7 @@ from app.routers import (  # noqa: E402
     training,
 )
 
+app.include_router(admin.router)
 app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(daily.router)
