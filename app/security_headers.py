@@ -36,7 +36,7 @@ class SecurityHeadersMiddleware:
                             f"style-src 'self' 'unsafe-inline' {STYLE_ORIGINS}; "
                             f"font-src 'self' {FONT_ORIGINS}; "
                             f"img-src 'self' data:; "
-                            f"connect-src 'self' {SCRIPT_ORIGINS}; "
+                            f"connect-src 'self' {SCRIPT_ORIGINS} {FONT_ORIGINS}; "
                             f"manifest-src 'self'; "
                             f"worker-src 'self'".encode(),
                         ),
