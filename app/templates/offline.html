@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virgil - Offline</title>
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#06080d">
+    <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
+    <script>(function(){var t=localStorage.getItem('virgil-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+</head>
+<body>
+    <main class="container" style="padding-top:4rem;text-align:center;">
+        <div class="card" style="max-width:400px;margin:3rem auto;padding:3rem 2rem;">
+            <div style="font-size:3rem;margin-bottom:1rem;opacity:0.4;">&#x1F4F6;</div>
+            <h2 style="margin-bottom:0.5rem;">You're offline</h2>
+            <p class="text-muted" style="margin-bottom:1.5rem;">Virgil needs an internet connection to load this page. Check your connection and try again.</p>
+            <button onclick="window.location.reload()" class="btn btn-primary">Retry</button>
+        </div>
+    </main>
+</body>
+</html>

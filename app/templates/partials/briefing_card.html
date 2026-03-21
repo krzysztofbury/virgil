@@ -1,0 +1,12 @@
+<div class="briefing-content">
+    {{ briefing_text | md_block }}
+</div>
+<div style="margin-top:0.75rem;display:flex;gap:0.5rem;">
+    <button type="button" class="btn btn-outline btn-sm"
+            hx-post="/api/briefing/generate"
+            hx-target="#briefing-body"
+            hx-swap="innerHTML"
+            hx-indicator="#briefing-spinner">
+        Regenerate
+    </button>
+</div>

@@ -1,0 +1,56 @@
+services:
+  # Personal tracking dashboard (FastAPI + SQLite)
+  virgil:
+    image: virgil:latest
+    container_name: virgil
+    restart: unless-stopped
+    init: true
+    expose:
+      - "8123"
+    env_file: .env
+    environment:
+      VIRGIL_DB_PATH: /data/virgil.db
+      VIRGIL_SECOND_BRAIN_PATH: /second-brain
+      VIRGIL_ENV: prod
+      VIRGIL_BASE_URL: ${VIRGIL_BASE_URL:-https://localhost:8123}
+      TZ: Europe/Warsaw
+    volumes:
+      - ./data:/data
+      - "${VIRGIL_SECOND_BRAIN_PATH:-.}/second-brain:/second-brain:rw"
+    # Security hardening
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/login')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - virgil-net
+
+  # Outbound-only tunnel — zero open ports on QNAP
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: virgil-cloudflared
+    restart: unless-stopped
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN}
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    mem_limit: 128m
+    depends_on:
+      virgil:
+        condition: service_healthy
+    networks:
+      - virgil-net
+
+networks:
+  virgil-net:
+    driver: bridge

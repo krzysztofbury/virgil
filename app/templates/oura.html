@@ -1,0 +1,311 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Oura{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <h1>Oura Ring Data</h1>
+        {% if oura_connected %}
+        <form method="POST" action="/oura/api-sync" style="margin:0;">
+            <button type="submit" class="btn btn-primary btn-sm">Sync from API</button>
+        </form>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Today's Vitals -->
+{% if oura_today %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header"><h3>Today's Vitals</h3></div>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
+            <div class="stat-label">Sleep</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
+            <div class="stat-label">Readiness</div>
+        </div>
+        <div class="stat-card">
+            {% if oura_today.activity_score %}
+            <div class="stat-value">{{ oura_today.activity_score }}</div>
+            <div class="stat-label">Activity</div>
+            {% elif yesterday_fallback.activity_score %}
+            <div class="stat-value">{{ yesterday_fallback.activity_score }}</div>
+            <div class="stat-label">Activity <small class="text-muted">(yesterday)</small></div>
+            {% else %}
+            <div class="stat-value">-</div>
+            <div class="stat-label">Activity</div>
+            {% endif %}
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
+            <div class="stat-label">HRV (ms)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
+            <div class="stat-label">RHR (bpm)</div>
+        </div>
+        <div class="stat-card">
+            {% if oura_today.steps %}
+            <div class="stat-value">{{ oura_today.steps }}</div>
+            <div class="stat-label">Steps</div>
+            {% elif yesterday_fallback.steps %}
+            <div class="stat-value">{{ yesterday_fallback.steps }}</div>
+            <div class="stat-label">Steps <small class="text-muted">(yesterday)</small></div>
+            {% else %}
+            <div class="stat-value">-</div>
+            <div class="stat-label">Steps</div>
+            {% endif %}
+        </div>
+    </div>
+    {% if oura_today.sleep_duration_hours %}
+    <div style="margin-top:0.75rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
+        <small>Sleep: <strong>{{ '%.1f'|format(oura_today.sleep_duration_hours) }}h</strong></small>
+        {% if oura_today.deep_sleep_hours %}<small>Deep: <strong>{{ '%.1f'|format(oura_today.deep_sleep_hours) }}h</strong></small>{% endif %}
+        {% if oura_today.rem_sleep_hours %}<small>REM: <strong>{{ '%.1f'|format(oura_today.rem_sleep_hours) }}h</strong></small>{% endif %}
+    </div>
+    {% endif %}
+    {% if oura_today.stress_high is not none or oura_today.stress_rest is not none %}
+    <div style="margin-top:0.5rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
+        {% if oura_today.stress_high %}<small>Stress: <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
+        {% if oura_today.stress_rest %}<small>Recovery: <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Weekly Trends (daily granularity) -->
+{% if trend_labels %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header"><h3>Daily Trends (10 days)</h3></div>
+    <div class="chart-container">
+        <canvas id="dailyTrendChart" height="200"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Metric Tabs (monthly) -->
+<div id="metric-content">
+<!-- Monthly Chart -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+        <h3 style="margin:0;">Monthly Trends</h3>
+        <select onchange="window.location.href='/oura/' + this.value + '#metric-content'" class="metric-select">
+            {% for key, name, unit in metrics %}
+            <option value="{{ key }}" {{ 'selected' if current_metric == key else '' }}>{{ name }}{% if unit %} ({{ unit }}){% endif %}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="chart-container">
+        <canvas id="ouraChart" height="200"></canvas>
+    </div>
+</div>
+<script>
+    (function() {
+        var ctx = document.getElementById('ouraChart');
+        if (!ctx) return;
+        var colors = getChartColors();
+        var chart = new Chart(ctx, {
+            type: 'line',
+            data: { labels: {{ labels | tojson }}, datasets: [{
+                label: '{{ metric_name }}',
+                data: {{ values | tojson }},
+                borderColor: 'rgb(168, 85, 247)',
+                backgroundColor: 'rgba(168, 85, 247, 0.1)',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 2,
+            }]},
+            options: {
+                animation: false,
+                responsive: true,
+                interaction: { intersect: false, mode: 'index' },
+                scales: {
+                    x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 11 } } },
+                    y: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 11 } } }
+                },
+                plugins: { legend: { display: false } }
+            }
+        });
+        registerChart(chart);
+    })();
+</script>
+</div>
+
+<!-- History -->
+<details style="margin-bottom: 1.5rem;">
+    <summary>History</summary>
+    <div class="card" style="margin-top: 0.75rem;">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;">History</h3>
+            <select class="metric-select" id="history-view"
+                    onchange="document.getElementById('hist-daily').style.display = this.value === 'daily' ? '' : 'none'; document.getElementById('hist-monthly').style.display = this.value === 'monthly' ? '' : 'none';">
+                <option value="daily">Daily</option>
+                <option value="monthly">Monthly</option>
+            </select>
+        </div>
+
+        {% if daily_data %}
+        <div id="hist-daily" class="overflow-x">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Sleep</th>
+                        <th>Ready</th>
+                        <th>Activity</th>
+                        <th>HRV</th>
+                        <th>RHR</th>
+                        <th>Sleep (h)</th>
+                        <th>Steps</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in daily_data %}
+                    <tr>
+                        <td><small>{{ d.date }}</small></td>
+                        <td>{{ d.sleep_score or '-' }}</td>
+                        <td>{{ d.readiness_score or '-' }}</td>
+                        <td>{{ d.activity_score or '-' }}</td>
+                        <td>{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
+                        <td>{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
+                        <td>{{ '%.1f'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
+                        <td>{{ d.steps or '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% endif %}
+
+        <div id="hist-monthly" class="overflow-x" style="display:none;">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Month</th>
+                        <th>Sleep</th>
+                        <th>Ready</th>
+                        <th>Activity</th>
+                        <th>Steps</th>
+                        <th>Duration</th>
+                        <th>HRV</th>
+                        <th>RHR</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for d in data|reverse %}
+                    <tr>
+                        <td>{{ d.month }}</td>
+                        <td>{{ d.sleep_score|int if d.sleep_score else '-' }}</td>
+                        <td>{{ d.readiness|int if d.readiness else '-' }}</td>
+                        <td>{{ d.activity|int if d.activity else '-' }}</td>
+                        <td>{{ d.steps if d.steps else '-' }}</td>
+                        <td>{{ d.sleep_duration if d.sleep_duration else '-' }}</td>
+                        <td>{{ d.hrv|int if d.hrv else '-' }}</td>
+                        <td>{{ d.rhr|int if d.rhr else '-' }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <details style="margin-top: 0.75rem;">
+            <summary style="font-size: 0.85rem;">Add month</summary>
+        <form method="POST" action="/oura/save" style="margin-top: 0.5rem;">
+            <div class="grid">
+                <div>
+                    <label>Month (YYYY-MM)
+                        <input type="text" name="month" placeholder="2026-02" required pattern="\d{4}-\d{2}">
+                    </label>
+                </div>
+            </div>
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>Sleep Score <input type="number" name="sleep_score" step="0.1"></label></div>
+                <div><label>Readiness <input type="number" name="readiness" step="0.1"></label></div>
+                <div><label>Activity <input type="number" name="activity" step="0.1"></label></div>
+            </div>
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>Steps <input type="number" name="steps"></label></div>
+                <div><label>Sleep Duration (h) <input type="number" name="sleep_duration" step="0.1"></label></div>
+                <div><label>Deep Sleep (h) <input type="number" name="deep_sleep" step="0.1"></label></div>
+            </div>
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>REM Sleep (h) <input type="number" name="rem_sleep" step="0.1"></label></div>
+                <div><label>Resting HR (bpm) <input type="number" name="rhr" step="0.1"></label></div>
+                <div><label>Lowest HR (bpm) <input type="number" name="lowest_hr" step="0.1"></label></div>
+            </div>
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>HRV (ms) <input type="number" name="hrv" step="0.1"></label></div>
+                <div><label>Cardio Age <input type="number" name="cardiovascular_age"></label></div>
+            </div>
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>Stress Normal <input type="number" name="stress_normal"></label></div>
+                <div><label>Stress Stressful <input type="number" name="stress_stressful"></label></div>
+                <div><label>Stress Restored <input type="number" name="stress_restored"></label></div>
+            </div>
+            <div style="margin-top: 0.75rem;">
+                <label>Notes <input type="text" name="notes"></label>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+        </form>
+        </details>
+    </div>
+</details>
+{% endblock %}
+
+{% block head %}
+<script src="/static/js/charts.js"></script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Daily trends chart (4 weeks)
+    {% if trend_labels %}
+    createLineChart('dailyTrendChart', {{ trend_labels | tojson }}, [
+        {
+            label: 'HRV',
+            data: {{ trend_hrv | tojson }},
+            borderColor: 'rgb(168, 85, 247)',
+            backgroundColor: 'rgba(168, 85, 247, 0.1)',
+            tension: 0.3,
+            pointRadius: 1,
+            yAxisID: 'y',
+        },
+        {
+            label: 'Sleep',
+            data: {{ trend_sleep | tojson }},
+            borderColor: 'rgb(59, 130, 246)',
+            tension: 0.3,
+            pointRadius: 1,
+            yAxisID: 'y1',
+        },
+        {
+            label: 'Readiness',
+            data: {{ trend_readiness | tojson }},
+            borderColor: 'rgb(34, 197, 94)',
+            tension: 0.3,
+            pointRadius: 1,
+            yAxisID: 'y1',
+        },
+        {
+            label: 'RHR',
+            data: {{ trend_rhr | tojson }},
+            borderColor: 'rgb(239, 68, 68)',
+            tension: 0.3,
+            pointRadius: 1,
+            yAxisID: 'y',
+        }
+    ], {
+        yScale: { position: 'left', title: { display: true, text: 'HRV/RHR', color: '#8b8b9e' } },
+        chartOptions: {
+            scales: {
+                y: { position: 'left', grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8b8b9e' } },
+                y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#8b8b9e' }, title: { display: true, text: 'Score', color: '#8b8b9e' } },
+                x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8b8b9e', maxRotation: 45 } }
+            }
+        }
+    });
+    {% endif %}
+</script>
+{% endblock %}

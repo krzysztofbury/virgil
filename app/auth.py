@@ -127,7 +127,7 @@ class AuthMiddleware:
             from app.db import get_db, get_setting
 
             db = await get_db()
-            done = await get_setting(db, "onboarding_completed", "1")
+            done = await get_setting(db, "onboarding_completed", "0")
             if done == "1":
                 _onboarding_done = True
             else:

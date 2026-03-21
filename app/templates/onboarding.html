@@ -243,7 +243,7 @@
 
             <div x-show="mode === 'file'">
                 <label>Blood test PDF
-                    <input type="file" name="medical_file" accept=".pdf" style="padding:0.5rem;">
+                    <input type="file" name="medical_file" accept=".pdf" x-show="mode === 'file'" style="padding:0.5rem;">
                 </label>
             </div>
 
@@ -268,7 +268,7 @@
         Review what you've shared. Edit any section, then confirm to let Virgil personalize your experience.
     </p>
 
-    {% if profile.sex or profile.age or profile.family %}
+    {% if profile.sex or profile.age or profile.height_cm or profile.weight_kg or profile.family %}
     <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
             <h3 style="margin:0;">About You</h3>

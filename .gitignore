@@ -1,0 +1,82 @@
+# Data (DB, encryption keys, backups)
+data/
+*.db
+*.key
+
+# Secrets
+.env
+.env.*
+!.env.example
+.qnap.setup
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.pytest_cache/
+coverage.xml
+
+# mypy / Pyre type checkers
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+
+# pyenv
+.python-version
+
+# Linter / formatter cache
+.ruff_cache/
+
+# IDE settings
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# AI coding assistants
+.claude/
+.gemini/
+.codex/
+.cursor/
+.windsurf/
+.aider*
+.continue/
+.codeium/
+.copilot/
+.augment/
+.junie/
+
+# macOS
+.DS_Store
+Icon?
+
+# QNAP
+.qsyncclient/
+
+# Temp / working files
+*.tmp
+assets/
+
+# Logs
+*.log

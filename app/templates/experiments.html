@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Experiments{% endblock %}
+
+{% block content %}
+<div class="flex-between" style="margin-bottom: 1.5rem;">
+    <h1>Experiments</h1>
+    <a href="/experiments/new" class="btn btn-primary btn-sm"><i data-lucide="plus" style="width:16px;height:16px;"></i> New</a>
+</div>
+
+{% if experiments %}
+{% for exp in experiments %}
+<a href="/experiments/{{ exp.id }}" class="exp-card-link">
+    <div class="exp-card">
+        <div class="exp-card-top">
+            <div class="exp-card-title-row">
+                <h3 class="exp-card-title">{{ exp.title }}</h3>
+                <span class="exp-status-badge exp-status-{{ exp.status }}">{{ exp.status }}</span>
+            </div>
+            {% if exp.description %}
+            <p class="exp-card-desc">{{ exp.description }}</p>
+            {% endif %}
+            <div class="exp-card-meta">
+                <span>{{ exp.start_fmt }} &mdash; {{ exp.end_fmt }}</span>
+                <span class="exp-card-dots">
+                    {% for at in exp.activity_types %}
+                    <span class="exp-legend-dot" style="background: {{ at.color }};" title="{{ at.name }}"></span>
+                    {% endfor %}
+                </span>
+            </div>
+        </div>
+
+        <div class="exp-card-stats">
+            <div class="exp-card-stat">
+                <span class="exp-card-stat-value">{{ exp.current_week }}<small>/{{ exp.num_weeks }}</small></span>
+                <span class="exp-card-stat-label">Week</span>
+            </div>
+            <div class="exp-card-stat">
+                <span class="exp-card-stat-value">{{ exp.total_minutes }}<small>m</small></span>
+                <span class="exp-card-stat-label">Logged</span>
+            </div>
+            <div class="exp-card-stat">
+                <span class="exp-card-stat-value">{{ exp.target_total }}<small>m</small></span>
+                <span class="exp-card-stat-label">Target</span>
+            </div>
+            <div class="exp-card-stat exp-card-stat-bar">
+                <div class="progress-bar" style="height: 8px; width: 100%;">
+                    <div class="fill" style="width: {{ exp.progress_pct }}%;"></div>
+                </div>
+                <span class="exp-card-stat-label">{{ exp.progress_pct }}% elapsed</span>
+            </div>
+        </div>
+    </div>
+</a>
+{% endfor %}
+{% else %}
+<div class="card exp-empty">
+    <div class="exp-empty-icon"><i data-lucide="flask-conical" style="width:48px;height:48px;opacity:0.3;"></i></div>
+    <p style="margin-bottom: 0.5rem;">No experiments yet.</p>
+    <p class="text-muted" style="font-size: var(--text-sm); margin-bottom: 1rem;">Track structured, time-boxed health experiments with weekly targets and activity logging.</p>
+    <a href="/experiments/new" class="btn btn-primary">Create Your First Experiment</a>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Virgil - MFA Setup{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Two-Factor Authentication</h1>
+</div>
+
+{% if mfa_enabled %}
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header"><h3>MFA is enabled</h3></div>
+    <p class="text-muted" style="margin-bottom:1rem;">Your account is protected with a TOTP authenticator app.</p>
+
+    {% if error %}
+    <div class="auth-error" style="margin-bottom:1rem;">{{ error }}</div>
+    {% endif %}
+
+    <details>
+        <summary style="cursor:pointer;font-weight:500;color:var(--flag-h);">Disable MFA</summary>
+        <form method="POST" action="/settings/mfa/disable" style="margin-top:0.75rem;">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <label>
+                Confirm your password
+                <input type="password" name="password" required autocomplete="current-password">
+            </label>
+            <button type="submit" class="btn btn-outline" style="color:var(--flag-h);margin-top:0.5rem;">Disable MFA</button>
+        </form>
+    </details>
+</div>
+
+{% else %}
+<div class="card" style="margin-bottom:1rem;">
+    <div class="card-header"><h3>Set up MFA</h3></div>
+    <p class="text-muted" style="margin-bottom:1rem;">Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code to confirm.</p>
+
+    <div style="text-align:center;margin-bottom:1rem;">
+        <img src="/mfa/qr.png?uri={{ provisioning_uri | urlencode }}" alt="QR Code" style="border-radius:8px;">
+    </div>
+    <details style="margin-bottom:1rem;">
+        <summary style="cursor:pointer;font-size:var(--text-sm);color:var(--text-muted);">Manual entry key</summary>
+        <code style="display:block;margin-top:0.5rem;word-break:break-all;font-size:var(--text-sm);">{{ secret }}</code>
+    </details>
+
+    {% if error %}
+    <div class="auth-error" style="margin-bottom:1rem;">{{ error }}</div>
+    {% endif %}
+
+    <form method="POST" action="/settings/mfa/enable">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <label>
+            Verification Code
+            <input type="text" name="totp_code" required autocomplete="one-time-code"
+                   inputmode="numeric" pattern="[0-9]{6}" maxlength="6"
+                   style="text-align:center;font-size:1.5rem;letter-spacing:0.5rem;max-width:220px;">
+        </label>
+        <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Enable MFA</button>
+    </form>
+</div>
+{% endif %}
+
+<div style="margin-top:1rem;">
+    <a href="/settings" class="btn btn-outline">Back to Settings</a>
+</div>
+
+<style>
+.auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); }
+</style>
+{% endblock %}

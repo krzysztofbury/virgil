@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Life Scores{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Life Scores</h1>
+</div>
+
+<!-- Radar Chart -->
+{% if chart_datasets %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="chart-container" style="max-width: 500px; margin: 0 auto;">
+        <canvas id="radarChart"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Power Level Trend -->
+{% if scores %}
+<div class="section">
+    <div class="section-title">Power Level</div>
+    <div class="stat-grid">
+        {% for s in scores[:3] %}
+        <div class="stat-card">
+            <div class="stat-value">{{ s.power_level or '-' }}</div>
+            <div class="stat-label">{{ s.date }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- New Assessment -->
+<details style="margin-bottom: 1.5rem;">
+    <summary>New assessment</summary>
+    <form method="POST" action="/life-scores/save">
+        <div style="margin-bottom: 0.75rem;">
+            <label>Date <input type="date" name="date" required></label>
+        </div>
+
+        <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Areas (1-10)</h4>
+        <div class="grid">
+            {% for i in range(areas|length) %}
+            <div>
+                <label>{{ area_labels[i] }}
+                    <input type="number" name="{{ areas[i] }}" min="1" max="10">
+                </label>
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="grid" style="margin-top: 0.75rem;">
+            <div><label>Power Level <input type="number" name="power_level" step="0.1" min="0" max="10"></label></div>
+            <div><label>Energy Avg <input type="number" name="energy_avg" step="0.1"></label></div>
+        </div>
+
+        <h4 style="margin: 0.75rem 0 0.5rem; color: var(--text-secondary);">Metrics</h4>
+        <div class="grid">
+            <div><label>Weight (kg) <input type="number" name="weight" step="0.1"></label></div>
+            <div><label>Waist (cm) <input type="number" name="waist" step="0.1"></label></div>
+            <div><label>PMO Status <input type="text" name="pmo_status"></label></div>
+        </div>
+        <div class="grid" style="margin-top: 0.75rem;">
+            <div><label>LinkedIn <input type="number" name="linkedin_followers"></label></div>
+            <div><label>YouTube Views <input type="number" name="youtube_views"></label></div>
+            <div><label>Revenue (PLN) <input type="number" name="revenue" step="0.01"></label></div>
+        </div>
+
+        <div style="margin-top: 0.75rem;">
+            <label>Diagnostics <textarea name="diagnostic" rows="3"></textarea></label>
+        </div>
+        <div style="margin-top: 0.75rem;">
+            <label>Priorities <textarea name="priorities" rows="3"></textarea></label>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+    </form>
+</details>
+
+<!-- History -->
+{% if scores %}
+<div class="card">
+    <div class="card-header"><h3>History</h3></div>
+    <div class="overflow-x">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    {% for label in area_labels %}<th>{{ label }}</th>{% endfor %}
+                    <th>Power</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in scores %}
+                <tr>
+                    <td>{{ s.date }}</td>
+                    {% for area in areas %}
+                    <td>{{ s[area] if s[area] else '-' }}</td>
+                    {% endfor %}
+                    <td><strong>{{ s.power_level or '-' }}</strong></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if chart_datasets %}
+<script src="/static/js/charts.js"></script>
+<script>
+    createRadarChart('radarChart',
+        {{ area_labels | tojson }},
+        {{ chart_datasets | tojson }}
+    );
+</script>
+{% endif %}
+{% endblock %}

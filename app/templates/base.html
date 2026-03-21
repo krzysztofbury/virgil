@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Virgil{% endblock %}</title>
+    <script>(function(){var t=localStorage.getItem('virgil-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#06080d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="64x64" href="/static/icons/favicon-64x64.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.8/dist/cdn.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
+    <script src="https://unpkg.com/lucide@0.575.0/dist/umd/lucide.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    {% block head %}{% endblock %}
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ request.state.csrf_token }}"}' data-features='{{ request.state.features | tojson }}'>
+    <div class="bg-pattern" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; z-index: -1; background-image: url('/static/img/branding-pattern.png'); opacity: 0.03; mix-blend-mode: overlay;"></div>
+    <!-- Top Navigation -->
+    <nav class="top-nav">
+        <a href="/" class="nav-logo"><img src="/static/icons/logo.png" alt="Virgil" class="nav-logo-img">Virgil</a>
+        <div class="nav-links">
+            <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Dashboard</a>
+            <a href="/daily" class="{{ 'active' if '/daily' in request.url.path else '' }}">Daily</a>
+            <a href="/training" class="{{ 'active' if '/training' in request.url.path else '' }}">Training</a>
+            {% if request.state.features.feniks %}<a href="/feniks" class="{{ 'active' if '/feniks' in request.url.path else '' }}">Feniks</a>{% endif %}
+            <a href="/oura" class="{{ 'active' if '/oura' in request.url.path else '' }}">Oura</a>
+            <a href="/bloodwork" class="{{ 'active' if '/bloodwork' in request.url.path else '' }}">Blood</a>
+            <a href="/goals" class="{{ 'active' if '/goals' in request.url.path else '' }}">Goals</a>
+            <a href="/experiments" class="{{ 'active' if '/experiments' in request.url.path else '' }}">Experiments</a>
+        </div>
+        <div class="nav-end">
+            <button type="button" id="pwa-install-btn" onclick="pwaInstall()" class="nav-logout" title="Install App" style="display:none;">
+                <i data-lucide="download" style="width:20px;height:20px;"></i>
+            </button>
+            <button type="button" onclick="toggleTheme()" class="nav-logout" title="Toggle theme" id="theme-toggle">
+                <i data-lucide="sun" style="width:20px;height:20px;"></i>
+            </button>
+            <a href="/settings" title="Settings"><i data-lucide="settings" style="width:20px;height:20px;"></i></a>
+            <form method="POST" action="/logout" style="margin:0;display:inline;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <button type="submit" class="nav-logout" title="Logout"><i data-lucide="log-out" style="width:20px;height:20px;"></i></button>
+            </form>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="container">
+        <div id="toast" class="toast" style="display:none"></div>
+        <div id="save-indicator" class="save-indicator"></div>
+        {% block content %}{% endblock %}
+    </main>
+
+    <!-- Bottom Tab Bar (mobile) -->
+    <div class="bottom-bar" x-data="{ openMenu: null }" @click.outside="openMenu = null">
+        <a href="/" class="tab-item {{ 'active' if request.url.path == '/' else '' }}">
+            <i data-lucide="home"></i>
+            <span>Home</span>
+        </a>
+        <a href="/daily" class="tab-item {{ 'active' if '/daily' in request.url.path else '' }}">
+            <i data-lucide="calendar-check"></i>
+            <span>Daily</span>
+        </a>
+        {% if request.state.features.feniks %}
+        <a href="/feniks" class="tab-item {{ 'active' if '/feniks' in request.url.path else '' }}">
+            <i data-lucide="flame"></i>
+            <span>Feniks</span>
+        </a>
+        {% endif %}
+        <div class="tab-item" @click.stop="openMenu = openMenu === 'data' ? null : 'data'"
+             :class="{ 'active': openMenu === 'data' || ['/oura', '/bloodwork'].some(p => '{{ request.url.path }}'.includes(p)) }">
+            <i data-lucide="bar-chart-3"></i>
+            <span>Data</span>
+            <div class="tab-dropdown" :class="{ 'show': openMenu === 'data' }" @click.stop>
+                <a href="/oura"><i data-lucide="moon"></i> Oura</a>
+                <a href="/bloodwork"><i data-lucide="droplets"></i> Blood</a>
+            </div>
+        </div>
+        <div class="tab-item" @click.stop="openMenu = openMenu === 'more' ? null : 'more'"
+             :class="{ 'active': openMenu === 'more' || ['/training', '/goals', '/experiments', '/settings'].some(p => '{{ request.url.path }}'.includes(p)) }">
+            <i data-lucide="menu"></i>
+            <span>More</span>
+            <div class="tab-dropdown" :class="{ 'show': openMenu === 'more' }" @click.stop>
+                <a href="/training"><i data-lucide="dumbbell"></i> Training</a>
+                <a href="/goals"><i data-lucide="crosshair"></i> Goals</a>
+                <a href="/experiments"><i data-lucide="flask-conical"></i> Experiments</a>
+                <a href="/settings"><i data-lucide="settings"></i> Settings</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('submit', function(e) {
+        var form = e.target;
+        if (form.tagName === 'FORM' && !form.querySelector('input[name="_csrf_token"]')) {
+            var input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = '_csrf_token';
+            input.value = document.querySelector('meta[name="csrf-token"]').content;
+            form.appendChild(input);
+        }
+    });
+    </script>
+    <script src="/static/js/app.js"></script>
+    <script>
+    if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(function(){});
+    var _deferredInstall=null;
+    window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_deferredInstall=e;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='inline-flex';});
+    window.addEventListener('appinstalled',function(){_deferredInstall=null;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='none';});
+    function pwaInstall(){if(_deferredInstall){_deferredInstall.prompt();_deferredInstall.userChoice.then(function(){_deferredInstall=null;});}}
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

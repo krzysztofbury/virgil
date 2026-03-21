@@ -10,6 +10,7 @@ from app.models.user_profile import (
     get_profile,
     update_step1,
     update_step2,
+    update_step3,
     update_step4,
     update_step5,
 )
@@ -18,6 +19,22 @@ from app.validation import truncate
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB hard ceiling for medical PDFs.
+MAX_MARKERS = 200
+MAX_RESULTS_PER_MARKER = 50
+
+
+def _safe_float(value: str) -> float | None:
+    """Parse a form string to float, returning None on invalid input."""
+    stripped = value.strip()
+    if not stripped:
+        return None
+    try:
+        return float(stripped)
+    except ValueError:
+        return None
+
 
 GOAL_CATEGORY_MAP = {
     "mind": ["Duchowość", "Rozwój"],
@@ -29,6 +46,7 @@ GOAL_CATEGORY_MAP = {
 
 @router.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, step: int = 0):
+    step = max(0, min(6, step))
     db = await get_db()
     profile = await ensure_profile(db)
 
@@ -80,8 +98,8 @@ async def save_step1(
         db,
         sex=truncate(sex, 20),
         age=int(age) if age.strip().isdigit() else None,
-        height_cm=float(height_cm) if height_cm.strip() else None,
-        weight_kg=float(weight_kg) if weight_kg.strip() else None,
+        height_cm=_safe_float(height_cm),
+        weight_kg=_safe_float(weight_kg),
         family=truncate(family, 500),
         habits_good=truncate(habits_good, 2000),
         habits_bad=truncate(habits_bad, 2000),
@@ -131,8 +149,6 @@ async def save_step3(
 
     await db.commit()
 
-    from app.models.user_profile import update_step3
-
     await update_step3(db)
 
     return RedirectResponse("/onboarding?step=4", status_code=303)
@@ -170,6 +186,8 @@ async def save_step5(
 
     # Process PDF via multimodal LLM if uploaded.
     if medical_file and medical_file.size and medical_file.size > 0 and INTERNAL_LLM_KEY:
+        if medical_file.size > MAX_UPLOAD_BYTES:
+            return RedirectResponse("/onboarding?step=5", status_code=303)
         import base64
 
         import litellm
@@ -253,9 +271,14 @@ async def _parse_medical_text(db, text: str) -> None:
             lines = lines[:-1]
         raw = "\n".join(lines)
 
-    markers = json.loads(raw)
+    try:
+        markers = json.loads(raw)
+    except json.JSONDecodeError:
+        logger.warning("Could not parse medical markers JSON")
+        return
     if not isinstance(markers, list):
         return
+    markers = markers[:MAX_MARKERS]
 
     for m in markers:
         name = m.get("marker", "")
@@ -281,7 +304,7 @@ async def _parse_medical_text(db, text: str) -> None:
             continue
         marker_id = marker_row[0]["id"]
 
-        for r in m.get("results", []):
+        for r in m.get("results", [])[:MAX_RESULTS_PER_MARKER]:
             date_val = r.get("date", "")
             value = r.get("value")
             flag = r.get("flag", "")

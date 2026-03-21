@@ -1,0 +1,201 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Daily Log{% endblock %}
+
+{% block content %}
+<div data-swipe-left="/daily/{{ next_day }}" data-swipe-right="/daily/{{ prev_day }}">
+<!-- Date Navigator -->
+<div class="date-nav">
+    <a href="/daily/{{ prev_day }}" class="btn btn-icon"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
+    <h2>{{ day_name }} {{ date }}</h2>
+    <a href="/daily/{{ next_day }}" class="btn btn-icon"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></a>
+</div>
+
+<form id="daily-form"
+      hx-post="/daily/save"
+      hx-trigger="change"
+      hx-target="#save-indicator"
+      hx-swap="innerHTML"
+      hx-indicator="#save-indicator">
+    <input type="hidden" name="date" value="{{ date }}">
+
+    <!-- Routines & Energy -->
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Routines & Energy</h3></div>
+
+        {% set energy_val = log.energy if log and log.energy else 5 %}
+        <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
+            <span class="energy-display" id="energy-val">{{ energy_val }}</span>
+            <input type="range" name="energy" id="energy-slider" min="1" max="10" value="{{ energy_val }}"
+                   style="flex: 1; --pct: {{ ((energy_val - 1) / 9 * 100) | round }}%;"
+                   oninput="this.style.setProperty('--pct', ((this.value - 1) / 9 * 100) + '%'); document.getElementById('energy-val').textContent = this.value;">
+            <span class="text-muted">/10</span>
+        </div>
+
+        {% macro toggle(name, label, value) %}
+        <div class="andy-item">
+            <span class="andy-label">{{ label }}</span>
+            <div class="toggle-group">
+                <input type="hidden" name="{{ name }}" value="{{ value or 'pending' }}">
+                <button type="button"
+                    class="toggle-btn {{ 'active-done' if value == 'done' else 'active-skipped' if value == 'skipped' else 'active-pending' }}"
+                    onclick="cycleStatus(this)">
+                    {% if value == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
+                    {% elif value == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
+                    {% endif %}
+                </button>
+            </div>
+        </div>
+        {% endmacro %}
+
+        {{ toggle('morning_routine', 'Morning Routine', log.morning_routine if log else 'pending') }}
+        {{ toggle('evening_routine', 'Evening Routine', log.evening_routine if log else 'pending') }}
+        {{ toggle('water', 'Water Intake (>2500ml)', log.water if log else 'pending') }}
+    </div>
+
+    <!-- A.N.D.Y. -->
+    <div class="card andy-card" style="margin-bottom: 1rem;" id="andy-card">
+        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h3 style="margin:0;">A.N.D.Y.</h3>
+            {% if llm_configured %}
+            <button type="button" class="btn btn-sm btn-outline andy-gen-btn"
+                    id="andy-gen-btn"
+                    hx-post="/daily/generate-andy"
+                    hx-vals='{"date": "{{ date }}"}'
+                    hx-target="body"
+                    hx-swap="none"
+                    hx-indicator="#andy-card"
+                    title="Generate with AI">
+                <span class="andy-btn-idle"><i data-lucide="sparkles" style="width:14px;height:14px;"></i> AI</span>
+                <span class="andy-btn-loading"><span class="spinner"></span> Generating...</span>
+            </button>
+            {% endif %}
+        </div>
+
+        {% set andy_icons = {'andy_body': 'andy-body', 'andy_spirit': 'andy-spirit', 'andy_account': 'andy-self', 'andy_relations': 'andy-relations'} %}
+        {% macro andy_row(name, label, status, desc) %}
+        <div class="andy-item andy-item--task">
+            <div class="andy-item-header">
+                <img src="/static/img/{{ andy_icons[name] }}.png" alt="{{ label }}" class="andy-icon">
+                <span class="andy-label">{{ label }}</span>
+                <div class="toggle-group">
+                    <input type="hidden" name="{{ name }}_status" value="{{ status or 'pending' }}">
+                    <button type="button"
+                        class="toggle-btn {{ 'active-done' if status == 'done' else 'active-skipped' if status == 'skipped' else 'active-pending' }}"
+                        onclick="cycleStatus(this)">
+                        {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
+                        {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
+                        {% endif %}
+                    </button>
+                </div>
+            </div>
+            <input type="text" name="{{ name }}_desc" value="{{ desc or '' }}" placeholder="Description..."
+                   class="andy-desc">
+        </div>
+        {% endmacro %}
+
+        <div class="andy-grid">
+            {{ andy_row('andy_body', 'Body', log.andy_body_status if log else 'pending', log.andy_body_desc if log else '') }}
+            {{ andy_row('andy_spirit', 'Spirit', log.andy_spirit_status if log else 'pending', log.andy_spirit_desc if log else '') }}
+            {{ andy_row('andy_account', 'Self', log.andy_account_status if log else 'pending', log.andy_account_desc if log else '') }}
+            {{ andy_row('andy_relations', 'Relations', log.andy_relations_status if log else 'pending', log.andy_relations_desc if log else '') }}
+        </div>
+    </div>
+
+    <!-- Notes -->
+    <div class="card" x-data="{ editing: false }">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+            <h3>Notes</h3>
+            <button type="button" class="btn btn-sm btn-outline" @click="editing = !editing" x-text="editing ? 'Save' : 'Edit'"></button>
+        </div>
+        <div x-show="editing">
+            <textarea name="notes" rows="3" placeholder="Notes for the day..."
+                      hx-trigger="blur changed"
+                      hx-post="/daily/save"
+                      hx-include="closest form"
+                      hx-target="#save-indicator"
+                      hx-swap="innerHTML">{{ log.notes if log else '' }}</textarea>
+        </div>
+        <div x-show="!editing" class="md-preview">
+            {% if log and log.notes %}
+            {{ log.notes | md_block }}
+            {% else %}
+            <p class="text-muted">No notes yet.</p>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<!-- Habit Streaks -->
+{% if habit_streaks %}
+<div class="card" style="margin-top: 1rem; margin-bottom: 1rem;">
+    <div class="card-header"><h3>Habit Streaks</h3></div>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+        {% for field, info in habit_streaks.items() %}
+        <div class="stat-card" style="flex:1;min-width:80px;text-align:center;">
+            <div class="stat-value" style="font-size:1.2rem;">{{ info.streak }}</div>
+            <div class="stat-label" style="font-size:0.65rem;">{{ info.label }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Habit Completion Heatmap (7 days) -->
+{% if heatmap_data %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Completion Heatmap</h3></div>
+    <div class="heatmap-grid heatmap-grid--week">
+        {% for d in heatmap_data %}
+        <div class="heatmap-cell heatmap-cell--week" title="{{ d.date }}: {{ d.pct }}%"
+             style="background: {% if d.pct > 0 %}hsl({{ (d.pct * 1.2) | round }}, 65%, 35%){% else %}rgba(255,255,255,0.05){% endif %};">
+            <span class="heatmap-day-label">{{ d.day_short }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Saturday Measurements -->
+{% if is_saturday %}
+<form hx-post="/daily/measurements"
+      hx-trigger="change"
+      hx-target="#save-indicator"
+      hx-swap="innerHTML"
+      hx-indicator="#save-indicator">
+    <input type="hidden" name="date" value="{{ date }}">
+    <div class="card" style="margin-top: 1rem;">
+        <div class="card-header"><h3>Measurements (Saturday)</h3></div>
+        <div class="grid">
+            <div>
+                <label>Weight (kg)
+                    <input type="number" step="0.1" name="weight" value="{{ measurements.weight if measurements and measurements.weight else '' }}" placeholder="kg">
+                </label>
+            </div>
+            <div>
+                <label>Arm (cm)
+                    <input type="number" step="0.1" name="arm" value="{{ measurements.arm if measurements and measurements.arm else '' }}" placeholder="cm">
+                </label>
+            </div>
+        </div>
+        <div class="grid" style="margin-top: 0.75rem;">
+            <div>
+                <label>Waist (cm)
+                    <input type="number" step="0.1" name="waist" value="{{ measurements.waist if measurements and measurements.waist else '' }}" placeholder="cm">
+                </label>
+            </div>
+            <div>
+                <label>Hips (cm)
+                    <input type="number" step="0.1" name="hips" value="{{ measurements.hips if measurements and measurements.hips else '' }}" placeholder="cm">
+                </label>
+            </div>
+            <div>
+                <label>Thighs (cm)
+                    <input type="number" step="0.1" name="thighs" value="{{ measurements.thighs if measurements and measurements.thighs else '' }}" placeholder="cm">
+                </label>
+            </div>
+        </div>
+    </div>
+</form>
+{% endif %}
+</div><!-- swipe wrapper -->
+{% endblock %}

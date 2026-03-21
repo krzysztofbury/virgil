@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Project Feniks{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Project Feniks</h1>
+</div>
+
+<!-- Streak Hero -->
+<div class="streak-hero">
+    <div class="streak-number">{{ streak_days }}</div>
+    <div class="streak-label">days clean</div>
+    {% if config %}
+    <div class="streak-progress">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.35rem;">
+            <small class="text-muted">Day {{ streak_days }}/{{ config.target_days }}</small>
+            <small class="text-muted">{{ progress }}%</small>
+        </div>
+        <div class="progress-bar">
+            <div class="fill" style="width: {{ progress }}%"></div>
+        </div>
+    </div>
+    {% endif %}
+</div>
+
+<!-- Progress Graph -->
+{% if progress_chart and progress_chart.streak_values %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header"><h3>Streak Progress</h3></div>
+    <div class="chart-container">
+        <canvas id="feniksTrendChart" height="180"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Relapse Button -->
+<details style="margin-bottom: 1.5rem;">
+    <summary>Report relapse</summary>
+    <form method="POST" action="/feniks/relapse">
+        <div style="margin-bottom: 0.75rem;">
+            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+        </div>
+        <textarea name="notes" placeholder="What happened? (optional)" rows="2"></textarea>
+        <button type="submit" class="btn btn-danger" style="margin-top: 0.5rem;">Confirm relapse</button>
+    </form>
+</details>
+
+<!-- Tabs -->
+<div class="tabs">
+    <a href="/feniks/journal" class="{{ 'active' if tab == 'journal' else '' }}">Journal</a>
+    <a href="/feniks/pleasures" class="{{ 'active' if tab == 'pleasures' else '' }}">Pleasures</a>
+    <a href="/feniks/milestones" class="{{ 'active' if tab == 'milestones' else '' }}">Milestones</a>
+</div>
+
+{% if tab == 'journal' %}
+<!-- Journal -->
+<div class="card">
+    <div class="card-header">
+        <h3>Journal Entry</h3>
+        {% if form_date != today %}<a href="/feniks/journal" class="btn btn-secondary btn-sm">Back to today</a>{% endif %}
+    </div>
+    <form method="POST" action="/feniks/journal">
+        <div style="margin-bottom: 0.75rem;">
+            <label>Date <input type="date" name="date" value="{{ form_date }}" required></label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>Emotions / Unmet Needs
+                <textarea name="emotions" rows="2">{{ today_journal.emotions if today_journal else '' }}</textarea>
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>Situation / Triggers
+                <textarea name="triggers" rows="2">{{ today_journal.triggers if today_journal else '' }}</textarea>
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>Thoughts / Beliefs
+                <textarea name="thoughts" rows="2">{{ today_journal.thoughts if today_journal else '' }}</textarea>
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>How do I want to feel?
+                <textarea name="desired_feelings" rows="2">{{ today_journal.desired_feelings if today_journal else '' }}</textarea>
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>What can I do for myself?
+                <textarea name="coping_strategies" rows="2">{{ today_journal.coping_strategies if today_journal else '' }}</textarea>
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">Save</button>
+    </form>
+</div>
+
+{% if journal %}
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header"><h3>History</h3></div>
+    <div class="overflow-x">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Emotions</th>
+                    <th>Triggers</th>
+                    <th>Thoughts</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for j in journal %}
+                <tr style="cursor:pointer;" onclick="window.location='/feniks/journal?date={{ j.date }}'">
+                    <td>{{ j.date }}</td>
+                    <td>{{ j.emotions[:50] }}{{ '...' if j.emotions|length > 50 else '' }}</td>
+                    <td>{{ j.triggers[:50] }}{{ '...' if j.triggers|length > 50 else '' }}</td>
+                    <td>{{ j.thoughts[:50] }}{{ '...' if j.thoughts|length > 50 else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+
+{% elif tab == 'pleasures' %}
+<!-- Pleasures -->
+<div class="card">
+    <div class="card-header"><h3>Two Pleasures</h3></div>
+    <form method="POST" action="/feniks/pleasures">
+        <div style="margin-bottom: 0.75rem;">
+            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+        </div>
+        <div class="grid">
+            <div>
+                <label>Pleasure 1
+                    <input type="text" name="pleasure_1" value="{{ today_pleasures.pleasure_1 if today_pleasures else '' }}">
+                </label>
+            </div>
+            <div>
+                <label>Pleasure 2
+                    <input type="text" name="pleasure_2" value="{{ today_pleasures.pleasure_2 if today_pleasures else '' }}">
+                </label>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+    </form>
+</div>
+
+{% if pleasures %}
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header"><h3>History</h3></div>
+    <table>
+        <thead><tr><th>Date</th><th>Pleasure 1</th><th>Pleasure 2</th></tr></thead>
+        <tbody>
+            {% for p in pleasures %}
+            <tr>
+                <td>{{ p.date }}</td>
+                <td>{{ p.pleasure_1 }}</td>
+                <td>{{ p.pleasure_2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+{% elif tab == 'milestones' %}
+<!-- Milestones -->
+{% for week_num, items in weeks.items() %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Week {{ week_num }}</h3></div>
+    {% for m in items %}
+    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border);">
+        <form hx-post="/feniks/milestone" hx-target="this" hx-swap="innerHTML" style="margin: 0;">
+            <button type="submit" class="toggle-btn {{ 'active-done' if m.completed else 'active-pending' }}" style="width: 32px; height: 32px;"
+                    hx-post="/feniks/milestone" hx-target="closest form" hx-swap="innerHTML"
+                    hx-vals='{"day_number": {{ m.day_number }}}'>
+                {% if m.completed %}<i data-lucide="check" style="width:14px;height:14px;"></i>{% endif %}
+            </button>
+        </form>
+        <strong style="font-size: var(--text-sm);">Day {{ m.day_number }}:</strong>
+        <span style="font-size: var(--text-sm);">{{ m.title }}</span>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if progress_chart and progress_chart.streak_values %}
+<script src="/static/js/charts.js"></script>
+<script>
+(function() {
+    const labels = {{ progress_chart.labels | tojson }};
+    const values = {{ progress_chart.streak_values | tojson }};
+    const relapseIndices = {{ progress_chart.relapses | tojson }};
+
+    // Mark relapse points with red dots
+    const pointColors = labels.map((_, i) => relapseIndices.includes(i) ? 'rgb(239, 68, 68)' : 'transparent');
+    const pointRadii = labels.map((_, i) => relapseIndices.includes(i) ? 6 : 0);
+
+    createLineChart('feniksTrendChart', labels, [{
+        label: 'Streak (days)',
+        data: values,
+        borderColor: 'rgb(168, 85, 247)',
+        backgroundColor: 'rgba(168, 85, 247, 0.1)',
+        fill: true,
+        tension: 0.1,
+        pointRadius: pointRadii,
+        pointBackgroundColor: pointColors,
+        pointBorderColor: pointColors,
+    }]);
+})();
+</script>
+{% endif %}
+{% endblock %}

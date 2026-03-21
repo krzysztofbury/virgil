@@ -1,0 +1,17 @@
+.env
+.env.*
+!.env.example
+data/
+.venv/
+.claude/
+.ruff_cache/
+.qsyncclient/
+.DS_Store
+*.db
+*.key
+*.tmp
+.git/
+.gitignore
+assets/
+TODO.md
+README.md

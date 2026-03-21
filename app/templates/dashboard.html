@@ -1,0 +1,409 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Dashboard{% endblock %}
+
+{% block content %}
+
+<!-- Morning Briefing -->
+{% if briefing_enabled %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h3>Morning Briefing</h3>
+        <span id="briefing-spinner" class="htmx-indicator"><span class="spinner"></span></span>
+    </div>
+    <div id="briefing-body">
+        {% if briefing_text %}
+        <div class="briefing-content">
+            {{ briefing_text | md_block }}
+        </div>
+        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;">
+            <button type="button" class="btn btn-outline btn-sm"
+                    hx-post="/api/briefing/generate"
+                    hx-target="#briefing-body"
+                    hx-swap="innerHTML"
+                    hx-indicator="#briefing-spinner">
+                Regenerate
+            </button>
+        </div>
+        {% else %}
+        <p class="text-muted" style="margin-bottom:0.75rem;">No briefing generated yet for today.</p>
+        <button type="button" class="btn btn-primary btn-sm"
+                hx-post="/api/briefing/generate"
+                hx-target="#briefing-body"
+                hx-swap="innerHTML"
+                hx-indicator="#briefing-spinner">
+            Generate Briefing
+        </button>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Week Overview -->
+<div class="section">
+    <div class="section-title">Week</div>
+    <div class="card">
+        <div class="week-grid">
+            {% for i in range(7) %}
+            <a href="/daily/{{ week_dates[i] }}" class="day-cell {{ 'today' if week_dates[i] == today else '' }}">
+                <div class="day-name">{{ day_names[i] }}</div>
+                <div class="day-energy">{{ week_logs[i].energy if week_logs[i].energy else '-' }}</div>
+                <div class="progress-bar" style="height: 4px;">
+                    <div class="fill" style="width: {{ week_logs[i].completion }}%"></div>
+                </div>
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- A.N.D.Y. Summary -->
+<div class="section">
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
+        Today's A.N.D.Y.
+        <a href="/daily/{{ today }}" class="btn btn-sm btn-outline">
+            {% if today_log %}Edit today's log{% else %}Log today{% endif %}
+            <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
+        </a>
+    </div>
+    <div class="card">
+        {% if today_log %}
+        {% set andy_icons = {'body': 'andy-body', 'spirit': 'andy-spirit', 'account': 'andy-self', 'relations': 'andy-relations'} %}
+        <div class="andy-grid">
+            {% for name, label in [('body', 'Body'), ('spirit', 'Spirit'), ('account', 'Self'), ('relations', 'Relations')] %}
+            {% set status = today_log['andy_' ~ name ~ '_status'] %}
+            {% set desc = today_log['andy_' ~ name ~ '_desc'] %}
+            <div class="andy-item andy-item--task">
+                <div class="andy-item-header">
+                    <img src="/static/img/{{ andy_icons[name] }}.png" alt="{{ label }}" class="andy-icon">
+                    <span class="andy-label">{{ label }}</span>
+                    <span class="{{ 'text-green' if status == 'done' else 'text-yellow' if status == 'skipped' else 'text-muted' }}">
+                        {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
+                        {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
+                        {% else %}<i data-lucide="circle" style="width:16px;height:16px;"></i>{% endif %}
+                    </span>
+                </div>
+                {% if desc %}<small class="text-muted">{{ desc }}</small>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No entry for today.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Oura -->
+<div class="section">
+    <div class="section-title">Oura</div>
+    <div class="card">
+        {% if oura_today %}
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
+                <div class="stat-label">Sleep</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
+                <div class="stat-label">Readiness</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
+                <div class="stat-label">HRV</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
+                <div class="stat-label">RHR</div>
+            </div>
+            {% if oura_today.activity_score is not none or yesterday_fallback.activity_score is defined %}
+            <div class="stat-card">
+                {% if oura_today.activity_score is not none %}
+                <div class="stat-value">{{ oura_today.activity_score }}</div>
+                <div class="stat-label">Activity</div>
+                {% else %}
+                <div class="stat-value">{{ yesterday_fallback.activity_score }}</div>
+                <div class="stat-label">Activity <small class="text-muted">(yesterday)</small></div>
+                {% endif %}
+            </div>
+            {% endif %}
+            {% if oura_today.steps is not none or yesterday_fallback.steps is defined %}
+            <div class="stat-card">
+                {% if oura_today.steps is not none %}
+                <div class="stat-value">{{ oura_today.steps|int }}</div>
+                <div class="stat-label">Steps</div>
+                {% else %}
+                <div class="stat-value">{{ yesterday_fallback.steps|int }}</div>
+                <div class="stat-label">Steps <small class="text-muted">(yesterday)</small></div>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+        {% if oura_today.stress_high is not none or oura_today.stress_rest is not none %}
+        <div style="margin-top:0.5rem;display:flex;gap:1rem;flex-wrap:wrap;">
+            {% if oura_today.stress_high %}<small>Stress: <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
+            {% if oura_today.stress_rest %}<small>Recovery: <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
+        </div>
+        {% endif %}
+        <small>Today</small>
+        {% elif latest_oura %}
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_oura.sleep_score|int if latest_oura.sleep_score else '-' }}</div>
+                <div class="stat-label">Sleep</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_oura.readiness|int if latest_oura.readiness else '-' }}</div>
+                <div class="stat-label">Readiness</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_oura.hrv|int if latest_oura.hrv else '-' }}</div>
+                <div class="stat-label">HRV</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_oura.steps|int if latest_oura.steps else '-' }}</div>
+                <div class="stat-label">Steps</div>
+            </div>
+        </div>
+        <small>{{ latest_oura.month }}</small>
+        {% else %}
+        <p class="text-muted">No Oura data</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Measurements -->
+<div class="section">
+    <div class="section-title">Measurements</div>
+    <div class="card">
+        {% if latest_meas %}
+        <div class="stat-grid">
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_meas.weight or '-' }}</div>
+                <div class="stat-label">Weight (kg)</div>
+                {% if prev_meas and latest_meas.weight and prev_meas.weight %}
+                <small class="{{ 'text-green' if latest_meas.weight <= prev_meas.weight else 'text-red' }}">
+                    {{ '%+.1f' | format(latest_meas.weight - prev_meas.weight) }}
+                </small>
+                {% endif %}
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_meas.waist or '-' }}</div>
+                <div class="stat-label">Waist (cm)</div>
+            </div>
+            {% if latest_meas.arm is defined and latest_meas.arm %}
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_meas.arm }}</div>
+                <div class="stat-label">Arm (cm)</div>
+            </div>
+            {% endif %}
+            {% if latest_meas.hips is defined and latest_meas.hips %}
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_meas.hips }}</div>
+                <div class="stat-label">Hips (cm)</div>
+            </div>
+            {% endif %}
+            {% if latest_meas.thighs is defined and latest_meas.thighs %}
+            <div class="stat-card">
+                <div class="stat-value">{{ latest_meas.thighs }}</div>
+                <div class="stat-label">Thighs (cm)</div>
+            </div>
+            {% endif %}
+        </div>
+        <small class="text-muted">{{ latest_meas.date }}</small>
+        {% else %}
+        <p class="text-muted">No measurements</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Active Experiments -->
+{% if active_experiments %}
+<div class="section">
+    <div class="section-title">Active Experiments</div>
+    {% for exp in active_experiments %}
+    <div class="card" style="margin-bottom: 0.75rem;">
+        <div class="flex-between">
+            <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
+            {% if exp.not_started %}
+            <small class="text-muted">Starts {{ exp.start_date }}</small>
+            {% else %}
+            <small class="text-muted">Week {{ exp.current_week }}/{{ exp.num_weeks }}</small>
+            {% endif %}
+        </div>
+        <div class="exp-widget-bar">
+            <div class="progress-bar" style="height: 6px; flex: 1;">
+                <div class="fill" style="width: {{ (exp.current_week / exp.num_weeks * 100)|round if not exp.not_started else 0 }}%;"></div>
+            </div>
+            <small class="text-muted">{{ exp.total_minutes }}m</small>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- Life Scores -->
+<div class="section">
+    <div class="section-title">Life Scores</div>
+
+    {% if chart_datasets %}
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="chart-container" style="max-width: 500px; margin: 0 auto;">
+            <canvas id="radarChart"></canvas>
+        </div>
+    </div>
+    {% endif %}
+
+    {% if scores %}
+    <div class="stat-grid" style="margin-bottom: 1rem;">
+        {% for s in scores[:3] %}
+        <div class="stat-card">
+            <div class="stat-value">{{ s.power_level or '-' }}</div>
+            <div class="stat-label">{{ s.date }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    <details style="margin-bottom: 1rem;">
+        <summary>New assessment</summary>
+        <form method="POST" action="/life-scores/save">
+            <div style="margin-bottom: 0.75rem;">
+                <label>Date <input type="date" name="date" required></label>
+            </div>
+
+            <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Areas (1-10)</h4>
+            <div class="grid">
+                {% for i in range(areas|length) %}
+                <div>
+                    <label>{{ area_labels[i] }}
+                        <input type="number" name="{{ areas[i] }}" min="1" max="10">
+                    </label>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>Power Level <input type="number" name="power_level" step="0.1" min="0" max="10"></label></div>
+                <div><label>Energy Avg <input type="number" name="energy_avg" step="0.1"></label></div>
+            </div>
+
+            <h4 style="margin: 0.75rem 0 0.5rem; color: var(--text-secondary);">Metrics</h4>
+            <div class="grid">
+                <div><label>Weight (kg) <input type="number" name="weight" step="0.1"></label></div>
+                <div><label>Waist (cm) <input type="number" name="waist" step="0.1"></label></div>
+                <div><label>PMO Status <input type="text" name="pmo_status"></label></div>
+            </div>
+            <div class="grid" style="margin-top: 0.75rem;">
+                <div><label>LinkedIn <input type="number" name="linkedin_followers"></label></div>
+                <div><label>YouTube Views <input type="number" name="youtube_views"></label></div>
+                <div><label>Revenue (PLN) <input type="number" name="revenue" step="0.01"></label></div>
+            </div>
+
+            <div style="margin-top: 0.75rem;">
+                <label>Diagnostics <textarea name="diagnostic" rows="3"></textarea></label>
+            </div>
+            <div style="margin-top: 0.75rem;">
+                <label>Priorities <textarea name="priorities" rows="3"></textarea></label>
+            </div>
+
+            <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+        </form>
+    </details>
+
+    {% if scores %}
+    <details>
+        <summary>History</summary>
+        <div class="card">
+            <div class="overflow-x">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            {% for label in area_labels %}<th>{{ label }}</th>{% endfor %}
+                            <th>Power</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in scores %}
+                        <tr>
+                            <td>{{ s.date }}</td>
+                            {% for area in areas %}
+                            <td>{{ s[area] if s[area] else '-' }}</td>
+                            {% endfor %}
+                            <td><strong>{{ s.power_level or '-' }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+    {% endif %}
+</div>
+
+<!-- Year Calendar -->
+<div class="section">
+    <div class="section-title">{{ current_year }}</div>
+    <div class="year-cal-grid">
+        {% for month in year_months %}
+        <div class="year-cal-month">
+            <div class="year-cal-month-name">{{ month.name }}</div>
+            <div class="year-cal-dots">
+                {% for _ in range(month.first_weekday) %}
+                <span class="year-cal-dot year-cal-dot-empty"></span>
+                {% endfor %}
+                {% for d in month.days %}
+                <span class="year-cal-dot year-cal-dot-{{ d.status }}"
+                      {% if d.pct > 0 %}data-tip="{{ d.date }}: {{ d.pct }}% — ANDY {{ d.andy }}/4, Routines {{ d.routines }}/3"{% endif %}></span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    <div class="year-cal-footer">
+        <span class="year-cal-today-marker"></span> today &nbsp;&middot;&nbsp; {{ days_left }}d left &middot; {{ year_pct }}%
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/charts.js"></script>
+<script>
+    {% if chart_datasets %}
+    createRadarChart('radarChart', {{ area_labels | tojson }}, {{ chart_datasets | tojson }});
+    {% endif %}
+
+    // Year calendar tooltips (hover + click for mobile)
+    (function() {
+        var tooltip = document.createElement('div');
+        tooltip.className = 'year-cal-tooltip';
+        tooltip.style.display = 'none';
+        document.body.appendChild(tooltip);
+
+        function showTip(el) {
+            var tip = el.getAttribute('data-tip');
+            if (!tip) return;
+            tooltip.textContent = tip;
+            tooltip.style.display = 'block';
+            var rect = el.getBoundingClientRect();
+            tooltip.style.left = Math.max(8, rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+            tooltip.style.top = (rect.top - tooltip.offsetHeight - 6 + window.scrollY) + 'px';
+        }
+
+        function hideTip() {
+            tooltip.style.display = 'none';
+        }
+
+        document.querySelectorAll('.year-cal-dot[data-tip]').forEach(function(dot) {
+            dot.addEventListener('mouseenter', function() { showTip(dot); });
+            dot.addEventListener('mouseleave', hideTip);
+            dot.addEventListener('click', function(e) {
+                e.stopPropagation();
+                showTip(dot);
+                setTimeout(hideTip, 2500);
+            });
+        });
+
+        document.addEventListener('click', hideTip);
+    })();
+</script>
+{% endblock %}

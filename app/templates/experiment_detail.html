@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% block title %}Virgil - {{ experiment.title }}{% endblock %}
+
+{% block content %}
+<!-- Header -->
+<div class="exp-header">
+    <h1>{{ experiment.title }}</h1>
+    <p class="exp-subtitle">
+        {{ experiment.description }}
+        {% if experiment.description %} &middot; {% endif %}
+        {{ start_fmt }} &mdash; {{ end_fmt }}
+        &middot; <a href="/">Dashboard</a>
+        {% if experiment.status != 'active' %}
+        &middot; <span class="exp-status-badge exp-status-{{ experiment.status }}">{{ experiment.status }}</span>
+        {% endif %}
+    </p>
+</div>
+
+<!-- Stats Bar -->
+<div class="exp-stats-bar">
+    {% for ts in stats.type_stats %}
+    <div class="exp-stat">
+        <span class="exp-stat-value" style="color: {{ ts.color }};">{{ ts.total_minutes }}m</span>
+        <span class="exp-stat-label">TOTAL {{ ts.name|upper }}</span>
+    </div>
+    {% endfor %}
+    <div class="exp-stat">
+        <span class="exp-stat-value">{{ stats.target_total }}m</span>
+        <span class="exp-stat-label">TARGET</span>
+    </div>
+    <div class="exp-stat">
+        <span class="exp-stat-value">{{ stats.weeks_done }} <small>/ {{ experiment.num_weeks }}</small></span>
+        <span class="exp-stat-label">WEEKS DONE</span>
+    </div>
+    <div class="exp-stat">
+        <span class="exp-stat-value">{{ stats.current_week }} <small>of {{ experiment.num_weeks }}</small></span>
+        <span class="exp-stat-label">WEEK</span>
+    </div>
+</div>
+
+<!-- Legend -->
+<div class="exp-legend">
+    {% for at in activity_types %}
+    <span class="exp-legend-item">
+        <span class="exp-legend-dot" style="background: {{ at.color }};"></span>
+        {{ at.name }}
+    </span>
+    {% endfor %}
+    <span class="exp-legend-item">
+        <span class="exp-legend-dot exp-legend-today"></span>
+        Today
+    </span>
+</div>
+
+<!-- Week Grid -->
+<div class="exp-grid">
+    <!-- Header row -->
+    <div class="exp-grid-header">
+        <div class="exp-week-info-col"></div>
+        <div class="exp-days-header">
+            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span><span>Fri</span><span>Sat</span><span>Sun</span>
+        </div>
+        <div class="exp-progress-col"></div>
+    </div>
+
+    {% for week in grid %}
+    <div class="exp-week-row {{ 'exp-week-current' if week.is_current else '' }} {{ 'exp-week-future' if week.is_future else '' }}">
+        <!-- Left: Week info -->
+        <div class="exp-week-info">
+            <strong>Week {{ week.week_number }}</strong>
+            {% if week.label %}
+            <span class="exp-week-tag">{{ week.label }}</span>
+            {% endif %}
+            <small>{{ week.monday_fmt }}&ndash;{{ week.sunday_fmt }}</small>
+        </div>
+
+        <!-- Center: Day cells -->
+        <div class="exp-days">
+            {% for day in week.days %}
+            {% set has_oura = day.entries|selectattr("source", "equalto", "oura")|list|length > 0 if day.entries else false %}
+            <div class="exp-day {{ 'exp-day-today' if day.is_today else '' }} {{ 'exp-day-filled' if day.color else '' }}"
+                 {% if day.color %}style="background: {{ day.color }};{{ ' border: 2px dashed rgba(255,255,255,0.6);' if has_oura else '' }}"{% endif %}>
+                {% if day.label %}
+                <span class="exp-day-label">{{ day.label }}</span>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <!-- Right: Progress -->
+        <div class="exp-week-progress" x-data="{ editing: false }">
+            <template x-if="!editing">
+                <div>
+                    <span class="exp-week-summary" @dblclick="editing = true" title="Double-click to edit targets">
+                        <strong>{{ week.total }}m</strong> / {{ week.target_min }}&ndash;{{ week.target_max }}m
+                    </span>
+                    <div class="progress-bar" style="height: 5px;">
+                        <div class="fill {{ 'exp-bar-success' if week.status_class == 'success' else '' }}"
+                             style="width: {{ week.progress_pct }}%;"></div>
+                    </div>
+                    <small class="exp-status-text exp-status-{{ week.status_class }}">
+                        {% if week.status == 'complete' %}complete &#10003;{% else %}{{ week.status }}{% endif %}
+                    </small>
+                </div>
+            </template>
+            <template x-if="editing">
+                <form action="/experiments/{{ experiment.id }}/week/{{ week.week_number }}/targets" method="post"
+                      style="display: flex; gap: 0.3rem; align-items: center; font-size: var(--text-xs);">
+                    <input type="number" name="target_min" value="{{ week.target_min }}" style="width: 4rem; padding: 0.2rem; margin: 0; font-size: var(--text-xs);">
+                    <span>&ndash;</span>
+                    <input type="number" name="target_max" value="{{ week.target_max }}" style="width: 4rem; padding: 0.2rem; margin: 0; font-size: var(--text-xs);">
+                    <input type="text" name="label" value="{{ week.label }}" placeholder="label" style="width: 4.5rem; padding: 0.2rem; margin: 0; font-size: var(--text-xs);">
+                    <button type="submit" class="btn btn-primary btn-sm" style="padding: 0.2rem 0.4rem;">&#10003;</button>
+                    <button type="button" @click="editing = false" class="btn btn-secondary btn-sm" style="padding: 0.2rem 0.4rem;">&#10005;</button>
+                </form>
+            </template>
+        </div>
+    </div>
+    {% if summaries.get(week.week_number) %}
+    <div class="exp-summary-row" style="padding: 0.5rem 1rem; background: var(--card-bg, #1a1a2e); border-radius: 0 0 6px 6px; margin-bottom: 0.5rem; font-size: var(--text-sm);">
+        <details>
+            <summary style="cursor:pointer;"><strong>AI Summary &mdash; Week {{ week.week_number }}</strong></summary>
+            <div style="margin-top: 0.5rem; line-height: 1.5;">{{ summaries[week.week_number] | md_block }}</div>
+        </details>
+    </div>
+    {% elif llm_available and not week.is_future and not week.is_current %}
+    <div style="padding: 0.25rem 1rem; margin-bottom: 0.5rem;">
+        <form action="/experiments/{{ experiment.id }}/generate-summary" method="post" style="margin:0;">
+            <input type="hidden" name="week_number" value="{{ week.week_number }}">
+            <button type="submit" class="btn btn-outline btn-sm" style="font-size: var(--text-xs);">Generate AI Summary</button>
+        </form>
+    </div>
+    {% endif %}
+    {% endfor %}
+</div>
+
+{% if experiment.status == 'active' %}
+{% if oura_connected %}
+<form action="/experiments/{{ experiment.id }}/import-workouts" method="post" style="margin-bottom: 1rem;">
+    <button type="submit" class="btn btn-secondary btn-sm">&#8986; Import Oura Workouts</button>
+</form>
+{% endif %}
+
+<!-- Log Entry Form -->
+<div class="exp-log-form">
+    <h3>Log Activity</h3>
+    <form action="/experiments/{{ experiment.id }}/entry" method="post">
+        <div class="grid">
+            <div>
+                <label for="entry_date">Date</label>
+                <input type="date" id="entry_date" name="date" value="{{ today }}">
+            </div>
+            <div>
+                <label for="entry_type">Type</label>
+                <select id="entry_type" name="activity_type_id">
+                    {% for at in activity_types %}
+                    <option value="{{ at.id }}">{{ at.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div>
+                <label for="entry_duration">Minutes</label>
+                <input type="number" id="entry_duration" name="duration_minutes" min="1" placeholder="45" required>
+            </div>
+            <div>
+                <label for="entry_notes">Notes</label>
+                <input type="text" id="entry_notes" name="notes" placeholder="easy pace">
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Log Entry</button>
+    </form>
+</div>
+
+<!-- Recent Entries -->
+{% if entries %}
+<details class="exp-entries-details">
+    <summary>Recent Entries ({{ entries|length }})</summary>
+    <table class="exp-entries-table">
+        <thead>
+            <tr><th>Date</th><th>Activity</th><th>Duration</th><th>Notes</th><th></th></tr>
+        </thead>
+        <tbody>
+            {% for e in entries|reverse %}
+            {% set at_match = activity_types|selectattr("id", "equalto", e.activity_type_id)|first %}
+            <tr>
+                <td>{{ e.date }}</td>
+                <td>
+                    {% if at_match %}
+                    <span class="exp-legend-dot" style="background: {{ at_match.color }}; display: inline-block; vertical-align: middle;"></span>
+                    {{ at_match.name }}
+                    {% endif %}
+                    {% if e.source == 'oura' %}
+                    <span class="exp-source-badge" title="Auto-imported from Oura" style="font-size: var(--text-xs); opacity: 0.7;">&#8986;</span>
+                    {% endif %}
+                </td>
+                <td><strong>{{ e.duration_minutes }}m</strong></td>
+                <td class="text-muted">{{ e.notes }}</td>
+                <td>
+                    <form action="/experiments/{{ experiment.id }}/delete-entry" method="post" style="margin: 0;">
+                        <input type="hidden" name="entry_id" value="{{ e.id }}">
+                        <button type="submit" class="exp-delete-btn">&times;</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</details>
+{% endif %}
+
+<!-- Actions -->
+<div class="exp-actions">
+    <form action="/experiments/{{ experiment.id }}/complete" method="post">
+        <input type="hidden" name="new_status" value="completed">
+        <button type="submit" class="btn btn-outline">Mark Completed</button>
+    </form>
+    <form action="/experiments/{{ experiment.id }}/complete" method="post">
+        <input type="hidden" name="new_status" value="abandoned">
+        <button type="submit" class="btn btn-secondary">Abandon</button>
+    </form>
+    <form action="/experiments/{{ experiment.id }}/delete" method="post" onsubmit="return confirm('Delete this experiment and all its data?')">
+        <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+</div>
+{% endif %}
+
+{% endblock %}

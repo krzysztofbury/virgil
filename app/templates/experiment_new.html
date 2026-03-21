@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Virgil - New Experiment{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>New Experiment</h1>
+</div>
+
+<form action="/experiments/create" method="post" x-data="experimentForm()">
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Basics</h3></div>
+
+        <div style="margin-bottom: 0.75rem;">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" placeholder="RHR 50 -> 45" required>
+        </div>
+
+        <div style="margin-bottom: 0.75rem;">
+            <label for="description">Description</label>
+            <input type="text" id="description" name="description" placeholder="8-week zone 2 + HIIT plan">
+        </div>
+
+        <div class="grid">
+            <div>
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date" required>
+            </div>
+            <div>
+                <label for="num_weeks">Number of Weeks</label>
+                <input type="number" id="num_weeks" name="num_weeks" min="1" max="52" value="8" required>
+            </div>
+        </div>
+
+        <div class="grid" style="margin-top: 0.75rem;">
+            <div>
+                <label for="target_min">Weekly Target Min (minutes)</label>
+                <input type="number" id="target_min" name="target_min" min="0" value="180">
+            </div>
+            <div>
+                <label for="target_max">Weekly Target Max (minutes)</label>
+                <input type="number" id="target_max" name="target_max" min="0" value="210">
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Activity Types</h3></div>
+
+        <template x-for="(at, i) in activityTypes" :key="i">
+            <div style="margin-bottom: 0.75rem;">
+                <div class="grid" style="align-items: end; margin-bottom: 0.25rem;">
+                    <div>
+                        <label x-show="i === 0">Name</label>
+                        <input type="text" x-model="at.name" name="activity_names" placeholder="Zone 2" required>
+                    </div>
+                    <div>
+                        <label x-show="i === 0">Color</label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="color" x-model="at.color" name="activity_colors" style="width: 3rem; height: 2.5rem; padding: 0.25rem;">
+                            <button type="button" @click="activityTypes.splice(i, 1)" class="btn btn-secondary btn-sm"
+                                    x-show="activityTypes.length > 1">-</button>
+                        </div>
+                    </div>
+                </div>
+                <input type="text" name="source_matches" x-model="at.source_match" placeholder="walking,hiking,running"
+                       style="font-size: var(--text-xs); margin: 0;">
+                <small class="text-muted">Oura activity names to auto-import (comma-separated)</small>
+            </div>
+        </template>
+
+        <button type="button" @click="activityTypes.push({name: '', color: randomColor(), source_match: ''})" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;">
+            + Add Activity Type
+        </button>
+    </div>
+
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header">
+            <h3>Week Labels</h3>
+            <small class="text-muted">Optional, comma-separated: e.g. ",,DELOAD,,,,TAPER,"</small>
+        </div>
+        <input type="text" name="week_labels" placeholder=",,DELOAD,,,,TAPER,">
+    </div>
+
+    <div style="display: flex; gap: 0.75rem;">
+        <button type="submit" class="btn btn-primary">Create Experiment</button>
+        <a href="/experiments" class="btn btn-secondary">Cancel</a>
+    </div>
+</form>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function experimentForm() {
+    const colors = ['#22c55e', '#ef4444', '#3b82f6', '#eab308', '#a855f7', '#f97316'];
+    let ci = 0;
+    return {
+        activityTypes: [
+            {name: '', color: '#22c55e', source_match: ''},
+            {name: '', color: '#ef4444', source_match: ''}
+        ],
+        randomColor() {
+            ci = (ci + 2) % colors.length;
+            return colors[ci];
+        }
+    }
+}
+</script>
+{% endblock %}

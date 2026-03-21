@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Blood Work{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Blood Work</h1>
+</div>
+
+<!-- Category Tabs -->
+<div class="tabs">
+    <a href="/bloodwork" class="{{ 'active' if current_category == 'all' else '' }}">All</a>
+    {% for cat in categories %}
+    <a href="/bloodwork/{{ cat }}" class="{{ 'active' if current_category == cat else '' }}">{{ cat }}</a>
+    {% endfor %}
+</div>
+
+<!-- Chart for selected marker -->
+{% if chart_marker %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header"><h3>{{ chart_marker.name }} ({{ chart_marker.unit }})</h3></div>
+    <div class="chart-container">
+        <canvas id="bloodChart" height="200"></canvas>
+    </div>
+</div>
+{% endif %}
+
+<!-- Results Table -->
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header"><h3>Results</h3></div>
+    <div class="overflow-x">
+        <table>
+            <thead>
+                <tr>
+                    <th>Marker</th>
+                    <th>Unit</th>
+                    <th>Ref.</th>
+                    {% for d in test_dates %}
+                    <th>{{ d }}</th>
+                    {% endfor %}
+                    <th>Chart</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in markers %}
+                <tr>
+                    <td><strong>{{ m.name }}</strong></td>
+                    <td><small>{{ m.unit }}</small></td>
+                    <td><small>{{ m.ref_low or '' }}-{{ m.ref_high or '' }}</small></td>
+                    {% for d in test_dates %}
+                    {% set r = results.get(m.id, {}).get(d) %}
+                    <td class="{{ 'flag-h' if r and r.flag == 'H' else 'flag-l' if r and r.flag == 'L' else 'flag-normal' if r else '' }}">
+                        {% if r %}
+                            {{ r.value_text if r.value_text else r.value }}
+                            {% if r.flag %}<sup>{{ r.flag }}</sup>{% endif %}
+                        {% else %}-{% endif %}
+                    </td>
+                    {% endfor %}
+                    <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);">
+                        <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
+                    </a></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Add Result -->
+<details style="margin-bottom: 1rem;">
+    <summary>Add result</summary>
+    <form method="POST" action="/bloodwork/result">
+        <div class="grid">
+            <div>
+                <label>Marker
+                    <select name="marker_id" required>
+                        {% for m in markers %}
+                        <option value="{{ m.id }}">{{ m.name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div>
+                <label>Date <input type="date" name="date" required></label>
+            </div>
+        </div>
+        <div class="grid" style="margin-top: 0.75rem;">
+            <div><label>Value <input type="number" name="value" step="0.01" required></label></div>
+            <div><label>Text (opt.) <input type="text" name="value_text"></label></div>
+            <div>
+                <label>Flag
+                    <select name="flag">
+                        <option value="">Normal</option>
+                        <option value="H">H (High)</option>
+                        <option value="L">L (Low)</option>
+                    </select>
+                </label>
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+    </form>
+</details>
+
+<!-- Add Marker -->
+<details>
+    <summary>Add marker</summary>
+    <form method="POST" action="/bloodwork/marker">
+        <div class="grid">
+            <div><label>Name <input type="text" name="name" required></label></div>
+            <div><label>Category <input type="text" name="category" required></label></div>
+            <div><label>Unit <input type="text" name="unit" required></label></div>
+        </div>
+        <div class="grid" style="margin-top: 0.75rem;">
+            <div><label>Ref. Min <input type="number" name="ref_low" step="0.01"></label></div>
+            <div><label>Ref. Max <input type="number" name="ref_high" step="0.01"></label></div>
+            <div><label>Order <input type="number" name="display_order" value="0"></label></div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save marker</button>
+    </form>
+</details>
+{% endblock %}
+
+{% block scripts %}
+{% if chart_marker %}
+<script src="/static/js/charts.js"></script>
+<script>
+    createLineChart('bloodChart',
+        {{ chart_labels | tojson }},
+        [{
+            label: '{{ chart_marker.name }}',
+            data: {{ chart_values | tojson }},
+            borderColor: 'rgb(59, 130, 246)',
+            backgroundColor: 'rgba(59, 130, 246, 0.1)',
+            fill: true,
+            tension: 0.3,
+        }],
+        {
+            plugins: {
+                refRange: {
+                    low: {{ chart_ref_low if chart_ref_low else 'null' }},
+                    high: {{ chart_ref_high if chart_ref_high else 'null' }}
+                }
+            }
+        }
+    );
+</script>
+{% endif %}
+{% endblock %}

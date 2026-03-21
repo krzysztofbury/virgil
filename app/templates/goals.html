@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Goals{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Life Goals Map</h1>
+</div>
+
+{% for area in areas %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header">
+        <h3>{{ area.icon }} {{ area.name }}</h3>
+    </div>
+    {% for h_key, h_label in horizons %}
+    <div style="margin-bottom: 1.25rem;">
+        <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">{{ h_label }}</h4>
+        {% set goals = goals_map.get((area.id, h_key), []) %}
+        {% for g in goals %}
+        <div class="goal-row">
+            <input type="text" class="goal-input" value="{{ g.content|strip_md }}"
+                   hx-post="/goals/update-inline"
+                   hx-trigger="blur changed, keydown[key=='Enter'] changed"
+                   hx-vals='{"goal_id": "{{ g.id }}"}'
+                   hx-swap="none"
+                   hx-indicator="closest .goal-row"
+                   name="content">
+            <form method="POST" action="/goals/delete" style="margin: 0; flex-shrink: 0;">
+                <input type="hidden" name="goal_id" value="{{ g.id }}">
+                <button type="submit" class="goal-delete-btn">&times;</button>
+            </form>
+        </div>
+        {% endfor %}
+
+        <!-- Add goal -->
+        <form method="POST" action="/goals/save" class="goal-add-form">
+            <input type="hidden" name="area_id" value="{{ area.id }}">
+            <input type="hidden" name="horizon" value="{{ h_key }}">
+            <input type="text" name="content" placeholder="New goal..." class="goal-input goal-add-input" required>
+            <button type="submit" class="goal-add-btn">+</button>
+        </form>
+    </div>
+    {% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

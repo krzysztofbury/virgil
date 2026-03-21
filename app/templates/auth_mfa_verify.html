@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virgil - Verify MFA</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/app.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#06080d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+</head>
+<body>
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
+            <h1>Virgil</h1>
+        </div>
+        <p class="auth-subtitle">Enter the 6-digit code from your authenticator app.</p>
+
+        {% if error %}
+        <div class="auth-error">{{ error }}</div>
+        {% endif %}
+
+        <form method="POST" action="/mfa/verify">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <label>
+                Code
+                <input type="text" name="totp_code" required autocomplete="one-time-code"
+                       inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autofocus
+                       style="text-align:center;font-size:1.5rem;letter-spacing:0.5rem;">
+            </label>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Verify</button>
+        </form>
+    </div>
+</div>
+
+<style>
+.auth-wrapper { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1rem; }
+.auth-card { width:100%; max-width:380px; }
+.auth-logo { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.25rem; }
+.auth-logo h1 { margin:0; font-size:1.5rem; }
+.auth-subtitle { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:1.5rem; }
+.auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
+</style>
+<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(function(){});</script>
+</body>
+</html>

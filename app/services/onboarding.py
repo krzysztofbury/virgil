@@ -12,6 +12,8 @@ from app.models.user_profile import save_enrichment
 
 logger = logging.getLogger(__name__)
 
+MAX_GOAL_EXPANSIONS = 20
+
 
 async def run_enrichment(db, profile: dict) -> None:
     """Run all applicable LLM enrichment steps. Each is independent and optional."""
@@ -65,7 +67,23 @@ async def _llm_call(system_prompt: str, user_prompt: str, max_tokens: int = 2048
         max_tokens=max_tokens,
         timeout=90.0,
     )
-    return response.choices[0].message.content
+    if not response.choices:
+        raise ValueError("LLM returned empty choices array")
+    content = response.choices[0].message.content
+    if content is None:
+        raise ValueError("LLM returned null content")
+    return content
+
+
+def _strip_fences(text: str) -> str:
+    """Remove markdown code fences from LLM output."""
+    stripped = text.strip()
+    if not stripped.startswith("```"):
+        return stripped
+    lines = stripped.split("\n")[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines)
 
 
 async def _generate_profile_summary(profile: dict) -> str:
@@ -144,12 +162,7 @@ async def _expand_goals(db, llm_summary: str | None) -> None:
     )
 
     # Parse response.
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        cleaned = "\n".join(lines)
+    cleaned = _strip_fences(raw)
 
     try:
         goal_levels = json.loads(cleaned)
@@ -160,7 +173,7 @@ async def _expand_goals(db, llm_summary: str | None) -> None:
     if not isinstance(goal_levels, list):
         return
 
-    for item in goal_levels:
+    for item in goal_levels[:MAX_GOAL_EXPANSIONS]:
         area_name = item.get("area_name", "")
         area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (area_name,))
         if not area_row:
@@ -207,12 +220,7 @@ async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> None:
         max_tokens=512,
     )
 
-    cleaned = raw.strip()
-    if cleaned.startswith("```"):
-        lines = cleaned.split("\n")[1:]
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        cleaned = "\n".join(lines)
+    cleaned = _strip_fences(raw)
 
     try:
         exp = json.loads(cleaned)

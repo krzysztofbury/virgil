@@ -1,0 +1,313 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Training{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Training</h1>
+</div>
+
+<!-- 1. Training Protocol -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Training Protocol</h3></div>
+    {% for section_name, exs in sections.items() %}
+    <details {% if section_name == 'Core' %}open{% endif %} style="margin-bottom: 0.5rem;" x-data="{ adding: false, editing: null }">
+        <summary style="cursor:pointer;font-weight:600;">{{ section_name }}
+            <small class="text-muted" style="font-weight:400;margin-left:0.5rem;">{{ exs|length }} exercises</small>
+        </summary>
+        <div class="overflow-x" style="margin-top:0.5rem;">
+            <table>
+                <thead><tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Notes</th><th style="width:5rem;"></th></tr></thead>
+                <tbody>
+                    {% for ex in exs %}
+                    <tr x-show="editing !== {{ ex.id }}">
+                        <td>{{ ex.name }}</td>
+                        <td>{{ ex.target_sets }}</td>
+                        <td>{{ ex.target_reps }}</td>
+                        <td><small class="text-muted">{{ ex.notes }}</small></td>
+                        <td style="white-space:nowrap;">
+                            <button type="button" class="btn btn-sm btn-outline" @click="editing = {{ ex.id }}" style="font-size:0.65rem;padding:0.15rem 0.4rem;">Edit</button>
+                            <form method="POST" action="/training/exercise/{{ ex.id }}/delete" style="display:inline;">
+                                <button type="submit" class="btn btn-sm btn-outline" style="font-size:0.65rem;padding:0.15rem 0.4rem;color:var(--flag-h);"
+                                        onclick="return confirm('Delete this exercise?')">Del</button>
+                            </form>
+                        </td>
+                    </tr>
+                    <!-- Inline edit row -->
+                    <tr x-show="editing === {{ ex.id }}" x-cloak>
+                        <td colspan="5">
+                            <form method="POST" action="/training/exercise/{{ ex.id }}/edit" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;">
+                                <input type="hidden" name="section" value="{{ section_name }}">
+                                <input type="text" name="name" value="{{ ex.name }}" style="flex:2;min-width:6rem;margin:0;padding:0.25rem 0.4rem;" required>
+                                <input type="number" name="target_sets" value="{{ ex.target_sets }}" style="width:3rem;margin:0;padding:0.25rem 0.4rem;">
+                                <input type="text" name="target_reps" value="{{ ex.target_reps }}" style="width:4rem;margin:0;padding:0.25rem 0.4rem;">
+                                <input type="text" name="notes" value="{{ ex.notes }}" placeholder="Notes" style="flex:2;min-width:4rem;margin:0;padding:0.25rem 0.4rem;">
+                                <button type="submit" class="btn btn-sm btn-primary" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Save</button>
+                                <button type="button" class="btn btn-sm btn-outline" @click="editing = null" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Cancel</button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <!-- Add exercise inline form -->
+        <div style="margin-top:0.35rem;">
+            <button type="button" class="btn btn-sm btn-outline" @click="adding = !adding" x-show="!adding" style="font-size:0.7rem;">+ Add exercise</button>
+            <form method="POST" action="/training/exercise" x-show="adding" x-cloak
+                  style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-top:0.25rem;">
+                <input type="hidden" name="section" value="{{ section_name }}">
+                <input type="text" name="name" placeholder="Exercise name" style="flex:2;min-width:6rem;margin:0;padding:0.25rem 0.4rem;" required>
+                <input type="number" name="target_sets" placeholder="Sets" value="3" style="width:3rem;margin:0;padding:0.25rem 0.4rem;">
+                <input type="text" name="target_reps" placeholder="Reps" style="width:4rem;margin:0;padding:0.25rem 0.4rem;">
+                <input type="text" name="notes" placeholder="Notes" style="flex:2;min-width:4rem;margin:0;padding:0.25rem 0.4rem;">
+                <button type="submit" class="btn btn-sm btn-primary" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Add</button>
+                <button type="button" class="btn btn-sm btn-outline" @click="adding = false" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Cancel</button>
+            </form>
+        </div>
+    </details>
+    {% endfor %}
+</div>
+
+<!-- 2. This Week KPIs -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>This Week</h3></div>
+    <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+        <div class="stat-card">
+            <div class="stat-value">{{ kpi_sessions }}</div>
+            <div class="stat-label">Sessions</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ "{:,}".format(kpi_volume) }} <small style="font-size:0.6em;font-weight:400;">kg</small></div>
+            <div class="stat-label">Volume (Core)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ "{:,}".format(kpi_reps) }}</div>
+            <div class="stat-label">Total Reps</div>
+        </div>
+    </div>
+</div>
+
+<!-- 3. Personal Bests -->
+{% if personal_bests %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Personal Bests <small class="text-muted" style="font-weight:400;">(12 weeks)</small></h3></div>
+    <div class="stat-grid" style="grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));">
+        {% for pb in personal_bests %}
+        <div class="stat-card">
+            <div class="stat-value">{{ pb.max_weight }} <small style="font-size:0.6em;font-weight:400;">kg</small></div>
+            <div class="stat-label">{{ pb.name }}</div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 4. Log Workout -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
+        <h3>Log Workout</h3>
+        <button type="button" class="btn btn-sm btn-outline" x-data @click="$dispatch('show-timer')">Rest Timer</button>
+    </div>
+    <form method="POST" action="/training/session">
+        <div class="grid" style="margin-bottom: 0.75rem;">
+            <div>
+                <label>Date
+                    <input type="date" name="date" value="{{ today }}" required>
+                </label>
+            </div>
+            <div>
+                <label>Duration (min)
+                    <input type="number" name="duration_minutes" placeholder="e.g. 60">
+                </label>
+            </div>
+        </div>
+
+        {% for section_name in section_order %}
+        {% if section_name in sections %}
+        {% set exs = sections[section_name] %}
+        <h4 style="margin-top:1rem;margin-bottom:0.5rem;">{{ section_name }}</h4>
+
+        {% if section_name == 'Warmup' %}
+            {% for ex in exs %}
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;padding:0.4rem 0.5rem;border-radius:var(--radius);background:var(--bg-card-alt, rgba(255,255,255,0.03));">
+                <input type="checkbox" name="exercise_{{ ex.id }}_done" value="1" id="warmup_{{ ex.id }}" style="margin:0;flex-shrink:0;">
+                <span style="font-size:var(--text-sm);font-weight:500;color:var(--text-primary);flex:1;cursor:pointer;" onclick="document.getElementById('warmup_{{ ex.id }}').click()">{{ ex.name }}</span>
+                <input type="number" step="0.5" name="exercise_{{ ex.id }}_duration" placeholder="min"
+                       style="width:4.5rem;margin:0;padding:0.25rem 0.4rem;text-align:center;flex-shrink:0;">
+            </div>
+            {% endfor %}
+
+        {% elif section_name == 'Core' %}
+            {% for ex in exs %}
+            <div x-data="{ sets: 1 }" style="margin-bottom: 0.75rem; padding: 0.5rem; border-radius: var(--radius); background: var(--bg-card-alt, rgba(255,255,255,0.03));">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem;">
+                    <strong style="font-size:var(--text-sm);">{{ ex.name }}</strong>
+                    <small class="text-muted">{{ ex.target_sets }}&times;{{ ex.target_reps }}</small>
+                </div>
+                <template x-for="s in sets" :key="s">
+                    <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.25rem;">
+                        <small class="text-muted" x-text="'S' + s" style="width:1.5rem;"></small>
+                        <input type="number" :name="'exercise_{{ ex.id }}_set_' + s + '_reps'" placeholder="Reps" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                        <input type="number" step="0.5" :name="'exercise_{{ ex.id }}_set_' + s + '_weight'" placeholder="kg" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                    </div>
+                </template>
+                <button type="button" class="btn btn-sm btn-outline" @click="if(sets < 10) sets++" style="margin-top:0.25rem;font-size:0.7rem;">+ set</button>
+            </div>
+            {% endfor %}
+
+        {% elif section_name == 'Cardio' %}
+            {% for ex in exs %}
+            <div x-data="{ sets: 1 }" style="margin-bottom: 0.75rem; padding: 0.5rem; border-radius: var(--radius); background: var(--bg-card-alt, rgba(255,255,255,0.03));">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.35rem;">
+                    <strong style="font-size:var(--text-sm);">{{ ex.name }}</strong>
+                    <small class="text-muted">{{ ex.target_sets }}&times;{{ ex.target_reps }}</small>
+                </div>
+                <template x-for="s in sets" :key="s">
+                    <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.25rem;">
+                        <small class="text-muted" x-text="'R' + s" style="width:1.5rem;"></small>
+                        <input type="number" :name="'exercise_{{ ex.id }}_set_' + s + '_reps'" placeholder="Rounds" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                        <input type="number" step="0.5" :name="'exercise_{{ ex.id }}_set_' + s + '_duration'" placeholder="min" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                    </div>
+                </template>
+                <button type="button" class="btn btn-sm btn-outline" @click="if(sets < 10) sets++" style="margin-top:0.25rem;font-size:0.7rem;">+ round</button>
+            </div>
+            {% endfor %}
+
+        {% elif section_name == 'Stretching' %}
+            {% for ex in exs %}
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;padding:0.4rem 0.5rem;border-radius:var(--radius);background:var(--bg-card-alt, rgba(255,255,255,0.03));">
+                <span style="font-size:var(--text-sm);font-weight:500;color:var(--text-primary);flex:1;">{{ ex.name }}</span>
+                <input type="number" step="0.5" name="exercise_{{ ex.id }}_duration" placeholder="min"
+                       style="width:4.5rem;margin:0;padding:0.25rem 0.4rem;text-align:center;flex-shrink:0;">
+            </div>
+            {% endfor %}
+        {% endif %}
+
+        {% endif %}
+        {% endfor %}
+
+        <label style="margin-top:0.75rem;">Notes
+            <textarea name="session_notes" rows="2" placeholder="Workout notes..."></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save workout</button>
+    </form>
+</div>
+
+<!-- 5. Rest Timer -->
+<div class="rest-timer-bar" x-data="restTimer()" x-show="visible" x-cloak @show-timer.window="visible = true">
+    <div class="rest-timer-inner">
+        <div class="rest-timer-presets">
+            <button type="button" class="btn btn-sm btn-outline" @click="start(60)">60s</button>
+            <button type="button" class="btn btn-sm btn-outline" @click="start(90)">90s</button>
+            <button type="button" class="btn btn-sm btn-outline" @click="start(120)">2m</button>
+            <button type="button" class="btn btn-sm btn-outline" @click="start(180)">3m</button>
+        </div>
+        <div class="rest-timer-display" x-show="running || seconds > 0">
+            <span class="rest-timer-time" :class="{ 'rest-timer-done': seconds === 0 && wasRunning }"
+                  x-text="formatTime(seconds)"></span>
+            <button type="button" class="btn btn-sm btn-outline" @click="stop()" x-show="running">Stop</button>
+        </div>
+        <button type="button" class="rest-timer-toggle" @click="visible = false">&times;</button>
+    </div>
+</div>
+
+<!-- 6. Workout History -->
+<div class="card">
+    <div class="card-header"><h3>Workout History</h3></div>
+    {% if sessions %}
+    {% for s in sessions %}
+    <details style="margin-bottom: 0.5rem;">
+        <summary style="cursor:pointer;">
+            <strong>{{ s.date }}</strong>
+            {% if s.duration_minutes %}<span class="text-muted"> - {{ s.duration_minutes }} min</span>{% endif %}
+        </summary>
+        <div style="padding: 0.5rem 0;">
+            {% if s.notes %}<p style="margin-bottom:0.5rem;"><small>{{ s.notes }}</small></p>{% endif %}
+            {% if s.entries %}
+            <div class="overflow-x">
+                <table>
+                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th></tr></thead>
+                    <tbody>
+                        {% for e in s.entries %}
+                        <tr>
+                            <td><small>{{ e.exercise_name }}</small></td>
+                            <td>{{ e.set_number }}</td>
+                            <td>{{ e.reps or '-' }}</td>
+                            <td>{% if e.weight %}{{ e.weight }} kg{% else %}-{% endif %}</td>
+                            <td>{% if e.duration %}{{ e.duration }} min{% else %}-{% endif %}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <p class="text-muted"><small>No entries</small></p>
+            {% endif %}
+            <form method="POST" action="/training/session/{{ s.id }}/delete" style="margin-top:0.5rem;">
+                <button type="submit" class="btn btn-sm btn-outline" style="color:var(--flag-h);font-size:0.7rem;"
+                        onclick="return confirm('Delete this workout?')">Delete</button>
+            </form>
+        </div>
+    </details>
+    {% endfor %}
+    {% else %}
+    <p class="text-muted">No workouts recorded.</p>
+    {% endif %}
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function restTimer() {
+    return {
+        seconds: 0,
+        running: false,
+        wasRunning: false,
+        visible: false,
+        _interval: null,
+        start(duration) {
+            this.stop();
+            this.seconds = duration;
+            this.running = true;
+            this.wasRunning = false;
+            this._interval = setInterval(() => {
+                if (this.seconds > 0) {
+                    this.seconds--;
+                    if (this.seconds === 0) {
+                        this.running = false;
+                        this.wasRunning = true;
+                        clearInterval(this._interval);
+                        this._beep();
+                    }
+                }
+            }, 1000);
+        },
+        stop() {
+            this.running = false;
+            if (this._interval) { clearInterval(this._interval); this._interval = null; }
+        },
+        formatTime(s) {
+            const m = Math.floor(s / 60);
+            const sec = s % 60;
+            return m + ':' + String(sec).padStart(2, '0');
+        },
+        _beep() {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                [0, 0.2, 0.4].forEach(delay => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+                    osc.frequency.value = 880;
+                    osc.type = 'sine';
+                    gain.gain.value = 0.3;
+                    osc.start(ctx.currentTime + delay);
+                    osc.stop(ctx.currentTime + delay + 0.15);
+                });
+            } catch(e) {}
+        }
+    };
+}
+</script>
+{% endblock %}

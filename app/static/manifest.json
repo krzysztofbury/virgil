@@ -1,0 +1,48 @@
+{
+  "name": "Virgil",
+  "short_name": "Virgil",
+  "description": "Personal growth dashboard",
+  "start_url": "/",
+  "scope": "/",
+  "id": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#06080d",
+  "theme_color": "#06080d",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192x192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512x512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/static/icons/screenshot-wide.png",
+      "sizes": "1920x1024",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Virgil dashboard on desktop"
+    },
+    {
+      "src": "/static/icons/screenshot-narrow.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Virgil dashboard on mobile"
+    }
+  ]
+}

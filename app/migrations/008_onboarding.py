@@ -27,3 +27,4 @@ async def up(db):
 
     # Seed onboarding_completed=0 so auth middleware knows to redirect.
     await db.execute("INSERT OR IGNORE INTO app_settings (key, value) VALUES ('onboarding_completed', '0')")
+    await db.commit()
