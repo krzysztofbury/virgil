@@ -1,6 +1,16 @@
 import os
 from pathlib import Path
 
+# Load .env file if present (local development). In Docker, env_file handles this.
+_env_path = Path(__file__).parent.parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _key, _, _val = _line.partition("=")
+                os.environ.setdefault(_key.strip(), _val.strip())
+
 ENV = os.environ.get("VIRGIL_ENV", "local")  # "local" or "prod"
 IS_PROD = ENV == "prod"
 
