@@ -165,9 +165,24 @@
   - Translate seed data (goal area names, milestone titles) — these are currently Polish in DB seeds
 
 ## Onboarding
-- New users need to provide: training protocol, goals, plans
-- Options: (1) Manual entry via Virgil UI, (2) Import from markdown files, (3) LLM-assisted setup wizard
-- Current `import_all()` in `app/services/markdown_import.py` handles option (2) for bootstrapping from existing markdown
+- [x] **6-step onboarding wizard** — LLM-assisted setup at `/onboarding` with profile, ideal day, goals, habits, medical records
+- [x] LLM enrichment — generates realistic day, goal levels (10yr/3yr/1yr), experiment suggestion, Feniks auto-detection
+- Current `import_all()` in `app/services/markdown_import.py` handles markdown import for bootstrapping
+
+## Multi-User & SaaS (Future)
+- [ ] **Encrypted backup to S3** — per-user DB encrypted and backed up to S3 bucket or local folder on schedule
+  - Per-user Fernet key derived from master key + user UUID
+  - Configurable: S3 bucket, local path, backup interval
+  - Restore from backup flow in admin panel
+- [ ] **Subscription/Billing** — Stripe integration for paid tiers
+  - Free tier: local storage, internal LLM only
+  - Pro tier: cloud backup, all LLM providers, priority support
+  - Stripe webhook handler for subscription lifecycle
+  - Tier enforcement in middleware (check subscription status per request)
+- [ ] **Admin panel: Impersonate user** — view a user's dashboard as them (for support)
+- [ ] **Admin panel: Invite codes** — restrict registration to invite-only mode
+- [ ] **Admin panel: Usage stats** — storage per user, LLM calls, last activity
+- [ ] **Admin panel: Force password reset** — admin can force a user to change password on next login
 
 ## Security & Authentication
 - [x] **Authentication system** — Email + password + TOTP MFA (Option A)
