@@ -4,14 +4,15 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet
 
-from app.config import DB_PATH, ENCRYPTION_KEY
+from app.config import CENTRAL_DB_PATH, ENCRYPTION_KEY
 
 _fernet: Fernet | None = None
 _raw_key: str | None = None
 
 
 def _key_file_path() -> Path:
-    return Path(DB_PATH).parent / "virgil.key"
+    # Key lives alongside the central DB (in /data/ for Docker, ./data/ locally).
+    return Path(CENTRAL_DB_PATH).parent / "virgil.key"
 
 
 def _load_raw_key() -> str:
