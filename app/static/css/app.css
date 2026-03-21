@@ -6,8 +6,6 @@
 /* ── Asset Usage ── */
 /*
    - Logo: /static/icons/logo.png (Used in Nav)
-   - Background Pattern: /static/img/branding-pattern.png (Used in Body Background)
-   - Hero Banner: /static/img/hero-banner.png (Used in Dashboard Header)
 */
 
 /* ── Reset ── */
@@ -179,11 +177,10 @@ main.container {
   left: 0;
   right: 0;
   height: var(--nav-height);
-  background: var(--bg-nav) url('/static/img/hero-banner.png') center/cover no-repeat;
-  background-blend-mode: overlay;
+  background: var(--bg-nav);
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
-  border-bottom: 1px solid rgba(255,255,255,0.05);
+  border-bottom: 1px solid var(--border);
   z-index: 1000;
   display: flex;
   align-items: center;
