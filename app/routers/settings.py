@@ -100,8 +100,9 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["oura_connected"] = bool(oura_row and oura_row[0]["status"] == "connected")
 
     elif tab == "security":
-        auth_row = await db.execute_fetchall("SELECT totp_enabled FROM auth_users WHERE id = 1")
-        context["mfa_enabled"] = bool(auth_row and auth_row[0]["totp_enabled"])
+        # MFA status lives in the central users table, not per-user DB.
+        user = getattr(request.state, "user", {})
+        context["mfa_enabled"] = bool(user.get("totp_enabled"))
         logs = await db.execute_fetchall("SELECT * FROM sync_log ORDER BY created_at DESC LIMIT 50")
         context["sync_logs"] = [dict(row) for row in logs]
 
