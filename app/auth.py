@@ -1,3 +1,5 @@
+"""Authentication middleware and session utilities for multi-user Virgil."""
+
 import logging
 
 import bcrypt
@@ -12,14 +14,21 @@ logger = logging.getLogger(__name__)
 
 SESSION_COOKIE = "virgil_session"
 SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
-# Paths that don't require authentication
-PUBLIC_PATHS = frozenset({"/login", "/setup", "/mfa/verify", "/offline", "/service-worker.js", "/api/oura/webhook"})
-PUBLIC_PREFIXES = ("/static/", "/onboarding")
+
+# Paths that bypass auth entirely.
+PUBLIC_PATHS = frozenset(
+    {
+        "/login",
+        "/signup",
+        "/mfa/verify",
+        "/offline",
+        "/service-worker.js",
+        "/api/oura/webhook",
+    }
+)
+PUBLIC_PREFIXES = ("/static/",)
 
 _signer: TimestampSigner | None = None
-# Cache whether a user has been set up (avoids DB query on every request)
-_user_exists: bool | None = None
-_onboarding_done: bool | None = None
 
 
 def _get_signer() -> TimestampSigner:
@@ -32,7 +41,6 @@ def _get_signer() -> TimestampSigner:
 
 
 def hash_password(password: str) -> str:
-    # Use explicit raises instead of assert — these must survive python -O.
     if not password:
         raise ValueError("Cannot hash an empty password")
     if len(password) < 8:
@@ -48,13 +56,13 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
-def create_session(username: str) -> str:
-    """Create a signed session token."""
-    return _get_signer().sign(username).decode()
+def create_session(user_id: str) -> str:
+    """Create a signed session token containing the user UUID."""
+    return _get_signer().sign(user_id).decode()
 
 
 def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str | None:
-    """Validate session token, return username or None."""
+    """Validate session token, return user UUID or None."""
     try:
         return _get_signer().unsign(token, max_age=max_age).decode()
     except BadSignature:
@@ -75,16 +83,13 @@ def clear_session_cookie() -> str:
 
 def _reset_caches():
     """Reset all cached auth state — called on factory reset."""
-    global _user_exists, _onboarding_done, _signer
-    _user_exists = None
-    _onboarding_done = None
+    global _signer
     _signer = None
 
 
 def mark_onboarding_complete():
-    """Called after onboarding finishes to update the cached state."""
-    global _onboarding_done
-    _onboarding_done = True
+    """No-op in multi-user mode — onboarding state is per-user DB."""
+    pass
 
 
 class AuthMiddleware:
@@ -98,50 +103,54 @@ class AuthMiddleware:
 
         path = scope.get("path", "")
 
-        # Allow public paths
+        # Allow public paths.
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
             await self.app(scope, receive, send)
             return
 
-        # Check if any user exists — if not, redirect to setup (cached after first check)
-        global _user_exists
-        if _user_exists is None:
-            from app.db import get_db
-
-            db = await get_db()
-            user_row = await db.execute_fetchall("SELECT id FROM auth_users WHERE id = 1")
-            _user_exists = bool(user_row)
-        if not _user_exists:
-            response = RedirectResponse("/setup", status_code=303)
-            await response(scope, receive, send)
-            return
-
-        # Check session cookie
+        # Check session cookie — contains user UUID.
         request = Request(scope)
         session_token = request.cookies.get(SESSION_COOKIE, "")
-        username = validate_session(session_token) if session_token else None
+        user_id = validate_session(session_token) if session_token else None
 
-        if not username or username.startswith("_mfa_pending:"):
+        if not user_id or user_id.startswith("_mfa_pending:"):
             response = RedirectResponse("/login", status_code=303)
             await response(scope, receive, send)
             return
 
-        # Store username in state for downstream use
-        scope["state"] = {**scope.get("state", {}), "username": username}
+        # Look up user in central DB.
+        from app.central_db import get_user_by_id
 
-        # Check if onboarding is completed — redirect to wizard if not.
-        global _onboarding_done
-        if _onboarding_done is not True:
-            from app.db import get_db, get_setting
+        user = await get_user_by_id(user_id)
 
-            db = await get_db()
-            done = await get_setting(db, "onboarding_completed", "0")
-            if done == "1":
-                _onboarding_done = True
-            else:
-                if not path.startswith(("/onboarding", "/static/", "/api/", "/logout", "/service-worker")):
-                    response = RedirectResponse("/onboarding", status_code=303)
-                    await response(scope, receive, send)
-                    return
+        if not user or not user["is_active"]:
+            response = RedirectResponse("/login", status_code=303)
+            await response(scope, receive, send)
+            return
 
-        await self.app(scope, receive, send)
+        # Open per-user database connection.
+        from app.user_db import close_user_db, open_user_db
+
+        user_db = await open_user_db(user["db_filename"])
+
+        # Store user + DB in request state.
+        scope["state"] = {
+            **scope.get("state", {}),
+            "username": user["email"],
+            "user": user,
+            "user_db": user_db,
+        }
+
+        try:
+            # Check onboarding for this user.
+            from app.db import get_setting
+
+            done = await get_setting(user_db, "onboarding_completed", "0")
+            if done != "1" and not path.startswith(("/onboarding", "/static/", "/api/", "/logout", "/service-worker")):
+                response = RedirectResponse("/onboarding", status_code=303)
+                await response(scope, receive, send)
+                return
+
+            await self.app(scope, receive, send)
+        finally:
+            await close_user_db(user_db)
