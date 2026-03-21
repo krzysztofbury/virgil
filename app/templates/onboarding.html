@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Onboarding{% endblock %}
+
+{% block content %}
+<!-- Progress Bar -->
+<div style="margin-bottom:2rem;">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
+        <span style="font-size:0.8rem;color:var(--text-secondary);">Step {{ step }} of 6</span>
+        <form method="POST" action="/onboarding/skip" style="margin:0;">
+            <button type="submit" class="btn btn-sm btn-outline" style="font-size:0.7rem;">Skip onboarding</button>
+        </form>
+    </div>
+    <div style="display:flex;gap:4px;">
+        {% for i in range(1, 7) %}
+        <div style="flex:1;height:4px;border-radius:2px;background:{% if i < step %}var(--accent){% elif i == step %}var(--accent){% else %}var(--bg-surface){% endif %};"></div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if step == 1 %}
+<!-- ═══ STEP 1: About You ═══ -->
+<div class="card">
+    <h2 style="margin-bottom:0.25rem;">About You</h2>
+    <p class="text-muted" style="margin-bottom:1.5rem;font-size:0.85rem;">
+        This helps Virgil recommend realistic training loads and goals. A 25-year-old single person and a 40-year-old parent with 2 kids need very different daily plans.
+    </p>
+
+    <form method="POST" action="/onboarding/step/1">
+        <div class="grid" style="margin-bottom:1rem;">
+            <div>
+                <label>Sex
+                    <select name="sex">
+                        <option value="">— prefer not to say —</option>
+                        <option value="male" {% if profile.sex == 'male' %}selected{% endif %}>Male</option>
+                        <option value="female" {% if profile.sex == 'female' %}selected{% endif %}>Female</option>
+                    </select>
+                </label>
+            </div>
+            <div>
+                <label>Age
+                    <input type="number" name="age" min="10" max="120" value="{{ profile.age or '' }}" placeholder="e.g. 35">
+                </label>
+            </div>
+        </div>
+        <div class="grid" style="margin-bottom:1rem;">
+            <div>
+                <label>Height (cm)
+                    <input type="number" name="height_cm" step="0.1" value="{{ profile.height_cm or '' }}" placeholder="e.g. 180">
+                </label>
+            </div>
+            <div>
+                <label>Weight (kg)
+                    <input type="number" name="weight_kg" step="0.1" value="{{ profile.weight_kg or '' }}" placeholder="e.g. 85">
+                </label>
+            </div>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label style="display:flex;align-items:center;gap:0.5rem;">
+                Family
+                <span class="text-muted" title="e.g. married, 2 kids (ages 6, 9)" style="cursor:help;font-size:0.75rem;">&#9432;</span>
+            </label>
+            <input type="text" name="family" value="{{ profile.family or '' }}" placeholder="e.g. married, 2 kids (ages 6, 9)">
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label style="display:flex;align-items:center;gap:0.5rem;">
+                Good habits
+                <span class="text-muted" title="e.g. morning walks, reading before bed, 2L water daily" style="cursor:help;font-size:0.75rem;">&#9432;</span>
+            </label>
+            <textarea name="habits_good" rows="3" placeholder="e.g. morning walks, reading before bed, 2L water daily">{{ profile.habits_good or '' }}</textarea>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label style="display:flex;align-items:center;gap:0.5rem;">
+                Habits you struggle with
+                <span class="text-muted" title="e.g. doom scrolling, late-night snacking, skipping workouts" style="cursor:help;font-size:0.75rem;">&#9432;</span>
+            </label>
+            <textarea name="habits_bad" rows="3" placeholder="e.g. doom scrolling, late-night snacking, skipping workouts">{{ profile.habits_bad or '' }}</textarea>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
+            <span></span>
+            <button type="submit" class="btn btn-primary">Next</button>
+        </div>
+        <div style="text-align:center;margin-top:0.75rem;">
+            <a href="/onboarding?step=2" class="text-muted" style="font-size:0.75rem;">Skip this step</a>
+        </div>
+    </form>
+</div>
+
+{% elif step == 2 %}
+<!-- ═══ STEP 2: Your Ideal Day ═══ -->
+<div class="card">
+    <h2 style="margin-bottom:0.25rem;">Your Ideal Day</h2>
+    <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem;">
+        Virgil will create a realistic version of your ideal day, adjusted for your real obligations. Without this, daily task suggestions will be generic.
+    </p>
+
+    <details style="margin-bottom:1rem;">
+        <summary style="font-size:0.8rem;"><span style="font-size:0.75rem;">&#9432;</span> See example</summary>
+        <div class="card" style="margin-top:0.5rem;font-size:0.8rem;line-height:1.6;">
+            <strong>~ 06:00 START</strong> — Water + light exposure + cold shower + meditation<br>
+            <strong>~ 07:30 PREP</strong> — Protein breakfast + plan the day + zero social media<br>
+            <strong>~ 09:00 DEEP WORK</strong> — 4 blocks of 50 min, hardest tasks<br>
+            <strong>~ 13:00 BREAK</strong> — Lunch + relax + social media reward<br>
+            <strong>~ 14:00 SHALLOW WORK</strong> — Admin, calls, lighter tasks<br>
+            <strong>~ 17:00 FAMILY & BODY</strong> — Training + dinner + family (100% presence)<br>
+            <strong>~ 21:00 WIND DOWN</strong> — Journal + reading + no electronics
+        </div>
+    </details>
+
+    <form method="POST" action="/onboarding/step/2">
+        <textarea name="ideal_day" rows="12" placeholder="Describe your perfect day from morning to night...&#10;&#10;Use time blocks like:&#10;06:00 - Morning routine...&#10;09:00 - Deep work...&#10;17:00 - Family time...">{{ profile.ideal_day or '' }}</textarea>
+
+        <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
+            <a href="/onboarding?step=1" class="btn btn-outline">Back</a>
+            <button type="submit" class="btn btn-primary">Next</button>
+        </div>
+        <div style="text-align:center;margin-top:0.75rem;">
+            <a href="/onboarding?step=3" class="text-muted" style="font-size:0.75rem;">Skip this step</a>
+        </div>
+    </form>
+</div>
+
+{% elif step == 3 %}
+<!-- ═══ STEP 3: Goals ═══ -->
+<div class="card">
+    <h2 style="margin-bottom:0.25rem;">Your End Goals</h2>
+    <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem;">
+        Virgil breaks your end goals into 3 milestone levels and tracks your progress. Without goals, the dashboard life scores section will be empty.
+    </p>
+
+    <form method="POST" action="/onboarding/step/3">
+        {% for cat, label, icon, example in [
+            ('mind', 'Mind', '🧠', 'e.g. Stoic calm as my nature, daily meditation practice'),
+            ('body', 'Body', '💪', 'e.g. Athletic physique, biologically 10 years younger'),
+            ('finance', 'Finance', '💰', 'e.g. Full financial independence, work by choice'),
+            ('relations', 'Relations', '❤️', 'e.g. Strong, loving family, deep lifelong friendships')
+        ] %}
+        <div style="margin-bottom:1.25rem;">
+            <label style="display:flex;align-items:center;gap:0.5rem;font-size:1rem;font-weight:600;">
+                {{ icon }} {{ label }}
+                <span class="text-muted" title="{{ example }}" style="cursor:help;font-size:0.75rem;font-weight:400;">&#9432;</span>
+            </label>
+            <input type="text" name="goal_{{ cat }}" placeholder="{{ example }}"
+                   value="{{ goals.get(cat, '') }}">
+            <small class="text-muted">Your dream — Level 3 (10-year vision)</small>
+        </div>
+        {% endfor %}
+
+        <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
+            <a href="/onboarding?step=2" class="btn btn-outline">Back</a>
+            <button type="submit" class="btn btn-primary">Next</button>
+        </div>
+        <div style="text-align:center;margin-top:0.75rem;">
+            <a href="/onboarding?step=4" class="text-muted" style="font-size:0.75rem;">Skip this step</a>
+        </div>
+    </form>
+</div>
+
+{% elif step == 4 %}
+<!-- ═══ STEP 4: Habits & Training ═══ -->
+<div class="card">
+    <h2 style="margin-bottom:0.25rem;">Habits & Training</h2>
+    <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem;">
+        Virgil will set up your training protocol and suggest one experiment to replace a bad habit. Without this, you'll need to configure training manually.
+    </p>
+
+    <form method="POST" action="/onboarding/step/4">
+        <div style="margin-bottom:1rem;">
+            <label>Current training routine</label>
+            <textarea name="training_routine" rows="4" placeholder="e.g. Home gym 3x/week (Mon/Wed/Fri). Kettlebells, resistance bands, pull-up bar. Focus on compound movements.">{{ profile.training_routine or '' }}</textarea>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label>Equipment available</label>
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:0.25rem;">
+                {% set equip_list = (profile.equipment or '').split(',') %}
+                {% for val, label in [
+                    ('home_gym', 'Home gym'),
+                    ('gym_membership', 'Gym membership'),
+                    ('resistance_bands', 'Resistance bands'),
+                    ('kettlebells', 'Kettlebells'),
+                    ('pullup_bar', 'Pull-up bar'),
+                    ('bodyweight', 'Bodyweight only'),
+                ] %}
+                <label style="display:flex;align-items:center;gap:0.35rem;font-size:0.85rem;cursor:pointer;padding:0.4rem 0.75rem;border:1px solid var(--border);border-radius:var(--radius-full);">
+                    <input type="checkbox" name="equipment" value="{{ val }}" {% if val in equip_list %}checked{% endif %}>
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label>Habits you want to build</label>
+            <textarea name="habits_build" rows="3" placeholder="e.g. Morning cold shower, daily reading, consistent sleep schedule">{{ profile.habits_build or '' }}</textarea>
+        </div>
+
+        <div style="margin-bottom:1rem;">
+            <label>Habits you want to break</label>
+            <textarea name="habits_break" rows="3" placeholder="e.g. Doom scrolling, late-night snacking, procrastination">{{ profile.habits_break or '' }}</textarea>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
+            <a href="/onboarding?step=3" class="btn btn-outline">Back</a>
+            <button type="submit" class="btn btn-primary">Next</button>
+        </div>
+        <div style="text-align:center;margin-top:0.75rem;">
+            <a href="/onboarding?step=5" class="text-muted" style="font-size:0.75rem;">Skip this step</a>
+        </div>
+    </form>
+</div>
+
+{% elif step == 5 %}
+<!-- ═══ STEP 5: Medical Records (Optional) ═══ -->
+<div class="card">
+    <h2 style="margin-bottom:0.25rem;">Medical Records</h2>
+    <p class="text-muted" style="margin-bottom:1rem;font-size:0.85rem;">
+        Virgil will track your blood markers over time and flag trends. This is completely optional — you can add results later in the Bloodwork section.
+    </p>
+
+    <div style="text-align:center;margin-bottom:1.5rem;">
+        <a href="/onboarding?step=6" class="btn btn-outline">Skip this step</a>
+    </div>
+
+    {% if not has_internal_llm %}
+    <div style="background:rgba(229,169,64,0.1);border:1px solid rgba(229,169,64,0.3);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;">
+        <p style="color:var(--yellow);font-size:0.85rem;margin:0;">
+            Medical record import requires an internal LLM key (<code>VIRGIL_INTERNAL_LLM_KEY</code>).
+            You can add blood work results manually later in the Bloodwork section.
+        </p>
+    </div>
+    {% endif %}
+
+    <form method="POST" action="/onboarding/step/5" enctype="multipart/form-data">
+        <div style="margin-bottom:1rem;" x-data="{ mode: 'file' }">
+            <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+                <button type="button" class="btn btn-sm" :class="mode === 'file' ? 'btn-primary' : 'btn-outline'" @click="mode = 'file'">Upload PDF</button>
+                <button type="button" class="btn btn-sm" :class="mode === 'text' ? 'btn-primary' : 'btn-outline'" @click="mode = 'text'">Paste text</button>
+            </div>
+
+            <div x-show="mode === 'file'">
+                <label>Blood test PDF
+                    <input type="file" name="medical_file" accept=".pdf" style="padding:0.5rem;">
+                </label>
+            </div>
+
+            <div x-show="mode === 'text'" x-cloak>
+                <label>Paste lab results</label>
+                <textarea name="medical_text" rows="8" placeholder="Paste your lab results here...&#10;&#10;e.g.&#10;WBC: 5.63 tys/µl&#10;RBC: 5.21 mln/µl&#10;HGB: 15.8 g/dl&#10;TSH: 1.898 µIU/ml"></textarea>
+            </div>
+        </div>
+
+        <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
+            <a href="/onboarding?step=4" class="btn btn-outline">Back</a>
+            <button type="submit" class="btn btn-primary" {% if not has_internal_llm %}disabled{% endif %}>Process & Next</button>
+        </div>
+    </form>
+</div>
+
+{% elif step == 6 %}
+<!-- ═══ STEP 6: Summary ═══ -->
+<div class="card" style="margin-bottom:1rem;">
+    <h2 style="margin-bottom:0.25rem;">Summary</h2>
+    <p class="text-muted" style="margin-bottom:1.5rem;font-size:0.85rem;">
+        Review what you've shared. Edit any section, then confirm to let Virgil personalize your experience.
+    </p>
+
+    {% if profile.sex or profile.age or profile.family %}
+    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <h3 style="margin:0;">About You</h3>
+            <a href="/onboarding?step=1" class="btn btn-sm btn-outline">Edit</a>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);">
+            {% if profile.sex %}<span>{{ profile.sex | capitalize }}</span>{% endif %}
+            {% if profile.age %}<span> &middot; {{ profile.age }} years</span>{% endif %}
+            {% if profile.height_cm %}<span> &middot; {{ profile.height_cm }}cm</span>{% endif %}
+            {% if profile.weight_kg %}<span> &middot; {{ profile.weight_kg }}kg</span>{% endif %}
+            {% if profile.family %}<div style="margin-top:0.25rem;">Family: {{ profile.family }}</div>{% endif %}
+        </div>
+    </div>
+    {% endif %}
+
+    {% if profile.ideal_day %}
+    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <h3 style="margin:0;">Your Ideal Day</h3>
+            <a href="/onboarding?step=2" class="btn btn-sm btn-outline">Edit</a>
+        </div>
+        <div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-line;">{{ profile.ideal_day }}</div>
+    </div>
+    {% endif %}
+
+    {% if goals %}
+    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <h3 style="margin:0;">End Goals</h3>
+            <a href="/onboarding?step=3" class="btn btn-sm btn-outline">Edit</a>
+        </div>
+        {% for area, content in goals.items() %}
+        <div style="font-size:0.85rem;margin-bottom:0.35rem;">
+            <strong>{{ area }}:</strong> <span class="text-muted">{{ content }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if profile.training_routine or profile.equipment %}
+    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+            <h3 style="margin:0;">Habits & Training</h3>
+            <a href="/onboarding?step=4" class="btn btn-sm btn-outline">Edit</a>
+        </div>
+        {% if profile.training_routine %}
+        <div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-line;margin-bottom:0.5rem;">{{ profile.training_routine }}</div>
+        {% endif %}
+        {% if profile.equipment %}
+        <div style="font-size:0.8rem;color:var(--text-tertiary);">Equipment: {{ profile.equipment | replace(',', ', ') | replace('_', ' ') }}</div>
+        {% endif %}
+    </div>
+    {% endif %}
+</div>
+
+<div style="display:flex;justify-content:space-between;gap:1rem;">
+    <a href="/onboarding?step=5" class="btn btn-outline">Back</a>
+    <div style="display:flex;gap:0.5rem;">
+        <form method="POST" action="/onboarding/skip" style="margin:0;">
+            <button type="submit" class="btn btn-outline">Skip for now</button>
+        </form>
+        <form method="POST" action="/onboarding/confirm" style="margin:0;">
+            <button type="submit" class="btn btn-primary">Confirm & Start</button>
+        </form>
+    </div>
+</div>
+
+{% endif %}
+{% endblock %}
