@@ -15,3 +15,12 @@ PORT = 8123
 # Fallback when no user-configured provider is active.
 INTERNAL_LLM_MODEL = os.environ.get("VIRGIL_INTERNAL_LLM_MODEL", "gemini/gemini-3-flash-preview")
 INTERNAL_LLM_KEY = os.environ.get("VIRGIL_INTERNAL_LLM_KEY", "")
+
+# Multi-user settings.
+CENTRAL_DB_PATH = os.environ.get(
+    "VIRGIL_CENTRAL_DB_PATH",
+    str(Path(__file__).parent.parent / "data" / "virgil-central.db"),
+)
+USERS_DB_DIR = str(Path(CENTRAL_DB_PATH).parent / "users")
+ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS", "").split(",") if e.strip()]
+REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "true").lower() == "true"
