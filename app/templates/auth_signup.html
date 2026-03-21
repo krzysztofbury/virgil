@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virgil - Login</title>
+    <title>Virgil - Sign Up</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -23,25 +23,33 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
-        <p class="auth-subtitle">Sign in to continue.</p>
+        <p class="auth-subtitle">Create your account.</p>
 
         {% if error %}
         <div class="auth-error">{{ error }}</div>
         {% endif %}
 
-        <form method="POST" action="/login">
+        <form method="POST" action="/signup">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <label>
                 Email
-                <input type="email" name="username" required autocomplete="email" autofocus>
+                <input type="email" name="email" required autocomplete="email" autofocus value="{{ email or '' }}">
+            </label>
+            <label>
+                Display Name
+                <input type="text" name="display_name" autocomplete="name" value="{{ display_name or '' }}">
             </label>
             <label>
                 Password
-                <input type="password" name="password" required autocomplete="current-password">
+                <input type="password" name="password" required autocomplete="new-password">
             </label>
-            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Sign In</button>
+            <label>
+                Confirm Password
+                <input type="password" name="password_confirm" required autocomplete="new-password">
+            </label>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Create Account</button>
         </form>
-        <p class="auth-footer">Don't have an account? <a href="/signup">Sign up</a></p>
+        <p class="auth-footer">Already have an account? <a href="/login">Sign in</a></p>
     </div>
 </div>
 
