@@ -93,11 +93,14 @@ async def scheduler_loop() -> None:
         try:
             users = await get_active_users()
             for user in users:
+                user_db = None
                 try:
                     user_db = await open_user_db(user["db_filename"])
                     await _check_and_run(user_db)
-                    await close_user_db(user_db)
                 except Exception:
                     logger.exception("Scheduler failed for user %s", user["email"])
+                finally:
+                    if user_db is not None:
+                        await close_user_db(user_db)
         except Exception:
             logger.exception("Scheduler tick failed")

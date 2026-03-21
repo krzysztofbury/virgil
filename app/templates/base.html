@@ -47,6 +47,9 @@
             <button type="button" onclick="toggleTheme()" class="nav-logout" title="Toggle theme" id="theme-toggle">
                 <i data-lucide="sun" style="width:20px;height:20px;"></i>
             </button>
+            {% if request.state.user and request.state.user.role == 'admin' %}
+            <a href="/admin/users" title="Admin Panel"><i data-lucide="shield" style="width:20px;height:20px;"></i></a>
+            {% endif %}
             <a href="/settings" title="Settings"><i data-lucide="settings" style="width:20px;height:20px;"></i></a>
             <form method="POST" action="/logout" style="margin:0;display:inline;">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">

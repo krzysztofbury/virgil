@@ -12,6 +12,8 @@ from app.migrations.runner import run_migrations
 
 async def create_user_db(db_filename: str) -> None:
     """Create a new per-user database and run all migrations."""
+    if not db_filename or ".." in db_filename or "/" in db_filename:
+        raise ValueError(f"Invalid db_filename: {db_filename}")
     db_dir = Path(USERS_DB_DIR)
     db_dir.mkdir(parents=True, exist_ok=True)
 
@@ -29,6 +31,8 @@ async def create_user_db(db_filename: str) -> None:
 
 async def open_user_db(db_filename: str) -> aiosqlite.Connection:
     """Open a connection to an existing per-user database."""
+    if not db_filename or ".." in db_filename or "/" in db_filename:
+        raise ValueError(f"Invalid db_filename: {db_filename}")
     db_path = str(Path(USERS_DB_DIR) / db_filename)
     db = await aiosqlite.connect(db_path)
     db.row_factory = aiosqlite.Row
@@ -45,6 +49,8 @@ async def close_user_db(db: aiosqlite.Connection) -> None:
 
 def delete_user_db(db_filename: str) -> None:
     """Delete a per-user database file and its WAL/SHM files."""
+    if not db_filename or ".." in db_filename or "/" in db_filename:
+        raise ValueError(f"Invalid db_filename: {db_filename}")
     db_path = Path(USERS_DB_DIR) / db_filename
     for suffix in ("", "-wal", "-shm"):
         path = Path(str(db_path) + suffix)

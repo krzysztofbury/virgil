@@ -105,8 +105,27 @@ async def get_active_users() -> list[dict]:
     return [dict(r) for r in rows]
 
 
+_UPDATABLE_COLUMNS = frozenset(
+    {
+        "email",
+        "password_hash",
+        "display_name",
+        "role",
+        "is_active",
+        "totp_secret",
+        "totp_enabled",
+        "last_login_at",
+    }
+)
+
+
 async def update_user(user_id: str, **fields) -> None:
     """Update specific fields on a user row."""
+    if not fields:
+        return
+    for key in fields:
+        if key not in _UPDATABLE_COLUMNS:
+            raise ValueError(f"Invalid column for update: {key}")
     db = await get_central_db()
     sets = ", ".join(f"{k} = ?" for k in fields)
     values = list(fields.values()) + [user_id]

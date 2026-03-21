@@ -10,7 +10,7 @@ GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
 AUTH_WINDOW_SECONDS = 60
-AUTH_PATHS = frozenset({"/login", "/setup", "/mfa/verify"})
+AUTH_PATHS = frozenset({"/login", "/signup", "/setup", "/mfa/verify"})
 MAX_BUCKETS = 10_000
 
 # {ip: [(timestamp, ...), ...]}

@@ -1,6 +1,7 @@
 import io
 import logging
 import re
+from datetime import UTC, datetime
 
 import pyotp
 import qrcode
@@ -123,7 +124,7 @@ async def login_submit(
         return response
 
     # No MFA — create full session and record login time
-    await update_user(user["id"], last_login_at="datetime('now')")
+    await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     token = create_session(user["id"])
     response = RedirectResponse("/", status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
@@ -241,7 +242,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
         )
 
     # MFA verified — upgrade to full session and record login time
-    await update_user(user["id"], last_login_at="datetime('now')")
+    await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     token = create_session(user["id"])
     response = RedirectResponse("/", status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)

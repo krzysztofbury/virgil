@@ -1,6 +1,8 @@
 """Authentication middleware and session utilities for multi-user Virgil."""
 
+import hashlib
 import logging
+import re
 
 import bcrypt
 from itsdangerous import BadSignature, TimestampSigner
@@ -28,6 +30,10 @@ PUBLIC_PATHS = frozenset(
 )
 PUBLIC_PREFIXES = ("/static/",)
 
+BCRYPT_ROUNDS = 12
+
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+
 _signer: TimestampSigner | None = None
 
 
@@ -45,7 +51,9 @@ def hash_password(password: str) -> str:
         raise ValueError("Cannot hash an empty password")
     if len(password) < 8:
         raise ValueError("Password must be at least 8 characters")
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    # Pre-hash with SHA-256 to avoid bcrypt's 72-byte truncation.
+    prehashed = hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.hashpw(prehashed.encode(), bcrypt.gensalt(rounds=BCRYPT_ROUNDS)).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
@@ -53,7 +61,8 @@ def verify_password(password: str, password_hash: str) -> bool:
         raise ValueError("Cannot verify an empty password")
     if not password_hash.startswith("$2"):
         raise ValueError("Invalid bcrypt hash format")
-    return bcrypt.checkpw(password.encode(), password_hash.encode())
+    prehashed = hashlib.sha256(password.encode()).hexdigest()
+    return bcrypt.checkpw(prehashed.encode(), password_hash.encode())
 
 
 def create_session(user_id: str) -> str:
@@ -114,6 +123,12 @@ class AuthMiddleware:
         user_id = validate_session(session_token) if session_token else None
 
         if not user_id or user_id.startswith("_mfa_pending:"):
+            response = RedirectResponse("/login", status_code=303)
+            await response(scope, receive, send)
+            return
+
+        # Validate UUID format before DB lookup.
+        if not _UUID_RE.match(user_id):
             response = RedirectResponse("/login", status_code=303)
             await response(scope, receive, send)
             return
