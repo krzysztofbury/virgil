@@ -3,7 +3,9 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from app.config import BASE_URL
 
 # CDN origins used by the app
-SCRIPT_ORIGINS = "https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com"
+SCRIPT_ORIGINS = (
+    "https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://static.cloudflareinsights.com"
+)
 STYLE_ORIGINS = "https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com"
 FONT_ORIGINS = "https://fonts.gstatic.com"
 
