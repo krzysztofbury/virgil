@@ -1,0 +1,53 @@
+[project]
+name = "virgil"
+version = "0.1.0"
+description = "Personal life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.12"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Framework :: FastAPI",
+    "Intended Audience :: End Users/Desktop",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+]
+dependencies = [
+    "fastapi==0.115.6",
+    "uvicorn[standard]==0.34.0",
+    "jinja2==3.1.5",
+    "python-multipart==0.0.20",
+    "aiosqlite==0.20.0",
+    "httptools==0.6.4",
+    "httpx>=0.28.1",
+    "cryptography>=46.0.5",
+    "bcrypt>=5.0.0",
+    "pyotp>=2.9.0",
+    "itsdangerous>=2.2.0",
+    "qrcode[pil]>=8.2",
+    "litellm>=1.60.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.9.10",
+    "bandit[toml]>=1.8.0",
+    "pre-commit>=4.0.0",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+ignore = ["E501"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.bandit]
+exclude_dirs = [".venv"]
+skips = ["B101"]
