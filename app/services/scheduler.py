@@ -2,7 +2,9 @@ import asyncio
 import logging
 from datetime import UTC, datetime
 
-from app.db import get_db, get_setting, set_setting
+from app.central_db import get_active_users
+from app.db import get_setting, set_setting
+from app.user_db import close_user_db, open_user_db
 
 logger = logging.getLogger(__name__)
 
@@ -89,7 +91,13 @@ async def scheduler_loop() -> None:
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
-            db = await get_db()
-            await _check_and_run(db)
+            users = await get_active_users()
+            for user in users:
+                try:
+                    user_db = await open_user_db(user["db_filename"])
+                    await _check_and_run(user_db)
+                    await close_user_db(user_db)
+                except Exception:
+                    logger.exception("Scheduler failed for user %s", user["email"])
         except Exception:
             logger.exception("Scheduler tick failed")
