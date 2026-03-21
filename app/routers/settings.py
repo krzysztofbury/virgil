@@ -319,6 +319,34 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
     return RedirectResponse("/settings?tab=general", status_code=303)
 
 
+# --- Factory Reset ---
+
+
+@router.post("/settings/factory-reset")
+async def factory_reset(request: Request):
+    """Delete the database and redirect to /setup for a fresh start."""
+    import os
+
+    from app.db import close_db
+
+    await close_db()
+    db_path = DB_PATH
+    if os.path.exists(db_path):
+        os.remove(db_path)
+    # Also remove WAL and SHM files if present.
+    for suffix in ("-wal", "-shm"):
+        wal_path = db_path + suffix
+        if os.path.exists(wal_path):
+            os.remove(wal_path)
+
+    # Reset cached state so middleware redirects to /setup.
+    from app.auth import _reset_caches
+
+    _reset_caches()
+
+    return RedirectResponse("/setup", status_code=303)
+
+
 # --- Oura Integration ---
 
 

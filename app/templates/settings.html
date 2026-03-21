@@ -473,5 +473,22 @@
 
 {% endif %}
 
+<!-- Factory Reset (always visible on security tab) -->
+{% if active_tab == 'security' %}
+<div class="card" style="margin-top:1rem;border:1px solid rgba(229,84,75,0.2);">
+    <div class="card-header"><h3 style="color:var(--red);">Factory Reset</h3></div>
+    <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">
+        Delete all data and start fresh. This removes your account, profile, goals, training, experiments, and all other data. The database file will be deleted and recreated on next startup.
+    </p>
+    <details>
+        <summary style="color:var(--red);">I understand, show the reset button</summary>
+        <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;"
+              onsubmit="return confirm('Are you absolutely sure? This will delete ALL data and cannot be undone.')">
+            <button type="submit" class="btn btn-danger">Reset Everything</button>
+        </form>
+    </details>
+</div>
+{% endif %}
+
 </div><!-- #settings-content -->
 {% endblock %}

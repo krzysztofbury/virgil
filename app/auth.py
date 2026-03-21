@@ -73,6 +73,14 @@ def clear_session_cookie() -> str:
     return f"{SESSION_COOKIE}=; HttpOnly; SameSite=Strict{secure}; Max-Age=0; Path=/"
 
 
+def _reset_caches():
+    """Reset all cached auth state — called on factory reset."""
+    global _user_exists, _onboarding_done, _signer
+    _user_exists = None
+    _onboarding_done = None
+    _signer = None
+
+
 def mark_onboarding_complete():
     """Called after onboarding finishes to update the cached state."""
     global _onboarding_done
