@@ -10,7 +10,7 @@ from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from app.config import BASE_URL, DB_PATH, SECOND_BRAIN_PATH
-from app.db import get_db, get_feature_flags, get_setting, set_setting
+from app.db import get_feature_flags, get_setting, set_setting
 from app.main import templates
 from app.services.encryption import decrypt, encrypt
 from app.services.oura_api import (
@@ -22,6 +22,7 @@ from app.services.oura_api import (
     list_webhook_subscriptions,
     sync_oura_from_api,
 )
+from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +37,7 @@ async def save_theme(request: Request):
     theme = data.get("theme", "dark")
     if theme not in ("dark", "light"):
         theme = "dark"
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await set_setting(db, "theme", theme)
     return Response("ok")
 
@@ -46,7 +47,7 @@ async def settings_page(request: Request, tab: str = Query("general")):
     if tab not in SETTINGS_TABS:
         tab = "general"
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     # Always needed for tab nav
     context: dict = {
@@ -115,7 +116,7 @@ async def save_automation(request: Request):
     from app.validation import clamp_float, clamp_int
 
     form = await request.form()
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     # Validate numeric settings before persisting to prevent scheduler crashes.
     backup_interval = clamp_float(form.get("backup_interval_hours", "24"), minimum=1.0, maximum=168.0)
@@ -141,7 +142,7 @@ async def save_automation(request: Request):
 @router.post("/settings/features")
 async def save_features(request: Request):
     form = await request.form()
-    db = await get_db()
+    db = get_user_db_from_request(request)
     flags = await get_feature_flags(db)
     for flag_name in flags:
         key = f"feature_{flag_name}"
@@ -162,7 +163,7 @@ async def save_features(request: Request):
 async def trigger_backup_now(request: Request):
     from app.services.backup import run_backup
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     try:
         path = await run_backup(db)
         return RedirectResponse(
@@ -188,7 +189,7 @@ async def trigger_export(request: Request):
     sections = form.getlist("sections")
     section_set = set(sections) if sections else None
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     try:
         await write_export(db, scope, sections=section_set)
         return RedirectResponse(f"/settings?tab=data&msg={quote(f'{scope} export complete')}", status_code=303)
@@ -201,7 +202,7 @@ async def trigger_export(request: Request):
 async def trigger_import(request: Request):
     from app.services.markdown_import import import_all
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     try:
         await import_all(db)
         return RedirectResponse(f"/settings?tab=data&msg={quote('Import complete')}", status_code=303)
@@ -242,7 +243,7 @@ EXPORT_TABLES = [
 
 @router.get("/settings/export/json")
 async def export_json(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     data = {}
     for table in EXPORT_TABLES:
         rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
@@ -257,7 +258,7 @@ async def export_json(request: Request):
 
 @router.get("/settings/export/csv")
 async def export_csv(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     output = io.StringIO()
     for table in EXPORT_TABLES:
         rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
@@ -288,7 +289,7 @@ async def add_llm_provider(
 ):
     from app.validation import truncate
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     # Sanitize inputs — provider and model are stored as-is for LiteLLM.
     provider = truncate(provider.strip(), 50)
     model = truncate(model.strip(), 200)
@@ -304,7 +305,7 @@ async def add_llm_provider(
 
 @router.post("/settings/llm/activate")
 async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("UPDATE llm_providers SET is_active = 0")
     await db.execute("UPDATE llm_providers SET is_active = 1 WHERE id = ?", (provider_id,))
     await db.commit()
@@ -313,7 +314,7 @@ async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
 
 @router.post("/settings/llm/delete")
 async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
     await db.commit()
     return RedirectResponse("/settings?tab=general", status_code=303)
@@ -324,20 +325,22 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
 
 @router.post("/settings/factory-reset")
 async def factory_reset(request: Request):
-    """Delete the database and redirect to /setup for a fresh start."""
+    """Delete the current user's database and redirect to /setup for a fresh start."""
     import os
 
-    from app.db import close_db
+    from app.user_db import delete_user_db
 
-    await close_db()
-    db_path = DB_PATH
-    if os.path.exists(db_path):
-        os.remove(db_path)
-    # Also remove WAL and SHM files if present.
-    for suffix in ("-wal", "-shm"):
-        wal_path = db_path + suffix
-        if os.path.exists(wal_path):
-            os.remove(wal_path)
+    user = getattr(request.state, "user", None)
+    if user and user.get("db_filename"):
+        delete_user_db(user["db_filename"])
+    else:
+        # Fallback: remove legacy DB_PATH if present
+        if os.path.exists(DB_PATH):
+            os.remove(DB_PATH)
+        for suffix in ("-wal", "-shm"):
+            wal_path = DB_PATH + suffix
+            if os.path.exists(wal_path):
+                os.remove(wal_path)
 
     # Reset cached state so middleware redirects to /setup.
     from app.auth import _reset_caches
@@ -356,7 +359,7 @@ async def save_oura_credentials(
     client_id: str = Form(...),
     client_secret: str = Form(...),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """INSERT INTO integrations (provider, client_id, client_secret_enc, scopes, status)
         VALUES ('oura', ?, ?, ?, 'configured')
@@ -372,7 +375,7 @@ async def save_oura_credentials(
 
 @router.get("/settings/oura/connect")
 async def oura_connect(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     row = await db.execute_fetchall("SELECT client_id FROM integrations WHERE provider = 'oura'")
     if not row:
         return RedirectResponse("/settings?tab=integrations", status_code=303)
@@ -392,7 +395,7 @@ async def oura_callback(request: Request, code: str = Query(...), state: str = Q
         logger.warning("OAuth state mismatch — possible CSRF attempt")
         return RedirectResponse("/settings?tab=integrations", status_code=303)
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     row = await db.execute_fetchall("SELECT * FROM integrations WHERE provider = 'oura'")
     if not row:
         return RedirectResponse("/settings?tab=integrations", status_code=303)
@@ -431,7 +434,7 @@ async def oura_callback(request: Request, code: str = Query(...), state: str = Q
 
 @router.post("/settings/oura/disconnect")
 async def oura_disconnect(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """UPDATE integrations SET access_token_enc = '', refresh_token_enc = '',
            token_expires_at = '', status = 'configured' WHERE provider = 'oura'"""
@@ -442,7 +445,7 @@ async def oura_disconnect(request: Request):
 
 @router.post("/settings/oura/sync")
 async def oura_sync(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     try:
         count = await sync_oura_from_api(db)
         logger.info("Oura sync completed: %d days", count)
@@ -460,7 +463,7 @@ async def oura_sync(request: Request):
 
 @router.post("/settings/oura/webhook/enable")
 async def enable_oura_webhook(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     token = await ensure_valid_token(db)
     if not token:
         return RedirectResponse(
@@ -501,7 +504,7 @@ async def enable_oura_webhook(request: Request):
 
 @router.post("/settings/oura/webhook/disable")
 async def disable_oura_webhook(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     token = await ensure_valid_token(db)
 
     # Try to delete subscriptions from Oura

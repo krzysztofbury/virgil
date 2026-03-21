@@ -4,8 +4,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.db import get_db
 from app.main import templates
+from app.user_db import get_user_db_from_request
 from app.validation import valid_month
 
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ METRICS = [
 @router.get("/oura", response_class=HTMLResponse)
 @router.get("/oura/{metric}", response_class=HTMLResponse)
 async def oura_page(request: Request, metric: str = "sleep_score"):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT * FROM oura_monthly ORDER BY month")
     data = [dict(r) for r in rows]
 
@@ -121,7 +121,7 @@ async def save_oura(
 ):
     if not valid_month(month):
         return RedirectResponse("/oura", status_code=303)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO oura_monthly (month, sleep_score, readiness, activity, steps,
@@ -164,7 +164,7 @@ async def save_oura(
 async def delete_oura(request: Request, month: str = Form(...)):
     if not valid_month(month):
         return RedirectResponse("/oura", status_code=303)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("DELETE FROM oura_monthly WHERE month = ?", (month,))
     await db.commit()
     return RedirectResponse("/oura", status_code=303)
@@ -174,7 +174,7 @@ async def delete_oura(request: Request, month: str = Form(...)):
 async def oura_api_sync(request: Request):
     from app.services.oura_api import sync_oura_from_api
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     try:
         count = await sync_oura_from_api(db)
         logger.info("Oura API sync from oura page: %d days", count)

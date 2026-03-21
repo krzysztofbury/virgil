@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
-from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_db
+from app.db import LIFE_AREA_LABELS, LIFE_AREAS
+from app.user_db import get_user_db_from_request
 from app.validation import clamp, truncate, valid_date
 
 router = APIRouter()
@@ -52,7 +53,7 @@ async def save_life_score(
     pmo_status = truncate(pmo_status, 200)
     diagnostic = truncate(diagnostic, 2000)
     priorities = truncate(priorities, 2000)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO life_scores (date, planning, spirituality, health, work, social,

@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.db import get_db, set_setting
+from app.db import set_setting
 from app.main import templates
 from app.models.user_profile import (
     ensure_profile,
@@ -14,6 +14,7 @@ from app.models.user_profile import (
     update_step4,
     update_step5,
 )
+from app.user_db import get_user_db_from_request
 from app.validation import truncate
 
 logger = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ GOAL_CATEGORY_MAP = {
 @router.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, step: int = 0):
     step = max(0, min(6, step))
-    db = await get_db()
+    db = get_user_db_from_request(request)
     profile = await ensure_profile(db)
 
     # If no step specified, resume from where user left off.
@@ -93,7 +94,7 @@ async def save_step1(
     habits_good: str = Form(""),
     habits_bad: str = Form(""),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await update_step1(
         db,
         sex=truncate(sex, 20),
@@ -109,7 +110,7 @@ async def save_step1(
 
 @router.post("/onboarding/step/2")
 async def save_step2(request: Request, ideal_day: str = Form("")):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await update_step2(db, ideal_day=truncate(ideal_day, 5000))
     return RedirectResponse("/onboarding?step=3", status_code=303)
 
@@ -122,7 +123,7 @@ async def save_step3(
     goal_finance: str = Form(""),
     goal_relations: str = Form(""),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     # Save end goals (Level 3 / 10yr) to goals table.
     category_goals = {
@@ -162,7 +163,7 @@ async def save_step4(
     habits_build: str = Form(""),
     habits_break: str = Form(""),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await update_step4(
         db,
         training_routine=truncate(training_routine, 3000),
@@ -179,7 +180,7 @@ async def save_step5(
     medical_text: str = Form(""),
     medical_file: UploadFile | None = File(None),  # noqa: B008
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
 
     raw_text = truncate(medical_text, 10000)
@@ -321,7 +322,7 @@ async def _parse_medical_text(db, text: str) -> None:
 
 @router.post("/onboarding/confirm")
 async def confirm_onboarding(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     profile = await get_profile(db)
 
     # Run LLM enrichment (each part independent, only if data provided).
@@ -341,7 +342,7 @@ async def confirm_onboarding(request: Request):
 
 @router.post("/onboarding/skip")
 async def skip_onboarding(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await set_setting(db, "onboarding_completed", "1")
 
     from app.auth import mark_onboarding_complete

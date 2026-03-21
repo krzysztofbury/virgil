@@ -5,9 +5,10 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_db, get_setting
+from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_setting
 from app.main import templates
 from app.services.streak import get_streak
+from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +20,7 @@ AREA_LABELS = LIFE_AREA_LABELS
 
 @router.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     today = date.today()
 
     # Today's log
@@ -262,7 +263,7 @@ async def offline_page(request: Request):
 async def generate_briefing_endpoint(request: Request):
     from app.services.briefing import generate_briefing
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     try:
         content = await generate_briefing(db)
         return templates.TemplateResponse(

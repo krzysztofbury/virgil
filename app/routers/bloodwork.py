@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.db import get_db
 from app.main import templates
+from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 router = APIRouter()
@@ -11,7 +11,7 @@ router = APIRouter()
 @router.get("/bloodwork", response_class=HTMLResponse)
 @router.get("/bloodwork/{category}", response_class=HTMLResponse)
 async def bloodwork_page(request: Request, category: str = "all"):
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     # Get all categories
     cats = await db.execute_fetchall("SELECT DISTINCT category FROM blood_markers ORDER BY display_order, category")
@@ -93,7 +93,7 @@ async def save_result(
     if flag and flag not in ("", "H", "L"):
         flag = ""
     value_text = truncate(value_text, 200)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO blood_results (marker_id, date, value, value_text, flag)
@@ -117,7 +117,7 @@ async def save_marker(
     ref_high: float | None = Form(None),
     display_order: int = Form(0),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO blood_markers (name, category, unit, ref_low, ref_high, display_order)

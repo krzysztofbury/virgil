@@ -1,8 +1,8 @@
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 
-from app.db import get_db
 from app.main import templates
+from app.user_db import get_user_db_from_request
 from app.validation import truncate
 
 router = APIRouter()
@@ -12,7 +12,7 @@ HORIZONS = [("1yr", "1 Year"), ("3yr", "3 Years"), ("10yr", "10 Years")]
 
 @router.get("/goals", response_class=HTMLResponse)
 async def goals_page(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     areas = await db.execute_fetchall("SELECT * FROM goal_areas ORDER BY display_order")
     areas = [dict(a) for a in areas]
@@ -53,7 +53,7 @@ async def save_goal(
     content = truncate(content, 2000)
     if not content.strip():
         return RedirectResponse("/goals", status_code=303)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     if goal_id is not None:
         await db.execute(
             "UPDATE goals SET content = ?, display_order = ?, updated_at = datetime('now') WHERE id = ?",
@@ -75,7 +75,7 @@ async def update_goal_inline(
     content: str = Form(...),
 ):
     content = truncate(content, 2000)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         "UPDATE goals SET content = ?, updated_at = datetime('now') WHERE id = ?",
         (content.strip(), goal_id),
@@ -86,7 +86,7 @@ async def update_goal_inline(
 
 @router.post("/goals/delete")
 async def delete_goal(request: Request, goal_id: int = Form(...)):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
     await db.commit()
     return RedirectResponse("/goals", status_code=303)

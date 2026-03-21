@@ -3,8 +3,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.db import get_db
 from app.main import templates
+from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 router = APIRouter(prefix="/experiments")
@@ -156,7 +156,7 @@ def _build_week_grid(
 
 @router.get("", response_class=HTMLResponse)
 async def experiments_list(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     rows = await db.execute_fetchall(
         "SELECT * FROM experiments ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, created_at DESC"
     )
@@ -243,7 +243,7 @@ async def create_experiment(
     description = truncate(description, 2000)
     if not title.strip():
         return RedirectResponse("/experiments/new", status_code=303)
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     cursor = await db.execute(
         "INSERT INTO experiments (title, description, start_date, num_weeks) VALUES (?, ?, ?, ?)",
@@ -278,7 +278,7 @@ async def create_experiment(
 
 @router.get("/{experiment_id}", response_class=HTMLResponse)
 async def experiment_detail(request: Request, experiment_id: int):
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))
     if not rows:
@@ -388,7 +388,7 @@ async def add_entry(
     if duration_minutes < 1:
         return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
     notes = truncate(notes, 500)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         "INSERT INTO experiment_entries (experiment_id, date, activity_type_id, duration_minutes, notes) "
         "VALUES (?, ?, ?, ?, ?)",
@@ -406,7 +406,7 @@ async def generate_summary(
 ):
     from app.services.experiment_summary import generate_week_summary
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await generate_week_summary(db, experiment_id, week_number)
     return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
 
@@ -415,7 +415,7 @@ async def generate_summary(
 async def import_workouts(request: Request, experiment_id: int):
     from app.services.oura_api import _auto_populate_experiments
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await _auto_populate_experiments(db)
     await db.commit()
     return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
@@ -427,7 +427,7 @@ async def delete_entry(
     experiment_id: int,
     entry_id: int = Form(...),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("DELETE FROM experiment_entries WHERE id = ? AND experiment_id = ?", (entry_id, experiment_id))
     await db.commit()
     return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
@@ -439,7 +439,7 @@ async def complete_experiment(
     experiment_id: int,
     new_status: str = Form("completed"),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     if new_status in ("completed", "abandoned"):
         await db.execute("UPDATE experiments SET status = ? WHERE id = ?", (new_status, experiment_id))
         await db.commit()
@@ -448,7 +448,7 @@ async def complete_experiment(
 
 @router.post("/{experiment_id}/delete")
 async def delete_experiment(request: Request, experiment_id: int):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
     await db.commit()
     return RedirectResponse("/experiments", status_code=303)
@@ -467,7 +467,7 @@ async def update_week_targets(
         target_min = 0
     if target_max < target_min:
         target_max = target_min
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         "UPDATE experiment_weeks SET target_min = ?, target_max = ?, label = ? "
         "WHERE experiment_id = ? AND week_number = ?",

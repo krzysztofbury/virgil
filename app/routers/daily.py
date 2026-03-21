@@ -7,9 +7,9 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
 
 from app.config import SECOND_BRAIN_PATH
-from app.db import get_db
 from app.main import templates
 from app.services.llm import get_active_provider
+from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 router = APIRouter()
@@ -25,7 +25,7 @@ async def daily_page(request: Request, day: str | None = None):
         target = date_module.fromisoformat(day) if day else date_module.today()
     except (ValueError, TypeError):
         return RedirectResponse("/daily", status_code=303)
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (target.isoformat(),))
     log = dict(row[0]) if row else None
@@ -165,7 +165,7 @@ async def save_daily(
     andy_spirit_status = andy_spirit_status if andy_spirit_status in valid_statuses else "pending"
     andy_account_status = andy_account_status if andy_account_status in valid_statuses else "pending"
     andy_relations_status = andy_relations_status if andy_relations_status in valid_statuses else "pending"
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO daily_logs (date, energy, morning_routine, evening_routine, water,
@@ -211,7 +211,7 @@ async def generate_andy(request: Request, date: str = Form(...)):
         return RedirectResponse("/daily", status_code=303)
     from app.services.llm import call_llm, parse_andy_response
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     target = date
     target_date = date_module.fromisoformat(target)
     day_name = DAYS_PL[target_date.weekday()]
@@ -343,7 +343,7 @@ async def save_measurements(
         except ValueError:
             return None
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO body_measurements (date, weight, arm, waist, hips, thighs)

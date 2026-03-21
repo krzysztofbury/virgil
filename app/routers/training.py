@@ -4,8 +4,8 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.db import get_db
 from app.main import templates
+from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ SECTION_ORDER = ["Warmup", "Core", "Cardio", "Stretching"]
 
 @router.get("/training", response_class=HTMLResponse)
 async def training_page(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
 
     exercises = await db.execute_fetchall("SELECT * FROM training_exercises ORDER BY display_order")
     exercises = [dict(e) for e in exercises]
@@ -120,7 +120,7 @@ async def training_page(request: Request):
 
 @router.post("/training/session")
 async def save_session(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     form = await request.form()
 
     session_date = form.get("date", date.today().isoformat())
@@ -206,8 +206,8 @@ async def save_session(request: Request):
 
 
 @router.post("/training/session/{session_id}/delete")
-async def delete_session(session_id: int):
-    db = await get_db()
+async def delete_session(request: Request, session_id: int):
+    db = get_user_db_from_request(request)
     await db.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
     await db.commit()
     return RedirectResponse("/training", status_code=303)
@@ -218,7 +218,7 @@ async def delete_session(session_id: int):
 
 @router.post("/training/exercise")
 async def add_exercise(request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     form = await request.form()
 
     name = truncate(form.get("name", "").strip(), 100)
@@ -250,7 +250,7 @@ async def add_exercise(request: Request):
 
 @router.post("/training/exercise/{exercise_id}/edit")
 async def edit_exercise(exercise_id: int, request: Request):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     form = await request.form()
 
     name = truncate(form.get("name", "").strip(), 100)
@@ -276,8 +276,8 @@ async def edit_exercise(exercise_id: int, request: Request):
 
 
 @router.post("/training/exercise/{exercise_id}/delete")
-async def delete_exercise(exercise_id: int):
-    db = await get_db()
+async def delete_exercise(request: Request, exercise_id: int):
+    db = get_user_db_from_request(request)
     # Delete entries referencing this exercise first
     await db.execute("DELETE FROM training_entries WHERE exercise_id = ?", (exercise_id,))
     await db.execute("DELETE FROM training_exercises WHERE id = ?", (exercise_id,))

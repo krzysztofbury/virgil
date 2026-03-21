@@ -4,9 +4,9 @@ from datetime import date, timedelta
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from app.db import get_db
 from app.main import templates
 from app.services.streak import get_streak
+from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 logger = logging.getLogger(__name__)
@@ -25,7 +25,7 @@ router = APIRouter(dependencies=[Depends(require_feniks)])
 async def feniks_page(request: Request, tab: str = "journal"):
     edit_date = request.query_params.get("date")
 
-    db = await get_db()
+    db = get_user_db_from_request(request)
     today = date.today()
 
     # Feniks config
@@ -124,7 +124,7 @@ async def save_journal(
     thoughts = truncate(thoughts, 2000)
     desired_feelings = truncate(desired_feelings, 2000)
     coping_strategies = truncate(coping_strategies, 2000)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO feniks_journal (date, emotions, triggers, thoughts, desired_feelings, coping_strategies)
@@ -150,7 +150,7 @@ async def save_pleasures(
         return RedirectResponse("/feniks/pleasures", status_code=303)
     pleasure_1 = truncate(pleasure_1, 500)
     pleasure_2 = truncate(pleasure_2, 500)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute(
         """
         INSERT INTO feniks_pleasures (date, pleasure_1, pleasure_2)
@@ -169,7 +169,7 @@ async def toggle_milestone(
     request: Request,
     day_number: int = Form(...),
 ):
-    db = await get_db()
+    db = get_user_db_from_request(request)
     row = await db.execute_fetchall("SELECT * FROM feniks_milestones WHERE day_number = ?", (day_number,))
     if row:
         old_val = row[0]["completed"]
@@ -207,7 +207,7 @@ async def log_relapse(
     if not valid_date(date):
         return RedirectResponse("/feniks", status_code=303)
     notes = truncate(notes, 2000)
-    db = await get_db()
+    db = get_user_db_from_request(request)
     await db.execute("INSERT INTO pmo_events (date, event_type, notes) VALUES (?, 'relapse', ?)", (date, notes))
     await db.commit()
     return RedirectResponse("/feniks", status_code=303)
