@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Admin{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <div class="flex-between">
+        <h1>User Management</h1>
+        <small class="text-muted">{{ total }} users &middot; Registration {{ 'open' if registration_open else 'closed' }}</small>
+    </div>
+</div>
+
+<div class="card">
+    <div class="overflow-x">
+        <table>
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Name</th>
+                    <th>Role</th>
+                    <th>Status</th>
+                    <th>Last Login</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for u in users %}
+                <tr>
+                    <td>{{ u.email }}</td>
+                    <td>{{ u.display_name or '-' }}</td>
+                    <td>
+                        {% if u.role == 'admin' %}
+                        <span class="flag-normal" style="font-weight:600;">Admin</span>
+                        {% else %}
+                        <span class="text-muted">User</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if u.is_active %}
+                        <span class="flag-normal">Active</span>
+                        {% else %}
+                        <span style="color:var(--red);">Disabled</span>
+                        {% endif %}
+                    </td>
+                    <td><small>{{ u.last_login_at[:16] if u.last_login_at else 'Never' }}</small></td>
+                    <td><small>{{ u.created_at[:10] if u.created_at else '-' }}</small></td>
+                    <td style="display:flex;gap:0.25rem;">
+                        {% if u.is_active %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/disable" style="margin:0;">
+                            <button type="submit" class="btn btn-sm btn-outline">Disable</button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/enable" style="margin:0;">
+                            <button type="submit" class="btn btn-sm btn-outline">Enable</button>
+                        </form>
+                        {% endif %}
+                        {% if u.email not in admin_emails %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/delete" style="margin:0;"
+                              onsubmit="return confirm('Delete user {{ u.email }}? This removes all their data.')">
+                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--red);">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
