@@ -5,6 +5,48 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2026-03-21
+
+### Added
+
+- **Multi-user architecture** with per-user isolated SQLite databases (`data/users/{uuid}.db`)
+- **Central auth service** — user registry in `virgil-central.db`, signup/login against central DB
+- **Signup page** (`/signup`) with email, display name, password — creates user + per-user DB
+- **Admin panel** (`/admin/users`) — list, disable, enable, delete users (admin role required)
+- **Admin role system** — super-admins via `VIRGIL_ADMIN_EMAILS` env var, promotable via admin panel
+- **Registration control** — `VIRGIL_REGISTRATION_OPEN` env var to open/close signups
+- **6-step onboarding wizard** (`/onboarding`) — profile, ideal day, goals, habits, medical records
+- **LLM-powered onboarding enrichment** — generates realistic day, goal levels (10yr/3yr/1yr), experiment suggestion, Feniks auto-detection
+- **LiteLLM integration** — unified LLM provider access replacing hand-rolled HTTP clients
+- **Internal LLM provider** — `VIRGIL_INTERNAL_LLM_MODEL` + `VIRGIL_INTERNAL_LLM_KEY` for system features
+- **Expanded LLM provider dropdown** — Anthropic, OpenAI, Gemini, Mistral, Groq, Ollama, Other (LiteLLM)
+- **Medical record import** — PDF upload via multimodal LLM or free-text parsing into blood markers
+- **Factory reset** in Settings > Security — wipes user DB for fresh start
+- **Migration script** (`scripts/migrate_to_multiuser.py`) — converts single-user installs to multi-user
+
+### Changed
+
+- Auth middleware rewritten for multi-user (UUID sessions, per-user DB per request)
+- All routers now use `get_user_db_from_request(request)` instead of global `get_db()`
+- Scheduler iterates over all active users for per-user tasks
+- Feature flags loaded per-user instead of global cache
+- Typography upgraded from Inter to DM Sans + JetBrains Mono
+- Color palette replaced with custom "Midnight Observatory" theme (teal accent #2cb67d)
+- Stat values use solid color + mono font instead of gradient text
+
+### Security
+
+- bcrypt pre-hashed with SHA-256 to prevent 72-byte truncation
+- SQL injection prevented via column whitelist in `update_user`
+- Path traversal guard on per-user DB filenames
+- `/signup` added to rate limiter auth tier (10 req/min)
+- UUID format validation on session payloads
+- Admin self-disable/self-delete prevention
+- HSTS header when behind HTTPS
+- `CF-Connecting-IP` used for rate limiting behind Cloudflare
+
+---
+
 ## [0.1.0] - 2026-03-21
 
 ### Added

@@ -10,7 +10,7 @@ RUN uv sync --frozen --no-dev --no-editable
 COPY app/ ./app/
 
 RUN adduser --disabled-password --no-create-home --gecos "" appuser
-RUN mkdir -p /data && chown appuser:appuser /data
+RUN mkdir -p /data/users && chown -R appuser:appuser /data
 USER appuser
 
 ENV VIRGIL_ENV=prod

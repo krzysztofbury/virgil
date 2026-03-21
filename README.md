@@ -12,8 +12,8 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 - **Frontend**: Jinja2 templates, HTMX, Alpine.js, Chart.js, Lucide icons
 - **Styling**: Custom CSS with dark/light theme via CSS custom properties
 - **Database**: SQLite with WAL mode, versioned migration system
-- **Auth**: Email + password + TOTP MFA, signed cookie sessions
-- **LLM Integration**: httpx to Claude / OpenAI / Gemini APIs
+- **Auth**: Multi-user with per-user isolated SQLite databases, email + password + TOTP MFA
+- **LLM Integration**: LiteLLM (supports Anthropic, OpenAI, Gemini, Mistral, Groq, Ollama, and more)
 - **Charts**: Chart.js (line, bar, sparkline, radar, dual-axis) — theme-aware
 - **PWA**: Service worker with offline support, installable on mobile
 
@@ -107,14 +107,16 @@ All configuration via environment variables:
 | Variable | Default | Description |
 |---|---|---|
 | `VIRGIL_ENV` | `local` | `local` (hot reload) or `prod` (no reload) |
-| `VIRGIL_DB_PATH` | `./data/virgil.db` | SQLite database file path |
+| `VIRGIL_CENTRAL_DB_PATH` | `./data/virgil-central.db` | Central user registry database |
 | `VIRGIL_SECOND_BRAIN_PATH` | (empty) | Path to markdown files directory |
 | `VIRGIL_HOST` | `0.0.0.0` | Server bind host |
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL (for OAuth callbacks, webhook URLs) |
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for encrypting secrets |
+| `VIRGIL_ADMIN_EMAILS` | (empty) | Comma-separated admin emails (always have admin role) |
+| `VIRGIL_REGISTRATION_OPEN` | `true` | Allow new user signups (`true`/`false`) |
+| `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
+| `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
-| `ANTHROPIC_API_KEY` | (none) | For AI briefing generation (optional) |
-| `GEMINI_API_KEY` | (none) | For AI briefing generation (optional) |
 
 Port is always **8123**.
 
