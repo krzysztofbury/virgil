@@ -1,0 +1,477 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Settings{% endblock %}
+
+{% block content %}
+{% if request.query_params.get('msg') %}
+<script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('msg') }}"); });</script>
+{% endif %}
+{% if request.query_params.get('err') %}
+<script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('err') }}", true); });</script>
+{% endif %}
+<div class="page-header">
+    <h1>Settings</h1>
+</div>
+
+<div id="settings-content">
+<!-- Tab Navigation -->
+<nav class="tabs" style="margin-bottom: 1.5rem;">
+    {% set tab_labels = {'general': 'General', 'integrations': 'Integrations', 'data': 'Data', 'automation': 'Automation', 'security': 'Security'} %}
+    {% for t in tabs %}
+    <a href="/settings?tab={{ t }}"
+       hx-get="/settings?tab={{ t }}"
+       hx-target="#settings-content"
+       hx-select="#settings-content"
+       hx-push-url="true"
+       hx-swap="outerHTML"
+       class="{{ 'active' if active_tab == t else '' }}">{{ tab_labels[t] }}</a>
+    {% endfor %}
+</nav>
+
+{% if active_tab == 'general' %}
+<!-- ═══ GENERAL TAB ═══ -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Configuration</h3></div>
+    <p style="margin-bottom: 0.35rem;"><strong>Database:</strong> <span class="text-muted">{{ db_path }}</span></p>
+    <p><strong>Second Brain:</strong> <span class="text-muted">{{ second_brain_path or 'Not configured' }}</span></p>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>LLM Providers</h3></div>
+
+    {% if llm_providers %}
+    <div class="overflow-x" style="margin-bottom: 1rem;">
+        <table>
+            <thead><tr><th>Provider</th><th>Model</th><th>API Key</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+                {% for p in llm_providers %}
+                <tr>
+                    <td>{{ p.provider }}</td>
+                    <td><small>{{ p.model }}</small></td>
+                    <td><code>{{ p.api_key_masked }}</code></td>
+                    <td>
+                        {% if p.is_active %}
+                        <span class="flag-normal" style="font-weight:600;">Active</span>
+                        {% else %}
+                        <span class="text-muted">-</span>
+                        {% endif %}
+                    </td>
+                    <td style="display:flex;gap:0.25rem;">
+                        {% if not p.is_active %}
+                        <form method="POST" action="/settings/llm/activate" style="margin:0;">
+                            <input type="hidden" name="provider_id" value="{{ p.id }}">
+                            <button type="submit" class="btn btn-sm btn-outline">Activate</button>
+                        </form>
+                        {% endif %}
+                        <form method="POST" action="/settings/llm/delete" style="margin:0;">
+                            <input type="hidden" name="provider_id" value="{{ p.id }}">
+                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--flag-h);">Delete</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted" style="margin-bottom: 0.75rem;">No providers configured.</p>
+    {% endif %}
+
+    <details>
+        <summary style="cursor:pointer;font-weight:500;margin-bottom:0.75rem;">Add provider</summary>
+        <form method="POST" action="/settings/llm/add" x-data="{
+            provider: 'anthropic',
+            models: {
+                'anthropic': 'anthropic/claude-sonnet-4-20250514',
+                'openai': 'openai/gpt-4o-mini',
+                'gemini': 'gemini/gemini-3-flash-preview',
+                'mistral': 'mistral/mistral-small-latest',
+                'groq': 'groq/llama-3.3-70b-versatile',
+                'ollama': 'ollama/llama3.2',
+                'other': ''
+            },
+            model: 'anthropic/claude-sonnet-4-20250514',
+            isOther: false,
+            setProvider(val) {
+                this.provider = val;
+                this.isOther = val === 'other';
+                if (!this.isOther) this.model = this.models[val];
+            }
+        }">
+            <div class="grid" style="margin-bottom:0.5rem;">
+                <div>
+                    <label>Provider
+                        <select name="provider" required x-model="provider" @change="setProvider($event.target.value)">
+                            <option value="anthropic">Anthropic</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="gemini">Google Gemini</option>
+                            <option value="mistral">Mistral</option>
+                            <option value="groq">Groq</option>
+                            <option value="ollama">Ollama (local)</option>
+                            <option value="other">Other (LiteLLM)</option>
+                        </select>
+                    </label>
+                </div>
+                <div>
+                    <label>Model
+                        <input type="text" name="model" x-model="model" required
+                               :placeholder="isOther ? 'e.g. together_ai/meta-llama/Llama-3-70b' : ''">
+                    </label>
+                </div>
+            </div>
+            <label>API Key
+                <input type="password" name="api_key" placeholder="sk-..." required>
+            </label>
+            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Add</button>
+        </form>
+    </details>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Modules</h3></div>
+    <form method="POST" action="/settings/features">
+        <div style="padding:0.5rem 0;">
+            <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;">
+                <input type="checkbox" name="feature_feniks" {% if feature_flags.feniks %}checked{% endif %}
+                       style="width:auto;margin:0;">
+                <div>
+                    <strong>Feniks</strong>
+                    <div class="text-muted" style="font-size:0.85rem;">
+                        90-day personal development program (PMO recovery tracker)
+                    </div>
+                </div>
+            </label>
+        </div>
+        <div style="margin-top:0.5rem;">
+            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        </div>
+    </form>
+</div>
+
+{% elif active_tab == 'integrations' %}
+<!-- ═══ INTEGRATIONS TAB ═══ -->
+
+<!-- Oura Ring -->
+<div class="card integration-card" style="margin-bottom: 1rem;">
+    <div class="card-header">
+        <h3>Oura Ring</h3>
+        {% if oura_integration and oura_integration.status == 'connected' %}
+        <span class="flag-normal" style="font-weight:600;">Connected</span>
+        {% elif oura_integration and oura_integration.status == 'error' %}
+        <span class="flag-h" style="font-weight:600;">Error</span>
+        {% elif oura_integration %}
+        <span class="text-muted">Configured</span>
+        {% else %}
+        <span class="text-muted">Not configured</span>
+        {% endif %}
+    </div>
+
+    {% if oura_integration and oura_integration.status == 'connected' %}
+    <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;">
+        {% if oura_integration.last_sync_at %}
+        <small class="text-muted">Last sync: {{ oura_integration.last_sync_at[:16] }}</small>
+        {% endif %}
+        {% if oura_integration.token_expires_at %}
+        <small class="text-muted">Token expires: {{ oura_integration.token_expires_at[:16] }}</small>
+        {% endif %}
+        {% if oura_sync_enabled %}
+        <small class="flag-normal">Auto-sync enabled</small>
+        {% endif %}
+    </div>
+    {% if oura_integration.scopes and 'workout' not in oura_integration.scopes %}
+    <div style="margin-bottom:0.75rem;padding:0.5rem;background:var(--flag-h-bg, rgba(239,68,68,0.1));border-radius:4px;font-size:var(--text-sm);">
+        New scopes available &mdash; <a href="/settings/oura/connect" style="color:var(--accent);font-weight:600;text-decoration:underline;">re-connect</a> to enable workout import.
+    </div>
+    {% endif %}
+    <p style="margin-bottom:0.5rem;"><strong>Client ID:</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
+    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
+        <form method="POST" action="/settings/oura/sync" style="margin:0;">
+            <button type="submit" class="btn btn-primary btn-sm">Sync Now</button>
+        </form>
+        <form method="POST" action="/settings/oura/disconnect" style="margin:0;">
+            <button type="submit" class="btn btn-outline btn-sm" style="color:var(--flag-h);">Disconnect</button>
+        </form>
+    </div>
+
+    <!-- Webhook -->
+    <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+            <h4 style="margin:0;font-size:0.9rem;">Webhook (Real-time sync)</h4>
+            {% if webhook_enabled %}
+            <span class="flag-normal" style="font-weight:600;font-size:0.75rem;">Active</span>
+            {% endif %}
+        </div>
+        {% if webhook_enabled %}
+        <div style="margin-bottom:0.5rem;">
+            <small class="text-muted">Listening at <code style="font-size:0.75rem;">{{ webhook_url }}</code></small>
+        </div>
+        <form method="POST" action="/settings/oura/webhook/disable" style="margin:0;">
+            <button type="submit" class="btn btn-outline btn-sm">Disable Webhook</button>
+        </form>
+        {% else %}
+        <p class="text-muted" style="font-size:0.75rem;margin-bottom:0.5rem;">
+            Registers a webhook subscription with Oura to receive real-time data pushes.
+        </p>
+        <form method="POST" action="/settings/oura/webhook/enable" style="margin:0;">
+            <button type="submit" class="btn btn-secondary btn-sm">Enable Webhook</button>
+        </form>
+        {% endif %}
+    </div>
+
+    {% elif oura_integration and oura_integration.status in ('configured', 'error') %}
+    {% if oura_integration.status == 'error' %}
+    <div style="margin-bottom:0.5rem;">
+        <small class="text-muted">Token expired or invalid. Please re-connect.</small>
+    </div>
+    {% endif %}
+    <p style="margin-bottom:0.5rem;"><strong>Client ID:</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
+    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
+        <a href="/settings/oura/connect" class="btn btn-primary btn-sm">Connect to Oura</a>
+    </div>
+    <details>
+        <summary style="cursor:pointer;font-size:var(--text-sm);">Change credentials</summary>
+        <form method="POST" action="/settings/oura/save" style="margin-top:0.5rem;">
+            <div class="grid">
+                <div><label>Client ID <input type="text" name="client_id" value="{{ oura_integration.client_id }}" required></label></div>
+                <div><label>Client Secret <input type="password" name="client_secret" placeholder="(encrypted)" required></label></div>
+            </div>
+            <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">Save</button>
+        </form>
+    </details>
+
+    {% else %}
+    <p class="text-muted" style="margin-bottom:0.75rem;font-size:var(--text-sm);">
+        Register your app at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank">cloud.ouraring.com</a> and enter credentials below.
+    </p>
+    <form method="POST" action="/settings/oura/save">
+        <div class="grid">
+            <div><label>Client ID <input type="text" name="client_id" placeholder="XXXXXXXX" required></label></div>
+            <div><label>Client Secret <input type="password" name="client_secret" placeholder="XXXXXXXX" required></label></div>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save</button>
+    </form>
+    {% endif %}
+</div>
+
+<!-- Garmin placeholder -->
+<div class="card integration-card" style="margin-bottom: 1rem; opacity: 0.5;">
+    <div class="card-header">
+        <h3>Garmin Connect</h3>
+        <small class="text-muted">Coming soon</small>
+    </div>
+    <p class="text-muted" style="font-size:var(--text-sm);">Garmin wearable integration for activity and sleep data.</p>
+</div>
+
+<!-- Apple Health placeholder -->
+<div class="card integration-card" style="opacity: 0.5;">
+    <div class="card-header">
+        <h3>Apple Health</h3>
+        <small class="text-muted">Coming soon</small>
+    </div>
+    <p class="text-muted" style="font-size:var(--text-sm);">Apple Health integration for workouts, heart rate, and more.</p>
+</div>
+
+{% elif active_tab == 'data' %}
+<!-- ═══ DATA TAB ═══ -->
+
+<!-- Export to Markdown -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Export to Markdown</h3></div>
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Generate <code>virgil.md</code> in second-brain directory for LLM review.</p>
+    <form method="POST" action="/settings/export">
+        <div style="margin-bottom: 0.75rem;">
+            <label style="font-weight:600;margin-bottom:0.5rem;">Scope</label>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+                {% for scope, label in [('weekly', 'Weekly'), ('monthly', 'Monthly'), ('yearly', 'Yearly'), ('all', 'All')] %}
+                <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
+                    <input type="radio" name="scope" value="{{ scope }}" {{ 'checked' if scope == 'weekly' else '' }}
+                           style="width:auto;margin:0;">
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label style="font-weight:600;margin-bottom:0.5rem;">Sections</label>
+            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:0.35rem;">
+                {% set export_sections = [
+                    ('daily_logs', 'Daily Logs'),
+                    ('training', 'Training'),
+                    ('body_measurements', 'Body Measurements'),
+                ] %}
+                {% if request.state.features.feniks %}
+                    {% set export_sections = export_sections + [('feniks', 'Project Feniks')] %}
+                {% endif %}
+                {% set export_sections = export_sections + [
+                    ('oura', 'Oura Ring'),
+                    ('life_scores', 'Life Scores'),
+                    ('experiments', 'Experiments'),
+                    ('bloodwork', 'Blood Work'),
+                    ('goals', 'Goals')
+                ] %}
+                {% for key, label in export_sections %}
+                <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
+                    <input type="checkbox" name="sections" value="{{ key }}" checked
+                           style="width:auto;margin:0;">
+                    {{ label }}
+                </label>
+                {% endfor %}
+            </div>
+        </div>
+        <button type="submit" class="btn btn-primary">Export</button>
+    </form>
+</div>
+
+<!-- Import -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Data Import</h3></div>
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Import from markdown files in second-brain.</p>
+    <form method="POST" action="/settings/import">
+        <button type="submit" class="btn btn-secondary">Import data</button>
+    </form>
+</div>
+
+<!-- Download & Export -->
+<div class="card">
+    <div class="card-header"><h3>Download</h3></div>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
+        <a href="/settings/backup" class="btn btn-outline">Download virgil.db</a>
+        <a href="/settings/export/json" class="btn btn-outline">Export JSON</a>
+        <a href="/settings/export/csv" class="btn btn-outline">Export CSV</a>
+    </div>
+</div>
+
+{% elif active_tab == 'automation' %}
+<!-- ═══ AUTOMATION TAB ═══ -->
+
+<form method="POST" action="/settings/automation">
+    <!-- Backup -->
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Automated Backup</h3></div>
+        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+            Creates daily SQLite backups in <code>data/backups/</code> with rolling retention.
+        </p>
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
+            <input type="checkbox" name="backup_enabled" {{ 'checked' if backup_enabled else '' }}
+                   style="width:auto;margin:0;">
+            Enable automated backup
+        </label>
+        <div class="grid">
+            <div>
+                <label>Interval (hours)
+                    <input type="number" name="backup_interval_hours" value="{{ backup_interval_hours }}" min="1" max="168">
+                </label>
+            </div>
+            <div>
+                <label>Max copies
+                    <input type="number" name="backup_max_copies" value="{{ backup_max_copies }}" min="1" max="30">
+                </label>
+            </div>
+        </div>
+        <div style="margin-top:0.75rem;">
+            <button type="button" class="btn btn-outline btn-sm"
+                    hx-post="/settings/backup/now" hx-swap="none"
+                    onclick="showToast('Backup started...')">
+                Backup Now
+            </button>
+        </div>
+    </div>
+
+    <!-- Oura Auto-Sync -->
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Oura Auto-Sync</h3></div>
+        {% if oura_connected %}
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
+            <input type="checkbox" name="oura_sync_enabled" {{ 'checked' if oura_sync_enabled else '' }}
+                   style="width:auto;margin:0;">
+            Enable automatic Oura sync
+        </label>
+        <div class="grid">
+            <div>
+                <label>Sync interval (hours)
+                    <input type="number" name="oura_sync_interval_hours" value="{{ oura_sync_interval_hours }}" min="1" max="24">
+                </label>
+            </div>
+        </div>
+        {% else %}
+        <p class="text-muted" style="font-size:var(--text-sm);">
+            Connect Oura Ring in the <a href="/settings?tab=integrations" style="color:var(--accent);">Integrations</a> tab first.
+        </p>
+        {% endif %}
+    </div>
+
+    <!-- Morning Briefing -->
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Morning Briefing</h3></div>
+        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+            AI-generated daily briefing shown on the dashboard. Requires an active LLM provider.
+        </p>
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
+            <input type="checkbox" name="briefing_enabled" {{ 'checked' if briefing_enabled else '' }}
+                   style="width:auto;margin:0;">
+            Enable morning briefing
+        </label>
+    </div>
+
+    <!-- Markdown Auto-Export -->
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Markdown Export</h3></div>
+        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+            Auto-export virgil.md to Second Brain directory. Keeps OpenClaw and other tools up to date.
+        </p>
+        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
+            <input type="checkbox" name="export_enabled" {{ 'checked' if export_enabled else '' }}
+                   style="width:auto;margin:0;">
+            Enable auto-export
+        </label>
+        <div>
+            <label style="font-size: var(--text-sm);">Interval (hours)
+                <input type="number" name="export_interval_hours" value="{{ export_interval_hours }}" min="1" max="168" step="1" style="width:6rem;">
+            </label>
+        </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary">Save Automation Settings</button>
+</form>
+
+{% elif active_tab == 'security' %}
+<!-- ═══ SECURITY TAB ═══ -->
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Two-Factor Authentication</h3></div>
+    <div style="display:flex;align-items:center;gap:0.75rem;">
+        <a href="/settings/mfa" class="btn btn-outline">Configure MFA</a>
+        {% if mfa_enabled %}
+        <span class="flag-normal" style="font-weight:600;">Enabled</span>
+        {% else %}
+        <span class="text-muted">Disabled</span>
+        {% endif %}
+    </div>
+</div>
+
+<div class="card">
+    <div class="card-header"><h3>Sync Log</h3></div>
+    {% if sync_logs %}
+    <div class="overflow-x">
+        <table>
+            <thead><tr><th>Time</th><th>File</th><th>Status</th><th>Message</th></tr></thead>
+            <tbody>
+                {% for l in sync_logs %}
+                <tr>
+                    <td><small>{{ l.created_at }}</small></td>
+                    <td>{{ l.file_name }}</td>
+                    <td class="{{ 'flag-normal' if l.status == 'success' else 'flag-h' }}">{{ l.status }}</td>
+                    <td><small>{{ l.message }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No entries</p>
+    {% endif %}
+</div>
+
+{% endif %}
+
+</div><!-- #settings-content -->
+{% endblock %}
