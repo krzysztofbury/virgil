@@ -13,6 +13,8 @@ RUN adduser --disabled-password --no-create-home --gecos "" appuser
 RUN mkdir -p /data/users && chown -R appuser:appuser /data
 USER appuser
 
+ARG GIT_SHA=unknown
+ENV VIRGIL_GIT_SHA=$GIT_SHA
 ENV VIRGIL_ENV=prod
 ENV UV_CACHE_DIR=/tmp/uv-cache
 

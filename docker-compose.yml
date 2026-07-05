@@ -2,6 +2,10 @@ services:
   # Personal tracking dashboard (FastAPI + SQLite)
   virgil:
     image: virgil:latest
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     container_name: virgil
     restart: unless-stopped
     init: true

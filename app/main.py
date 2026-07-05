@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import logging
+import os
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -80,6 +81,22 @@ async def lifespan(app: FastAPI):
     await init_central_db()
     await promote_admin_emails()
 
+    # Version banner — VIRGIL_GIT_SHA is baked into the image at build time
+    # (docker-compose build arg), so the log proves WHICH code is running.
+    _log = logging.getLogger("uvicorn")
+    _version = os.environ.get("VIRGIL_GIT_SHA", "unknown")
+    if _version == "unknown":
+        with contextlib.suppress(Exception):
+            import subprocess
+
+            _version = subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"],
+                cwd=BASE_DIR.parent,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                timeout=5,
+            ).strip()
+
     # Run pending migrations for EXISTING per-user databases. Without this,
     # migrations only ever ran at account creation — new migrations silently
     # never reached older databases.
@@ -87,14 +104,18 @@ async def lifespan(app: FastAPI):
     from app.migrations.runner import run_migrations
     from app.user_db import close_user_db, open_user_db
 
+    _migrated = 0
     for _user in await get_active_users():
         _udb = await open_user_db(_user["db_filename"])
         try:
             await run_migrations(_udb)
+            _migrated += 1
         except Exception:
             logging.getLogger(__name__).exception("Startup migration failed for %s", _user["db_filename"])
         finally:
             await close_user_db(_udb)
+
+    _log.info("Virgil version=%s — startup migrations OK for %d user DB(s)", _version, _migrated)
 
     from app.services.scheduler import scheduler_loop
 
