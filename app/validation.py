@@ -1,6 +1,34 @@
 """Shared input validation helpers for form endpoints."""
 
 from datetime import date
+from typing import Annotated
+
+from fastapi import Form
+from pydantic import BeforeValidator
+
+
+def _blank_to_none(v):
+    """HTML forms submit '' for untouched number inputs — treat as None."""
+    if isinstance(v, str) and not v.strip():
+        return None
+    return v
+
+
+def _blank_to_none_decimal(v):
+    """Like _blank_to_none, plus tolerate the Polish decimal comma ('93,5')."""
+    if isinstance(v, str):
+        v = v.strip()
+        if not v:
+            return None
+        return v.replace(",", ".")
+    return v
+
+
+# Use as `x: OptionalFormInt = None` — blank input becomes None instead of 422.
+# Form() must live INSIDE Annotated: with `= Form(None)` FastAPI ignores the validators
+# (verified empirically against this FastAPI version).
+OptionalFormInt = Annotated[int | None, BeforeValidator(_blank_to_none), Form()]
+OptionalFormFloat = Annotated[float | None, BeforeValidator(_blank_to_none_decimal), Form()]
 
 
 def valid_date(s: str) -> bool:

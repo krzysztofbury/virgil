@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 
 from app.main import templates
 from app.user_db import get_user_db_from_request
-from app.validation import truncate
+from app.validation import OptionalFormInt, truncate
 
 router = APIRouter()
 
@@ -42,7 +42,7 @@ async def goals_page(request: Request):
 @router.post("/goals/save")
 async def save_goal(
     request: Request,
-    goal_id: int | None = Form(None),
+    goal_id: OptionalFormInt = None,
     area_id: int = Form(...),
     horizon: str = Form(...),
     content: str = Form(...),

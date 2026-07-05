@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS
 from app.user_db import get_user_db_from_request
-from app.validation import clamp, truncate, valid_date
+from app.validation import OptionalFormFloat, OptionalFormInt, clamp, truncate, valid_date
 
 router = APIRouter()
 
@@ -20,22 +20,22 @@ async def life_scores_page():
 async def save_life_score(
     request: Request,
     date: str = Form(...),
-    planning: int | None = Form(None),
-    spirituality: int | None = Form(None),
-    health: int | None = Form(None),
-    work: int | None = Form(None),
-    social: int | None = Form(None),
-    growth: int | None = Form(None),
-    relaxation: int | None = Form(None),
-    family: int | None = Form(None),
-    power_level: float | None = Form(None),
-    weight: float | None = Form(None),
-    waist: float | None = Form(None),
+    planning: OptionalFormInt = None,
+    spirituality: OptionalFormInt = None,
+    health: OptionalFormInt = None,
+    work: OptionalFormInt = None,
+    social: OptionalFormInt = None,
+    growth: OptionalFormInt = None,
+    relaxation: OptionalFormInt = None,
+    family: OptionalFormInt = None,
+    power_level: OptionalFormFloat = None,
+    weight: OptionalFormFloat = None,
+    waist: OptionalFormFloat = None,
     pmo_status: str = Form(""),
-    energy_avg: float | None = Form(None),
-    linkedin_followers: int | None = Form(None),
-    youtube_views: int | None = Form(None),
-    revenue: float | None = Form(None),
+    energy_avg: OptionalFormFloat = None,
+    linkedin_followers: OptionalFormInt = None,
+    youtube_views: OptionalFormInt = None,
+    revenue: OptionalFormFloat = None,
     diagnostic: str = Form(""),
     priorities: str = Form(""),
 ):

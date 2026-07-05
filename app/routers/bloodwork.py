@@ -3,7 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.main import templates
 from app.user_db import get_user_db_from_request
-from app.validation import truncate, valid_date
+from app.validation import OptionalFormFloat, truncate, valid_date
 
 router = APIRouter()
 
@@ -113,8 +113,8 @@ async def save_marker(
     name: str = Form(...),
     category: str = Form(...),
     unit: str = Form(...),
-    ref_low: float | None = Form(None),
-    ref_high: float | None = Form(None),
+    ref_low: OptionalFormFloat = None,
+    ref_high: OptionalFormFloat = None,
     display_order: int = Form(0),
 ):
     db = get_user_db_from_request(request)

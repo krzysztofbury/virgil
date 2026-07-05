@@ -6,7 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.main import templates
 from app.user_db import get_user_db_from_request
-from app.validation import valid_month
+from app.validation import OptionalFormFloat, OptionalFormInt, valid_month
 
 logger = logging.getLogger(__name__)
 
@@ -103,20 +103,20 @@ async def oura_page(request: Request, metric: str = "sleep_score"):
 async def save_oura(
     request: Request,
     month: str = Form(...),
-    sleep_score: float | None = Form(None),
-    readiness: float | None = Form(None),
-    activity: float | None = Form(None),
-    steps: int | None = Form(None),
-    sleep_duration: float | None = Form(None),
-    deep_sleep: float | None = Form(None),
-    rem_sleep: float | None = Form(None),
-    rhr: float | None = Form(None),
-    lowest_hr: float | None = Form(None),
-    hrv: float | None = Form(None),
-    cardiovascular_age: int | None = Form(None),
-    stress_normal: int | None = Form(None),
-    stress_stressful: int | None = Form(None),
-    stress_restored: int | None = Form(None),
+    sleep_score: OptionalFormFloat = None,
+    readiness: OptionalFormFloat = None,
+    activity: OptionalFormFloat = None,
+    steps: OptionalFormInt = None,
+    sleep_duration: OptionalFormFloat = None,
+    deep_sleep: OptionalFormFloat = None,
+    rem_sleep: OptionalFormFloat = None,
+    rhr: OptionalFormFloat = None,
+    lowest_hr: OptionalFormFloat = None,
+    hrv: OptionalFormFloat = None,
+    cardiovascular_age: OptionalFormInt = None,
+    stress_normal: OptionalFormInt = None,
+    stress_stressful: OptionalFormInt = None,
+    stress_restored: OptionalFormInt = None,
     notes: str = Form(""),
 ):
     if not valid_month(month):
