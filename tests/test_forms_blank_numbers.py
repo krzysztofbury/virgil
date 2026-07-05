@@ -1,6 +1,6 @@
 """Regression: blank numeric form fields must not 422 (HTML sends '' for empty inputs)."""
 
-from tests.conftest import csrf_token
+from conftest import csrf_token
 
 
 def test_life_scores_accepts_blank_numbers(auth_client):

@@ -7,11 +7,19 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
-_TMP = tempfile.mkdtemp(prefix="virgil-test-")
-os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
-os.environ["VIRGIL_API_KEY"] = "test-key-123"
-os.environ["VIRGIL_ADMIN_EMAILS"] = "test@example.com"
-os.environ["VIRGIL_SECOND_BRAIN_PATH"] = ""
+# Idempotent: pytest may import this file twice (as `conftest` AND `tests.conftest`
+# when tests mix import styles), which would re-run mkdtemp and repoint the env at a
+# fresh empty dir mid-session — silently breaking any module that cached a path at
+# import. The sentinel makes the FIRST import win and later ones reuse it.
+if os.environ.get("_VIRGIL_TEST_TMP"):
+    _TMP = os.environ["_VIRGIL_TEST_TMP"]
+else:
+    _TMP = tempfile.mkdtemp(prefix="virgil-test-")
+    os.environ["_VIRGIL_TEST_TMP"] = _TMP
+    os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
+    os.environ["VIRGIL_API_KEY"] = "test-key-123"
+    os.environ["VIRGIL_ADMIN_EMAILS"] = "test@example.com"
+    os.environ["VIRGIL_SECOND_BRAIN_PATH"] = ""
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
