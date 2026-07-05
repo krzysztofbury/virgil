@@ -74,7 +74,7 @@ async def dashboard(request: Request):
 
     # Feniks streak (skip if feature disabled)
     features = getattr(request.state, "features", {})
-    if features.get("feniks"):
+    if features.get("no_porn"):
         feniks_conf = await db.execute_fetchall("SELECT * FROM feniks_config WHERE id = 1")
         feniks_config = dict(feniks_conf[0]) if feniks_conf else None
         streak_days, _ = await get_streak(db)

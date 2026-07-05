@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 async def require_feniks(request: Request):
-    if not getattr(request.state, "features", {}).get("feniks", False):
+    if not getattr(request.state, "features", {}).get("no_porn", False):
         raise HTTPException(status_code=303, headers={"Location": "/"})
 
 

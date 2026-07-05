@@ -37,6 +37,14 @@ def test_flag_off_hides_nav_link(auth_client):
     assert 'href="/feniks"' not in resp.text, "disabled feniks flag must hide the nav link"
 
 
+def test_feniks_page_gated_by_flag(auth_client):
+    """The /feniks route guard reads the flag key too — regression for the rename."""
+    _set_feniks("0")
+    assert auth_client.get("/feniks", follow_redirects=False).status_code == 303
+    _set_feniks("1")
+    assert auth_client.get("/feniks", follow_redirects=False).status_code == 200
+
+
 def test_save_features_roundtrip_enables_link(auth_client):
     """POST the checkbox -> flag persists -> nav link appears. Covers save_features + injection."""
     _set_feniks("0")

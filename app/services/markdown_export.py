@@ -153,7 +153,7 @@ async def _section_feniks(db, start: str, end: str) -> list[str]:
 
     streak_days, _ = await get_streak(db)
 
-    lines = ["## Project Feniks", "", f"**Current streak:** {streak_days} days", ""]
+    lines = ["## No Porn", "", f"**Current streak:** {streak_days} days", ""]
 
     if journal:
         lines.append("### Journal")

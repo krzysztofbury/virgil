@@ -19,7 +19,7 @@ async def _gather_context(db) -> str:
     feniks_enabled = await get_setting(db, "feature_no_porn", "0") == "1"
     if feniks_enabled:
         streak_days, _ = await get_streak(db)
-        parts.append(f"Feniks streak: {streak_days} days clean")
+        parts.append(f"No Porn streak: {streak_days} days clean")
 
     # Yesterday's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (yesterday,))
