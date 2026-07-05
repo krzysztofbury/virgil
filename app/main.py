@@ -74,6 +74,32 @@ def _md_block(text: str) -> markupsafe.Markup:
     return markupsafe.Markup(_apply_inline_md(result))
 
 
+_APP_VERSION: str | None = None
+
+
+def get_app_version() -> str:
+    """Build version: VIRGIL_GIT_SHA (baked at image build) → git → 'unknown'. Cached."""
+    global _APP_VERSION
+    if _APP_VERSION is None:
+        version = os.environ.get("VIRGIL_GIT_SHA", "") or "unknown"
+        if version == "unknown":
+            with contextlib.suppress(Exception):
+                import subprocess
+
+                version = (
+                    subprocess.check_output(
+                        ["git", "rev-parse", "--short", "HEAD"],
+                        cwd=BASE_DIR.parent,
+                        stderr=subprocess.DEVNULL,
+                        text=True,
+                        timeout=5,
+                    ).strip()
+                    or "unknown"
+                )
+        _APP_VERSION = version
+    return _APP_VERSION
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.central_db import close_central_db, init_central_db, promote_admin_emails
@@ -81,21 +107,9 @@ async def lifespan(app: FastAPI):
     await init_central_db()
     await promote_admin_emails()
 
-    # Version banner — VIRGIL_GIT_SHA is baked into the image at build time
-    # (docker-compose build arg), so the log proves WHICH code is running.
+    # Version banner — proves WHICH code is running in the deploy logs.
     _log = logging.getLogger("uvicorn")
-    _version = os.environ.get("VIRGIL_GIT_SHA", "unknown")
-    if _version == "unknown":
-        with contextlib.suppress(Exception):
-            import subprocess
-
-            _version = subprocess.check_output(
-                ["git", "rev-parse", "--short", "HEAD"],
-                cwd=BASE_DIR.parent,
-                stderr=subprocess.DEVNULL,
-                text=True,
-                timeout=5,
-            ).strip()
+    _version = get_app_version()
 
     # Run pending migrations for EXISTING per-user databases. Without this,
     # migrations only ever ran at account creation — new migrations silently
@@ -152,13 +166,17 @@ async def inject_feature_flags(request, call_next):
     return await call_next(request)
 
 
-from fastapi.responses import FileResponse  # noqa: E402
+from fastapi.responses import Response  # noqa: E402
 
 
 @app.get("/service-worker.js")
 async def service_worker():
-    return FileResponse(
-        BASE_DIR / "static" / "service-worker.js",
+    """Serve the SW with the build version injected into CACHE_NAME —
+    each deploy gets a fresh cache name, so stale static assets are purged
+    automatically on activation (no more manual 'virgil-vN' bumps)."""
+    sw_source = (BASE_DIR / "static" / "service-worker.js").read_text()
+    return Response(
+        sw_source.replace("{{SW_VERSION}}", get_app_version()),
         media_type="application/javascript",
         headers={"Cache-Control": "no-cache"},
     )

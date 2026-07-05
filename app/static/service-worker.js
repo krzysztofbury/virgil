@@ -1,4 +1,6 @@
-var CACHE_NAME = 'virgil-v4';
+// {{SW_VERSION}} is injected by the /service-worker.js endpoint from the build
+// version (VIRGIL_GIT_SHA) — every deploy busts the static cache automatically.
+var CACHE_NAME = 'virgil-{{SW_VERSION}}';
 
 var PRECACHE_URLS = [
     '/static/css/app.css',
