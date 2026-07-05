@@ -42,14 +42,30 @@
                     <!-- Inline edit row -->
                     <tr x-show="editing === {{ ex.id }}" x-cloak>
                         <td colspan="5">
-                            <form method="POST" action="/training/exercise/{{ ex.id }}/edit" style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;">
+                            <form method="POST" action="/training/exercise/{{ ex.id }}/edit" class="ex-form" style="margin-top:0;">
                                 <input type="hidden" name="section" value="{{ section_name }}">
-                                <input type="text" name="name" value="{{ ex.name }}" style="flex:2;min-width:6rem;margin:0;padding:0.25rem 0.4rem;" required>
-                                <input type="number" name="target_sets" value="{{ ex.target_sets }}" style="width:3rem;margin:0;padding:0.25rem 0.4rem;">
-                                <input type="text" name="target_reps" value="{{ ex.target_reps }}" style="width:4rem;margin:0;padding:0.25rem 0.4rem;">
-                                <input type="text" name="notes" value="{{ ex.notes }}" placeholder="Notes" style="flex:2;min-width:4rem;margin:0;padding:0.25rem 0.4rem;">
-                                <button type="submit" class="btn btn-sm btn-primary" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Save</button>
-                                <button type="button" class="btn btn-sm btn-outline" @click="editing = null" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Cancel</button>
+                                <div class="ex-form-grid">
+                                    <label class="ex-field">
+                                        <span>Exercise name</span>
+                                        <input type="text" name="name" value="{{ ex.name }}" required>
+                                    </label>
+                                    <label class="ex-field">
+                                        <span>Sets</span>
+                                        <input type="number" name="target_sets" value="{{ ex.target_sets }}" min="1" max="10">
+                                    </label>
+                                    <label class="ex-field">
+                                        <span>Reps / time</span>
+                                        <input type="text" name="target_reps" value="{{ ex.target_reps }}">
+                                    </label>
+                                </div>
+                                <label class="ex-field">
+                                    <span>Notes</span>
+                                    <input type="text" name="notes" value="{{ ex.notes }}" placeholder="Form cues (optional)">
+                                </label>
+                                <div class="ex-form-actions">
+                                    <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                    <button type="button" class="btn btn-sm btn-outline" @click="editing = null">Cancel</button>
+                                </div>
                             </form>
                         </td>
                     </tr>
@@ -60,29 +76,46 @@
         <!-- Add exercise inline form -->
         <div style="margin-top:0.35rem;">
             <button type="button" class="btn btn-sm btn-outline" @click="adding = !adding" x-show="!adding" style="font-size:0.7rem;">+ Add exercise</button>
-            <form method="POST" action="/training/exercise" x-show="adding" x-cloak
-                  style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-top:0.25rem;">
+            <form method="POST" action="/training/exercise" x-show="adding" x-cloak class="ex-form">
                 <input type="hidden" name="section" value="{{ section_name }}">
                 {% set lib = exercise_library | selectattr("section", "equalto", section_name) | list %}
                 {% if lib %}
-                <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';}"
-                        style="flex:2;min-width:8rem;margin:0;padding:0.25rem 0.4rem;">
-                    <option value="">From library…</option>
-                    {% for category, items in lib | groupby("category") %}
-                    <optgroup label="{{ category }}">
-                        {% for it in items %}
-                        <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes} | tojson }}'>{{ it.name }}</option>
+                <label class="ex-field">
+                    <span>From library</span>
+                    <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';}">
+                        <option value="">Pick an exercise — fills the fields below</option>
+                        {% for category, items in lib | groupby("category") %}
+                        <optgroup label="{{ category }}">
+                            {% for it in items %}
+                            <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes} | tojson }}'>{{ it.name }}</option>
+                            {% endfor %}
+                        </optgroup>
                         {% endfor %}
-                    </optgroup>
-                    {% endfor %}
-                </select>
+                    </select>
+                </label>
                 {% endif %}
-                <input type="text" name="name" placeholder="Exercise name (or pick above)" style="flex:2;min-width:6rem;margin:0;padding:0.25rem 0.4rem;" required>
-                <input type="number" name="target_sets" placeholder="Sets" value="3" style="width:3rem;margin:0;padding:0.25rem 0.4rem;">
-                <input type="text" name="target_reps" placeholder="Reps" style="width:4rem;margin:0;padding:0.25rem 0.4rem;">
-                <input type="text" name="notes" placeholder="Notes" style="flex:2;min-width:4rem;margin:0;padding:0.25rem 0.4rem;">
-                <button type="submit" class="btn btn-sm btn-primary" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Add</button>
-                <button type="button" class="btn btn-sm btn-outline" @click="adding = false" style="font-size:0.7rem;padding:0.2rem 0.5rem;">Cancel</button>
+                <div class="ex-form-grid">
+                    <label class="ex-field">
+                        <span>Exercise name</span>
+                        <input type="text" name="name" placeholder="e.g. Goblet Squat" required>
+                    </label>
+                    <label class="ex-field">
+                        <span>Sets</span>
+                        <input type="number" name="target_sets" value="3" min="1" max="10">
+                    </label>
+                    <label class="ex-field">
+                        <span>Reps / time</span>
+                        <input type="text" name="target_reps" placeholder="10-12 or 45s">
+                    </label>
+                </div>
+                <label class="ex-field">
+                    <span>Notes</span>
+                    <input type="text" name="notes" placeholder="Form cues (optional)">
+                </label>
+                <div class="ex-form-actions">
+                    <button type="submit" class="btn btn-sm btn-primary">Add exercise</button>
+                    <button type="button" class="btn btn-sm btn-outline" @click="adding = false">Cancel</button>
+                </div>
             </form>
         </div>
     </details>

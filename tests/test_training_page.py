@@ -19,5 +19,5 @@ def test_add_exercise_form_present_per_section(auth_client):
 
 def test_exercise_library_picker_present(auth_client):
     resp = auth_client.get("/training")
-    assert "From library…" in resp.text
+    assert "From library" in resp.text
     assert "Workout A (KB full-body)" in resp.text

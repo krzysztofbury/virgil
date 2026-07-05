@@ -280,6 +280,36 @@ main.container {
   background: var(--bg-surface);
 }
 
+/* ── Exercise add/edit form (Training Protocol) ── */
+.ex-form {
+  display: grid;
+  gap: 0.6rem;
+  padding: 0.85rem;
+  margin-top: 0.5rem;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+}
+.ex-form-grid {
+  display: grid;
+  grid-template-columns: minmax(9rem, 2fr) 4.5rem minmax(6rem, 1fr);
+  gap: 0.6rem;
+}
+.ex-field { display: flex; flex-direction: column; gap: 0.25rem; }
+.ex-field > span {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-tertiary);
+}
+.ex-field input, .ex-field select { width: 100%; margin: 0; }
+.ex-form-actions { display: flex; gap: 0.5rem; }
+@media (max-width: 560px) {
+  .ex-form-grid { grid-template-columns: 1fr 4.5rem; }
+  .ex-form-grid .ex-field:first-child { grid-column: 1 / -1; }
+}
+
 /* ── Mobile Bottom Bar ── */
 .bottom-bar {
   display: none;
