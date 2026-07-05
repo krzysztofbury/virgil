@@ -42,8 +42,8 @@
     <a href="#" @click.prevent="tab = 'pleasures'" :class="{ active: tab === 'pleasures' }">Pleasures</a>
 </div>
 
-<!-- Journal -->
-<div x-show="tab === 'journal'" x-cloak>
+<!-- Journal (default panel — no x-cloak so it degrades visible if Alpine fails to load) -->
+<div x-show="tab === 'journal'">
 <div class="card">
     <div class="card-header">
         <h3>Journal Entry</h3>
