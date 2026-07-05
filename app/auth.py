@@ -156,12 +156,17 @@ class AuthMiddleware:
 
         user_db = await open_user_db(user["db_filename"])
 
-        # Store user + DB in request state.
+        # Store user + DB + feature flags in request state.
+        # Flags MUST be loaded here (not in a separate outer middleware): only here
+        # is user_db guaranteed open, and this dict overwrites scope["state"] wholesale.
+        from app.db import get_feature_flags
+
         scope["state"] = {
             **scope.get("state", {}),
             "username": user["email"],
             "user": user,
             "user_db": user_db,
+            "features": await get_feature_flags(user_db),
         }
 
         try:

@@ -157,7 +157,7 @@ function toggleTheme() {
         'e': '/experiments',
         'g': '/goals'
     };
-    if (features.feniks) navMap['f'] = '/feniks';
+    if (features.no_porn) navMap['f'] = '/feniks';
 
     document.addEventListener('keydown', function(e) {
         // Skip if focused on input

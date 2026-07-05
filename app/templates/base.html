@@ -33,7 +33,7 @@
             <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Dashboard</a>
             <a href="/daily" class="{{ 'active' if '/daily' in request.url.path else '' }}">Daily</a>
             <a href="/training" class="{{ 'active' if '/training' in request.url.path else '' }}">Training</a>
-            {% if request.state.features.feniks %}<a href="/feniks" class="{{ 'active' if '/feniks' in request.url.path else '' }}">No Porn</a>{% endif %}
+            {% if request.state.features.no_porn %}<a href="/feniks" class="{{ 'active' if '/feniks' in request.url.path else '' }}">No Porn</a>{% endif %}
             <a href="/oura" class="{{ 'active' if '/oura' in request.url.path else '' }}">Oura</a>
             <a href="/bloodwork" class="{{ 'active' if '/bloodwork' in request.url.path else '' }}">Blood</a>
             <a href="/goals" class="{{ 'active' if '/goals' in request.url.path else '' }}">Goals</a>
@@ -74,7 +74,7 @@
             <i data-lucide="calendar-check"></i>
             <span>Daily</span>
         </a>
-        {% if request.state.features.feniks %}
+        {% if request.state.features.no_porn %}
         <a href="/feniks" class="tab-item {{ 'active' if '/feniks' in request.url.path else '' }}">
             <i data-lucide="flame"></i>
             <span>No Porn</span>

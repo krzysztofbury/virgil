@@ -412,7 +412,7 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
     """
     start, end = _date_range_for_scope(scope)
     today = date.today()
-    feniks_enabled = await get_setting(db, "feature_feniks", "0") == "1"
+    feniks_enabled = await get_setting(db, "feature_no_porn", "0") == "1"
 
     def _include(name: str) -> bool:
         return sections is None or name in sections

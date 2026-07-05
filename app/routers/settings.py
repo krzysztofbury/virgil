@@ -144,15 +144,13 @@ async def save_automation(request: Request):
 async def save_features(request: Request):
     form = await request.form()
     db = get_user_db_from_request(request)
-    flags = await get_feature_flags(db)
-    for flag_name in flags:
+    # Union of flags already in the DB and any feature_* checkbox present in the form,
+    # so a not-yet-seeded flag still saves instead of being silently dropped by an empty loop.
+    known = set(await get_feature_flags(db))
+    known |= {k.removeprefix("feature_") for k in form if k.startswith("feature_")}
+    for flag_name in known:
         key = f"feature_{flag_name}"
         await set_setting(db, key, "1" if form.get(key) else "0")
-
-    # Invalidate the feature flags cache so changes take effect immediately
-    import app.main as main_module
-
-    main_module._flags_cache = None
 
     return RedirectResponse(f"/settings?tab=general&msg={quote('Features updated')}", status_code=303)
 

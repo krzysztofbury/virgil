@@ -154,18 +154,6 @@ templates.env.filters["strip_md"] = lambda t: re.sub(r"\*\*(.+?)\*\*", r"\1", t)
 templates.env.filters["md_block"] = _md_block
 
 
-@app.middleware("http")
-async def inject_feature_flags(request, call_next):
-    user_db = getattr(request.state, "user_db", None)
-    if user_db:
-        from app.db import get_feature_flags
-
-        request.state.features = await get_feature_flags(user_db)
-    else:
-        request.state.features = {}
-    return await call_next(request)
-
-
 from fastapi.responses import Response  # noqa: E402
 
 

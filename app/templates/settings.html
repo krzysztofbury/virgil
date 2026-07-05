@@ -131,10 +131,10 @@
     <form method="POST" action="/settings/features">
         <div style="padding:0.5rem 0;">
             <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;">
-                <input type="checkbox" name="feature_feniks" {% if feature_flags.feniks %}checked{% endif %}
+                <input type="checkbox" name="feature_no_porn" {% if feature_flags.no_porn %}checked{% endif %}
                        style="width:auto;margin:0;">
                 <div>
-                    <strong>Feniks</strong>
+                    <strong>No Porn</strong>
                     <div class="text-muted" style="font-size:0.85rem;">
                         90-day personal development program (PMO recovery tracker)
                     </div>
@@ -298,8 +298,8 @@
                     ('training', 'Training'),
                     ('body_measurements', 'Body Measurements'),
                 ] %}
-                {% if request.state.features.feniks %}
-                    {% set export_sections = export_sections + [('feniks', 'Project Feniks')] %}
+                {% if request.state.features.no_porn %}
+                    {% set export_sections = export_sections + [('feniks', 'No Porn')] %}
                 {% endif %}
                 {% set export_sections = export_sections + [
                     ('oura', 'Oura Ring'),

@@ -12,7 +12,7 @@ _db: aiosqlite.Connection | None = None
 
 # Initial schema from migration 001. See app/migrations/ for the current schema.
 # Migrations add: experiment_activity_types.source_match (003),
-# integrations.webhook_secret (004), app_settings.feature_feniks (005).
+# integrations.webhook_secret (004), app_settings.feature_no_porn (005/010).
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

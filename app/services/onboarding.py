@@ -200,7 +200,7 @@ async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> None:
     # Check for Feniks trigger words.
     feniks_keywords = ["porn", "pmo", "masturbat", "nofap", "porno"]
     if any(kw in habits_bad.lower() for kw in feniks_keywords):
-        await set_setting(db, "feature_feniks", "1")
+        await set_setting(db, "feature_no_porn", "1")
         logger.info("Feniks feature auto-enabled based on onboarding habits")
 
     # Suggest one experiment to replace a bad habit.
