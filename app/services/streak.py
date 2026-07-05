@@ -1,4 +1,24 @@
-from datetime import date
+from datetime import date, timedelta
+
+
+async def get_week_clean(db) -> tuple[int, int, int]:
+    """Current-week clean rate (Gola method: 75%/week target), Monday..today.
+
+    clean = days elapsed this week minus relapse days this week; pct over elapsed.
+    A single slip drops the rate (e.g. 6/7 = 86%) but never hard-resets to 0.
+    Returns (clean_days, days_elapsed, pct).
+    """
+    today = date.today()
+    monday = today - timedelta(days=today.weekday())
+    elapsed = (today - monday).days + 1  # 1..7 inclusive
+    rows = await db.execute_fetchall(
+        "SELECT COUNT(DISTINCT date) AS c FROM pmo_events WHERE event_type = 'relapse' AND date BETWEEN ? AND ?",
+        (monday.isoformat(), today.isoformat()),
+    )
+    relapses = rows[0]["c"] if rows else 0
+    clean = max(0, elapsed - relapses)
+    pct = round(clean / elapsed * 100) if elapsed else 0
+    return clean, elapsed, pct
 
 
 async def get_streak(db) -> tuple[int, date | None]:

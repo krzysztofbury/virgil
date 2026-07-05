@@ -10,28 +10,18 @@
 <div class="streak-hero">
     <div class="streak-number">{{ streak_days }}</div>
     <div class="streak-label">days clean</div>
-    {% if config %}
     <div class="streak-progress">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.35rem;">
-            <small class="text-muted">Day {{ streak_days }}/{{ config.target_days }}</small>
-            <small class="text-muted">{{ progress }}%</small>
+            <small class="text-muted">This week: {{ week_clean }}/{{ week_elapsed }} clean</small>
+            <small class="text-muted">{{ week_pct }}%</small>
         </div>
-        <div class="progress-bar">
-            <div class="fill" style="width: {{ progress }}%"></div>
+        <div class="progress-bar" style="position:relative;">
+            <div class="fill" style="width: {{ week_pct }}%"></div>
+            <div title="target 75%" style="position:absolute;top:0;bottom:0;left:75%;width:2px;background:var(--text-muted);opacity:0.55;"></div>
         </div>
-    </div>
-    {% endif %}
-</div>
-
-<!-- Progress Graph -->
-{% if progress_chart and progress_chart.streak_values %}
-<div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header"><h3>Streak Progress</h3></div>
-    <div class="chart-container">
-        <canvas id="feniksTrendChart" height="180"></canvas>
+        <small class="text-muted" style="display:block;margin-top:0.35rem;">Target 75% / week — a slip lowers the rate, never resets it to 0</small>
     </div>
 </div>
-{% endif %}
 
 <!-- Relapse Button -->
 <details style="margin-bottom: 1.5rem;">
@@ -45,15 +35,15 @@
     </form>
 </details>
 
-<!-- Tabs -->
+<!-- Tabs (client-side, no reload/scroll) -->
+<div x-data="{ tab: '{{ 'pleasures' if tab == 'pleasures' else 'journal' }}' }">
 <div class="tabs">
-    <a href="/feniks/journal" class="{{ 'active' if tab == 'journal' else '' }}">Journal</a>
-    <a href="/feniks/pleasures" class="{{ 'active' if tab == 'pleasures' else '' }}">Pleasures</a>
-    <a href="/feniks/milestones" class="{{ 'active' if tab == 'milestones' else '' }}">Milestones</a>
+    <a href="#" @click.prevent="tab = 'journal'" :class="{ active: tab === 'journal' }">Journal</a>
+    <a href="#" @click.prevent="tab = 'pleasures'" :class="{ active: tab === 'pleasures' }">Pleasures</a>
 </div>
 
-{% if tab == 'journal' %}
 <!-- Journal -->
+<div x-show="tab === 'journal'" x-cloak>
 <div class="card">
     <div class="card-header">
         <h3>Journal Entry</h3>
@@ -119,9 +109,10 @@
     </div>
 </div>
 {% endif %}
+</div><!-- /journal panel -->
 
-{% elif tab == 'pleasures' %}
 <!-- Pleasures -->
+<div x-show="tab === 'pleasures'" x-cloak>
 <div class="card">
     <div class="card-header"><h3>Two Pleasures</h3></div>
     <form method="POST" action="/feniks/pleasures">
@@ -161,55 +152,6 @@
     </table>
 </div>
 {% endif %}
-
-{% elif tab == 'milestones' %}
-<!-- Milestones -->
-{% for week_num, items in weeks.items() %}
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Week {{ week_num }}</h3></div>
-    {% for m in items %}
-    <div style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid var(--border);">
-        <form hx-post="/feniks/milestone" hx-target="this" hx-swap="innerHTML" style="margin: 0;">
-            <button type="submit" class="toggle-btn {{ 'active-done' if m.completed else 'active-pending' }}" style="width: 32px; height: 32px;"
-                    hx-post="/feniks/milestone" hx-target="closest form" hx-swap="innerHTML"
-                    hx-vals='{"day_number": {{ m.day_number }}}'>
-                {% if m.completed %}<i data-lucide="check" style="width:14px;height:14px;"></i>{% endif %}
-            </button>
-        </form>
-        <strong style="font-size: var(--text-sm);">Day {{ m.day_number }}:</strong>
-        <span style="font-size: var(--text-sm);">{{ m.title }}</span>
-    </div>
-    {% endfor %}
-</div>
-{% endfor %}
-{% endif %}
-{% endblock %}
-
-{% block scripts %}
-{% if progress_chart and progress_chart.streak_values %}
-<script src="/static/js/charts.js"></script>
-<script>
-(function() {
-    const labels = {{ progress_chart.labels | tojson }};
-    const values = {{ progress_chart.streak_values | tojson }};
-    const relapseIndices = {{ progress_chart.relapses | tojson }};
-
-    // Mark relapse points with red dots
-    const pointColors = labels.map((_, i) => relapseIndices.includes(i) ? 'rgb(239, 68, 68)' : 'transparent');
-    const pointRadii = labels.map((_, i) => relapseIndices.includes(i) ? 6 : 0);
-
-    createLineChart('feniksTrendChart', labels, [{
-        label: 'Streak (days)',
-        data: values,
-        borderColor: 'rgb(168, 85, 247)',
-        backgroundColor: 'rgba(168, 85, 247, 0.1)',
-        fill: true,
-        tension: 0.1,
-        pointRadius: pointRadii,
-        pointBackgroundColor: pointColors,
-        pointBorderColor: pointColors,
-    }]);
-})();
-</script>
-{% endif %}
+</div><!-- /pleasures panel -->
+</div><!-- /tabs x-data -->
 {% endblock %}

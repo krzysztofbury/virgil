@@ -1,11 +1,11 @@
 import logging
-from datetime import date, timedelta
+from datetime import date
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.main import templates
-from app.services.streak import get_streak
+from app.services.streak import get_streak, get_week_clean
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
@@ -32,9 +32,9 @@ async def feniks_page(request: Request, tab: str = "journal"):
     conf = await db.execute_fetchall("SELECT * FROM feniks_config WHERE id = 1")
     config = dict(conf[0]) if conf else None
 
-    # Streak
+    # Streak (big number, consecutive) + weekly clean rate (Gola 75%/week, never resets to 0)
     streak_days, _ = await get_streak(db)
-    progress = min(100, round(streak_days / config["target_days"] * 100)) if config else 0
+    week_clean, week_elapsed, week_pct = await get_week_clean(db)
 
     # Journal entries
     journal = await db.execute_fetchall("SELECT * FROM feniks_journal ORDER BY date DESC LIMIT 30")
@@ -52,41 +52,6 @@ async def feniks_page(request: Request, tab: str = "journal"):
     today_pleasures = await db.execute_fetchall("SELECT * FROM feniks_pleasures WHERE date = ?", (today.isoformat(),))
     today_pleasures = dict(today_pleasures[0]) if today_pleasures else None
 
-    # Milestones
-    milestones = await db.execute_fetchall("SELECT * FROM feniks_milestones ORDER BY day_number")
-    milestones = [dict(r) for r in milestones]
-
-    # Group by week
-    weeks = {}
-    for m in milestones:
-        w = m["week_number"]
-        if w not in weeks:
-            weeks[w] = []
-        weeks[w].append(m)
-
-    # Progress graph: build daily streak timeline from pmo_events
-    # Start from feniks_config start_date, show streak building up, resets on relapse
-    relapses = await db.execute_fetchall("SELECT date FROM pmo_events WHERE event_type = 'relapse' ORDER BY date")
-    relapse_dates = [r["date"] for r in relapses]
-
-    progress_chart = {"labels": [], "streak_values": [], "relapses": []}
-    if config:
-        start = date.fromisoformat(config["start_date"])
-        end = today
-        current_streak = 0
-        relapse_set = set(relapse_dates)
-        d = start
-        while d <= end:
-            ds = d.isoformat()
-            progress_chart["labels"].append(ds[5:])
-            if ds in relapse_set:
-                progress_chart["relapses"].append(len(progress_chart["labels"]) - 1)
-                current_streak = 0
-            else:
-                current_streak += 1
-            progress_chart["streak_values"].append(current_streak)
-            d += timedelta(days=1)
-
     return templates.TemplateResponse(
         "feniks.html",
         {
@@ -94,15 +59,15 @@ async def feniks_page(request: Request, tab: str = "journal"):
             "tab": tab,
             "config": config,
             "streak_days": streak_days,
-            "progress": progress,
+            "week_clean": week_clean,
+            "week_elapsed": week_elapsed,
+            "week_pct": week_pct,
             "journal": journal,
             "today_journal": today_journal,
             "pleasures": pleasures,
             "today_pleasures": today_pleasures,
-            "weeks": weeks,
             "today": today.isoformat(),
             "form_date": form_date,
-            "progress_chart": progress_chart,
         },
     )
 
@@ -162,40 +127,6 @@ async def save_pleasures(
     )
     await db.commit()
     return RedirectResponse("/feniks/pleasures", status_code=303)
-
-
-@router.post("/feniks/milestone")
-async def toggle_milestone(
-    request: Request,
-    day_number: int = Form(...),
-):
-    db = get_user_db_from_request(request)
-    row = await db.execute_fetchall("SELECT * FROM feniks_milestones WHERE day_number = ?", (day_number,))
-    if row:
-        old_val = row[0]["completed"]
-        new_val = 0 if old_val else 1
-        completed_at = date.today().isoformat() if new_val else None
-        await db.execute(
-            "UPDATE feniks_milestones SET completed = ?, completed_at = ? WHERE day_number = ?",
-            (new_val, completed_at, day_number),
-        )
-        await db.commit()
-
-    # HTMX: return just the updated button
-    if request.headers.get("hx-request"):
-        m = dict((await db.execute_fetchall("SELECT * FROM feniks_milestones WHERE day_number = ?", (day_number,)))[0])
-        checked = m["completed"]
-        icon = '<i data-lucide="check" style="width:14px;height:14px;"></i>' if checked else ""
-        cls = "active-done" if checked else "active-pending"
-        html = (
-            f'<button type="submit" class="toggle-btn {cls}" style="width:32px;height:32px;"'
-            f' hx-post="/feniks/milestone" hx-target="closest form" hx-swap="innerHTML"'
-            f" hx-vals='{{\"day_number\": {day_number}}}'>"
-            f"{icon}</button>"
-        )
-        return HTMLResponse(html)
-
-    return RedirectResponse("/feniks/milestones", status_code=303)
 
 
 @router.post("/feniks/relapse")
