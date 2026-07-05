@@ -12,8 +12,10 @@ to MCP clients (Claude Code, OpenClaw). No local DB access — everything
 goes through the authenticated REST API, so it works from any machine.
 
 Config (env):
-    VIRGIL_API_URL  — base URL, e.g. https://virgil.example.com (required)
-    VIRGIL_API_KEY  — API key matching the server's VIRGIL_API_KEY (required)
+    VIRGIL_API_URL          — base URL, e.g. https://virgil.example.com (required)
+    VIRGIL_API_KEY          — API key matching the server's VIRGIL_API_KEY (required)
+    CF_ACCESS_CLIENT_ID     — Cloudflare Access service token id (if host sits behind CF Access)
+    CF_ACCESS_CLIENT_SECRET — Cloudflare Access service token secret
 
 Run:
     uv run mcp_server/virgil_mcp.py
@@ -32,6 +34,8 @@ from mcp.server.fastmcp import FastMCP
 
 API_URL = os.environ.get("VIRGIL_API_URL", "").rstrip("/")
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
+CF_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
+CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 
 mcp = FastMCP("virgil")
 
@@ -39,12 +43,11 @@ mcp = FastMCP("virgil")
 def _get(path: str, params: dict | None = None) -> dict:
     if not API_URL or not API_KEY:
         raise RuntimeError("Set VIRGIL_API_URL and VIRGIL_API_KEY environment variables")
-    resp = httpx.get(
-        f"{API_URL}{path}",
-        params=params,
-        headers={"X-API-Key": API_KEY},
-        timeout=30.0,
-    )
+    headers = {"X-API-Key": API_KEY}
+    if CF_ID and CF_SECRET:  # Cloudflare Access gate in front of the app
+        headers["CF-Access-Client-Id"] = CF_ID
+        headers["CF-Access-Client-Secret"] = CF_SECRET
+    resp = httpx.get(f"{API_URL}{path}", params=params, headers=headers, timeout=30.0)
     resp.raise_for_status()
     return resp.json()
 
