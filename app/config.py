@@ -34,3 +34,7 @@ CENTRAL_DB_PATH = os.environ.get(
 USERS_DB_DIR = str(Path(CENTRAL_DB_PATH).parent / "users")
 ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS", "").split(",") if e.strip()]
 REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "true").lower() == "true"
+
+# Read-only REST API (machine-to-machine). Empty key = API disabled.
+API_KEY = os.environ.get("VIRGIL_API_KEY", "")
+API_USER_EMAIL = os.environ.get("VIRGIL_API_USER_EMAIL", "").strip().lower()

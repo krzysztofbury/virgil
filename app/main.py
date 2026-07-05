@@ -1,5 +1,6 @@
 import asyncio
 import contextlib
+import logging
 import re
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -78,6 +79,23 @@ async def lifespan(app: FastAPI):
 
     await init_central_db()
     await promote_admin_emails()
+
+    # Run pending migrations for EXISTING per-user databases. Without this,
+    # migrations only ever ran at account creation — new migrations silently
+    # never reached older databases.
+    from app.central_db import get_active_users
+    from app.migrations.runner import run_migrations
+    from app.user_db import close_user_db, open_user_db
+
+    for _user in await get_active_users():
+        _udb = await open_user_db(_user["db_filename"])
+        try:
+            await run_migrations(_udb)
+        except Exception:
+            logging.getLogger(__name__).exception("Startup migration failed for %s", _user["db_filename"])
+        finally:
+            await close_user_db(_udb)
+
     from app.services.scheduler import scheduler_loop
 
     task = asyncio.create_task(scheduler_loop())
@@ -127,6 +145,7 @@ async def service_worker():
 
 from app.routers import (  # noqa: E402
     admin,
+    api,
     auth,
     bloodwork,
     daily,
@@ -156,3 +175,4 @@ app.include_router(goals.router)
 app.include_router(experiments.router)
 app.include_router(settings.router)
 app.include_router(onboarding.router)
+app.include_router(api.router)

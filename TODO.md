@@ -108,18 +108,19 @@
 - [x] Generic integration status page (list all connected services)
 - [x] Webhook support for real-time Oura updates (instead of polling)
 - [x] Auto-export virgil.md to Second Brain on schedule (Settings > Automation, configurable interval)
-- [ ] **MCP Server** — Expose Virgil data via Model Context Protocol for OpenClaw and other AI agents
-  - Tools: `get_today_summary`, `get_oura_stats`, `get_streaks`, `get_weekly_habits`, `get_experiments`
-  - Runs as an additional service in docker-compose or embedded in the FastAPI process
-  - OpenClaw connects as MCP client over stdio or SSE
+- [x] **MCP Server** — `mcp_server/virgil_mcp.py` (2026-07-05): thin stdio wrapper over the REST API
+  - Tools: `get_today_summary`, `get_oura_stats`, `get_streaks`, `get_weekly_habits`, `get_experiments`, `get_training`
+  - Runs anywhere (PEP 723 script, `uv run mcp_server/virgil_mcp.py`) — talks to the API over HTTPS, no local DB needed
+  - Register: `claude mcp add virgil -e VIRGIL_API_URL=... -e VIRGIL_API_KEY=... -- uv run .../virgil_mcp.py`
   - Enables real-time, structured queries instead of stale markdown snapshots
-- [ ] **REST API** — JSON API endpoints for external tool access
-  - `GET /api/summary` — today's dashboard data (energy, habits, Oura, streaks)
+- [x] **REST API** — JSON API endpoints for external tool access (`app/routers/api.py`, 2026-07-05)
+  - `GET /api/summary` — today's dashboard data (energy, habits, Oura, Feniks streak, training week, measurements)
   - `GET /api/oura/today` — latest Oura vitals
-  - `GET /api/habits?range=7d` — habit completion data
-  - `GET /api/experiments/active` — active experiment progress
-  - API key auth (separate from session auth) for machine-to-machine access
-  - OpenClaw can call via HTTP on the Docker network (`http://virgil:8123/api/...`)
+  - `GET /api/habits?range=7` — habit completion data (1-90 days)
+  - `GET /api/experiments/active` — active experiments with week target vs logged
+  - `GET /api/training?range=7` — sessions with entries + volume (bonus, for Sunday reviews)
+  - API key auth: `X-API-Key` vs `VIRGIL_API_KEY` env (constant-time), maps to `VIRGIL_API_USER_EMAIL` or first admin; read-only (GET only)
+  - OpenClaw can call via HTTP on the Docker network (`http://virgil:8123/api/...`) or via tunnel
 - [ ] Garmin Connect integration (for users with Garmin instead of Oura)
 - [ ] Google Fit / Apple Health import
 

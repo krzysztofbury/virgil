@@ -213,8 +213,35 @@ async def trigger_import(request: Request):
 
 
 @router.get("/settings/backup")
-async def download_backup():
-    return FileResponse(DB_PATH, filename="virgil.db", media_type="application/octet-stream")
+async def download_backup(request: Request):
+    """Download a consistent snapshot of the current user's database.
+
+    Copies via sqlite3.backup() into a temp file so WAL contents are included —
+    serving the live file directly would silently drop uncommitted -wal pages.
+    """
+    import asyncio
+    import os
+    import tempfile
+
+    from starlette.background import BackgroundTask
+
+    from app.services.backup import _do_backup, db_main_path
+
+    db = get_user_db_from_request(request)
+    try:
+        src_path = await db_main_path(db)
+        fd, tmp_path = tempfile.mkstemp(suffix=".db")
+        os.close(fd)
+        await asyncio.to_thread(_do_backup, src_path, tmp_path)
+    except Exception:
+        logger.exception("Backup download failed")
+        return RedirectResponse(f"/settings?tab=data&err={quote('Backup failed')}", status_code=303)
+    return FileResponse(
+        tmp_path,
+        filename="virgil.db",
+        media_type="application/octet-stream",
+        background=BackgroundTask(os.unlink, tmp_path),
+    )
 
 
 EXPORT_TABLES = [
@@ -247,7 +274,12 @@ async def export_json(request: Request):
     db = get_user_db_from_request(request)
     data = {}
     for table in EXPORT_TABLES:
-        rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
+        try:
+            rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
+        except Exception:  # table missing in this user's schema — export the rest
+            logger.exception("Export: table %s unreadable, skipping", table)
+            data[table] = []
+            continue
         data[table] = [dict(r) for r in rows]
     content = json.dumps(data, indent=2, ensure_ascii=False, default=str)
     return Response(
@@ -262,7 +294,11 @@ async def export_csv(request: Request):
     db = get_user_db_from_request(request)
     output = io.StringIO()
     for table in EXPORT_TABLES:
-        rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
+        try:
+            rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
+        except Exception:  # table missing in this user's schema — export the rest
+            logger.exception("Export: table %s unreadable, skipping", table)
+            continue
         if not rows:
             continue
         dicts = [dict(r) for r in rows]

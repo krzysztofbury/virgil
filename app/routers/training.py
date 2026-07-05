@@ -29,8 +29,8 @@ async def training_page(request: Request):
         if sec not in sections:
             sections[sec] = []
         sections[sec].append(ex)
-    # Remove empty sections
-    sections = {k: v for k, v in sections.items() if v}
+    # Keep empty sections visible so the per-section "Add exercise" form
+    # remains reachable after the last exercise in a section is deleted.
 
     sessions = await db.execute_fetchall("SELECT * FROM training_sessions ORDER BY date DESC LIMIT 20")
     sessions = [dict(s) for s in sessions]
@@ -101,6 +101,12 @@ async def training_page(request: Request):
     )
     personal_bests = [dict(r) for r in pb_rows]
 
+    # Exercise picker dictionary — DB-backed and user-editable (seeded by migration 009).
+    lib_rows = await db.execute_fetchall(
+        "SELECT category, section, name, sets, reps, notes FROM exercise_library ORDER BY display_order, name"
+    )
+    exercise_library = [dict(r) for r in lib_rows]
+
     return templates.TemplateResponse(
         "training.html",
         {
@@ -114,6 +120,7 @@ async def training_page(request: Request):
             "kpi_reps": kpi_reps,
             "personal_bests": personal_bests,
             "section_order": SECTION_ORDER,
+            "exercise_library": exercise_library,
         },
     )
 

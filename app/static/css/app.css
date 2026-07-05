@@ -214,7 +214,11 @@ main.container {
   display: flex;
   gap: 0.5rem;
   flex: 1;
+  min-width: 0;              /* allow shrinking without pushing nav-end */
+  overflow-x: auto;          /* links scroll on narrow widths instead of squeezing icons */
+  scrollbar-width: none;
 }
+.nav-links::-webkit-scrollbar { display: none; }
 .nav-links a {
   padding: 0.5rem 1rem;
   border-radius: var(--radius-full);
@@ -223,6 +227,8 @@ main.container {
   color: var(--text-secondary);
   transition: all 0.2s;
   position: relative;
+  flex-shrink: 0;            /* links keep size, container scrolls */
+  white-space: nowrap;
 }
 .nav-links a:hover {
   color: var(--text-primary);
@@ -238,6 +244,15 @@ main.container {
   display: flex;
   align-items: center;
   gap: 0.25rem;
+  flex-shrink: 0;            /* icons never get squeezed by nav-links */
+  margin-left: 0.5rem;
+}
+.nav-end svg {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;           /* SVG in flexbox can shrink below its width — pin it */
+  min-height: 20px;
+  flex-shrink: 0;
 }
 .nav-end a {
   color: var(--text-secondary);

@@ -20,7 +20,14 @@
                 <tbody>
                     {% for ex in exs %}
                     <tr x-show="editing !== {{ ex.id }}">
-                        <td>{{ ex.name }}</td>
+                        <td>
+                            {{ ex.name }}
+                            <a href="https://www.youtube.com/results?search_query={{ (ex.name ~ ' kettlebell how to short') | urlencode }}"
+                               target="_blank" rel="noopener" title="How to: {{ ex.name }} (YouTube)"
+                               style="margin-left:0.35rem;opacity:0.55;vertical-align:middle;">
+                                <i data-lucide="youtube" style="width:14px;height:14px;"></i>
+                            </a>
+                        </td>
                         <td>{{ ex.target_sets }}</td>
                         <td>{{ ex.target_reps }}</td>
                         <td><small class="text-muted">{{ ex.notes }}</small></td>
@@ -56,7 +63,21 @@
             <form method="POST" action="/training/exercise" x-show="adding" x-cloak
                   style="display:flex;gap:0.35rem;flex-wrap:wrap;align-items:center;margin-top:0.25rem;">
                 <input type="hidden" name="section" value="{{ section_name }}">
-                <input type="text" name="name" placeholder="Exercise name" style="flex:2;min-width:6rem;margin:0;padding:0.25rem 0.4rem;" required>
+                {% set lib = exercise_library | selectattr("section", "equalto", section_name) | list %}
+                {% if lib %}
+                <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';}"
+                        style="flex:2;min-width:8rem;margin:0;padding:0.25rem 0.4rem;">
+                    <option value="">From library…</option>
+                    {% for category, items in lib | groupby("category") %}
+                    <optgroup label="{{ category }}">
+                        {% for it in items %}
+                        <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes} | tojson }}'>{{ it.name }}</option>
+                        {% endfor %}
+                    </optgroup>
+                    {% endfor %}
+                </select>
+                {% endif %}
+                <input type="text" name="name" placeholder="Exercise name (or pick above)" style="flex:2;min-width:6rem;margin:0;padding:0.25rem 0.4rem;" required>
                 <input type="number" name="target_sets" placeholder="Sets" value="3" style="width:3rem;margin:0;padding:0.25rem 0.4rem;">
                 <input type="text" name="target_reps" placeholder="Reps" style="width:4rem;margin:0;padding:0.25rem 0.4rem;">
                 <input type="text" name="notes" placeholder="Notes" style="flex:2;min-width:4rem;margin:0;padding:0.25rem 0.4rem;">

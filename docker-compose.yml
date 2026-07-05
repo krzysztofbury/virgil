@@ -17,6 +17,8 @@ services:
       VIRGIL_REGISTRATION_OPEN: ${VIRGIL_REGISTRATION_OPEN:-true}
       VIRGIL_INTERNAL_LLM_MODEL: ${VIRGIL_INTERNAL_LLM_MODEL:-gemini/gemini-3-flash-preview}
       VIRGIL_INTERNAL_LLM_KEY: ${VIRGIL_INTERNAL_LLM_KEY:-}
+      VIRGIL_API_KEY: ${VIRGIL_API_KEY:-}
+      VIRGIL_API_USER_EMAIL: ${VIRGIL_API_USER_EMAIL:-}
       TZ: Europe/Warsaw
     volumes:
       - ./data:/data
