@@ -39,12 +39,19 @@ async def _resolve_provider(db) -> tuple[str, str]:
     raise ValueError("No LLM provider available — configure one in Settings or set VIRGIL_INTERNAL_LLM_KEY")
 
 
-async def call_llm(db, system_prompt: str, user_prompt: str) -> str:
+async def call_llm(db, system_prompt: str, user_prompt: str, *, json_mode: bool = False) -> str:
     """Call an LLM using the resolved provider (user or internal fallback).
 
+    json_mode=True asks the provider for a strict JSON object (drop_params lets
+    litellm skip it silently for models that don't support the flag).
     Returns the assistant's text response.
     """
     model, api_key = await _resolve_provider(db)
+
+    kwargs: dict = {}
+    if json_mode:
+        kwargs["response_format"] = {"type": "json_object"}
+        kwargs["drop_params"] = True
 
     try:
         response = await litellm.acompletion(
@@ -56,6 +63,7 @@ async def call_llm(db, system_prompt: str, user_prompt: str) -> str:
             api_key=api_key,
             max_tokens=1024,
             timeout=60.0,
+            **kwargs,
         )
     except litellm.AuthenticationError:
         raise ValueError(f"LLM authentication failed for model {model} — check your API key") from None
@@ -70,15 +78,34 @@ async def call_llm(db, system_prompt: str, user_prompt: str) -> str:
 
 
 def parse_andy_response(text: str) -> dict:
-    """Extract JSON from LLM response, handling markdown code fences."""
-    assert text, "LLM response is empty"
+    """Extract a JSON object from an LLM response.
+
+    Tolerates markdown code fences and surrounding prose/reasoning by falling back
+    to the outermost {...}. Raises ValueError (with a snippet of what came back) if
+    no JSON object can be parsed — so the failure is diagnosable, not a bare decode error.
+    """
+    if not text or not text.strip():
+        raise ValueError("LLM returned an empty response")
+
     cleaned = text.strip()
     if cleaned.startswith("```"):
-        lines = cleaned.split("\n")
-        lines = lines[1:]  # skip ```json
-        if lines and lines[-1].strip() == "```":
-            lines = lines[:-1]
-        cleaned = "\n".join(lines)
-    result = json.loads(cleaned)
-    assert isinstance(result, dict), f"Expected dict from LLM, got {type(result).__name__}"
-    return result
+        # drop the opening ```lang line and a trailing ``` fence, wherever it lands
+        cleaned = cleaned.split("\n", 1)[-1]
+        if cleaned.rstrip().endswith("```"):
+            cleaned = cleaned.rstrip()[:-3]
+        cleaned = cleaned.strip()
+
+    candidates = [cleaned]
+    start, end = cleaned.find("{"), cleaned.rfind("}")
+    if start != -1 and end > start:
+        candidates.append(cleaned[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            result = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(result, dict):
+            return result
+
+    raise ValueError(f"LLM did not return a JSON object: {text[:200]!r}")

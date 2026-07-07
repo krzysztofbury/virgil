@@ -296,7 +296,7 @@ async def generate_andy(request: Request, date: str = Form(...)):
 
     keys = ("andy_body_desc", "andy_spirit_desc", "andy_account_desc", "andy_relations_desc")
     try:
-        raw = await call_llm(db, system_prompt, user_prompt)
+        raw = await call_llm(db, system_prompt, user_prompt, json_mode=True)
         data = parse_andy_response(raw)
         if not any((data.get(k) or "").strip() for k in keys):
             raise ValueError("AI returned no suggestions (empty response)")

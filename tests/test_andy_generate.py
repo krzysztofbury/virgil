@@ -1,11 +1,34 @@
-"""generate-andy must surface LLM failures, not swallow them.
+"""generate-andy must surface LLM failures, not swallow them; and the JSON parser
+must tolerate the real prod failure mode (model wraps JSON in prose/fences).
 
-Regression: the handler caught every exception and redirected to empty fields,
-so a failing/misconfigured LLM looked like "request fires, nothing fills".
-The test DB has no LLM provider, so call_llm raises naturally.
+Regression: the handler caught every exception and redirected to empty fields, so a
+failing/misconfigured LLM looked like "request fires, nothing fills". Prod log showed
+the real cause was a JSONDecodeError in parse_andy_response, not an auth error.
 """
 
+import pytest
 from conftest import csrf_token
+
+from app.services.llm import parse_andy_response
+
+
+def test_parse_plain_json():
+    assert parse_andy_response('{"andy_body_desc": "x"}') == {"andy_body_desc": "x"}
+
+
+def test_parse_fenced_json():
+    assert parse_andy_response('```json\n{"a": 1}\n```') == {"a": 1}
+
+
+def test_parse_prose_wrapped_json():
+    # the real prod failure mode: model adds prose/reasoning around the object
+    assert parse_andy_response('Sure, here you go:\n{"a": 1, "b": 2}\nHope that helps!') == {"a": 1, "b": 2}
+
+
+@pytest.mark.parametrize("bad", ["", "   \n  ", "no json here at all"])
+def test_parse_rejects_non_json(bad):
+    with pytest.raises(ValueError):
+        parse_andy_response(bad)
 
 
 def test_generate_andy_surfaces_error(auth_client):
