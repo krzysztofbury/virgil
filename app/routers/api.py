@@ -173,9 +173,11 @@ async def api_training(
     """Training sessions in the last N days with entry counts and core volume."""
     since = (date.today() - timedelta(days=days - 1)).isoformat()
     rows = await db.execute_fetchall(
-        "SELECT s.id, s.date, s.duration_minutes, s.notes, "
-        "COUNT(e.id) AS entries, COALESCE(SUM(e.reps * COALESCE(e.weight, 0)), 0) AS volume_kg "
-        "FROM training_sessions s LEFT JOIN training_entries e ON e.session_id = s.id "
+        "SELECT s.id, s.date, s.duration_minutes, s.notes, COUNT(e.id) AS entries, "
+        "COALESCE(SUM(CASE WHEN ex.metric = 'reps' THEN e.reps * COALESCE(e.weight, 0) ELSE 0 END), 0) AS volume_kg "
+        "FROM training_sessions s "
+        "LEFT JOIN training_entries e ON e.session_id = s.id "
+        "LEFT JOIN training_exercises ex ON e.exercise_id = ex.id "
         "WHERE s.date >= ? GROUP BY s.id ORDER BY s.date DESC",
         (since,),
     )

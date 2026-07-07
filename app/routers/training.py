@@ -72,8 +72,9 @@ async def training_page(request: Request):
     # Volume (Core only) and total reps (all sections)
     week_stats = await db.execute_fetchall(
         """SELECT
-               SUM(CASE WHEN tex.section = 'Core' THEN te.reps * COALESCE(te.weight, 0) ELSE 0 END) as core_volume,
-               SUM(te.reps) as total_reps
+               SUM(CASE WHEN tex.section = 'Core' AND tex.metric = 'reps'
+                        THEN te.reps * COALESCE(te.weight, 0) ELSE 0 END) as core_volume,
+               SUM(CASE WHEN tex.metric = 'reps' THEN te.reps ELSE 0 END) as total_reps
            FROM training_entries te
            JOIN training_sessions ts ON te.session_id = ts.id
            JOIN training_exercises tex ON te.exercise_id = tex.id
@@ -146,12 +147,13 @@ async def save_session(request: Request):
     )
     session_id = cursor.lastrowid
 
-    # Load exercises with their sections
-    exercises = await db.execute_fetchall("SELECT id, section FROM training_exercises ORDER BY display_order")
+    # Load exercises with their sections + metric
+    exercises = await db.execute_fetchall("SELECT id, section, metric FROM training_exercises ORDER BY display_order")
 
     for ex in exercises:
         ex_id = ex["id"]
         section = ex["section"]
+        metric = ex["metric"]
 
         if section in ("Warmup", "Stretching"):
             # Single entry with duration
@@ -169,6 +171,25 @@ async def save_session(request: Request):
                     "VALUES (?, ?, 1, NULL, NULL, ?)",
                     (session_id, ex_id, dur_float),
                 )
+
+        elif section == "Core" and metric == "time":
+            # Weighted hold/carry: weight + seconds (reps NULL → excluded from volume/reps)
+            for set_num in range(1, 11):
+                sec_key = f"exercise_{ex_id}_set_{set_num}_seconds"
+                weight_key = f"exercise_{ex_id}_set_{set_num}_weight"
+                sec_val = form.get(sec_key)
+                weight_val = form.get(weight_key)
+                if sec_val or weight_val:
+                    try:
+                        sec_float = float(sec_val) if sec_val else None
+                        weight_float = float(weight_val) if weight_val else None
+                    except (ValueError, TypeError):
+                        continue
+                    await db.execute(
+                        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
+                        "VALUES (?, ?, ?, NULL, ?, ?)",
+                        (session_id, ex_id, set_num, weight_float, sec_float),
+                    )
 
         elif section == "Core":
             # Multi-set: reps + weight

@@ -201,8 +201,13 @@
                 <template x-for="s in sets" :key="s">
                     <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.25rem;">
                         <small class="text-muted" x-text="'S' + s" style="width:1.5rem;"></small>
+                        {% if ex.metric == 'time' %}
+                        <input type="number" step="0.5" :name="'exercise_{{ ex.id }}_set_' + s + '_weight'" placeholder="kg" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                        <input type="number" :name="'exercise_{{ ex.id }}_set_' + s + '_seconds'" placeholder="sec" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                        {% else %}
                         <input type="number" :name="'exercise_{{ ex.id }}_set_' + s + '_reps'" placeholder="Reps" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
                         <input type="number" step="0.5" :name="'exercise_{{ ex.id }}_set_' + s + '_weight'" placeholder="kg" style="flex:1;margin:0;padding:0.3rem 0.5rem;">
+                        {% endif %}
                     </div>
                 </template>
                 <button type="button" class="btn btn-sm btn-outline" @click="if(sets < 10) sets++" style="margin-top:0.25rem;font-size:0.7rem;">+ set</button>
