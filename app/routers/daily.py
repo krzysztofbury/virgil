@@ -2,6 +2,7 @@ import logging
 import os
 from datetime import date as date_module
 from datetime import timedelta
+from html import escape
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
@@ -293,9 +294,12 @@ async def generate_andy(request: Request, date: str = Form(...)):
         user_parts.append(part + "\n")
     user_prompt = "\n".join(user_parts)
 
+    keys = ("andy_body_desc", "andy_spirit_desc", "andy_account_desc", "andy_relations_desc")
     try:
         raw = await call_llm(db, system_prompt, user_prompt)
         data = parse_andy_response(raw)
+        if not any((data.get(k) or "").strip() for k in keys):
+            raise ValueError("AI returned no suggestions (empty response)")
 
         await db.execute(
             """
@@ -306,17 +310,21 @@ async def generate_andy(request: Request, date: str = Form(...)):
                 andy_account_desc=excluded.andy_account_desc, andy_relations_desc=excluded.andy_relations_desc,
                 updated_at=datetime('now')
             """,
-            (
-                target,
-                data.get("andy_body_desc", ""),
-                data.get("andy_spirit_desc", ""),
-                data.get("andy_account_desc", ""),
-                data.get("andy_relations_desc", ""),
-            ),
+            (target, *(data.get(k, "") for k in keys)),
         )
         await db.commit()
-    except Exception:
+    except Exception as exc:
+        # Never swallow silently — a hidden failure looks exactly like "request fires,
+        # nothing fills". Surface the reason in the card so the user (and logs) see it.
         logger.exception("Failed to generate A.N.D.Y. suggestions")
+        msg = str(exc) or exc.__class__.__name__
+        if request.headers.get("HX-Request"):
+            return HTMLResponse(
+                f'<div class="andy-error-msg" style="color:var(--danger,#ef4444);'
+                f'font-size:var(--text-sm);margin-top:0.5rem;">⚠ {escape(msg)}</div>',
+                headers={"HX-Retarget": "#andy-error", "HX-Reswap": "innerHTML"},
+            )
+        return RedirectResponse(f"/daily/{target}", status_code=303)
 
     redirect_url = f"/daily/{target}"
     if request.headers.get("HX-Request"):
