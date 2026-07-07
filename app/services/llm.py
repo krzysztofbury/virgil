@@ -104,26 +104,17 @@ def parse_andy_response(text: str) -> dict:
     if not text or not text.strip():
         raise ValueError("LLM returned an empty response")
 
-    cleaned = text.strip()
-    if cleaned.startswith("```"):
-        # drop the opening ```lang line and a trailing ``` fence, wherever it lands
-        cleaned = cleaned.split("\n", 1)[-1]
-        if cleaned.rstrip().endswith("```"):
-            cleaned = cleaned.rstrip()[:-3]
-        cleaned = cleaned.strip()
-
-    candidates = [cleaned]
-    start, end = cleaned.find("{"), cleaned.rfind("}")
-    if start != -1 and end > start:
-        candidates.append(cleaned[start : end + 1])
-
-    for candidate in candidates:
+    # raw_decode parses the FIRST complete JSON object starting at the first '{'
+    # and ignores everything after it — tolerating code fences, leading prose, and
+    # trailing junk like a doubled closing brace ('}\n}') that models sometimes emit.
+    start = text.find("{")
+    if start != -1:
         try:
-            result = json.loads(candidate)
+            obj, _ = json.JSONDecoder().raw_decode(text, start)
         except json.JSONDecodeError:
-            continue
-        if isinstance(result, dict):
-            return result
+            obj = None
+        if isinstance(obj, dict):
+            return obj
 
     # head + tail + length so the failure is self-diagnosing: ending in '}' means
     # complete-but-unparseable; ending mid-string means truncated.

@@ -25,6 +25,11 @@ def test_parse_prose_wrapped_json():
     assert parse_andy_response('Sure, here you go:\n{"a": 1, "b": 2}\nHope that helps!') == {"a": 1, "b": 2}
 
 
+def test_parse_doubled_closing_brace():
+    # exact prod failure: model emitted a valid object then a spurious extra '}'
+    assert parse_andy_response('{"andy_body_desc": "x"}\n}\n') == {"andy_body_desc": "x"}
+
+
 @pytest.mark.parametrize("bad", ["", "   \n  ", "no json here at all"])
 def test_parse_rejects_non_json(bad):
     with pytest.raises(ValueError):
