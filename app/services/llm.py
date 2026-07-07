@@ -48,6 +48,10 @@ async def call_llm(db, system_prompt: str, user_prompt: str, *, json_mode: bool 
     """
     model, api_key = await _resolve_provider(db)
 
+    # Thinking models (e.g. Gemini 3.x flash) spend part of the token budget on
+    # reasoning, so a low cap truncates the actual answer mid-string. Give headroom.
+    max_tokens = 4096
+
     kwargs: dict = {}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
@@ -61,7 +65,7 @@ async def call_llm(db, system_prompt: str, user_prompt: str, *, json_mode: bool 
                 {"role": "user", "content": user_prompt},
             ],
             api_key=api_key,
-            max_tokens=1024,
+            max_tokens=max_tokens,
             timeout=60.0,
             **kwargs,
         )
@@ -74,7 +78,11 @@ async def call_llm(db, system_prompt: str, user_prompt: str, *, json_mode: bool 
     except litellm.APIError as exc:
         raise ValueError(f"LLM API error for model {model}: {exc}") from exc
 
-    return response.choices[0].message.content
+    choice = response.choices[0]
+    if getattr(choice, "finish_reason", None) == "length":
+        # Cut off at the token cap — surface this instead of a confusing "not JSON" error.
+        raise ValueError(f"LLM response truncated at {max_tokens}-token limit for {model} — reasoning ate the budget")
+    return choice.message.content
 
 
 def parse_andy_response(text: str) -> dict:
