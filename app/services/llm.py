@@ -39,23 +39,28 @@ async def _resolve_provider(db) -> tuple[str, str]:
     raise ValueError("No LLM provider available — configure one in Settings or set VIRGIL_INTERNAL_LLM_KEY")
 
 
-async def call_llm(db, system_prompt: str, user_prompt: str, *, json_mode: bool = False) -> str:
+async def call_llm(
+    db, system_prompt: str, user_prompt: str, *, json_mode: bool = False, reasoning_effort: str | None = None
+) -> str:
     """Call an LLM using the resolved provider (user or internal fallback).
 
-    json_mode=True asks the provider for a strict JSON object (drop_params lets
-    litellm skip it silently for models that don't support the flag).
+    json_mode=True asks the provider for a strict JSON object.
+    reasoning_effort ('disable'|'low'|'medium'|'high') caps the model's thinking
+    budget — litellm maps it to Gemini's thinking config ('disable' = 0 tokens).
+    For trivial structured tasks, unbounded thinking eats the token budget and
+    truncates the actual answer, so we disable it rather than inflate max_tokens.
+    (drop_params lets litellm skip either flag for models that don't support it.)
     Returns the assistant's text response.
     """
     model, api_key = await _resolve_provider(db)
 
-    # Thinking models (e.g. Gemini 3.x flash) spend most of the token budget on
-    # reasoning, so a low cap truncates the actual answer mid-string. Give plenty.
-    max_tokens = 20000
+    max_tokens = 2048
 
-    kwargs: dict = {}
+    kwargs: dict = {"drop_params": True}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
-        kwargs["drop_params"] = True
+    if reasoning_effort:
+        kwargs["reasoning_effort"] = reasoning_effort
 
     try:
         response = await litellm.acompletion(
@@ -79,11 +84,13 @@ async def call_llm(db, system_prompt: str, user_prompt: str, *, json_mode: bool 
         raise ValueError(f"LLM API error for model {model}: {exc}") from exc
 
     choice = response.choices[0]
-    # Providers report truncation differently (OpenAI "length", Gemini "MAX_TOKENS", etc.).
     finish = str(getattr(choice, "finish_reason", "") or "").lower()
+    # Ground-truth diagnostics: finish reason + token usage (incl. reasoning tokens).
+    logger.info("LLM %s finish=%s usage=%s", model, finish, getattr(response, "usage", None))
     if finish in {"length", "max_tokens", "maxtokens"}:
-        # Cut off at the token cap — surface this instead of a confusing "not JSON" error.
-        raise ValueError(f"LLM response truncated at {max_tokens}-token limit for {model} — reasoning ate the budget")
+        raise ValueError(
+            f"LLM response truncated at {max_tokens}-token limit for {model} — raise cap or lower reasoning"
+        )
     return choice.message.content
 
 
@@ -118,4 +125,6 @@ def parse_andy_response(text: str) -> dict:
         if isinstance(result, dict):
             return result
 
-    raise ValueError(f"LLM did not return a JSON object: {text[:200]!r}")
+    # head + tail + length so the failure is self-diagnosing: ending in '}' means
+    # complete-but-unparseable; ending mid-string means truncated.
+    raise ValueError(f"LLM did not return a JSON object (len={len(text)}): {text[:120]!r}…{text[-80:]!r}")
