@@ -34,15 +34,21 @@ Navigate to `http://localhost:8123`. On first launch you'll be redirected to `/s
 ### Demo data (for screenshots)
 
 To populate a throwaway account with realistic but entirely fictional data across
-every module (Oura, No Porn, Training, Daily, Life Scores, Experiments, Bloodwork):
+every module (Oura, No Porn, Training, Daily, Life Scores, Experiments, Bloodwork).
+Point it at a throwaway directory so it never touches your real `data/` (important
+if `data/` is synced/backed-up elsewhere — the seeder would otherwise mix demo data
+into your live DB):
 
 ```bash
-uv run python scripts/seed_demo.py
+export VIRGIL_CENTRAL_DB_PATH=/tmp/virgil-demo/central.db
+uv run python scripts/seed_demo.py   # prints login: demo@virgil.app / demo-password-123
+uv run python -m app                 # serves the isolated demo DB on :8123
+# when done:
+rm -rf /tmp/virgil-demo
 ```
 
-It prints login credentials (`demo@virgil.app` / `demo-password-123`). Re-running
-resets the demo account. The data lives in the gitignored `data/` dir — never
-committed. Use it to capture screenshots without exposing real personal data.
+Re-running the seeder resets the demo account. Its data never lands in `data/`
+and is never committed — use it to capture screenshots without exposing real data.
 
 ### Code Style
 
