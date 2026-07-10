@@ -6,6 +6,25 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 > **[CHANGELOG](CHANGELOG.md)** | **[SPEC](SPEC.md)** | **[CONTRIBUTING](CONTRIBUTING.md)** | **[SECURITY](SECURITY.md)**
 
+## Screenshots
+
+<sub>All screenshots use the built-in demo seeder (`scripts/seed_demo.py`) — fictional data, no real user information.</sub>
+
+<table>
+<tr>
+<td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> — daily rollup, Oura vitals, measurements, life-scores radar</sub></td>
+<td width="50%"><img src="docs/screenshots/daily.png" alt="Daily log"><br><sub><b>Daily</b> — energy, routines & A.N.D.Y. tasks (AI-suggested)</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> — protocol, per-set logging, weekly volume & PBs</sub></td>
+<td width="50%"><img src="docs/screenshots/oura.png" alt="Oura Ring data"><br><sub><b>Oura</b> — daily & monthly trends (sleep, HRV, readiness, RHR)</sub></td>
+</tr>
+<tr>
+<td width="50%"><img src="docs/screenshots/no-porn.png" alt="No Porn tracker"><br><sub><b>No Porn</b> — weekly clean-rate, journal & pleasures</sub></td>
+<td width="50%"><img src="docs/screenshots/experiments.png" alt="Experiments"><br><sub><b>Experiments</b> — weekly-target habit sprints</sub></td>
+</tr>
+</table>
+
 ## Tech Stack
 
 - **Backend**: Python 3.12, FastAPI, aiosqlite

@@ -42,6 +42,14 @@ async def _seed(db) -> None:
         [("onboarding_completed", "1"), ("feature_no_porn", "1")],
     )
 
+    # The default seed lists some exercises twice — dedup for clean demo screenshots.
+    await db.execute(
+        "DELETE FROM training_exercises WHERE id NOT IN (SELECT MIN(id) FROM training_exercises GROUP BY section, name)"
+    )
+    await db.execute(
+        "DELETE FROM exercise_library WHERE id NOT IN (SELECT MIN(id) FROM exercise_library GROUP BY section, name)"
+    )
+
     # --- Oura: 45 days of daily data (smooth waves so charts look alive) ---
     oura = []
     for i in range(45):
@@ -67,6 +75,34 @@ async def _seed(db) -> None:
         "sleep_duration_hours, deep_sleep_hours, rem_sleep_hours, resting_hr, lowest_hr, avg_hrv) "
         "VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         oura,
+    )
+
+    # --- Oura monthly: 10 months back (feeds the Monthly Trends chart) ---
+    months = []
+    for i in range(10):
+        m = TODAY.month - i
+        y = TODAY.year + (m - 1) // 12
+        m = (m - 1) % 12 + 1
+        w = math.sin(i / 3)
+        months.append(
+            (
+                f"{y:04d}-{m:02d}",
+                round(80 + 5 * w),
+                round(78 + 5 * math.sin(i / 4)),
+                round(79 + 4 * w),
+                round(9000 + 1500 * w),
+                round(7.1 + 0.5 * w, 2),
+                round(1.3 + 0.2 * w, 2),
+                round(1.5 + 0.3 * w, 2),
+                round(53 - 2 * w),
+                round(49 - 2 * w),
+                round(46 + 10 * w),
+            )
+        )
+    await db.executemany(
+        "INSERT INTO oura_monthly (month, sleep_score, readiness, activity, steps, "
+        "sleep_duration, deep_sleep, rem_sleep, rhr, lowest_hr, hrv) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+        months,
     )
 
     # --- Daily logs: last 14 days (generic, non-personal A.N.D.Y. tasks) ---
@@ -169,9 +205,9 @@ async def _seed(db) -> None:
 
     # --- Life scores: two assessments for the radar comparison ---
     await db.executemany(
-        "INSERT INTO life_scores (date, planning, spirituality, health, work, social, growth, relaxation, family) "
-        "VALUES (?,?,?,?,?,?,?,?,?)",
-        [(d(140), 3, 2, 4, 6, 3, 3, 2, 4), (d(2), 8, 5, 6, 5, 4, 6, 8, 7)],
+        "INSERT INTO life_scores (date, planning, spirituality, health, work, social, growth, relaxation, family, "
+        "power_level) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        [(d(140), 3, 2, 4, 6, 3, 3, 2, 4, 3.0), (d(2), 8, 5, 6, 5, 4, 6, 8, 7, 7.0)],
     )
 
     # --- Experiment: active 4-week consistency sprint ---
