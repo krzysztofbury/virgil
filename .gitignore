@@ -66,6 +66,7 @@ dmypy.json
 .copilot/
 .augment/
 .junie/
+.superpowers/
 
 # macOS
 .DS_Store
