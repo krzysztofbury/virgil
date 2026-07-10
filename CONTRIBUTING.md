@@ -31,6 +31,19 @@ VIRGIL_SECOND_BRAIN_PATH="/path/to/second-brain" uv run python -m app
 
 Navigate to `http://localhost:8123`. On first launch you'll be redirected to `/setup` to create your account.
 
+### Demo data (for screenshots)
+
+To populate a throwaway account with realistic but entirely fictional data across
+every module (Oura, No Porn, Training, Daily, Life Scores, Experiments, Bloodwork):
+
+```bash
+uv run python scripts/seed_demo.py
+```
+
+It prints login credentials (`demo@virgil.app` / `demo-password-123`). Re-running
+resets the demo account. The data lives in the gitignored `data/` dir — never
+committed. Use it to capture screenshots without exposing real personal data.
+
 ### Code Style
 
 - **Line length**: 120 columns
