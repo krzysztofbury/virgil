@@ -26,6 +26,7 @@ else:
     # the closed-by-default + bootstrap-first-user flow.
     os.environ["VIRGIL_INTERNAL_LLM_KEY"] = ""
     os.environ["VIRGIL_REGISTRATION_OPEN"] = "false"
+    os.environ["VIRGIL_API_SENSITIVE"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
