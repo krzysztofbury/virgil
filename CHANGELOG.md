@@ -5,7 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.3.0] - 2026-07-13
+
+> **Deployment notes:** rotate any credentials that were in `.qnap.setup`; registration now
+> defaults to closed (`VIRGIL_REGISTRATION_OPEN=false`, first account always bootstraps);
+> `/api/noporn` requires `VIRGIL_API_SENSITIVE=true`; Oura webhooks must be re-enabled and —
+> behind Cloudflare Access — need a **Bypass policy for `/api/oura/webhook/*`** (Oura's
+> verification challenge and event deliveries are unauthenticated calls, HMAC-verified by the app).
 
 ### Fixed (post-review round 2 — TigerStyle + follow-up review)
 

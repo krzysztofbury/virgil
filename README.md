@@ -351,6 +351,8 @@ Virgil connects to the Oura API v2 via OAuth2 for automatic daily health data sy
 
 **Note**: Your `VIRGIL_BASE_URL` must be publicly reachable for Oura to deliver webhook events.
 
+**Cloudflare Access**: if the site sits behind Access, add a **Bypass policy for the path `/api/oura/webhook/*`** — Oura's verification challenge (GET) and event deliveries (POST) are unauthenticated server-to-server calls and get bounced to the Access login page otherwise. The endpoint authenticates on its own: opaque per-user callback ids plus HMAC-SHA256 signatures.
+
 Supported data types: `daily_sleep`, `daily_readiness`, `daily_activity`, `daily_stress`, `sleep`, `workout` (event types `create` + `update`).
 
 ### What Gets Synced

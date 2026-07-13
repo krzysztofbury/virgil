@@ -1,5 +1,42 @@
 # Virgil TODO
 
+## CI/CD — automated deploy to QNAP (replaces manual QSync + ssh docker build)
+
+**Goal:** `git push` (or tag) → image built in CI → QNAP Container Station runs the new
+version automatically. No QSync, no ssh, no building on the NAS. Rollback = previous image tag.
+
+**Architecture (recommended): GitHub Actions → GHCR → Watchtower on QNAP**
+
+```
+git push main / tag v*
+   └─ GitHub Actions: uv sync + ruff + pytest  (gate)
+        └─ docker build --build-arg GIT_SHA=$GITHUB_SHA (linux/amd64)
+             └─ push ghcr.io/<owner>/virgil:latest + :<sha> + :<tag>
+QNAP (Container Station, behind Cloudflare Tunnel — unchanged)
+   └─ watchtower (poll ~5 min, label-scoped)
+        └─ pulls new :latest → recreates virgil → compose healthcheck (/healthz) gates it
+```
+
+**Why this variant:** zero inbound access to the NAS (tunnel stays outbound-only), no
+self-hosted runner to maintain, Container Station treats it as plain containers, per-SHA
+tags give instant rollback (`docker pull ...:<old-sha>` + retag), CI finally bakes GIT_SHA
+correctly so the PWA cache busts on every deploy.
+
+**Alternatives considered:**
+- *QNAP cron `docker compose pull && up -d`* — fewest moving parts, but blind (pulls on a
+  timer whether or not anything changed) and no update log. Fallback if Watchtower annoys.
+- *Actions → ssh/cloudflared into QNAP* — inbound path + SSH secrets in GitHub; more surface, no gain.
+- *Self-hosted runner on QNAP* — heavy, updates itself, overkill for one app.
+
+**Deliverables:**
+- [ ] `.github/workflows/release.yml` — test gate → buildx → push to GHCR (`GITHUB_TOKEN`, `packages: write`); tags: `latest`, `sha-<short>`, `v*` on git tags
+- [ ] `docker-compose.yml`: `image: ghcr.io/<owner>/virgil:latest` (drop `build:` from the prod compose or keep behind a profile), add `watchtower` service (label-scoped to virgil, poll interval, cleanup old images)
+- [ ] One-time on QNAP: `docker login ghcr.io` with a `read:packages` PAT; remove the repo from QSync; pull the new compose
+- [ ] README deploy section rewritten (build-on-NAS instructions → registry flow + rollback recipe)
+- [ ] Optional: deploy notification (ntfy/Slack/WhatsApp) step in the workflow
+
+**Out of scope for round 1:** staging environment, multi-arch images (QNAP is amd64), signed images.
+
 ## Backlog — 2026-07 Functionality Review
 
 Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
