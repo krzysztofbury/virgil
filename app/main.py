@@ -113,14 +113,16 @@ async def lifespan(app: FastAPI):
 
     # Run pending migrations for EXISTING per-user databases. Without this,
     # migrations only ever ran at account creation — new migrations silently
-    # never reached older databases.
-    from app.central_db import get_active_users
+    # never reached older databases. ALL users are migrated, not just active
+    # ones: a disabled account that gets re-enabled must not wake up with a
+    # stale schema.
+    from app.central_db import get_all_users
     from app.migrations.runner import run_migrations
     from app.user_db import close_user_db, open_user_db
 
     _migrated = 0
     app.state.migration_failures = []
-    for _user in await get_active_users():
+    for _user in await get_all_users():
         _udb = await open_user_db(_user["db_filename"])
         try:
             await run_migrations(_udb)

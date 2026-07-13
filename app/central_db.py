@@ -48,6 +48,7 @@ async def get_central_db() -> aiosqlite.Connection:
         _central_db.row_factory = aiosqlite.Row
         await _central_db.execute("PRAGMA journal_mode=WAL")
         await _central_db.execute("PRAGMA foreign_keys=ON")
+        await _central_db.execute("PRAGMA busy_timeout=5000")
     return _central_db
 
 
@@ -66,8 +67,14 @@ async def close_central_db() -> None:
         _central_db = None
 
 
-async def create_user(email: str, password: str, display_name: str = "") -> dict:
-    """Create a new user. Returns the user dict."""
+async def create_user(email: str, password: str, display_name: str = "", only_if_first: bool = False) -> dict | None:
+    """Create a new user. Returns the user dict, or None if only_if_first was
+    set and another account already exists.
+
+    only_if_first closes the bootstrap TOCTOU: with registration closed, two
+    concurrent first signups both pass the count==0 check — the guarded INSERT
+    lets exactly one of them win.
+    """
     db = await get_central_db()
     user_id = str(uuid.uuid4())
     db_filename = f"{user_id}.db"
@@ -75,12 +82,23 @@ async def create_user(email: str, password: str, display_name: str = "") -> dict
 
     role = "admin" if email.lower() in ADMIN_EMAILS else "user"
 
-    await db.execute(
-        """INSERT INTO users (id, email, password_hash, display_name, role, db_filename)
-           VALUES (?, ?, ?, ?, ?, ?)""",
-        (user_id, email.lower(), pw_hash, display_name, role, db_filename),
-    )
-    await db.commit()
+    if only_if_first:
+        cursor = await db.execute(
+            """INSERT INTO users (id, email, password_hash, display_name, role, db_filename)
+               SELECT ?, ?, ?, ?, ?, ?
+               WHERE (SELECT COUNT(*) FROM users) = 0""",
+            (user_id, email.lower(), pw_hash, display_name, role, db_filename),
+        )
+        await db.commit()
+        if cursor.rowcount == 0:
+            return None
+    else:
+        await db.execute(
+            """INSERT INTO users (id, email, password_hash, display_name, role, db_filename)
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (user_id, email.lower(), pw_hash, display_name, role, db_filename),
+        )
+        await db.commit()
     return await get_user_by_id(user_id)
 
 
@@ -122,6 +140,8 @@ _UPDATABLE_COLUMNS = frozenset(
         "totp_secret",
         "totp_enabled",
         "last_login_at",
+        # Factory reset repoints the account at a freshly created database.
+        "db_filename",
     }
 )
 
@@ -157,6 +177,14 @@ async def count_users() -> int:
     db = await get_central_db()
     rows = await db.execute_fetchall("SELECT COUNT(*) AS n FROM users")
     return rows[0]["n"]
+
+
+async def get_primary_user_id() -> str | None:
+    """Oldest active account — keeps the legacy `virgil.md` export name for the
+    original single-user install while later users get unique defaults."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall("SELECT id FROM users WHERE is_active = 1 ORDER BY created_at LIMIT 1")
+    return rows[0]["id"] if rows else None
 
 
 # ── Webhook routing (public callbacks → per-user database) ──

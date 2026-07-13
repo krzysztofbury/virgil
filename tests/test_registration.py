@@ -65,6 +65,31 @@ def test_login_shows_signup_link_when_open(monkeypatch):
     assert 'href="/signup"' in resp.text
 
 
+def test_login_empty_password_is_rejected_not_500(client):
+    """verify_password raises on empty input — the route must catch that."""
+    from conftest import csrf_token
+
+    token = csrf_token(client, "/login")
+    resp = client.post(
+        "/login",
+        data={"username": "test@example.com", "password": "", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert "Invalid email or password" in resp.text
+
+
+def test_csrf_non_ascii_token_is_403_not_500(client):
+    """compare_digest on str raises TypeError for non-ASCII — must 403 cleanly."""
+    client.get("/login")  # ensure a csrf cookie exists
+    resp = client.post(
+        "/login",
+        data={"username": "x@y.z", "password": "irrelevant1", "_csrf_token": "żółć-non-ascii"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 403
+
+
 def test_bootstrap_allows_first_user(monkeypatch):
     """registration_allowed() is True on a fresh install even when closed."""
     import asyncio

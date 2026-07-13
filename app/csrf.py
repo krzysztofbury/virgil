@@ -40,6 +40,10 @@ async def _extract_multipart_token(scope: Scope, receive: Receive) -> str:
         # Malformed multipart — treat as missing token; the 403 below applies.
         logger.warning("Could not parse multipart body for CSRF token", exc_info=True)
         return ""
+    finally:
+        # Large parts spool to temp files — close them instead of leaning on
+        # refcounting (Request.close() closes every parsed UploadFile).
+        await request.close()
 
 
 class CSRFMiddleware:
@@ -132,7 +136,12 @@ class CSRFMiddleware:
 
                     receive = make_replay()
 
-            if not cookie_token or not submitted or not secrets.compare_digest(submitted, cookie_token):
+            # compare_digest on str raises TypeError for non-ASCII input, and
+            # `submitted` is attacker-controlled — always compare bytes.
+            token_ok = bool(cookie_token and submitted) and secrets.compare_digest(
+                submitted.encode("utf-8"), cookie_token.encode("utf-8")
+            )
+            if not token_ok:
                 response = Response("CSRF validation failed", status_code=403)
                 await response(scope, receive, send)
                 return

@@ -470,13 +470,21 @@ def valid_export_filename(filename: str) -> bool:
     return filename.endswith(".md") and len(filename) > len(".md")
 
 
-async def export_filename_for(db) -> str:
-    """Per-user export filename. All users share one SECOND_BRAIN_PATH, so a
-    per-user setting keeps one user's scheduled export from overwriting (and
-    leaking into) another user's file. Defaults to virgil.md for backward
-    compatibility with existing single-user integrations (OpenClaw)."""
-    filename = await get_setting(db, "export_filename", "virgil.md")
-    return filename if valid_export_filename(filename) else "virgil.md"
+async def export_filename_for(db, user_id: str) -> str:
+    """Per-user export filename, DERIVED from identity — never user-chosen.
+
+    All users share one SECOND_BRAIN_PATH; a free-form filename setting would
+    let one user select (and overwrite, and leak into) another user's export.
+    The primary (oldest) account keeps the legacy `virgil.md` for existing
+    single-user integrations (OpenClaw); every other account gets a name
+    derived from its immutable id.
+    """
+    from app.central_db import get_primary_user_id
+
+    assert user_id, "export_filename_for requires a user id"
+    if user_id == await get_primary_user_id():
+        return "virgil.md"
+    return f"virgil-{user_id[:8]}.md"
 
 
 async def write_export(db, scope: str = "weekly", sections: set[str] | None = None, filename: str = "virgil.md") -> str:

@@ -319,15 +319,11 @@
         </div>
         <button type="submit" class="btn btn-primary">Export</button>
     </form>
-    <!-- Per-user filename: all users share one second-brain directory, so a
-         unique name keeps exports from overwriting each other. -->
-    <form method="POST" action="/settings/export/filename" style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
-        <label style="font-weight:600;">Export filename
-            <input type="text" name="export_filename" value="{{ export_filename }}" pattern="[^/\\]+\.md" required
-                   style="max-width:280px;">
-        </label>
-        <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">Save filename</button>
-    </form>
+    <!-- Filename is derived from the account (never user-chosen) so users in a
+         shared second-brain directory can't overwrite each other's exports. -->
+    <p class="text-muted" style="margin-top:0.75rem;font-size:var(--text-xs);">
+        Export file: <code>{{ export_filename }}</code> (fixed per account)
+    </p>
 </div>
 
 <!-- Import -->
@@ -377,12 +373,13 @@
             </div>
         </div>
         <div style="margin-top:0.75rem;">
-            <!-- Plain form POST: the redirect carries the real msg/err outcome.
-                 The old HTMX hx-swap="none" version showed "Backup started..."
-                 and discarded the response — failures looked like successes. -->
-            <form method="POST" action="/settings/backup/now" style="margin:0;display:inline;">
-                <button type="submit" class="btn btn-outline btn-sm">Backup Now</button>
-            </form>
+            <!-- formaction submit (NOT a nested <form> — invalid HTML that
+                 browsers flatten): posts to the backup endpoint, which ignores
+                 the surrounding automation fields, and the redirect carries the
+                 real msg/err outcome. The old HTMX hx-swap="none" version showed
+                 "Backup started..." and discarded the response — failures
+                 looked like successes. -->
+            <button type="submit" formaction="/settings/backup/now" class="btn btn-outline btn-sm">Backup Now</button>
         </div>
     </div>
 

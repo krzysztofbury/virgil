@@ -36,28 +36,41 @@ def test_export_filename_validation():
     assert not valid_export_filename("x" * 200 + ".md")
 
 
-def test_export_filename_save_and_reject(auth_client):
-    from conftest import csrf_token
+def test_export_filename_defaults_are_per_user(tmp_path, monkeypatch):
+    """The primary user keeps legacy virgil.md; others get unique defaults so
+    scheduled exports in the shared second-brain dir can't collide."""
+    import asyncio
 
-    token = csrf_token(auth_client, "/settings?tab=data")
-    resp = auth_client.post(
-        "/settings/export/filename",
-        data={"export_filename": "../escape.md", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
-    assert "err=" in resp.headers["location"]
+    async def scenario():
+        import aiosqlite
 
-    resp = auth_client.post(
-        "/settings/export/filename",
-        data={"export_filename": "virgil-test.md", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
-    assert "msg=" in resp.headers["location"]
+        from app.migrations.runner import run_migrations
+        from app.services.markdown_export import export_filename_for
 
+        async def fake_primary():
+            return "primary-user-id"
+
+        monkeypatch.setattr("app.central_db.get_primary_user_id", fake_primary)
+
+        db = await aiosqlite.connect(tmp_path / "exp.db")
+        db.row_factory = aiosqlite.Row
+        await run_migrations(db)
+        primary = await export_filename_for(db, "primary-user-id")
+        secondary = await export_filename_for(db, "aabbccdd-2222-3333-4444-555566667777")
+        await db.close()
+        return primary, secondary
+
+    primary, secondary = asyncio.run(scenario())
+    assert primary == "virgil.md"
+    assert secondary == "virgil-aabbccdd.md"
+    assert primary != secondary
+
+
+def test_export_filename_shown_in_data_tab(auth_client):
+    """Filename is derived (never user-chosen) and displayed read-only."""
     page = auth_client.get("/settings?tab=data")
-    assert "virgil-test.md" in page.text
+    assert page.status_code == 200
+    assert "virgil.md" in page.text  # the single test user is the primary account
 
 
 def test_healthz_ok(client):

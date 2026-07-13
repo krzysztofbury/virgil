@@ -204,7 +204,8 @@ async def api_training_detail(
         session_ids = [s["id"] for s in sessions]
         placeholders = ",".join("?" * len(session_ids))
         all_entries = await db.execute_fetchall(
-            f"SELECT e.session_id, ex.name, ex.section, ex.metric, e.set_number, e.reps, e.weight, e.duration "
+            f"SELECT e.session_id, ex.id AS exercise_id, ex.name, ex.section, ex.metric, "
+            f"e.set_number, e.reps, e.weight, e.duration "
             f"FROM training_entries e JOIN training_exercises ex ON e.exercise_id = ex.id "
             f"WHERE e.session_id IN ({placeholders}) ORDER BY ex.display_order, ex.name, e.set_number",
             session_ids,
@@ -215,17 +216,25 @@ async def api_training_detail(
     result = []
     for s in sessions:
         sess = dict(s)
+        # Group by exercise ID, not name — two exercises may share a name and
+        # must not have their sets merged.
         exercises: dict = {}
         order: list = []
         for r in entries_by_session.get(sess["id"], []):
-            name = r["name"]
-            if name not in exercises:
-                exercises[name] = {"name": name, "section": r["section"], "metric": r["metric"], "sets": []}
-                order.append(name)
-            exercises[name]["sets"].append(
+            ex_id = r["exercise_id"]
+            if ex_id not in exercises:
+                exercises[ex_id] = {
+                    "id": ex_id,
+                    "name": r["name"],
+                    "section": r["section"],
+                    "metric": r["metric"],
+                    "sets": [],
+                }
+                order.append(ex_id)
+            exercises[ex_id]["sets"].append(
                 {"set": r["set_number"], "reps": r["reps"], "weight": r["weight"], "duration": r["duration"]}
             )
-        sess["exercises"] = [exercises[n] for n in order]
+        sess["exercises"] = [exercises[i] for i in order]
         result.append(sess)
     return {"range_days": days, "since": since, "sessions": result}
 

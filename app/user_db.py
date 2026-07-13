@@ -24,6 +24,7 @@ async def create_user_db(db_filename: str) -> None:
     result = await db.execute_fetchall("PRAGMA journal_mode=WAL")
     assert result[0][0].lower() == "wal", f"WAL mode not enabled: {result}"
     await db.execute("PRAGMA foreign_keys=ON")
+    await db.execute("PRAGMA busy_timeout=5000")
 
     await run_migrations(db)
     await db.close()
@@ -38,6 +39,9 @@ async def open_user_db(db_filename: str) -> aiosqlite.Connection:
     db.row_factory = aiosqlite.Row
     await db.execute("PRAGMA journal_mode=WAL")
     await db.execute("PRAGMA foreign_keys=ON")
+    # Requests, the scheduler, and webhook syncs write concurrently — wait for
+    # a held lock instead of failing instantly with "database is locked".
+    await db.execute("PRAGMA busy_timeout=5000")
     return db
 
 

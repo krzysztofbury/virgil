@@ -63,6 +63,16 @@ def _complete_onboarding() -> None:
         conn.close()
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Every TestClient request shares one client IP, so the per-IP auth limit
+    (10/min) trips across unrelated tests — reset the buckets between tests."""
+    import app.rate_limit as rate_limit
+
+    rate_limit._buckets.clear()
+    yield
+
+
 @pytest.fixture(scope="session")
 def client():
     with TestClient(app) as c:

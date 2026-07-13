@@ -37,11 +37,11 @@ async def _run_oura_sync_task(db) -> None:
     logger.info("Scheduled Oura sync: %d days", count)
 
 
-async def _run_export_task(db) -> None:
+async def _run_export_task(db, user_id: str) -> None:
     from app.services.markdown_export import export_filename_for, write_export
 
     # Per-user filename — all users share one SECOND_BRAIN_PATH.
-    filename = await export_filename_for(db)
+    filename = await export_filename_for(db, user_id)
     await write_export(db, scope="weekly", filename=filename)
     logger.info("Scheduled markdown export complete: %s", filename)
 
@@ -70,7 +70,7 @@ def _briefing_due(now: datetime, last_day: str, last_attempt: str) -> bool:
     return _hours_since(last_attempt) >= BRIEFING_RETRY_HOURS
 
 
-async def _check_and_run(db) -> None:
+async def _check_and_run(db, user_id: str) -> None:
     """Check all scheduled tasks and run those that are due."""
     now_iso = datetime.now(UTC).isoformat()
 
@@ -91,7 +91,7 @@ async def _check_and_run(db) -> None:
         last_run = await get_setting(db, "export_last_run", "")
         if _hours_since(last_run) >= interval:
             try:
-                await _run_export_task(db)
+                await _run_export_task(db, user_id)
                 await set_setting(db, "export_last_run", now_iso)
             except Exception:
                 logger.exception("Scheduled markdown export failed")
@@ -136,7 +136,7 @@ async def scheduler_loop() -> None:
                 user_db = None
                 try:
                     user_db = await open_user_db(user["db_filename"])
-                    await _check_and_run(user_db)
+                    await _check_and_run(user_db, user["id"])
                 except Exception:
                     logger.exception("Scheduler failed for user %s", user["email"])
                 finally:

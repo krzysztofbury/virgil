@@ -2,6 +2,7 @@ import asyncio
 import logging
 from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
+from functools import lru_cache
 from urllib.parse import urlencode
 
 import httpx
@@ -136,6 +137,20 @@ ENDPOINT_COLUMNS: dict[str, tuple[str, ...]] = {
 DAILY_ENDPOINT_ORDER = ("daily_sleep", "daily_readiness", "daily_activity", "daily_stress", "sleep", "heartrate")
 
 
+# Retry-After can be server-controlled and may legally be an HTTP-date — never
+# sleep unbounded on it, and never let its parsing crash the sync.
+RETRY_AFTER_SECONDS_MAX = 60
+
+
+def _parse_retry_after(header_value: str | None, fallback: int) -> int:
+    """Parse a Retry-After header into a bounded sleep in seconds."""
+    try:
+        seconds = int(header_value) if header_value else fallback
+    except (ValueError, TypeError):
+        seconds = fallback
+    return max(1, min(RETRY_AFTER_SECONDS_MAX, seconds))
+
+
 async def _fetch_endpoint(
     client: httpx.AsyncClient, endpoint: str, token: str, start: str, end: str, max_retries: int = 3
 ) -> list:
@@ -150,7 +165,7 @@ async def _fetch_endpoint(
         if resp.status_code == 401:
             raise OuraAuthError(f"Oura API {endpoint} returned 401 — token expired or revoked")
         if resp.status_code == 429 and attempt < max_retries:
-            retry_after = int(resp.headers.get("Retry-After", 2 ** (attempt + 1)))
+            retry_after = _parse_retry_after(resp.headers.get("Retry-After"), fallback=2 ** (attempt + 1))
             logger.warning("Oura API %s rate limited, retrying in %ds", endpoint, retry_after)
             await asyncio.sleep(retry_after)
             continue
@@ -348,29 +363,37 @@ async def _auto_populate_experiments(db):
             )
 
 
-def _daily_upsert_sql(ok_endpoints: set[str]) -> str:
-    """Build the oura_daily upsert restricted to columns whose endpoints succeeded.
+# All oura_daily data columns in one fixed order (identifier whitelist).
+_ALL_DAILY_COLUMNS: tuple[str, ...] = tuple(col for ep in DAILY_ENDPOINT_ORDER for col in ENDPOINT_COLUMNS[ep])
 
-    All identifiers come from the hardcoded ENDPOINT_COLUMNS whitelist — values
-    are still bound via ? placeholders.
-    """
-    assert ok_endpoints, "Refusing to build an upsert with no successful endpoints"
-    all_columns = [col for ep in DAILY_ENDPOINT_ORDER for col in ENDPOINT_COLUMNS[ep]]
-    update_columns = [col for ep in DAILY_ENDPOINT_ORDER if ep in ok_endpoints for col in ENDPOINT_COLUMNS[ep]]
-    assert update_columns, f"No known endpoints in {ok_endpoints}"
 
-    insert_cols = ", ".join(["date", *all_columns])
-    placeholders = ", ".join("?" * (len(all_columns) + 1))
+@lru_cache(maxsize=64)  # bounded: at most 2^6 endpoint subsets exist
+def _daily_upsert_sql_cached(ok_key: tuple[str, ...]) -> str:
+    update_columns = [col for ep in DAILY_ENDPOINT_ORDER if ep in ok_key for col in ENDPOINT_COLUMNS[ep]]
+    assert update_columns, f"No known endpoints in {ok_key}"
+
+    insert_cols = ", ".join(["date", *_ALL_DAILY_COLUMNS])
+    placeholders = ", ".join("?" * (len(_ALL_DAILY_COLUMNS) + 1))
     set_clause = ", ".join(f"{col}=excluded.{col}" for col in update_columns)
     return (
         f"INSERT INTO oura_daily ({insert_cols}) VALUES ({placeholders}) ON CONFLICT(date) DO UPDATE SET {set_clause}"
     )
 
 
+def _daily_upsert_sql(ok_endpoints: set[str]) -> str:
+    """Build the oura_daily upsert restricted to columns whose endpoints succeeded.
+
+    All identifiers come from the hardcoded ENDPOINT_COLUMNS whitelist — values
+    are still bound via ? placeholders. Cached per endpoint subset so the sync
+    loop doesn't rebuild an identical string for every day.
+    """
+    assert ok_endpoints, "Refusing to build an upsert with no successful endpoints"
+    return _daily_upsert_sql_cached(tuple(sorted(ok_endpoints)))
+
+
 async def _upsert_daily(db, day_str: str, data: dict, ok_endpoints: set[str]) -> None:
     """Upsert one day of Oura data, preserving columns from failed endpoints."""
-    all_columns = [col for ep in DAILY_ENDPOINT_ORDER for col in ENDPOINT_COLUMNS[ep]]
-    values = [day_str] + [data.get(col) for col in all_columns]
+    values = [day_str] + [data.get(col) for col in _ALL_DAILY_COLUMNS]
     await db.execute(_daily_upsert_sql(ok_endpoints), values)
 
 
@@ -509,25 +532,37 @@ WEBHOOK_DATA_TYPES = ("daily_sleep", "daily_readiness", "daily_activity", "daily
 WEBHOOK_EVENT_TYPES = ("create", "update")
 
 
-async def create_webhook_subscription(access_token: str, callback_url: str, verification_token: str) -> dict:
+def _webhook_auth_headers(client_id: str, client_secret: str) -> dict[str, str]:
+    """Oura's /v2/webhook/subscription endpoints authenticate with the OAuth
+    APP credentials (x-client-id / x-client-secret headers), NOT a user Bearer
+    token — per the ClientIdAuth/ClientSecretAuth security schemes in the
+    Oura OpenAPI spec."""
+    return {"x-client-id": client_id, "x-client-secret": client_secret}
+
+
+async def create_webhook_subscription(
+    client_id: str, client_secret: str, callback_url: str, verification_token: str
+) -> dict:
     """Register one Oura subscription per (event_type, data_type) we handle.
 
-    Oura API v2 requires a separate subscription per pair. Oura POSTs a
-    verification request with the verification_token to callback_url; the
-    callback must echo the token to complete each registration.
+    Oura API v2 requires a separate subscription per pair. During each
+    registration Oura sends a verification GET to callback_url with
+    ?verification_token=...&challenge=... and expects {"challenge": ...} back
+    (handled in app/routers/oura_webhook.py).
 
     Returns {"created": [...ids...], "failed": [(event, data, error), ...]}.
     Raises if EVERY subscription failed.
     """
     created: list[str] = []
     failed: list[tuple[str, str, str]] = []
+    headers = _webhook_auth_headers(client_id, client_secret)
     async with httpx.AsyncClient(timeout=30.0) as client:
         for data_type in WEBHOOK_DATA_TYPES:
             for event_type in WEBHOOK_EVENT_TYPES:
                 try:
                     resp = await client.post(
                         OURA_WEBHOOK_URL,
-                        headers={"Authorization": f"Bearer {access_token}"},
+                        headers=headers,
                         json={
                             "callback_url": callback_url,
                             "verification_token": verification_token,
@@ -545,22 +580,22 @@ async def create_webhook_subscription(access_token: str, callback_url: str, veri
     return {"created": created, "failed": failed}
 
 
-async def delete_webhook_subscription(access_token: str, subscription_id: str) -> None:
+async def delete_webhook_subscription(client_id: str, client_secret: str, subscription_id: str) -> None:
     """Delete a webhook subscription from Oura API v2."""
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.delete(
             f"{OURA_WEBHOOK_URL}/{subscription_id}",
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_webhook_auth_headers(client_id, client_secret),
         )
         resp.raise_for_status()
 
 
-async def list_webhook_subscriptions(access_token: str) -> list[dict]:
-    """List all active webhook subscriptions."""
+async def list_webhook_subscriptions(client_id: str, client_secret: str) -> list[dict]:
+    """List all active webhook subscriptions for this OAuth app."""
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
             OURA_WEBHOOK_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_webhook_auth_headers(client_id, client_secret),
         )
         resp.raise_for_status()
         return resp.json()
