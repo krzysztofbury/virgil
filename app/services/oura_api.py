@@ -118,6 +118,24 @@ class OuraAuthError(Exception):
     """Raised when Oura API returns 401 — token is expired or revoked."""
 
 
+class OuraFetchError(Exception):
+    """Raised when an Oura endpoint fails after retries (non-auth failure)."""
+
+
+# Which oura_daily columns each endpoint owns. On a partial sync failure, only
+# columns from endpoints that actually succeeded are updated — otherwise a
+# transient 5xx would overwrite historic values with NULL.
+ENDPOINT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "daily_sleep": ("sleep_score",),
+    "daily_readiness": ("readiness_score",),
+    "daily_activity": ("activity_score", "steps"),
+    "daily_stress": ("stress_high", "stress_medium", "stress_low", "stress_rest"),
+    "sleep": ("sleep_duration_hours", "deep_sleep_hours", "rem_sleep_hours", "lowest_hr", "avg_hrv"),
+    "heartrate": ("resting_hr",),
+}
+DAILY_ENDPOINT_ORDER = ("daily_sleep", "daily_readiness", "daily_activity", "daily_stress", "sleep", "heartrate")
+
+
 async def _fetch_endpoint(
     client: httpx.AsyncClient, endpoint: str, token: str, start: str, end: str, max_retries: int = 3
 ) -> list:
@@ -137,35 +155,59 @@ async def _fetch_endpoint(
             await asyncio.sleep(retry_after)
             continue
         logger.warning("Oura API %s returned %s: %s", endpoint, resp.status_code, resp.text[:200])
+        raise OuraFetchError(f"Oura API {endpoint} failed with status {resp.status_code}")
+    raise OuraFetchError(f"Oura API {endpoint} still rate limited after {max_retries} retries")
+
+
+async def _fetch_optional(
+    client: httpx.AsyncClient, endpoint: str, token: str, start: str, end: str, ok_endpoints: set[str]
+) -> list:
+    """Fetch one endpoint; record success in ok_endpoints, absorb fetch failures.
+
+    Auth errors still propagate — a dead token must fail the whole sync.
+    """
+    try:
+        data = await _fetch_endpoint(client, endpoint, token, start, end)
+    except OuraFetchError:
         return []
-    return []
+    ok_endpoints.add(endpoint)
+    return data
 
 
-async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) -> dict[str, dict]:
-    """Fetch multiple Oura endpoints and merge into per-day dicts."""
+async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) -> tuple[dict[str, dict], set[str]]:
+    """Fetch multiple Oura endpoints and merge into per-day dicts.
+
+    Returns (daily_data, ok_endpoints). Endpoints missing from ok_endpoints
+    failed and their columns must not be written over existing data.
+    """
     daily: dict[str, dict] = defaultdict(dict)
+    ok_endpoints: set[str] = set()
 
     async with httpx.AsyncClient(timeout=30.0) as client:
-        sleep_data = await _fetch_endpoint(client, "daily_sleep", access_token, start_date, end_date)
+        sleep_data = await _fetch_optional(client, "daily_sleep", access_token, start_date, end_date, ok_endpoints)
         for item in sleep_data:
             d = item.get("day", "")
             if d:
                 daily[d]["sleep_score"] = item.get("score")
 
-        readiness_data = await _fetch_endpoint(client, "daily_readiness", access_token, start_date, end_date)
+        readiness_data = await _fetch_optional(
+            client, "daily_readiness", access_token, start_date, end_date, ok_endpoints
+        )
         for item in readiness_data:
             d = item.get("day", "")
             if d:
                 daily[d]["readiness_score"] = item.get("score")
 
-        activity_data = await _fetch_endpoint(client, "daily_activity", access_token, start_date, end_date)
+        activity_data = await _fetch_optional(
+            client, "daily_activity", access_token, start_date, end_date, ok_endpoints
+        )
         for item in activity_data:
             d = item.get("day", "")
             if d:
                 daily[d]["activity_score"] = item.get("score")
                 daily[d]["steps"] = item.get("steps")
 
-        stress_data = await _fetch_endpoint(client, "daily_stress", access_token, start_date, end_date)
+        stress_data = await _fetch_optional(client, "daily_stress", access_token, start_date, end_date, ok_endpoints)
         for item in stress_data:
             d = item.get("day", "")
             if d:
@@ -181,7 +223,7 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
                 daily[d]["stress_rest"] = summary[3]
 
         # Sleep periods for duration/deep/REM breakdown
-        sleep_periods = await _fetch_endpoint(client, "sleep", access_token, start_date, end_date)
+        sleep_periods = await _fetch_optional(client, "sleep", access_token, start_date, end_date, ok_endpoints)
         # Group by day, pick longest period per day
         sleep_by_day: dict[str, dict] = {}
         for item in sleep_periods:
@@ -202,7 +244,7 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
             daily[d]["avg_hrv"] = item.get("average_hrv")
 
         # Heartrate for resting HR — use daily average of lowest readings
-        hr_data = await _fetch_endpoint(client, "heartrate", access_token, start_date, end_date)
+        hr_data = await _fetch_optional(client, "heartrate", access_token, start_date, end_date, ok_endpoints)
         hr_by_day: dict[str, list] = defaultdict(list)
         for item in hr_data:
             ts = item.get("timestamp", "")
@@ -218,7 +260,7 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
                 count = max(1, len(sorted_bpms) // 10)
                 daily[d].setdefault("resting_hr", round(sum(sorted_bpms[:count]) / count, 1))
 
-    return dict(daily)
+    return dict(daily), ok_endpoints
 
 
 async def fetch_oura_workouts(access_token: str, start_date: str, end_date: str) -> list[dict]:
@@ -306,8 +348,38 @@ async def _auto_populate_experiments(db):
             )
 
 
+def _daily_upsert_sql(ok_endpoints: set[str]) -> str:
+    """Build the oura_daily upsert restricted to columns whose endpoints succeeded.
+
+    All identifiers come from the hardcoded ENDPOINT_COLUMNS whitelist — values
+    are still bound via ? placeholders.
+    """
+    assert ok_endpoints, "Refusing to build an upsert with no successful endpoints"
+    all_columns = [col for ep in DAILY_ENDPOINT_ORDER for col in ENDPOINT_COLUMNS[ep]]
+    update_columns = [col for ep in DAILY_ENDPOINT_ORDER if ep in ok_endpoints for col in ENDPOINT_COLUMNS[ep]]
+    assert update_columns, f"No known endpoints in {ok_endpoints}"
+
+    insert_cols = ", ".join(["date", *all_columns])
+    placeholders = ", ".join("?" * (len(all_columns) + 1))
+    set_clause = ", ".join(f"{col}=excluded.{col}" for col in update_columns)
+    return (
+        f"INSERT INTO oura_daily ({insert_cols}) VALUES ({placeholders}) ON CONFLICT(date) DO UPDATE SET {set_clause}"
+    )
+
+
+async def _upsert_daily(db, day_str: str, data: dict, ok_endpoints: set[str]) -> None:
+    """Upsert one day of Oura data, preserving columns from failed endpoints."""
+    all_columns = [col for ep in DAILY_ENDPOINT_ORDER for col in ENDPOINT_COLUMNS[ep]]
+    values = [day_str] + [data.get(col) for col in all_columns]
+    await db.execute(_daily_upsert_sql(ok_endpoints), values)
+
+
 async def sync_oura_from_api(db, days_back: int = 30) -> int:
-    """Full sync pipeline: ensure token → fetch → upsert oura_daily → recompute oura_monthly."""
+    """Full sync pipeline: ensure token → fetch → upsert oura_daily → recompute oura_monthly.
+
+    Partial endpoint failures update only the successfully fetched columns;
+    a total failure raises instead of committing destructive NULLs.
+    """
     token = await ensure_valid_token(db)
     if not token:
         raise RuntimeError("No valid Oura token available")
@@ -315,47 +387,23 @@ async def sync_oura_from_api(db, days_back: int = 30) -> int:
     end = date.today()
     start = end - timedelta(days=days_back)
     try:
-        daily = await fetch_oura_daily(token, start.isoformat(), end.isoformat())
+        daily, ok_endpoints = await fetch_oura_daily(token, start.isoformat(), end.isoformat())
     except OuraAuthError:
         logger.warning("Oura token rejected during sync — marking integration as error")
         await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
         await db.commit()
         raise
 
+    if not ok_endpoints:
+        raise RuntimeError("All Oura endpoints failed — nothing synced")
+    failed = set(DAILY_ENDPOINT_ORDER) - ok_endpoints
+    if failed:
+        logger.warning("Oura sync partial: endpoints failed, preserving their columns: %s", sorted(failed))
+
     count = 0
     affected_months = set()
     for day_str, data in daily.items():
-        await db.execute(
-            """INSERT INTO oura_daily (date, sleep_score, readiness_score, activity_score, steps,
-                sleep_duration_hours, deep_sleep_hours, rem_sleep_hours, resting_hr, lowest_hr,
-                avg_hrv, stress_high, stress_medium, stress_low, stress_rest)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(date) DO UPDATE SET
-                sleep_score=excluded.sleep_score, readiness_score=excluded.readiness_score,
-                activity_score=excluded.activity_score, steps=excluded.steps,
-                sleep_duration_hours=excluded.sleep_duration_hours, deep_sleep_hours=excluded.deep_sleep_hours,
-                rem_sleep_hours=excluded.rem_sleep_hours, resting_hr=excluded.resting_hr,
-                lowest_hr=excluded.lowest_hr, avg_hrv=excluded.avg_hrv,
-                stress_high=excluded.stress_high, stress_medium=excluded.stress_medium,
-                stress_low=excluded.stress_low, stress_rest=excluded.stress_rest""",
-            (
-                day_str,
-                data.get("sleep_score"),
-                data.get("readiness_score"),
-                data.get("activity_score"),
-                data.get("steps"),
-                data.get("sleep_duration_hours"),
-                data.get("deep_sleep_hours"),
-                data.get("rem_sleep_hours"),
-                data.get("resting_hr"),
-                data.get("lowest_hr"),
-                data.get("avg_hrv"),
-                data.get("stress_high"),
-                data.get("stress_medium"),
-                data.get("stress_low"),
-                data.get("stress_rest"),
-            ),
-        )
+        await _upsert_daily(db, day_str, data, ok_endpoints)
         count += 1
         affected_months.add(day_str[:7])
 
@@ -454,27 +502,47 @@ async def sync_oura_from_api(db, days_back: int = 30) -> int:
 # ── Webhook Subscription API ──
 
 
-async def create_webhook_subscription(
-    access_token: str, callback_url: str, verification_token: str, event_type: str = "tag.updated"
-) -> dict:
-    """Register a webhook subscription with Oura API v2.
+# Data types we subscribe to — must stay in sync with the webhook handler's
+# SUPPORTED_DATA_TYPES (app/routers/oura_webhook.py). Any incoming event just
+# triggers a 2-day resync, so create+update cover all we need.
+WEBHOOK_DATA_TYPES = ("daily_sleep", "daily_readiness", "daily_activity", "daily_stress", "sleep", "workout")
+WEBHOOK_EVENT_TYPES = ("create", "update")
 
-    Oura will POST a verification request to callback_url with the verification_token.
-    The callback must respond with the token to complete registration.
+
+async def create_webhook_subscription(access_token: str, callback_url: str, verification_token: str) -> dict:
+    """Register one Oura subscription per (event_type, data_type) we handle.
+
+    Oura API v2 requires a separate subscription per pair. Oura POSTs a
+    verification request with the verification_token to callback_url; the
+    callback must echo the token to complete each registration.
+
+    Returns {"created": [...ids...], "failed": [(event, data, error), ...]}.
+    Raises if EVERY subscription failed.
     """
+    created: list[str] = []
+    failed: list[tuple[str, str, str]] = []
     async with httpx.AsyncClient(timeout=30.0) as client:
-        resp = await client.post(
-            OURA_WEBHOOK_URL,
-            headers={"Authorization": f"Bearer {access_token}"},
-            json={
-                "callback_url": callback_url,
-                "verification_token": verification_token,
-                "event_type": event_type,
-                "data_type": "tag",
-            },
-        )
-        resp.raise_for_status()
-        return resp.json()
+        for data_type in WEBHOOK_DATA_TYPES:
+            for event_type in WEBHOOK_EVENT_TYPES:
+                try:
+                    resp = await client.post(
+                        OURA_WEBHOOK_URL,
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        json={
+                            "callback_url": callback_url,
+                            "verification_token": verification_token,
+                            "event_type": event_type,
+                            "data_type": data_type,
+                        },
+                    )
+                    resp.raise_for_status()
+                    created.append(str(resp.json().get("id", "")))
+                except Exception as exc:
+                    logger.warning("Oura webhook subscribe failed for %s/%s: %s", event_type, data_type, exc)
+                    failed.append((event_type, data_type, str(exc)))
+    if not created:
+        raise RuntimeError(f"All Oura webhook subscriptions failed: {failed[:3]}")
+    return {"created": created, "failed": failed}
 
 
 async def delete_webhook_subscription(access_token: str, subscription_id: str) -> None:

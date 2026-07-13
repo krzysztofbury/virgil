@@ -105,8 +105,13 @@ async def dashboard(request: Request):
     oura = await db.execute_fetchall("SELECT * FROM oura_monthly ORDER BY month DESC LIMIT 1")
     latest_oura = dict(oura[0]) if oura else None
 
-    # Life scores (latest 2 for radar chart comparison)
-    score_rows = await db.execute_fetchall("SELECT * FROM life_scores ORDER BY date DESC LIMIT 2")
+    # Life scores (latest 2 for radar chart comparison). Only complete
+    # assessments qualify — a missing area would render as a measured 0 and
+    # visually crater the radar.
+    complete_filter = " AND ".join(f"{a} IS NOT NULL" for a in AREAS)
+    score_rows = await db.execute_fetchall(
+        f"SELECT * FROM life_scores WHERE {complete_filter} ORDER BY date DESC LIMIT 2"  # noqa: S608
+    )
     scores = [dict(r) for r in score_rows]
 
     chart_datasets = []

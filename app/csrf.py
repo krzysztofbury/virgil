@@ -1,3 +1,4 @@
+import logging
 import secrets
 from urllib.parse import parse_qs
 
@@ -7,14 +8,38 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import BASE_URL
 
+logger = logging.getLogger(__name__)
+
 CSRF_COOKIE = "csrf_token"
 # ASGI normalizes all header names to lowercase, so this matches "X-CSRF-Token" sent by HTMX
 CSRF_HEADER = "x-csrf-token"
 CSRF_FIELD = "_csrf_token"
 SAFE_METHODS = frozenset({b"GET", b"HEAD", b"OPTIONS", b"TRACE"})
 CSRF_EXEMPT_PATHS = frozenset({"/api/oura/webhook"})
-# Hard cap on buffered form body size to prevent memory exhaustion.
-MAX_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
+# Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.
+CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
+# Hard caps on buffered form body size to prevent memory exhaustion.
+# Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB
+# (app/routers/onboarding.py MAX_UPLOAD_BYTES) plus multipart framing overhead.
+MAX_URLENCODED_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_MULTIPART_BODY_BYTES = 21 * 1024 * 1024  # 20 MB payload + framing
+
+
+async def _extract_multipart_token(scope: Scope, receive: Receive) -> str:
+    """Parse a buffered multipart body and return the CSRF form field.
+
+    parse_qs() cannot parse multipart boundaries, so we delegate to Starlette's
+    form parser (python-multipart) on a replayed copy of the body.
+    """
+    request = Request(scope, receive)
+    try:
+        form = await request.form()
+        value = form.get(CSRF_FIELD, "")
+        return value if isinstance(value, str) else ""
+    except Exception:
+        # Malformed multipart — treat as missing token; the 403 below applies.
+        logger.warning("Could not parse multipart body for CSRF token", exc_info=True)
+        return ""
 
 
 class CSRFMiddleware:
@@ -44,7 +69,9 @@ class CSRFMiddleware:
 
         method = scope.get("method", "GET").encode()
         path = scope.get("path", "")
-        if method not in SAFE_METHODS and path in CSRF_EXEMPT_PATHS:
+        if method not in SAFE_METHODS and (
+            path in CSRF_EXEMPT_PATHS or any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES)
+        ):
             await self.app(scope, receive, send_with_cookie)
             return
         if method not in SAFE_METHODS:
@@ -64,16 +91,18 @@ class CSRFMiddleware:
                         content_type = header_value.decode()
                         break
 
+                is_multipart = "multipart/form-data" in content_type
                 if "form" in content_type:
                     # Buffer the body, extract CSRF token, then replay it.
-                    # Bounded to MAX_BODY_BYTES to prevent memory exhaustion.
+                    # Bounded to prevent memory exhaustion.
+                    max_bytes = MAX_MULTIPART_BODY_BYTES if is_multipart else MAX_URLENCODED_BODY_BYTES
                     body_chunks = []
                     total_size = 0
                     while True:
                         message = await receive()
                         chunk = message.get("body", b"")
                         total_size += len(chunk)
-                        if total_size > MAX_BODY_BYTES:
+                        if total_size > max_bytes:
                             response = Response("Request body too large", status_code=413)
                             await response(scope, receive, send)
                             return
@@ -82,22 +111,28 @@ class CSRFMiddleware:
                             break
                     body = b"".join(body_chunks)
 
-                    parsed = parse_qs(body.decode(), keep_blank_values=True)
-                    submitted = parsed.get(CSRF_FIELD, [""])[0]
+                    def make_replay() -> Receive:
+                        body_sent = False
 
-                    # Create a new receive that replays the buffered body
-                    body_sent = False
+                        async def replay_receive() -> Message:
+                            nonlocal body_sent
+                            if not body_sent:
+                                body_sent = True
+                                return {"type": "http.request", "body": body, "more_body": False}
+                            return {"type": "http.disconnect"}
 
-                    async def replay_receive() -> Message:
-                        nonlocal body_sent
-                        if not body_sent:
-                            body_sent = True
-                            return {"type": "http.request", "body": body, "more_body": False}
-                        return {"type": "http.disconnect"}
+                        return replay_receive
 
-                    receive = replay_receive
+                    if is_multipart:
+                        # Consumes one replay; hand a fresh one to the app below.
+                        submitted = await _extract_multipart_token(scope, make_replay())
+                    else:
+                        parsed = parse_qs(body.decode(), keep_blank_values=True)
+                        submitted = parsed.get(CSRF_FIELD, [""])[0]
 
-            if not cookie_token or not submitted or submitted != cookie_token:
+                    receive = make_replay()
+
+            if not cookie_token or not submitted or not secrets.compare_digest(submitted, cookie_token):
                 response = Response("CSRF validation failed", status_code=403)
                 await response(scope, receive, send)
                 return

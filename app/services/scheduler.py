@@ -38,10 +38,36 @@ async def _run_oura_sync_task(db) -> None:
 
 
 async def _run_export_task(db) -> None:
-    from app.services.markdown_export import write_export
+    from app.services.markdown_export import export_filename_for, write_export
 
-    await write_export(db, scope="weekly")
-    logger.info("Scheduled markdown export complete")
+    # Per-user filename — all users share one SECOND_BRAIN_PATH.
+    filename = await export_filename_for(db)
+    await write_export(db, scope="weekly", filename=filename)
+    logger.info("Scheduled markdown export complete: %s", filename)
+
+
+async def _run_briefing_task(db) -> None:
+    from app.services.briefing import generate_briefing
+
+    await generate_briefing(db)
+    logger.info("Scheduled morning briefing generated")
+
+
+# Morning briefings generate once per local day, but not before people wake up —
+# Oura sleep data usually lands after the night ends.
+BRIEFING_EARLIEST_HOUR = 6
+# On failure (LLM down, no provider), wait before retrying instead of hammering
+# the LLM every 60-second tick.
+BRIEFING_RETRY_HOURS = 1.0
+
+
+def _briefing_due(now: datetime, last_day: str, last_attempt: str) -> bool:
+    """Pure gating logic for the scheduled morning briefing."""
+    if now.hour < BRIEFING_EARLIEST_HOUR:
+        return False
+    if last_day == now.date().isoformat():
+        return False
+    return _hours_since(last_attempt) >= BRIEFING_RETRY_HOURS
 
 
 async def _check_and_run(db) -> None:
@@ -83,6 +109,20 @@ async def _check_and_run(db) -> None:
                     await set_setting(db, "oura_sync_last_run", now_iso)
                 except Exception:
                     logger.exception("Scheduled Oura sync failed")
+
+    # Morning briefing — once per local day, after BRIEFING_EARLIEST_HOUR.
+    if await get_setting(db, "briefing_enabled", "0") == "1":
+        from app.services.llm import llm_available
+
+        last_day = await get_setting(db, "briefing_last_day", "")
+        last_attempt = await get_setting(db, "briefing_last_attempt", "")
+        if _briefing_due(datetime.now(), last_day, last_attempt) and await llm_available(db):
+            await set_setting(db, "briefing_last_attempt", now_iso)
+            try:
+                await _run_briefing_task(db)
+                await set_setting(db, "briefing_last_day", datetime.now().date().isoformat())
+            except Exception:
+                logger.exception("Scheduled briefing failed")
 
 
 async def scheduler_loop() -> None:

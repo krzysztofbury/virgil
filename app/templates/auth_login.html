@@ -28,6 +28,9 @@
         {% if error %}
         <div class="auth-error">{{ error }}</div>
         {% endif %}
+        {% if info %}
+        <div class="auth-info">{{ info }}</div>
+        {% endif %}
 
         <form method="POST" action="/login">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
@@ -41,7 +44,9 @@
             </label>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Sign In</button>
         </form>
+        {% if registration_open %}
         <p class="auth-footer">Don't have an account? <a href="/signup">Sign up</a></p>
+        {% endif %}
     </div>
 </div>
 
@@ -52,6 +57,7 @@
 .auth-logo h1 { margin:0; font-size:1.5rem; }
 .auth-subtitle { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:1.5rem; }
 .auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
+.auth-info { background:rgba(59,130,246,0.1); color:var(--accent); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
 .auth-footer { color:var(--text-muted); font-size:var(--text-sm); text-align:center; margin-top:1rem; }
 .auth-footer a { color:var(--accent); text-decoration:none; }
 .auth-footer a:hover { text-decoration:underline; }

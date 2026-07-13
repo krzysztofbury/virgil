@@ -276,7 +276,7 @@
 <!-- Export to Markdown -->
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Export to Markdown</h3></div>
-    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Generate <code>virgil.md</code> in second-brain directory for LLM review.</p>
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Generate <code>{{ export_filename }}</code> in second-brain directory for LLM review.</p>
     <form method="POST" action="/settings/export">
         <div style="margin-bottom: 0.75rem;">
             <label style="font-weight:600;margin-bottom:0.5rem;">Scope</label>
@@ -318,6 +318,15 @@
             </div>
         </div>
         <button type="submit" class="btn btn-primary">Export</button>
+    </form>
+    <!-- Per-user filename: all users share one second-brain directory, so a
+         unique name keeps exports from overwriting each other. -->
+    <form method="POST" action="/settings/export/filename" style="margin-top:0.75rem;border-top:1px solid var(--border);padding-top:0.75rem;">
+        <label style="font-weight:600;">Export filename
+            <input type="text" name="export_filename" value="{{ export_filename }}" pattern="[^/\\]+\.md" required
+                   style="max-width:280px;">
+        </label>
+        <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">Save filename</button>
     </form>
 </div>
 
@@ -368,11 +377,12 @@
             </div>
         </div>
         <div style="margin-top:0.75rem;">
-            <button type="button" class="btn btn-outline btn-sm"
-                    hx-post="/settings/backup/now" hx-swap="none"
-                    onclick="showToast('Backup started...')">
-                Backup Now
-            </button>
+            <!-- Plain form POST: the redirect carries the real msg/err outcome.
+                 The old HTMX hx-swap="none" version showed "Backup started..."
+                 and discarded the response — failures looked like successes. -->
+            <form method="POST" action="/settings/backup/now" style="margin:0;display:inline;">
+                <button type="submit" class="btn btn-outline btn-sm">Backup Now</button>
+            </form>
         </div>
     </div>
 
@@ -478,13 +488,15 @@
 <div class="card" style="margin-top:1rem;border:1px solid rgba(229,84,75,0.2);">
     <div class="card-header"><h3 style="color:var(--red);">Factory Reset</h3></div>
     <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">
-        Delete all data and start fresh. This removes your account, profile, goals, training, experiments, and all other data. The database file will be deleted and recreated on next startup.
+        Wipe all data and start fresh. Your account and login are kept; profile, goals, training,
+        experiments, health data and settings are deleted, and you'll go through onboarding again.
+        Consider <a href="/settings/backup" style="color:var(--accent);">downloading a backup</a> first.
     </p>
     <details>
         <summary style="color:var(--red);">I understand, show the reset button</summary>
         <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;"
-              onsubmit="return confirm('Are you absolutely sure? This will delete ALL data and cannot be undone.')">
-            <button type="submit" class="btn btn-danger">Reset Everything</button>
+              onsubmit="return confirm('Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.')">
+            <button type="submit" class="btn btn-danger">Reset All Data</button>
         </form>
     </details>
 </div>

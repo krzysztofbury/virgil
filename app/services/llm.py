@@ -39,6 +39,18 @@ async def _resolve_provider(db) -> tuple[str, str]:
     raise ValueError("No LLM provider available — configure one in Settings or set VIRGIL_INTERNAL_LLM_KEY")
 
 
+async def llm_available(db) -> bool:
+    """True if call_llm() would have a provider — user-configured OR the
+    internal env fallback. Every UI/scheduler availability check must use this,
+    not get_active_provider(), or internal-key-only deployments lose features.
+    """
+    try:
+        await _resolve_provider(db)
+        return True
+    except ValueError:
+        return False
+
+
 async def call_llm(
     db, system_prompt: str, user_prompt: str, *, json_mode: bool = False, reasoning_effort: str | None = None
 ) -> str:

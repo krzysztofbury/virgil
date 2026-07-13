@@ -4,7 +4,7 @@ This document describes the architecture, conventions, and design decisions for 
 
 ## Project Overview
 
-**Virgil** is a single-user, self-hosted life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX.
+**Virgil** is a multi-user, self-hosted life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX. Identities live in a central registry database; each user's data lives in an isolated per-user SQLite database.
 
 - **Language:** Python 3.12+
 - **Package manager:** [uv](https://github.com/astral-sh/uv)
@@ -30,7 +30,7 @@ app/
 
   migrations/           - Numbered database schema migrations
     runner.py           - Migration discovery + execution engine
-    001_*.py ... 006_*.py
+    001_*.py ... 013_*.py
 
   models/               - Data models (query helpers, not ORMs)
     daily.py, bloodwork.py, experiments.py, feniks.py,
@@ -71,14 +71,14 @@ app/
 2. **HTMX for interactivity.** No SPA framework. Server renders HTML, HTMX swaps partials. Alpine.js for local state (toggles, counters).
 3. **Numbered migrations instead of `CREATE TABLE IF NOT EXISTS`.** Each migration is a Python file with an `async def up(db)` function. Applied sequentially on startup, tracked in `schema_migrations`.
 4. **Fernet encryption for secrets at rest.** OAuth tokens, LLM API keys, and webhook secrets are encrypted in the database. Key is auto-generated or provided via env var.
-5. **Single-user model.** No multi-tenancy. One authenticated user per instance.
+5. **Multi-user model.** Central `virgil-central.db` user registry; one isolated SQLite database per user (`data/users/{uuid}.db`), opened per request by the auth middleware.
 6. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
 
 ## Middleware Stack (Processing Order)
 
 1. **Security Headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 2. **Rate Limiting** — 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window)
-3. **Authentication** — Cookie-based session verification (exempts: login, setup, MFA, offline, service worker, Oura webhook)
+3. **Authentication** — Cookie-based session verification (exempts: login, signup, MFA, offline, healthz, service worker, per-user Oura webhooks)
 4. **Feature Flags** — Loads `feature_*` settings into `request.state.features`
 5. **CSRF Protection** — Double-submit cookie on all POST forms (exempts: Oura webhook)
 
@@ -140,7 +140,7 @@ All via environment variables (see `.env.example`):
 | Variable | Default | Description |
 |---|---|---|
 | `VIRGIL_ENV` | `local` | `local` (hot reload) or `prod` (no reload) |
-| `VIRGIL_DB_PATH` | `./data/virgil.db` | SQLite database path |
+| `VIRGIL_CENTRAL_DB_PATH` | `./data/virgil-central.db` | Central user registry (per-user DBs live in `data/users/`) |
 | `VIRGIL_SECOND_BRAIN_PATH` | (empty) | Path to markdown export directory |
 | `VIRGIL_HOST` | `0.0.0.0` | Server bind host |
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL for OAuth callbacks |
@@ -150,7 +150,7 @@ Port is always **8123**.
 
 ## Important Constraints
 
-- **Single-user only.** All routes assume one authenticated user.
+- **Multi-user.** Routes operate on the per-user database from `request.state.user_db` (`get_user_db_from_request`); never use the legacy global `get_db()`.
 - **No JavaScript build step.** All JS is vanilla, loaded from CDN or `/static/`.
 - **No ORM.** Raw SQL only. This is intentional — keeps queries explicit and auditable.
 - **SQLite limitations.** No concurrent writes from multiple processes. WAL mode allows concurrent reads.

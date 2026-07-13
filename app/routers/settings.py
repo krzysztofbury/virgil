@@ -75,16 +75,18 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["oura_integration"] = dict(oura_row[0]) if oura_row else None
         oura_sync_enabled = await get_setting(db, "oura_sync_enabled", "0")
         context["oura_sync_enabled"] = oura_sync_enabled == "1"
-        # Webhook info
-        if context["oura_integration"] and context["oura_integration"].get("webhook_secret"):
+        # Webhook info — the callback URL carries a per-user opaque id.
+        webhook_id = await get_setting(db, "oura_webhook_id", "")
+        if context["oura_integration"] and context["oura_integration"].get("webhook_secret") and webhook_id:
             context["webhook_enabled"] = True
-            context["webhook_url"] = f"{BASE_URL}/api/oura/webhook"
+            context["webhook_url"] = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
         else:
             context["webhook_enabled"] = False
             context["webhook_url"] = ""
 
     elif tab == "data":
         context["second_brain_path"] = SECOND_BRAIN_PATH
+        context["export_filename"] = await get_setting(db, "export_filename", "virgil.md")
 
     elif tab == "automation":
         context["backup_enabled"] = await get_setting(db, "backup_enabled", "0") == "1"
@@ -179,7 +181,7 @@ async def trigger_backup_now(request: Request):
 
 @router.post("/settings/export")
 async def trigger_export(request: Request):
-    from app.services.markdown_export import write_export
+    from app.services.markdown_export import export_filename_for, write_export
 
     form = await request.form()
     scope = form.get("scope", "weekly")
@@ -190,11 +192,29 @@ async def trigger_export(request: Request):
 
     db = get_user_db_from_request(request)
     try:
-        await write_export(db, scope, sections=section_set)
+        filename = await export_filename_for(db)
+        await write_export(db, scope, sections=section_set, filename=filename)
         return RedirectResponse(f"/settings?tab=data&msg={quote(f'{scope} export complete')}", status_code=303)
     except Exception:
         logger.exception("Export failed")
         return RedirectResponse(f"/settings?tab=data&err={quote('Export failed')}", status_code=303)
+
+
+@router.post("/settings/export/filename")
+async def save_export_filename(request: Request, export_filename: str = Form(...)):
+    """Per-user markdown export filename — in multi-user deployments every user
+    shares one SECOND_BRAIN_PATH, so distinct filenames prevent users overwriting
+    (and leaking into) each other's exports."""
+    from app.services.markdown_export import valid_export_filename
+
+    filename = export_filename.strip()
+    if not valid_export_filename(filename):
+        return RedirectResponse(
+            f"/settings?tab=data&err={quote('Filename must be a plain name ending in .md')}", status_code=303
+        )
+    db = get_user_db_from_request(request)
+    await set_setting(db, "export_filename", filename)
+    return RedirectResponse(f"/settings?tab=data&msg={quote('Export filename saved')}", status_code=303)
 
 
 @router.post("/settings/import")
@@ -242,12 +262,15 @@ async def download_backup(request: Request):
     )
 
 
+# Every user-owned table — credentials (llm_providers, integrations) stay out.
 EXPORT_TABLES = [
     "daily_logs",
     "body_measurements",
+    "daily_briefings",
     "training_sessions",
     "training_entries",
     "training_exercises",
+    "exercise_library",
     "feniks_config",
     "feniks_journal",
     "feniks_pleasures",
@@ -263,7 +286,11 @@ EXPORT_TABLES = [
     "goals",
     "experiments",
     "experiment_activity_types",
+    "experiment_weeks",
     "experiment_entries",
+    "experiment_summaries",
+    "user_profiles",
+    "app_settings",
 ]
 
 
@@ -360,29 +387,27 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
 
 @router.post("/settings/factory-reset")
 async def factory_reset(request: Request):
-    """Delete the current user's database and redirect to /setup for a fresh start."""
-    import os
+    """Wipe the current user's data and restart onboarding.
 
-    from app.user_db import delete_user_db
+    The account (central registry row) and session are kept — only the per-user
+    database is deleted and immediately recreated with a fresh migrated schema,
+    so the very next request lands on working tables instead of an empty file.
+    Any stale central webhook route would point at a wiped integration row, so
+    it is removed too.
+    """
+    from app.central_db import delete_webhook_routes
+    from app.user_db import create_user_db, delete_user_db
 
     user = getattr(request.state, "user", None)
-    if user and user.get("db_filename"):
-        delete_user_db(user["db_filename"])
-    else:
-        # Fallback: remove legacy DB_PATH if present
-        if os.path.exists(DB_PATH):
-            os.remove(DB_PATH)
-        for suffix in ("-wal", "-shm"):
-            wal_path = DB_PATH + suffix
-            if os.path.exists(wal_path):
-                os.remove(wal_path)
+    if not user or not user.get("db_filename"):
+        return RedirectResponse("/login", status_code=303)
 
-    # Reset cached state so middleware redirects to /setup.
-    from app.auth import _reset_caches
+    delete_user_db(user["db_filename"])
+    await create_user_db(user["db_filename"])
+    await delete_webhook_routes(user["id"])
 
-    _reset_caches()
-
-    return RedirectResponse("/setup", status_code=303)
+    logger.info("Factory reset completed for user %s", user["email"])
+    return RedirectResponse("/onboarding", status_code=303)
 
 
 # --- Oura Integration ---
@@ -498,7 +523,10 @@ async def oura_sync(request: Request):
 
 @router.post("/settings/oura/webhook/enable")
 async def enable_oura_webhook(request: Request):
+    from app.central_db import create_webhook_route, delete_webhook_routes
+
     db = get_user_db_from_request(request)
+    user = request.state.user
     token = await ensure_valid_token(db)
     if not token:
         return RedirectResponse(
@@ -506,31 +534,36 @@ async def enable_oura_webhook(request: Request):
             status_code=303,
         )
 
+    # Per-user callback URL: the opaque id routes the public webhook to this
+    # user's database (see app/routers/oura_webhook.py).
     verification_token = secrets.token_urlsafe(32)
-    callback_url = f"{BASE_URL}/api/oura/webhook"
+    webhook_id = await create_webhook_route(user["id"])
+    callback_url = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
 
-    # Store the secret first so the verification callback can match it
+    # Store the secret (encrypted) first so the verification callback can match it
     await db.execute(
         "UPDATE integrations SET webhook_secret = ? WHERE provider = 'oura'",
-        (verification_token,),
+        (encrypt(verification_token),),
     )
-    await db.commit()
+    await set_setting(db, "oura_webhook_id", webhook_id)
 
     try:
         result = await create_webhook_subscription(token, callback_url, verification_token)
-        sub_id = result.get("id", "")
-        logger.info("Oura webhook subscription created: %s", sub_id)
+        logger.info(
+            "Oura webhook subscriptions created: %d ok, %d failed",
+            len(result["created"]),
+            len(result["failed"]),
+        )
         return RedirectResponse(
             f"/settings?tab=integrations&msg={quote('Webhook enabled')}",
             status_code=303,
         )
     except Exception:
         logger.exception("Failed to create Oura webhook subscription")
-        # Clear the secret since subscription failed
-        await db.execute(
-            "UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'",
-        )
-        await db.commit()
+        # Roll back local state since no subscription exists
+        await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
+        await set_setting(db, "oura_webhook_id", "")
+        await delete_webhook_routes(user["id"])
         return RedirectResponse(
             f"/settings?tab=integrations&err={quote('Failed to register webhook with Oura')}",
             status_code=303,
@@ -539,14 +572,18 @@ async def enable_oura_webhook(request: Request):
 
 @router.post("/settings/oura/webhook/disable")
 async def disable_oura_webhook(request: Request):
-    db = get_user_db_from_request(request)
-    token = await ensure_valid_token(db)
+    from app.central_db import delete_webhook_routes
 
-    # Try to delete subscriptions from Oura
-    if token:
+    db = get_user_db_from_request(request)
+    user = request.state.user
+    token = await ensure_valid_token(db)
+    webhook_id = await get_setting(db, "oura_webhook_id", "")
+
+    # Try to delete this user's subscriptions from Oura
+    if token and webhook_id:
         try:
             subs = await list_webhook_subscriptions(token)
-            callback_url = f"{BASE_URL}/api/oura/webhook"
+            callback_url = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
             for sub in subs if isinstance(subs, list) else []:
                 if sub.get("callback_url") == callback_url:
                     await delete_webhook_subscription(token, str(sub["id"]))
@@ -554,10 +591,9 @@ async def disable_oura_webhook(request: Request):
         except Exception:
             logger.exception("Failed to delete Oura webhook subscriptions (clearing local state anyway)")
 
-    await db.execute(
-        "UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'",
-    )
-    await db.commit()
+    await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
+    await set_setting(db, "oura_webhook_id", "")
+    await delete_webhook_routes(user["id"])
     return RedirectResponse(
         f"/settings?tab=integrations&msg={quote('Webhook disabled')}",
         status_code=303,

@@ -218,7 +218,7 @@ async def experiments_list(request: Request):
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_experiment_form(request: Request):
-    return templates.TemplateResponse("experiment_new.html", {"request": request})
+    return templates.TemplateResponse("experiment_new.html", {"request": request, "today": date.today().isoformat()})
 
 
 @router.post("/create")
@@ -243,6 +243,10 @@ async def create_experiment(
     description = truncate(description, 2000)
     if not title.strip():
         return RedirectResponse("/experiments/new", status_code=303)
+    # Normalize targets the same way week editing does — an inverted range
+    # otherwise renders nonsense progress percentages.
+    target_min = max(0, target_min)
+    target_max = max(target_min, target_max)
     db = get_user_db_from_request(request)
 
     cursor = await db.execute(
@@ -440,7 +444,8 @@ async def complete_experiment(
     new_status: str = Form("completed"),
 ):
     db = get_user_db_from_request(request)
-    if new_status in ("completed", "abandoned"):
+    # 'active' allows undoing a mistaken Complete/Abandon click (reopen).
+    if new_status in ("completed", "abandoned", "active"):
         await db.execute("UPDATE experiments SET status = ? WHERE id = ?", (new_status, experiment_id))
         await db.commit()
     return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)

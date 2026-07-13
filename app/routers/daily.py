@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 
 from app.config import SECOND_BRAIN_PATH
 from app.main import templates
-from app.services.llm import get_active_provider
+from app.services.llm import llm_available
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
@@ -40,7 +40,7 @@ async def daily_page(request: Request, day: str | None = None):
     next_day = (target + timedelta(days=1)).isoformat()
     day_name = DAYS_PL[target.weekday()]
 
-    llm_configured = await get_active_provider(db) is not None
+    llm_configured = await llm_available(db)
 
     # Per-habit current streaks
     habit_fields = [

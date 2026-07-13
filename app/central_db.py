@@ -24,6 +24,13 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TEXT DEFAULT (datetime('now')),
     last_login_at TEXT
 );
+
+CREATE TABLE IF NOT EXISTS webhook_routes (
+    webhook_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL DEFAULT 'oura',
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -143,6 +150,52 @@ async def delete_user(user_id: str) -> str | None:
     await db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     await db.commit()
     return db_filename
+
+
+async def count_users() -> int:
+    """Total number of user accounts (active or not) — used for signup bootstrap."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall("SELECT COUNT(*) AS n FROM users")
+    return rows[0]["n"]
+
+
+# ── Webhook routing (public callbacks → per-user database) ──
+
+
+async def create_webhook_route(user_id: str, provider: str = "oura") -> str:
+    """Register an opaque webhook id for a user. Returns the webhook_id.
+
+    Replaces any existing route for (user, provider) so re-enabling the webhook
+    invalidates old callback URLs.
+    """
+    db = await get_central_db()
+    webhook_id = uuid.uuid4().hex
+    await db.execute("DELETE FROM webhook_routes WHERE user_id = ? AND provider = ?", (user_id, provider))
+    await db.execute(
+        "INSERT INTO webhook_routes (webhook_id, user_id, provider) VALUES (?, ?, ?)",
+        (webhook_id, user_id, provider),
+    )
+    await db.commit()
+    return webhook_id
+
+
+async def get_webhook_route(webhook_id: str) -> dict | None:
+    """Resolve a webhook_id to its active user, or None."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        """SELECT u.* FROM webhook_routes wr
+           JOIN users u ON u.id = wr.user_id
+           WHERE wr.webhook_id = ? AND u.is_active = 1""",
+        (webhook_id,),
+    )
+    return dict(rows[0]) if rows else None
+
+
+async def delete_webhook_routes(user_id: str, provider: str = "oura") -> None:
+    """Remove webhook routes for a user/provider (webhook disabled)."""
+    db = await get_central_db()
+    await db.execute("DELETE FROM webhook_routes WHERE user_id = ? AND provider = ?", (user_id, provider))
+    await db.commit()
 
 
 async def promote_admin_emails() -> None:

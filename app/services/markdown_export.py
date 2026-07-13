@@ -456,15 +456,40 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
     return "\n".join(lines) + "\n"
 
 
-async def write_export(db, scope: str = "weekly", sections: set[str] | None = None) -> str:
-    """Generate and write virgil.md to SECOND_BRAIN_PATH. Returns the content.
+_EXPORT_FILENAME_MAX_LEN = 100
+
+
+def valid_export_filename(filename: str) -> bool:
+    """A plain markdown filename — no path traversal into the second brain."""
+    if not filename or len(filename) > _EXPORT_FILENAME_MAX_LEN:
+        return False
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return False
+    if filename.startswith("."):
+        return False
+    return filename.endswith(".md") and len(filename) > len(".md")
+
+
+async def export_filename_for(db) -> str:
+    """Per-user export filename. All users share one SECOND_BRAIN_PATH, so a
+    per-user setting keeps one user's scheduled export from overwriting (and
+    leaking into) another user's file. Defaults to virgil.md for backward
+    compatibility with existing single-user integrations (OpenClaw)."""
+    filename = await get_setting(db, "export_filename", "virgil.md")
+    return filename if valid_export_filename(filename) else "virgil.md"
+
+
+async def write_export(db, scope: str = "weekly", sections: set[str] | None = None, filename: str = "virgil.md") -> str:
+    """Generate and write the markdown export to SECOND_BRAIN_PATH/filename.
+    Returns the content.
 
     Logs success/error to sync_log table.
     """
+    assert valid_export_filename(filename), f"Unsafe export filename: {filename!r}"
     content = await export_markdown(db, scope, sections=sections)
 
     if SECOND_BRAIN_PATH:
-        path = os.path.join(SECOND_BRAIN_PATH, "virgil.md")
+        path = os.path.join(SECOND_BRAIN_PATH, filename)
         tmp = path + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as f:
@@ -473,14 +498,14 @@ async def write_export(db, scope: str = "weekly", sections: set[str] | None = No
         except OSError as exc:
             await db.execute(
                 "INSERT INTO sync_log (file_name, status, message) VALUES (?, 'error', ?)",
-                ("virgil.md", str(exc)),
+                (filename, str(exc)),
             )
             await db.commit()
             raise
 
     await db.execute(
         "INSERT INTO sync_log (file_name, status, message) VALUES (?, 'success', ?)",
-        ("virgil.md", f"Exported scope: {scope}"),
+        (filename, f"Exported scope: {scope}"),
     )
     await db.commit()
     return content

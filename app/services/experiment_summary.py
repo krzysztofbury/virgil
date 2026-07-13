@@ -2,7 +2,7 @@ import logging
 import time
 from datetime import date, timedelta
 
-from app.services.llm import call_llm, get_active_provider
+from app.services.llm import call_llm, llm_available
 
 # Per-experiment cooldown to avoid hammering LLM on repeated page loads
 _last_attempt: dict[int, float] = {}
@@ -12,7 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 async def has_llm(db) -> bool:
-    return await get_active_provider(db) is not None
+    # Includes the internal env-var fallback, not just DB-configured providers.
+    return await llm_available(db)
 
 
 async def get_existing_summaries(db, experiment_id: int) -> dict[int, str]:

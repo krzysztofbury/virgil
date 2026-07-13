@@ -70,7 +70,11 @@ dmypy.json
 
 # macOS
 .DS_Store
+# Finder's custom-icon file is literally "Icon\r". The ? wildcard also swallows
+# real "icons" directories on case-insensitive filesystems, so re-include those —
+# otherwise PWA icons/favicons silently vanish from fresh clones.
 Icon?
+!**/icons/
 
 # QNAP
 .qsyncclient/

@@ -17,7 +17,7 @@ from app.auth import (
     validate_session,
     verify_password,
 )
-from app.central_db import create_user, get_user_by_email, get_user_by_id, update_user
+from app.central_db import count_users, create_user, get_user_by_email, get_user_by_id, update_user
 from app.config import REGISTRATION_OPEN
 from app.main import templates
 from app.user_db import create_user_db
@@ -25,14 +25,29 @@ from app.user_db import create_user_db
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Constant-time-ish login for unknown emails: verify against this throwaway
+# hash so response timing doesn't reveal whether an account exists.
+_DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing")
+
+
+async def registration_allowed() -> bool:
+    """Signups are allowed when explicitly opened, or on a fresh install —
+    the very first account must always be creatable (bootstrap owner)."""
+    if REGISTRATION_OPEN:
+        return True
+    return await count_users() == 0
+
 
 # --- Signup ---
 
 
 @router.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request):
-    if not REGISTRATION_OPEN:
-        return RedirectResponse("/login", status_code=303)
+    if not await registration_allowed():
+        return templates.TemplateResponse(
+            "auth_login.html",
+            {"request": request, "info": "Registration is closed on this server.", "registration_open": False},
+        )
 
     session_token = request.cookies.get(SESSION_COOKIE, "")
     if session_token and validate_session(session_token):
@@ -49,7 +64,7 @@ async def signup_submit(
     password: str = Form(...),
     password_confirm: str = Form(...),
 ):
-    if not REGISTRATION_OPEN:
+    if not await registration_allowed():
         return RedirectResponse("/login", status_code=303)
 
     email = email.strip().lower()
@@ -92,7 +107,9 @@ async def login_page(request: Request):
     if session_token and validate_session(session_token):
         return RedirectResponse("/", status_code=303)
 
-    return templates.TemplateResponse("auth_login.html", {"request": request})
+    return templates.TemplateResponse(
+        "auth_login.html", {"request": request, "registration_open": await registration_allowed()}
+    )
 
 
 @router.post("/login")
@@ -104,16 +121,28 @@ async def login_submit(
     email = username.strip().lower()
     user = await get_user_by_email(email)
 
-    if not user or not verify_password(password, user["password_hash"]):
+    # Burn a bcrypt verify even for unknown emails so timing stays uniform.
+    password_hash = user["password_hash"] if user else _DUMMY_PASSWORD_HASH
+    password_ok = verify_password(password, password_hash)
+
+    if not user or not password_ok:
         return templates.TemplateResponse(
             "auth_login.html",
-            {"request": request, "error": "Invalid email or password."},
+            {
+                "request": request,
+                "error": "Invalid email or password.",
+                "registration_open": await registration_allowed(),
+            },
         )
 
     if not user["is_active"]:
         return templates.TemplateResponse(
             "auth_login.html",
-            {"request": request, "error": "This account has been deactivated."},
+            {
+                "request": request,
+                "error": "This account has been deactivated.",
+                "registration_open": await registration_allowed(),
+            },
         )
 
     # If MFA is enabled, redirect to MFA verification
