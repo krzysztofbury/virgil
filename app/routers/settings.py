@@ -89,7 +89,7 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["export_filename"] = await export_filename_for(db, request.state.user["id"])
 
     elif tab == "automation":
-        context["backup_enabled"] = await get_setting(db, "backup_enabled", "0") == "1"
+        context["backup_enabled"] = await get_setting(db, "backup_enabled", "1") == "1"
         context["backup_interval_hours"] = await get_setting(db, "backup_interval_hours", "24")
         context["backup_max_copies"] = await get_setting(db, "backup_max_copies", "7")
         context["oura_sync_enabled"] = await get_setting(db, "oura_sync_enabled", "0") == "1"
@@ -535,20 +535,25 @@ async def _oura_client_credentials(db) -> tuple[str, str] | None:
 
 
 async def _reconcile_oura_subscriptions(db) -> None:
-    """Best-effort removal of ALL this deployment's subscriptions from Oura.
+    """Best-effort removal of THIS USER'S stale subscriptions from Oura.
 
-    Not just the current webhook_id: Oura rejects duplicate
-    (event_type, data_type) pairs with 400, so leftovers from the legacy
-    endpoint or earlier enable attempts would brick re-enabling forever.
+    Covers the user's current/previous webhook id, the legacy endpoint, and
+    orphaned ids no active user owns. Other users' active callbacks are left
+    alone — several users may share one Oura OAuth app, and a blanket wipe of
+    every subscription on this deployment would silently kill their sync.
     """
     creds = await _oura_client_credentials(db)
     if not creds:
         return
     client_id, client_secret = creds
     try:
+        from app.central_db import get_all_webhook_ids
         from app.services.oura_api import delete_stale_subscriptions
 
-        removed = await delete_stale_subscriptions(client_id, client_secret, BASE_URL)
+        own_id = await get_setting(db, "oura_webhook_id", "")
+        own_ids = {own_id} if own_id else set()
+        known_ids = await get_all_webhook_ids()
+        removed = await delete_stale_subscriptions(client_id, client_secret, BASE_URL, own_ids, known_ids)
         if removed:
             logger.info("Removed %d stale Oura webhook subscription(s)", removed)
     except Exception:

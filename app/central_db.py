@@ -180,10 +180,12 @@ async def count_users() -> int:
 
 
 async def get_primary_user_id() -> str | None:
-    """Oldest active account — keeps the legacy `virgil.md` export name for the
-    original single-user install while later users get unique defaults."""
+    """Oldest account, active or not — keeps the legacy `virgil.md` export name
+    permanently bound to the original install. Filtering on is_active made
+    ownership FLIP whenever the first account was disabled: the next user
+    silently inherited (and overwrote) the primary export file."""
     db = await get_central_db()
-    rows = await db.execute_fetchall("SELECT id FROM users WHERE is_active = 1 ORDER BY created_at LIMIT 1")
+    rows = await db.execute_fetchall("SELECT id FROM users ORDER BY created_at LIMIT 1")
     return rows[0]["id"] if rows else None
 
 
@@ -217,6 +219,18 @@ async def get_webhook_route(webhook_id: str) -> dict | None:
         (webhook_id,),
     )
     return dict(rows[0]) if rows else None
+
+
+async def get_all_webhook_ids() -> set[str]:
+    """Every ACTIVE user's webhook ids — reconcile must not delete these
+    when users share one Oura OAuth app."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        """SELECT wr.webhook_id FROM webhook_routes wr
+           JOIN users u ON u.id = wr.user_id
+           WHERE u.is_active = 1"""
+    )
+    return {r["webhook_id"] for r in rows}
 
 
 async def delete_webhook_routes(user_id: str, provider: str = "oura") -> None:

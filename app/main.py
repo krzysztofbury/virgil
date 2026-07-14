@@ -117,14 +117,23 @@ async def lifespan(app: FastAPI):
     # ones: a disabled account that gets re-enabled must not wake up with a
     # stale schema.
     from app.central_db import get_all_users
-    from app.migrations.runner import run_migrations
+    from app.migrations.runner import count_pending_migrations, run_migrations
+    from app.services.backup import snapshot_before_migration
     from app.user_db import close_user_db, open_user_db
 
     _migrated = 0
     app.state.migration_failures = []
     for _user in await get_all_users():
-        _udb = await open_user_db(_user["db_filename"])
+        # open_user_db lives INSIDE the try: one corrupt/unreadable database
+        # must degrade that account (visible via /healthz), never abort the
+        # whole lifespan and take every other user down with it.
+        _udb = None
         try:
+            _udb = await open_user_db(_user["db_filename"])
+            if await count_pending_migrations(_udb) > 0:
+                # Image rollback cannot reverse a migration — keep a snapshot
+                # of the pre-migration database next to the regular backups.
+                await snapshot_before_migration(_udb)
             await run_migrations(_udb)
             _migrated += 1
         except Exception:
@@ -133,7 +142,8 @@ async def lifespan(app: FastAPI):
             # whose every request will fail on missing tables.
             app.state.migration_failures.append(_user["db_filename"])
         finally:
-            await close_user_db(_udb)
+            if _udb is not None:
+                await close_user_db(_udb)
 
     _log.info(
         "Virgil version=%s — startup migrations OK for %d user DB(s), %d failed",

@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **Oura reconcile is user-scoped** — it deletes only THIS user's stale subscriptions (current/previous id, legacy endpoint, unowned orphans); other users' active callbacks on a shared OAuth app are preserved
+- **Startup survives a corrupt user DB** — `open_user_db` failures degrade that account via `/healthz` instead of aborting the whole lifespan
+- **Webhook debounce race** — simultaneous Oura deliveries scheduled N sequential syncs; now an atomic pending-set guarantees at most one per user
+- **A.N.D.Y. truncated-JSON failures** — max_tokens raised to 8192 for generation (thinking models with dropped `reasoning_effort` ate the 2048 budget) and truncated objects are repaired instead of rejected
+- `virgil.md` export ownership no longer flips when the first account is disabled (primary = oldest account, active or not)
+
+### Added
+
+- **Pre-migration DB snapshots** (`data/backups/*-pre-migration-*.db`) — migrations are one-way; this is the rollback path an image revert can't provide
+- **Central registry backups** — `virgil-central.db` (identities, MFA, webhook routes) backed up daily by the scheduler; per-user backups never covered it
+- **Backups enabled by default** with timestamped filenames (hourly schedules no longer overwrite one date-named file)
+- **Ordered releases** — GitHub Actions `concurrency` prevents a slow older run from overwriting `:latest` with stale code
+- README documents deployment semantics honestly: Watchtower is best-effort auto-update, not health-gated rollback
+
 ## [0.3.0] - 2026-07-13
 
 > **Deployment notes:** rotate any credentials that were in `.qnap.setup`; registration now

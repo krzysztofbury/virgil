@@ -1,7 +1,8 @@
 import asyncio
 import logging
 import sqlite3
-from datetime import date
+import time
+from datetime import datetime
 from pathlib import Path
 
 from app.config import CENTRAL_DB_PATH
@@ -46,17 +47,25 @@ async def db_main_path(db) -> str:
     raise RuntimeError("Cannot back up: main database has no file path (in-memory?)")
 
 
+def _timestamp() -> str:
+    """Filename timestamp — ISO-ish so lexicographic sort == chronological
+    (pruning sorts by name). Minute precision: repeated backups within a
+    schedule interval overwrite instead of piling up."""
+    return datetime.now().strftime("%Y-%m-%dT%H%M")
+
+
 async def run_backup(db) -> Path:
     """Create a consistent SQLite backup of THIS connection's database and prune old copies.
 
     The source path is derived from the connection itself (PRAGMA database_list),
     so per-user databases are backed up correctly — never the legacy global DB_PATH.
+    Timestamped names: an hourly schedule keeps distinct copies instead of
+    overwriting one date-named file all day.
     """
     src_path = await db_main_path(db)
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stem = Path(src_path).stem
-    today = date.today().isoformat()
-    dst = BACKUP_DIR / f"{stem}-{today}.db"
+    dst = BACKUP_DIR / f"{stem}-{_timestamp()}.db"
 
     await asyncio.to_thread(_do_backup, src_path, str(dst))
 
@@ -64,4 +73,48 @@ async def run_backup(db) -> Path:
     await asyncio.to_thread(_prune_backups, stem, max_copies)
 
     logger.info("Backup created: %s", dst.name)
+    return dst
+
+
+async def snapshot_before_migration(db) -> Path:
+    """One-off snapshot taken right before pending migrations run.
+
+    Migrations are one-way — rolling back to an older image cannot restore the
+    schema, so this snapshot is the only path back after a bad migration.
+    """
+    src_path = await db_main_path(db)
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    stem = Path(src_path).stem
+    dst = BACKUP_DIR / f"{stem}-pre-migration-{_timestamp()}.db"
+    await asyncio.to_thread(_do_backup, src_path, str(dst))
+    logger.info("Pre-migration snapshot created: %s", dst.name)
+    return dst
+
+
+CENTRAL_BACKUP_MAX_AGE_HOURS = 24
+CENTRAL_BACKUP_MAX_COPIES = 7
+
+
+async def maybe_backup_central() -> Path | None:
+    """Back up the central registry (identities, MFA, webhook routes) at most
+    once per CENTRAL_BACKUP_MAX_AGE_HOURS.
+
+    Per-user scheduled backups never cover this database, yet losing it orphans
+    every per-user DB (filenames/credentials live here). The age guard is
+    file-mtime based so it survives restarts.
+    """
+    src = Path(CENTRAL_DB_PATH)
+    if not src.exists():
+        return None
+    BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    stem = src.stem
+
+    existing = sorted(BACKUP_DIR.glob(f"{stem}-*.db"), key=lambda p: p.stat().st_mtime)
+    if existing and (time.time() - existing[-1].stat().st_mtime) < CENTRAL_BACKUP_MAX_AGE_HOURS * 3600:
+        return None
+
+    dst = BACKUP_DIR / f"{stem}-{_timestamp()}.db"
+    await asyncio.to_thread(_do_backup, str(src), str(dst))
+    await asyncio.to_thread(_prune_backups, stem, CENTRAL_BACKUP_MAX_COPIES)
+    logger.info("Central DB backup created: %s", dst.name)
     return dst

@@ -52,21 +52,26 @@ async def llm_available(db) -> bool:
 
 
 async def call_llm(
-    db, system_prompt: str, user_prompt: str, *, json_mode: bool = False, reasoning_effort: str | None = None
+    db,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    json_mode: bool = False,
+    reasoning_effort: str | None = None,
+    max_tokens: int = 2048,
 ) -> str:
     """Call an LLM using the resolved provider (user or internal fallback).
 
     json_mode=True asks the provider for a strict JSON object.
     reasoning_effort ('disable'|'low'|'medium'|'high') caps the model's thinking
     budget — litellm maps it to Gemini's thinking config ('disable' = 0 tokens).
-    For trivial structured tasks, unbounded thinking eats the token budget and
-    truncates the actual answer, so we disable it rather than inflate max_tokens.
-    (drop_params lets litellm skip either flag for models that don't support it.)
+    CAVEAT: drop_params=True means models litellm can't map the flag for get
+    UNBOUNDED thinking that eats max_tokens and truncates the answer — callers
+    of structured tasks should pass a generous max_tokens as well.
     Returns the assistant's text response.
     """
+    assert 1 <= max_tokens <= 65536, f"Unreasonable max_tokens: {max_tokens}"
     model, api_key = await _resolve_provider(db)
-
-    max_tokens = 2048
 
     kwargs: dict = {"drop_params": True}
     if json_mode:
@@ -127,6 +132,19 @@ def parse_andy_response(text: str) -> dict:
             obj = None
         if isinstance(obj, dict):
             return obj
+
+        # Truncated output (thinking ate the token budget mid-object) is the
+        # dominant real-world failure — salvage it by closing the JSON instead
+        # of throwing away four perfectly good suggestions.
+        trimmed = text.rstrip().rstrip(",")
+        for suffix in ("}", '"}'):
+            try:
+                obj, _ = json.JSONDecoder().raw_decode(trimmed + suffix, start)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict) and obj:
+                logger.warning("Repaired truncated LLM JSON (len=%d, suffix=%r)", len(text), suffix)
+                return obj
 
     # head + tail + length so the failure is self-diagnosing: ending in '}' means
     # complete-but-unparseable; ending mid-string means truncated.

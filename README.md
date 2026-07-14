@@ -119,7 +119,16 @@ docker compose up -d
 **Deploys after that are automatic**: push to `main` → Actions runs lint+tests →
 builds the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
 GHCR → the `watchtower` container on the NAS notices the new `:latest` within
-~5 minutes and recreates `virgil` (gated by the `/healthz` healthcheck).
+~5 minutes and recreates `virgil`.
+
+> **Deployment semantics — know what this is**: Watchtower is best-effort
+> auto-update, NOT health-gated deployment. A broken image is deployed and
+> stays deployed; `/healthz` turns the container unhealthy (visible in
+> `docker ps`) but nothing rolls back automatically. Two safety nets exist:
+> the CI test gate in front of every image, and automatic **pre-migration
+> snapshots** in `data/backups/` (`*-pre-migration-*.db`) — database
+> migrations are one-way, so restoring a snapshot is the only way back after
+> a bad migration, not an image rollback.
 
 **Force an immediate update:**
 
@@ -134,6 +143,8 @@ docker pull ghcr.io/krzysztofbury/virgil:sha-<short>
 docker tag ghcr.io/krzysztofbury/virgil:sha-<short> ghcr.io/krzysztofbury/virgil:latest
 docker compose up -d virgil
 # then push a revert commit — otherwise watchtower re-applies the next :latest
+# if the bad deploy ran migrations, also restore the matching snapshot:
+#   data/backups/<user-uuid>-pre-migration-<timestamp>.db → data/users/<user-uuid>.db
 ```
 
 ## Configuration

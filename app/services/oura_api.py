@@ -593,35 +593,65 @@ async def create_webhook_subscription(
     return {"created": created, "failed": failed}
 
 
-def _subscription_points_at(subscription: dict, base_url: str) -> bool:
-    """True if an Oura subscription's callback targets this deployment's
-    webhook endpoint (legacy path or any per-user id)."""
-    callback = str(subscription.get("callback_url", ""))
-    return callback.startswith(f"{base_url.rstrip('/')}/api/oura/webhook")
+def classify_subscription(
+    callback_url: str, base_url: str, own_webhook_ids: set[str], known_webhook_ids: set[str]
+) -> str:
+    """Decide what a subscription's callback means for THIS user's reconcile.
+
+    Returns one of:
+    - 'delete'    — this user's callback (current/previous id), the legacy
+                    endpoint, or an orphaned id no active user owns
+    - 'foreign'   — another user's ACTIVE callback on this deployment; users
+                    can share one Oura OAuth app, so deleting it would silently
+                    kill that user's webhook sync
+    - 'unrelated' — points at some other deployment entirely
+    """
+    prefix = f"{base_url.rstrip('/')}/api/oura/webhook"
+    if not callback_url.startswith(prefix):
+        return "unrelated"
+    rest = callback_url[len(prefix) :]
+    if rest in ("", "/"):
+        return "delete"  # retired legacy single-user endpoint
+    if not rest.startswith("/"):
+        return "unrelated"  # e.g. /api/oura/webhookfoo
+    webhook_id = rest[1:].strip("/")
+    if webhook_id in own_webhook_ids:
+        return "delete"
+    if webhook_id in known_webhook_ids:
+        return "foreign"
+    return "delete"  # orphan — no active user owns this callback
 
 
-async def delete_stale_subscriptions(client_id: str, client_secret: str, base_url: str) -> int:
-    """Remove ALL of this app's subscriptions pointing at this deployment.
+async def delete_stale_subscriptions(
+    client_id: str,
+    client_secret: str,
+    base_url: str,
+    own_webhook_ids: set[str],
+    known_webhook_ids: set[str],
+) -> int:
+    """Remove THIS USER'S stale subscriptions (plus unowned orphans).
 
-    Enabling must be a reconcile, not a blind create: Oura rejects duplicate
-    (event_type, data_type) subscriptions with 400, so leftovers from the
-    legacy endpoint or an earlier webhook id otherwise brick re-enabling
-    forever. Foreign callbacks (other deployments on the same OAuth app) are
-    logged but left alone. Returns how many were deleted.
+    Enabling must be a reconcile, not a blind create: leftovers from the
+    legacy endpoint or an earlier webhook id keep delivering to dead
+    callbacks and can conflict with re-registration. Other users' active
+    callbacks and other deployments are left alone. Returns deletions.
     """
     subscriptions = await list_webhook_subscriptions(client_id, client_secret)
     if not isinstance(subscriptions, list):
         return 0
     removed = 0
     for subscription in subscriptions:
-        if _subscription_points_at(subscription, base_url):
+        callback = str(subscription.get("callback_url", ""))
+        verdict = classify_subscription(callback, base_url, own_webhook_ids, known_webhook_ids)
+        if verdict == "delete":
             await delete_webhook_subscription(client_id, client_secret, str(subscription["id"]))
             removed += 1
         else:
             logger.info(
-                "Oura subscription %s points elsewhere (%s) — leaving it",
+                "Oura subscription %s is %s (%s) — leaving it",
                 subscription.get("id"),
-                subscription.get("callback_url"),
+                verdict,
+                callback,
             )
     return removed
 

@@ -74,8 +74,9 @@ async def _check_and_run(db, user_id: str) -> None:
     """Check all scheduled tasks and run those that are due."""
     now_iso = datetime.now(UTC).isoformat()
 
-    # Backup
-    if await get_setting(db, "backup_enabled", "0") == "1":
+    # Backup — enabled by default: losing months of health data to an SD-card
+    # hiccup is a worse failure than a few megabytes of pruned snapshots.
+    if await get_setting(db, "backup_enabled", "1") == "1":
         interval = float(await get_setting(db, "backup_interval_hours", "24"))
         last_run = await get_setting(db, "backup_last_run", "")
         if _hours_since(last_run) >= interval:
@@ -142,5 +143,11 @@ async def scheduler_loop() -> None:
                 finally:
                     if user_db is not None:
                         await close_user_db(user_db)
+
+            # Central registry backup — per-user backups never cover it, yet
+            # losing it orphans every user database. Self-limits to once/24h.
+            from app.services.backup import maybe_backup_central
+
+            await maybe_backup_central()
         except Exception:
             logger.exception("Scheduler tick failed")

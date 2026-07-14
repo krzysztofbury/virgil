@@ -44,9 +44,12 @@ SUPPORTED_DATA_TYPES = frozenset(
 
 _WEBHOOK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
-# Debounce: one in-flight sync per user DB. Oura retries up to 10x and we hold
-# 12 subscriptions, so bursts of events for the same user are the normal case.
-_sync_locks: dict[str, asyncio.Lock] = {}
+# Debounce: at most one in-flight sync per user DB. Oura retries up to 10x and
+# we hold 12 subscriptions, so bursts of events for the same user are the
+# normal case. Membership in _pending is checked-and-set synchronously on the
+# event loop — a lock's .locked() probe raced: N deliveries could all pass it
+# before any task started, then run N sequential full syncs.
+_pending_syncs: set[str] = set()
 _background_tasks: set[asyncio.Task] = set()
 
 
@@ -74,14 +77,16 @@ async def _load_oura_integration(db) -> dict | None:
 def _schedule_user_sync(db_filename: str, data_type: str) -> bool:
     """Run a 2-day sync in the background, at most one at a time per user.
 
-    Returns False when a sync is already running (event debounced).
+    Returns False when a sync is already pending/running (event debounced).
+    The check-and-set below runs synchronously on the event loop, so no other
+    coroutine can interleave between the membership test and the add.
     """
-    lock = _sync_locks.setdefault(db_filename, asyncio.Lock())
-    if lock.locked():
+    if db_filename in _pending_syncs:
         return False
+    _pending_syncs.add(db_filename)
 
     async def _run() -> None:
-        async with lock:
+        try:
             db = await open_user_db(db_filename)
             try:
                 from app.services.oura_api import sync_oura_from_api
@@ -92,6 +97,8 @@ def _schedule_user_sync(db_filename: str, data_type: str) -> bool:
                 logger.exception("Oura webhook sync failed for data_type: %s", data_type)
             finally:
                 await close_user_db(db)
+        finally:
+            _pending_syncs.discard(db_filename)
 
     task = asyncio.create_task(_run())
     # Keep a strong reference so the task isn't garbage-collected mid-flight.

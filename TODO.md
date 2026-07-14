@@ -37,6 +37,15 @@ correctly so the PWA cache busts on every deploy.
 
 **Out of scope for round 1:** staging environment, multi-arch images (QNAP is amd64), signed images.
 
+**Deployment-semantics decision (2026-07-14):** keep Watchtower as **best-effort
+auto-update** — NOT health-gated deploy with rollback. Mitigations in place: CI
+test gate before every image, `concurrency` on the release workflow (no stale
+`:latest` from slow runs), automatic **pre-migration DB snapshots** (migrations
+are one-way; image rollback can't undo them), documented manual rollback via
+per-commit `sha-*` tags. The alternative — a QNAP pull-and-verify script that
+pins a digest, waits for `/healthz` and keeps the previous image reference — is
+parked; revisit if a bad deploy actually bites.
+
 ## Backlog — 2026-07 Functionality Review
 
 Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
@@ -61,7 +70,8 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 ### P1 — Recovery & data-ownership story
 
 **Goal:** A user can fully restore their life data from an export/backup without SSH.
-**Plan:** Versioned export manifest (JSON, schema_version + all user tables); validated import endpoint (dry-run report → apply); restore-from-`.db`-upload in Settings > Data; backup age/status card; pre-reset backup download prompt.
+**Done already (2026-07-14):** backups enabled by default; timestamped filenames (hourly runs no longer overwrite one file); central `virgil-central.db` backed up daily by the scheduler; automatic pre-migration snapshots.
+**Plan (remaining):** off-NAS copy (S3/rsync target); versioned export manifest (JSON, schema_version + all user tables); validated import endpoint (dry-run report → apply); restore-from-`.db`-upload in Settings > Data; backup age/status card; pre-reset backup download prompt; a documented restore drill.
 **Deliverables:** `export/import` service with round-trip test (export → wipe → import → identical data); restore UI; backup freshness indicator on the Automation tab; docs.
 
 ### P1 — Mutation-feedback contract
