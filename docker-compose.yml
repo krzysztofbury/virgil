@@ -64,6 +64,10 @@ services:
       WATCHTOWER_LABEL_ENABLE: "true"
       WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
       WATCHTOWER_CLEANUP: "true"
+      # Without this a crash-looping (restarting) container is skipped —
+      # exactly the state a broken image leaves behind, so the fixed image
+      # would never get auto-deployed.
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
       TZ: Europe/Warsaw
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
