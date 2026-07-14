@@ -52,21 +52,28 @@ async def llm_available(db) -> bool:
 
 
 async def call_llm(
-    db, system_prompt: str, user_prompt: str, *, json_mode: bool = False, reasoning_effort: str | None = None
+    db,
+    system_prompt: str,
+    user_prompt: str,
+    *,
+    json_mode: bool = False,
+    reasoning_effort: str | None = None,
+    max_tokens: int = 2048,
 ) -> str:
     """Call an LLM using the resolved provider (user or internal fallback).
 
     json_mode=True asks the provider for a strict JSON object.
     reasoning_effort ('disable'|'low'|'medium'|'high') caps the model's thinking
     budget — litellm maps it to Gemini's thinking config ('disable' = 0 tokens).
-    For trivial structured tasks, unbounded thinking eats the token budget and
-    truncates the actual answer, so we disable it rather than inflate max_tokens.
-    (drop_params lets litellm skip either flag for models that don't support it.)
+    CAVEAT: with drop_params=True the flag is silently dropped for models
+    litellm cannot map it for; those models think unbounded, eating max_tokens
+    and truncating the answer — structured-task callers should therefore pass
+    a generous max_tokens as well.
     Returns the assistant's text response.
     """
+    assert max_tokens >= 1, f"max_tokens must be positive: {max_tokens}"
+    assert max_tokens <= 65536, f"max_tokens beyond any provider cap: {max_tokens}"
     model, api_key = await _resolve_provider(db)
-
-    max_tokens = 2048
 
     kwargs: dict = {"drop_params": True}
     if json_mode:
@@ -97,13 +104,24 @@ async def call_llm(
 
     choice = response.choices[0]
     finish = str(getattr(choice, "finish_reason", "") or "").lower()
+    content = choice.message.content
     # Ground-truth diagnostics: finish reason + token usage (incl. reasoning tokens).
     logger.info("LLM %s finish=%s usage=%s", model, finish, getattr(response, "usage", None))
     if finish in {"length", "max_tokens", "maxtokens"}:
+        if json_mode and content:
+            # Truncated-but-present JSON is salvageable — the caller's parser
+            # (parse_andy_response) is the designated repair layer. Raising
+            # here would make that repair dead code for providers that label
+            # truncation correctly.
+            logger.warning(
+                "LLM response truncated at %d tokens for %s — returning partial for repair", max_tokens, model
+            )
+            return content
         raise ValueError(
             f"LLM response truncated at {max_tokens}-token limit for {model} — raise cap or lower reasoning"
         )
-    return choice.message.content
+    assert content is not None, f"LLM returned no text content (model={model}, finish={finish})"
+    return content
 
 
 def parse_andy_response(text: str) -> dict:
@@ -127,6 +145,19 @@ def parse_andy_response(text: str) -> dict:
             obj = None
         if isinstance(obj, dict):
             return obj
+
+        # Truncated output (thinking ate the token budget mid-object) is the
+        # dominant real-world failure — salvage it by closing the JSON instead
+        # of throwing away four perfectly good suggestions.
+        trimmed = text.rstrip().rstrip(",")
+        for suffix in ("}", '"}'):
+            try:
+                obj, _ = json.JSONDecoder().raw_decode(trimmed + suffix, start)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(obj, dict) and obj:
+                logger.warning("Repaired truncated LLM JSON (len=%d, suffix=%r)", len(text), suffix)
+                return obj
 
     # head + tail + length so the failure is self-diagnosing: ending in '}' means
     # complete-but-unparseable; ending mid-string means truncated.

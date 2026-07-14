@@ -25,6 +25,17 @@ def test_llm_provider_accepts_litellm_names(auth_client):
         conn.close()
 
 
+def test_backup_enabled_on_after_migration_014(auth_client):
+    """Existing installs carried a seeded '0' that masked the new default —
+    migration 014 must flip it so backups actually run everywhere."""
+    conn = sqlite3.connect(user_db_path())
+    try:
+        value = conn.execute("SELECT value FROM app_settings WHERE key = 'backup_enabled'").fetchone()[0]
+        assert value == "1"
+    finally:
+        conn.close()
+
+
 def test_training_exercises_have_archived_column(auth_client):
     conn = sqlite3.connect(user_db_path())
     try:

@@ -119,7 +119,16 @@ docker compose up -d
 **Deploys after that are automatic**: push to `main` → Actions runs lint+tests →
 builds the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
 GHCR → the `watchtower` container on the NAS notices the new `:latest` within
-~5 minutes and recreates `virgil` (gated by the `/healthz` healthcheck).
+~5 minutes and recreates `virgil`.
+
+> **Deployment semantics — know what this is**: Watchtower is best-effort
+> auto-update, NOT health-gated deployment. A broken image is deployed and
+> stays deployed; `/healthz` turns the container unhealthy (visible in
+> `docker ps`) but nothing rolls back automatically. Two safety nets exist:
+> the CI test gate in front of every image, and automatic **pre-migration
+> snapshots** in `data/backups/` (`*-pre-migration-*.db`) — database
+> migrations are one-way, so restoring a snapshot is the only way back after
+> a bad migration, not an image rollback.
 
 **Force an immediate update:**
 
@@ -134,6 +143,8 @@ docker pull ghcr.io/krzysztofbury/virgil:sha-<short>
 docker tag ghcr.io/krzysztofbury/virgil:sha-<short> ghcr.io/krzysztofbury/virgil:latest
 docker compose up -d virgil
 # then push a revert commit — otherwise watchtower re-applies the next :latest
+# if the bad deploy ran migrations, also restore the matching snapshot:
+#   data/backups/<user-uuid>-pre-migration-<timestamp>.db → data/users/<user-uuid>.db
 ```
 
 ## Configuration
@@ -314,6 +325,7 @@ Current migrations:
 | 011 | `exercise_metric` | Per-exercise `metric` ('reps' vs 'time') so timed holds don't pollute volume KPIs |
 | 012 | `llm_provider_no_check` | Rebuilds `llm_providers` without the provider CHECK (unblocks anthropic/mistral/groq/ollama) |
 | 013 | `training_exercise_archive` | Adds `training_exercises.archived` — deleting an exercise keeps history |
+| 014 | `backup_default_on` | Flips `backup_enabled` to `1` on existing installs (backups become opt-out) |
 
 ## Data Model
 

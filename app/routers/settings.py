@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import json
@@ -89,7 +90,7 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["export_filename"] = await export_filename_for(db, request.state.user["id"])
 
     elif tab == "automation":
-        context["backup_enabled"] = await get_setting(db, "backup_enabled", "0") == "1"
+        context["backup_enabled"] = await get_setting(db, "backup_enabled", "1") == "1"
         context["backup_interval_hours"] = await get_setting(db, "backup_interval_hours", "24")
         context["backup_max_copies"] = await get_setting(db, "backup_max_copies", "7")
         context["oura_sync_enabled"] = await get_setting(db, "oura_sync_enabled", "0") == "1"
@@ -391,8 +392,9 @@ async def factory_reset(request: Request):
         return RedirectResponse("/login", status_code=303)
 
     db = get_user_db_from_request(request)
-    await _reconcile_oura_subscriptions(db)
-    await delete_webhook_routes(user["id"])
+    async with _oura_webhook_lock:
+        await _reconcile_oura_subscriptions(db)
+        await delete_webhook_routes(user["id"])
 
     old_filename = user["db_filename"]
     new_filename = f"{uuid.uuid4()}.db"
@@ -534,21 +536,35 @@ async def _oura_client_credentials(db) -> tuple[str, str] | None:
     return rows[0]["client_id"], decrypt(rows[0]["client_secret_enc"])
 
 
-async def _reconcile_oura_subscriptions(db) -> None:
-    """Best-effort removal of ALL this deployment's subscriptions from Oura.
+# Serializes every reconcile + enable across users. Without it, user A's
+# reconcile can snapshot known_ids, then user B enables concurrently — B's
+# fresh id is missing from A's stale snapshot and gets deleted as an orphan.
+# Single-process app, so one event-loop lock suffices.
+_oura_webhook_lock = asyncio.Lock()
 
-    Not just the current webhook_id: Oura rejects duplicate
-    (event_type, data_type) pairs with 400, so leftovers from the legacy
-    endpoint or earlier enable attempts would brick re-enabling forever.
+
+async def _reconcile_oura_subscriptions(db) -> None:
+    """Best-effort removal of THIS USER'S stale subscriptions from Oura.
+
+    Covers the user's current/previous webhook id, the legacy endpoint, and
+    orphaned ids no user owns. Other users' callbacks are left alone — several
+    users may share one Oura OAuth app, and a blanket wipe of every
+    subscription on this deployment would silently kill their sync.
+    Callers must hold _oura_webhook_lock.
     """
+    assert _oura_webhook_lock.locked(), "reconcile requires _oura_webhook_lock"
     creds = await _oura_client_credentials(db)
     if not creds:
         return
     client_id, client_secret = creds
     try:
+        from app.central_db import get_all_webhook_ids
         from app.services.oura_api import delete_stale_subscriptions
 
-        removed = await delete_stale_subscriptions(client_id, client_secret, BASE_URL)
+        own_id = await get_setting(db, "oura_webhook_id", "")
+        own_ids = {own_id} if own_id else set()
+        known_ids = await get_all_webhook_ids()
+        removed = await delete_stale_subscriptions(client_id, client_secret, BASE_URL, own_ids, known_ids)
         if removed:
             logger.info("Removed %d stale Oura webhook subscription(s)", removed)
     except Exception:
@@ -572,53 +588,57 @@ async def enable_oura_webhook(request: Request):
         )
     client_id, client_secret = creds
 
-    # Reconcile first: Oura 400s duplicate (event_type, data_type) pairs, so
-    # subscriptions left over from earlier attempts (or the legacy endpoint)
-    # would make enabling fail forever.
-    await _reconcile_oura_subscriptions(db)
+    # The lock spans reconcile AND registration: another user's concurrent
+    # enable must not slip a fresh id between our known_ids snapshot and the
+    # orphan deletions.
+    async with _oura_webhook_lock:
+        # Reconcile first: leftovers from earlier attempts (or the legacy
+        # endpoint) keep delivering to dead callbacks and can conflict with
+        # re-registration.
+        await _reconcile_oura_subscriptions(db)
 
-    # Per-user callback URL: the opaque id routes the public webhook to this
-    # user's database (see app/routers/oura_webhook.py).
-    verification_token = secrets.token_urlsafe(32)
-    webhook_id = await create_webhook_route(user["id"])
-    callback_url = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
+        # Per-user callback URL: the opaque id routes the public webhook to
+        # this user's database (see app/routers/oura_webhook.py).
+        verification_token = secrets.token_urlsafe(32)
+        webhook_id = await create_webhook_route(user["id"])
+        callback_url = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
 
-    # Store the secret (encrypted) first so the verification challenge can match it
-    await db.execute(
-        "UPDATE integrations SET webhook_secret = ? WHERE provider = 'oura'",
-        (encrypt(verification_token),),
-    )
-    await set_setting(db, "oura_webhook_id", webhook_id)
-
-    try:
-        result = await create_webhook_subscription(client_id, client_secret, callback_url, verification_token)
-        logger.info(
-            "Oura webhook subscriptions created: %d ok, %d failed",
-            len(result["created"]),
-            len(result["failed"]),
+        # Store the secret (encrypted) first so the verification challenge can match it
+        await db.execute(
+            "UPDATE integrations SET webhook_secret = ? WHERE provider = 'oura'",
+            (encrypt(verification_token),),
         )
-        if result["failed"]:
-            # Partial coverage is a degraded state the user must see — the
-            # missing data types will silently never push events.
-            failed_types = ", ".join(sorted({data_type for _, data_type, _ in result["failed"]}))
+        await set_setting(db, "oura_webhook_id", webhook_id)
+
+        try:
+            result = await create_webhook_subscription(client_id, client_secret, callback_url, verification_token)
+            logger.info(
+                "Oura webhook subscriptions created: %d ok, %d failed",
+                len(result["created"]),
+                len(result["failed"]),
+            )
+            if result["failed"]:
+                # Partial coverage is a degraded state the user must see — the
+                # missing data types will silently never push events.
+                failed_types = ", ".join(sorted({data_type for _, data_type, _ in result["failed"]}))
+                return RedirectResponse(
+                    f"/settings?tab=integrations&err={quote(f'Webhook partially enabled — no events for: {failed_types}. Disable and retry for full coverage.')}",
+                    status_code=303,
+                )
             return RedirectResponse(
-                f"/settings?tab=integrations&err={quote(f'Webhook partially enabled — no events for: {failed_types}. Disable and retry for full coverage.')}",
+                f"/settings?tab=integrations&msg={quote('Webhook enabled')}",
                 status_code=303,
             )
-        return RedirectResponse(
-            f"/settings?tab=integrations&msg={quote('Webhook enabled')}",
-            status_code=303,
-        )
-    except Exception:
-        logger.exception("Failed to create Oura webhook subscription")
-        # Roll back local state since no subscription exists
-        await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
-        await set_setting(db, "oura_webhook_id", "")
-        await delete_webhook_routes(user["id"])
-        return RedirectResponse(
-            f"/settings?tab=integrations&err={quote('Failed to register webhook with Oura')}",
-            status_code=303,
-        )
+        except Exception:
+            logger.exception("Failed to create Oura webhook subscription")
+            # Roll back local state since no subscription exists
+            await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
+            await set_setting(db, "oura_webhook_id", "")
+            await delete_webhook_routes(user["id"])
+            return RedirectResponse(
+                f"/settings?tab=integrations&err={quote('Failed to register webhook with Oura')}",
+                status_code=303,
+            )
 
 
 @router.post("/settings/oura/webhook/disable")
@@ -628,11 +648,12 @@ async def disable_oura_webhook(request: Request):
     db = get_user_db_from_request(request)
     user = request.state.user
 
-    await _reconcile_oura_subscriptions(db)
+    async with _oura_webhook_lock:
+        await _reconcile_oura_subscriptions(db)
 
-    await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
-    await set_setting(db, "oura_webhook_id", "")
-    await delete_webhook_routes(user["id"])
+        await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
+        await set_setting(db, "oura_webhook_id", "")
+        await delete_webhook_routes(user["id"])
     return RedirectResponse(
         f"/settings?tab=integrations&msg={quote('Webhook disabled')}",
         status_code=303,

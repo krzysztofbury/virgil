@@ -12,6 +12,12 @@ permissions:
   contents: read
   packages: write
 
+# Ordered releases: a slow older run must never finish AFTER a newer one and
+# overwrite :latest with stale code. Newer pushes cancel in-flight builds.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest

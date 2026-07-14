@@ -453,7 +453,7 @@ INSERT OR IGNORE INTO feniks_milestones (day_number, week_number, title) VALUES
 
 SEED_APP_SETTINGS = """
 INSERT OR IGNORE INTO app_settings (key, value) VALUES
-('backup_enabled', '0'),
+('backup_enabled', '1'),
 ('backup_interval_hours', '24'),
 ('backup_max_copies', '7'),
 ('oura_sync_enabled', '0'),

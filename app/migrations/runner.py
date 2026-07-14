@@ -12,9 +12,8 @@ logger = logging.getLogger(__name__)
 MIGRATIONS_DIR = Path(__file__).parent
 
 
-async def run_migrations(db: aiosqlite.Connection) -> None:
-    """Run all pending migrations in order."""
-    # Ensure schema_migrations table exists
+async def _current_version(db: aiosqlite.Connection) -> int:
+    """Highest applied migration version (ensures the tracking table exists)."""
     await db.execute(
         "CREATE TABLE IF NOT EXISTS schema_migrations ("
         "  version INTEGER PRIMARY KEY,"
@@ -23,26 +22,39 @@ async def run_migrations(db: aiosqlite.Connection) -> None:
         ")"
     )
     await db.commit()
-
-    # Get current version
     row = await db.execute_fetchall("SELECT MAX(version) as v FROM schema_migrations")
-    current = row[0]["v"] if row and row[0]["v"] is not None else 0
+    return row[0]["v"] if row and row[0]["v"] is not None else 0
 
-    # Discover migration files (NNN_name.py)
+
+def _discover_pending(current: int) -> list[tuple[int, str, str]]:
+    """(version, module_name, filename) for every migration above `current`."""
     pattern = re.compile(r"^(\d{3})_.+\.py$")
-    migrations = []
+    pending = []
     for f in sorted(MIGRATIONS_DIR.iterdir()):
         m = pattern.match(f.name)
         if m:
             version = int(m.group(1))
             if version > current:
-                migrations.append((version, f.stem, f.name))
+                pending.append((version, f.stem, f.name))
+    return sorted(pending)
+
+
+async def count_pending_migrations(db: aiosqlite.Connection) -> int:
+    """How many migrations run_migrations() would apply — used to decide
+    whether a pre-migration snapshot is warranted (migrations are one-way;
+    an image rollback cannot undo them)."""
+    return len(_discover_pending(await _current_version(db)))
+
+
+async def run_migrations(db: aiosqlite.Connection) -> None:
+    """Run all pending migrations in order."""
+    migrations = _discover_pending(await _current_version(db))
 
     if not migrations:
         logger.debug("No pending migrations")
         return
 
-    for version, module_name, filename in sorted(migrations):
+    for version, module_name, filename in migrations:
         logger.info("Applying migration %03d: %s", version, filename)
         try:
             mod = importlib.import_module(f"app.migrations.{module_name}")
