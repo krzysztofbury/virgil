@@ -5,15 +5,6 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### Added
-
-- **CI/CD pipeline**: GitHub Actions (`release.yml`) builds and pushes `ghcr.io/krzysztofbury/virgil`
-  (`latest` + per-commit `sha-<short>` + semver tags) after a full lint/test gate; `watchtower`
-  service on the NAS auto-deploys new images (label-scoped, 5-min poll, healthcheck-gated).
-  No more building on the NAS or QSync-ing the repo. `ci.yml` now covers PRs/feature branches only.
-
 ## [0.3.0] - 2026-07-13
 
 > **Deployment notes:** rotate any credentials that were in `.qnap.setup`; registration now
@@ -21,8 +12,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 > `/api/noporn` requires `VIRGIL_API_SENSITIVE=true`; Oura webhooks must be re-enabled and —
 > behind Cloudflare Access — need a **Bypass policy for `/api/oura/webhook/*`** (Oura's
 > verification challenge and event deliveries are unauthenticated calls, HMAC-verified by the app).
-
-### Fixed (post-review round 2 — TigerStyle + follow-up review)
 
 - **Oura webhook protocol corrected against the live OpenAPI spec**: subscription management uses `x-client-id`/`x-client-secret` headers (was Bearer — every subscribe would have been rejected); verification is a GET challenge answered with `{"challenge": ...}`; event signatures verified as HMAC-SHA256(client_secret, timestamp + body), case-insensitive hex; event sync runs as a debounced background task inside Oura's 10-second response deadline; partial subscription coverage is surfaced to the user
 - **Migration 007 no longer bricks legacy databases** — it rebuilds `llm_providers` without the provider CHECK before the claude→anthropic rename (upgrade test from a real pre-007 DB with a Claude row)
@@ -68,6 +57,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/healthz` endpoint** (503 while any user DB failed startup migrations) — wired into the Docker healthcheck
 - JSON/CSV export now includes `user_profiles`, `experiment_weeks`, `experiment_summaries`, `daily_briefings`, `exercise_library`, `app_settings`
 - `/api/training/detail` batches entry queries (N+1 removed)
+- **CI/CD pipeline**: GitHub Actions (`release.yml`) builds and pushes `ghcr.io/krzysztofbury/virgil`
+  (`latest` + per-commit `sha-<short>` + semver tags) after a full lint/test gate; `watchtower`
+  service on the NAS auto-deploys new images (label-scoped, 5-min poll, healthcheck-gated).
+  No more building on the NAS or QSync-ing the repo. `ci.yml` now covers PRs/feature branches only.
 
 ## [0.2.0] - 2026-03-21
 
