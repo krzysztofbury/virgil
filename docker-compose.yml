@@ -92,9 +92,11 @@ services:
       - ALL
     read_only: true
     mem_limit: 128m
-    depends_on:
-      virgil:
-        condition: service_healthy
+    # NO depends_on on virgil: the tunnel must be independent and always-on.
+    # A health-gated dependency left cloudflared permanently stopped whenever
+    # virgil crash-looped at compose-up (watchtower only recreates the labeled
+    # virgil container — it never starts dependents). If virgil is down, the
+    # edge serves 502, which is the correct visible failure mode.
     networks:
       - virgil-net
 
