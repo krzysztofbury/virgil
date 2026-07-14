@@ -298,9 +298,9 @@ async def generate_andy(request: Request, date: str = Form(...)):
     try:
         # Disable thinking: a 4-field JSON needs no reasoning, and unbounded thinking
         # was eating the token budget and truncating the response mid-string.
-        # Generous max_tokens: with drop_params, models litellm can't map
-        # reasoning_effort for (e.g. newer Gemini flashes) think unbounded and
-        # truncate a 2048 budget mid-JSON.
+        # Generous max_tokens: when litellm cannot map reasoning_effort for a
+        # model (e.g. newer Gemini flashes), drop_params discards the flag and
+        # the model thinks unbounded — a 2048 budget then truncates mid-JSON.
         raw = await call_llm(
             db, system_prompt, user_prompt, json_mode=True, reasoning_effort="disable", max_tokens=8192
         )

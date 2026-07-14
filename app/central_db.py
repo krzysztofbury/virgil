@@ -183,7 +183,9 @@ async def get_primary_user_id() -> str | None:
     """Oldest account, active or not — keeps the legacy `virgil.md` export name
     permanently bound to the original install. Filtering on is_active made
     ownership FLIP whenever the first account was disabled: the next user
-    silently inherited (and overwrote) the primary export file."""
+    silently inherited (and overwrote) the primary export file. The binding
+    still moves on HARD DELETE of the original account — that is a real,
+    deliberate handover."""
     db = await get_central_db()
     rows = await db.execute_fetchall("SELECT id FROM users ORDER BY created_at LIMIT 1")
     return rows[0]["id"] if rows else None
@@ -222,14 +224,13 @@ async def get_webhook_route(webhook_id: str) -> dict | None:
 
 
 async def get_all_webhook_ids() -> set[str]:
-    """Every ACTIVE user's webhook ids — reconcile must not delete these
-    when users share one Oura OAuth app."""
+    """Every existing user's webhook ids — reconcile must not delete these
+    when users share one Oura OAuth app. Deliberately NOT filtered on
+    is_active: a temporarily disabled account keeps its Oura subscription and
+    resumes syncing on re-enable; hard-deleted users vanish via the JOIN
+    (webhook_routes rows cascade on user deletion)."""
     db = await get_central_db()
-    rows = await db.execute_fetchall(
-        """SELECT wr.webhook_id FROM webhook_routes wr
-           JOIN users u ON u.id = wr.user_id
-           WHERE u.is_active = 1"""
-    )
+    rows = await db.execute_fetchall("SELECT wr.webhook_id FROM webhook_routes wr JOIN users u ON u.id = wr.user_id")
     return {r["webhook_id"] for r in rows}
 
 

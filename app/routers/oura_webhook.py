@@ -83,9 +83,10 @@ def _schedule_user_sync(db_filename: str, data_type: str) -> bool:
     """
     if db_filename in _pending_syncs:
         return False
-    _pending_syncs.add(db_filename)
 
     async def _run() -> None:
+        # One blanket except: an open_user_db failure escaping the coroutine
+        # would only surface as "Task exception was never retrieved".
         try:
             db = await open_user_db(db_filename)
             try:
@@ -93,14 +94,18 @@ def _schedule_user_sync(db_filename: str, data_type: str) -> bool:
 
                 count = await sync_oura_from_api(db, days_back=2)
                 logger.info("Oura webhook sync completed: %d days (data_type: %s)", count, data_type)
-            except Exception:
-                logger.exception("Oura webhook sync failed for data_type: %s", data_type)
             finally:
                 await close_user_db(db)
+        except Exception:
+            logger.exception("Oura webhook sync failed for data_type: %s", data_type)
         finally:
             _pending_syncs.discard(db_filename)
 
     task = asyncio.create_task(_run())
+    # Registered AFTER create_task (the coroutine body only starts on the next
+    # loop iteration, so this is still atomic) — adding before would leak the
+    # entry forever if create_task itself raised, permanently debouncing the user.
+    _pending_syncs.add(db_filename)
     # Keep a strong reference so the task isn't garbage-collected mid-flight.
     _background_tasks.add(task)
     task.add_done_callback(_background_tasks.discard)

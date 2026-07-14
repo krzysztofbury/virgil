@@ -325,6 +325,7 @@ Current migrations:
 | 011 | `exercise_metric` | Per-exercise `metric` ('reps' vs 'time') so timed holds don't pollute volume KPIs |
 | 012 | `llm_provider_no_check` | Rebuilds `llm_providers` without the provider CHECK (unblocks anthropic/mistral/groq/ollama) |
 | 013 | `training_exercise_archive` | Adds `training_exercises.archived` — deleting an exercise keeps history |
+| 014 | `backup_default_on` | Flips `backup_enabled` to `1` on existing installs (backups become opt-out) |
 
 ## Data Model
 

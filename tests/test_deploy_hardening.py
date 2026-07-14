@@ -63,7 +63,7 @@ def test_count_pending_migrations(tmp_path):
     assert after == 0
 
 
-def test_pre_migration_snapshot(tmp_path, monkeypatch):
+def test_pre_migration_snapshot_versioned_and_never_overwritten(tmp_path, monkeypatch):
     import aiosqlite
 
     import app.services.backup as backup_module
@@ -76,19 +76,52 @@ def test_pre_migration_snapshot(tmp_path, monkeypatch):
         db = await aiosqlite.connect(tmp_path / "snap.db")
         db.row_factory = aiosqlite.Row
         await run_migrations(db)
-        path = await snapshot_before_migration(db)
-        await db.close()
-        return path
+        first = await snapshot_before_migration(db)
+        pristine_bytes = first.read_bytes()
 
-    snapshot = asyncio.run(scenario())
-    assert snapshot.exists()
-    assert "-pre-migration-" in snapshot.name
-    copy = sqlite3.connect(snapshot)
+        # Simulate the retry-after-failed-migration case: the database mutates,
+        # then a restart snapshots again at the SAME schema version — the
+        # pristine copy must survive untouched.
+        await db.execute("INSERT INTO daily_logs (date, energy) VALUES ('2026-01-01', 5)")
+        await db.commit()
+        second = await snapshot_before_migration(db)
+        await db.close()
+        return first, second, pristine_bytes
+
+    first, second, pristine_bytes = asyncio.run(scenario())
+    assert first == second, "same schema version must map to the same snapshot file"
+    assert first.parent.name == "pre-migration", "snapshots live outside the rotating-prune namespace"
+    assert "-pre-migration-v" in first.name
+    assert first.read_bytes() == pristine_bytes, "snapshot was overwritten with a mutated database"
+    copy = sqlite3.connect(first)
     try:
         n = copy.execute("SELECT COUNT(*) FROM schema_migrations").fetchone()[0]
         assert n >= 13, "snapshot must be a real copy of the migrated database"
     finally:
         copy.close()
+
+
+def test_rotating_prune_never_touches_snapshots(tmp_path, monkeypatch):
+    """Regression: `{stem}-*.db` also matched `{stem}-pre-migration-*` — the
+    snapshots sorted as newest, filled every retention slot, and the prune
+    then deleted every regular rotating backup."""
+    import app.services.backup as backup_module
+    from app.services.backup import _prune_backups
+
+    backup_dir = tmp_path / "backups"
+    snap_dir = backup_dir / "pre-migration"
+    snap_dir.mkdir(parents=True)
+    monkeypatch.setattr(backup_module, "BACKUP_DIR", backup_dir)
+
+    for hour in ("01", "02", "03", "04", "05"):
+        (backup_dir / f"stem-2026-07-14T{hour}00.db").touch()
+    (snap_dir / "stem-pre-migration-v013.db").touch()
+
+    _prune_backups("stem", 3)
+
+    kept = sorted(p.name for p in backup_dir.glob("stem-*.db"))
+    assert kept == ["stem-2026-07-14T0300.db", "stem-2026-07-14T0400.db", "stem-2026-07-14T0500.db"]
+    assert (snap_dir / "stem-pre-migration-v013.db").exists(), "prune must never see snapshots"
 
 
 def test_central_backup_age_guard(tmp_path, monkeypatch):

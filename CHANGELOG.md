@@ -17,9 +17,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Pre-migration DB snapshots** (`data/backups/*-pre-migration-*.db`) — migrations are one-way; this is the rollback path an image revert can't provide
+- **Pre-migration DB snapshots** (`data/backups/pre-migration/*-pre-migration-v<NNN>.db`) — migrations are one-way; this is the rollback path an image revert can't provide. Version-keyed and never overwritten (a retry after a failed migration can't destroy the pristine copy), stored outside the rotating-prune namespace, capped at 3 per database
 - **Central registry backups** — `virgil-central.db` (identities, MFA, webhook routes) backed up daily by the scheduler; per-user backups never covered it
-- **Backups enabled by default** with timestamped filenames (hourly schedules no longer overwrite one date-named file)
+- **Backups enabled by default** with UTC-timestamped filenames (hourly schedules no longer overwrite one date-named file); migration 014 flips existing installs to on (opt-out policy)
 - **Ordered releases** — GitHub Actions `concurrency` prevents a slow older run from overwriting `:latest` with stale code
 - README documents deployment semantics honestly: Watchtower is best-effort auto-update, not health-gated rollback
 
