@@ -572,12 +572,58 @@ async def create_webhook_subscription(
                     )
                     resp.raise_for_status()
                     created.append(str(resp.json().get("id", "")))
+                except httpx.HTTPStatusError as exc:
+                    # Oura's response body says WHY (duplicate subscription,
+                    # failed callback verification, ...) — the status alone
+                    # made real failures undiagnosable.
+                    body = exc.response.text[:300]
+                    logger.warning(
+                        "Oura webhook subscribe failed for %s/%s: HTTP %d — %s",
+                        event_type,
+                        data_type,
+                        exc.response.status_code,
+                        body,
+                    )
+                    failed.append((event_type, data_type, f"HTTP {exc.response.status_code}: {body}"))
                 except Exception as exc:
                     logger.warning("Oura webhook subscribe failed for %s/%s: %s", event_type, data_type, exc)
                     failed.append((event_type, data_type, str(exc)))
     if not created:
         raise RuntimeError(f"All Oura webhook subscriptions failed: {failed[:3]}")
     return {"created": created, "failed": failed}
+
+
+def _subscription_points_at(subscription: dict, base_url: str) -> bool:
+    """True if an Oura subscription's callback targets this deployment's
+    webhook endpoint (legacy path or any per-user id)."""
+    callback = str(subscription.get("callback_url", ""))
+    return callback.startswith(f"{base_url.rstrip('/')}/api/oura/webhook")
+
+
+async def delete_stale_subscriptions(client_id: str, client_secret: str, base_url: str) -> int:
+    """Remove ALL of this app's subscriptions pointing at this deployment.
+
+    Enabling must be a reconcile, not a blind create: Oura rejects duplicate
+    (event_type, data_type) subscriptions with 400, so leftovers from the
+    legacy endpoint or an earlier webhook id otherwise brick re-enabling
+    forever. Foreign callbacks (other deployments on the same OAuth app) are
+    logged but left alone. Returns how many were deleted.
+    """
+    subscriptions = await list_webhook_subscriptions(client_id, client_secret)
+    if not isinstance(subscriptions, list):
+        return 0
+    removed = 0
+    for subscription in subscriptions:
+        if _subscription_points_at(subscription, base_url):
+            await delete_webhook_subscription(client_id, client_secret, str(subscription["id"]))
+            removed += 1
+        else:
+            logger.info(
+                "Oura subscription %s points elsewhere (%s) — leaving it",
+                subscription.get("id"),
+                subscription.get("callback_url"),
+            )
+    return removed
 
 
 async def delete_webhook_subscription(client_id: str, client_secret: str, subscription_id: str) -> None:

@@ -15,11 +15,9 @@ from app.main import templates
 from app.services.encryption import decrypt, encrypt
 from app.services.oura_api import (
     create_webhook_subscription,
-    delete_webhook_subscription,
     ensure_valid_token,
     exchange_code,
     get_oura_auth_url,
-    list_webhook_subscriptions,
     sync_oura_from_api,
 )
 from app.user_db import get_user_db_from_request
@@ -393,8 +391,7 @@ async def factory_reset(request: Request):
         return RedirectResponse("/login", status_code=303)
 
     db = get_user_db_from_request(request)
-    webhook_id = await get_setting(db, "oura_webhook_id", "")
-    await _delete_user_webhook_subscriptions(db, webhook_id)
+    await _reconcile_oura_subscriptions(db)
     await delete_webhook_routes(user["id"])
 
     old_filename = user["db_filename"]
@@ -537,21 +534,25 @@ async def _oura_client_credentials(db) -> tuple[str, str] | None:
     return rows[0]["client_id"], decrypt(rows[0]["client_secret_enc"])
 
 
-async def _delete_user_webhook_subscriptions(db, webhook_id: str) -> None:
-    """Best-effort removal of this user's subscriptions from Oura."""
+async def _reconcile_oura_subscriptions(db) -> None:
+    """Best-effort removal of ALL this deployment's subscriptions from Oura.
+
+    Not just the current webhook_id: Oura rejects duplicate
+    (event_type, data_type) pairs with 400, so leftovers from the legacy
+    endpoint or earlier enable attempts would brick re-enabling forever.
+    """
     creds = await _oura_client_credentials(db)
-    if not creds or not webhook_id:
+    if not creds:
         return
     client_id, client_secret = creds
     try:
-        subs = await list_webhook_subscriptions(client_id, client_secret)
-        callback_url = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
-        for sub in subs if isinstance(subs, list) else []:
-            if sub.get("callback_url") == callback_url:
-                await delete_webhook_subscription(client_id, client_secret, str(sub["id"]))
-                logger.info("Deleted Oura webhook subscription: %s", sub["id"])
+        from app.services.oura_api import delete_stale_subscriptions
+
+        removed = await delete_stale_subscriptions(client_id, client_secret, BASE_URL)
+        if removed:
+            logger.info("Removed %d stale Oura webhook subscription(s)", removed)
     except Exception:
-        logger.exception("Failed to delete Oura webhook subscriptions (continuing anyway)")
+        logger.exception("Failed to reconcile Oura webhook subscriptions (continuing anyway)")
 
 
 @router.post("/settings/oura/webhook/enable")
@@ -570,6 +571,11 @@ async def enable_oura_webhook(request: Request):
             status_code=303,
         )
     client_id, client_secret = creds
+
+    # Reconcile first: Oura 400s duplicate (event_type, data_type) pairs, so
+    # subscriptions left over from earlier attempts (or the legacy endpoint)
+    # would make enabling fail forever.
+    await _reconcile_oura_subscriptions(db)
 
     # Per-user callback URL: the opaque id routes the public webhook to this
     # user's database (see app/routers/oura_webhook.py).
@@ -621,9 +627,8 @@ async def disable_oura_webhook(request: Request):
 
     db = get_user_db_from_request(request)
     user = request.state.user
-    webhook_id = await get_setting(db, "oura_webhook_id", "")
 
-    await _delete_user_webhook_subscriptions(db, webhook_id)
+    await _reconcile_oura_subscriptions(db)
 
     await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
     await set_setting(db, "oura_webhook_id", "")
