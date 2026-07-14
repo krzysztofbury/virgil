@@ -20,4 +20,8 @@ ENV UV_CACHE_DIR=/tmp/uv-cache
 
 EXPOSE 8123
 
-CMD ["uv", "run", "python", "-m", "app"]
+# Run the venv's python directly — `uv run` re-validates uv.lock at startup and
+# tries to REWRITE it when the lock was generated under a different global uv
+# config (e.g. a developer machine with exclude-newer set). /app is root-owned
+# and the process runs as appuser, so that write crash-loops the container.
+CMD ["/app/.venv/bin/python", "-m", "app"]
