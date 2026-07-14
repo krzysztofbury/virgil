@@ -97,28 +97,43 @@ cp .env.example .env
 # Edit .env — fill in CLOUDFLARE_TUNNEL_TOKEN (required) and API keys (optional)
 ```
 
-**Step 3: Sync and deploy**
+**Step 3: First deploy (one-time)**
 
-Clone or sync the project to your NAS, then deploy via SSH:
+Production images are built by GitHub Actions on every push to `main` and pushed
+to GHCR (`ghcr.io/krzysztofbury/virgil`). The NAS only needs the compose file,
+`.env`, and a `data/` directory — no repo checkout, no building on the NAS:
 
 ```bash
 ssh <user>@<NAS_IP>
-cd /path/to/virgil
-mkdir -p data
-# GIT_SHA versions the PWA cache — without it every build reports "unknown"
-# and clients can keep stale CSS/JS after a deploy.
-docker build --build-arg GIT_SHA=$(git rev-parse --short HEAD) -t virgil:latest .
+mkdir -p /path/to/virgil/data && cd /path/to/virgil
+# copy docker-compose.yml + .env here (once — they rarely change)
+docker login ghcr.io          # PAT with read:packages — needed if the package is private
+docker compose pull
 docker compose up -d
 ```
 
-> **QNAP Container Station limitation**: Container Station UI doesn't support `build:` or `${VAR}` interpolation in docker-compose. Build the image via SSH first, then manage in Container Station. The compose file uses `image: virgil:latest` for compatibility.
+> **QNAP Container Station limitation**: the Container Station UI doesn't support
+> `${VAR}` interpolation in docker-compose. Run `docker compose` via SSH; the
+> running containers then show up in Container Station normally.
 
-**Rebuilding after code changes:**
+**Deploys after that are automatic**: push to `main` → Actions runs lint+tests →
+builds the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
+GHCR → the `watchtower` container on the NAS notices the new `:latest` within
+~5 minutes and recreates `virgil` (gated by the `/healthz` healthcheck).
+
+**Force an immediate update:**
 
 ```bash
-ssh <user>@<NAS_IP>
-cd /path/to/virgil
-docker build --build-arg GIT_SHA=$(git rev-parse --short HEAD) -t virgil:latest . && docker compose up -d
+docker compose pull virgil && docker compose up -d virgil
+```
+
+**Rollback** (every commit has its own image tag):
+
+```bash
+docker pull ghcr.io/krzysztofbury/virgil:sha-<short>
+docker tag ghcr.io/krzysztofbury/virgil:sha-<short> ghcr.io/krzysztofbury/virgil:latest
+docker compose up -d virgil
+# then push a revert commit — otherwise watchtower re-applies the next :latest
 ```
 
 ## Configuration

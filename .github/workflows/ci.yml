@@ -1,8 +1,10 @@
 name: CI
 
+# PRs and feature branches only — pushes to main run the full test gate inside
+# the Release workflow (release.yml) before the image is built and pushed.
 on:
   push:
-    branches: [main]
+    branches-ignore: [main]
   pull_request:
     branches: [main]
 
@@ -22,10 +24,10 @@ jobs:
         run: uv sync --extra dev
 
       - name: Ruff lint
-        run: uv run ruff check app/ scripts/
+        run: uv run ruff check app/ scripts/ tests/
 
       - name: Ruff format check
-        run: uv run ruff format --check app/ scripts/
+        run: uv run ruff format --check app/ scripts/ tests/
 
       - name: Bandit security scan
         run: uv run bandit -c pyproject.toml -r app/

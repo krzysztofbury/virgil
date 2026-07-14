@@ -29,10 +29,10 @@ correctly so the PWA cache busts on every deploy.
 - *Self-hosted runner on QNAP* — heavy, updates itself, overkill for one app.
 
 **Deliverables:**
-- [ ] `.github/workflows/release.yml` — test gate → buildx → push to GHCR (`GITHUB_TOKEN`, `packages: write`); tags: `latest`, `sha-<short>`, `v*` on git tags
-- [ ] `docker-compose.yml`: `image: ghcr.io/<owner>/virgil:latest` (drop `build:` from the prod compose or keep behind a profile), add `watchtower` service (label-scoped to virgil, poll interval, cleanup old images)
-- [ ] One-time on QNAP: `docker login ghcr.io` with a `read:packages` PAT; remove the repo from QSync; pull the new compose
-- [ ] README deploy section rewritten (build-on-NAS instructions → registry flow + rollback recipe)
+- [x] `.github/workflows/release.yml` — test gate → buildx → push to GHCR (`GITHUB_TOKEN`, `packages: write`); tags: `latest`, `sha-<short>`, `v*` on git tags; `ci.yml` narrowed to PRs/feature branches
+- [x] `docker-compose.yml`: `image: ghcr.io/krzysztofbury/virgil:latest` (build: kept for local dev), `watchtower` service (label-scoped, 5-min poll, cleanup)
+- [ ] One-time on QNAP: `docker login ghcr.io` with a `read:packages` PAT; remove the repo from QSync; copy the new compose + .env
+- [x] README deploy section rewritten (registry flow, auto-deploy, force-update + rollback recipes)
 - [ ] Optional: deploy notification (ntfy/Slack/WhatsApp) step in the workflow
 
 **Out of scope for round 1:** staging environment, multi-arch images (QNAP is amd64), signed images.

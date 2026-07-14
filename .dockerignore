@@ -15,6 +15,7 @@ data/
 *.tmp
 .git/
 .gitignore
+.github/
 assets/
 TODO.md
 README.md

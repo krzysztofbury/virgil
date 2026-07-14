@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **CI/CD pipeline**: GitHub Actions (`release.yml`) builds and pushes `ghcr.io/krzysztofbury/virgil`
+  (`latest` + per-commit `sha-<short>` + semver tags) after a full lint/test gate; `watchtower`
+  service on the NAS auto-deploys new images (label-scoped, 5-min poll, healthcheck-gated).
+  No more building on the NAS or QSync-ing the repo. `ci.yml` now covers PRs/feature branches only.
+
 ## [0.3.0] - 2026-07-13
 
 > **Deployment notes:** rotate any credentials that were in `.qnap.setup`; registration now

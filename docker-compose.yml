@@ -1,7 +1,10 @@
 services:
   # Personal tracking dashboard (FastAPI + SQLite)
   virgil:
-    image: virgil:latest
+    # Production images are built by GitHub Actions (release.yml) and pulled
+    # from GHCR — never built on the NAS. `build:` stays for local dev only
+    # (`docker compose up -d --build`).
+    image: ghcr.io/krzysztofbury/virgil:latest
     build:
       context: .
       args:
@@ -9,6 +12,10 @@ services:
     container_name: virgil
     restart: unless-stopped
     init: true
+    labels:
+      # Opt-in marker for Watchtower (WATCHTOWER_LABEL_ENABLE) — only this
+      # container is auto-updated.
+      - com.centurylinklabs.watchtower.enable=true
     expose:
       - "8123"
     env_file: .env
@@ -43,6 +50,27 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    networks:
+      - virgil-net
+
+  # Auto-deploy: polls GHCR and recreates `virgil` when a new :latest lands.
+  # Requires `docker login ghcr.io` on the host first if the package is private
+  # (the mounted config.json carries the credentials).
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: virgil-watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
+      WATCHTOWER_CLEANUP: "true"
+      TZ: Europe/Warsaw
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_CONFIG_JSON:-~/.docker/config.json}:/config.json:ro
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
     networks:
       - virgil-net
 
