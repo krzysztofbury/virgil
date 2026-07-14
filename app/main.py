@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import markupsafe
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -113,23 +113,34 @@ async def lifespan(app: FastAPI):
 
     # Run pending migrations for EXISTING per-user databases. Without this,
     # migrations only ever ran at account creation — new migrations silently
-    # never reached older databases.
-    from app.central_db import get_active_users
+    # never reached older databases. ALL users are migrated, not just active
+    # ones: a disabled account that gets re-enabled must not wake up with a
+    # stale schema.
+    from app.central_db import get_all_users
     from app.migrations.runner import run_migrations
     from app.user_db import close_user_db, open_user_db
 
     _migrated = 0
-    for _user in await get_active_users():
+    app.state.migration_failures = []
+    for _user in await get_all_users():
         _udb = await open_user_db(_user["db_filename"])
         try:
             await run_migrations(_udb)
             _migrated += 1
         except Exception:
             logging.getLogger(__name__).exception("Startup migration failed for %s", _user["db_filename"])
+            # Surfaced via /healthz — a green healthcheck must not hide a user
+            # whose every request will fail on missing tables.
+            app.state.migration_failures.append(_user["db_filename"])
         finally:
             await close_user_db(_udb)
 
-    _log.info("Virgil version=%s — startup migrations OK for %d user DB(s)", _version, _migrated)
+    _log.info(
+        "Virgil version=%s — startup migrations OK for %d user DB(s), %d failed",
+        _version,
+        _migrated,
+        len(app.state.migration_failures),
+    )
 
     from app.services.scheduler import scheduler_loop
 
@@ -154,7 +165,19 @@ templates.env.filters["strip_md"] = lambda t: re.sub(r"\*\*(.+?)\*\*", r"\1", t)
 templates.env.filters["md_block"] = _md_block
 
 
-from fastapi.responses import Response  # noqa: E402
+from fastapi.responses import JSONResponse, Response  # noqa: E402
+
+
+@app.get("/healthz")
+async def healthz(request: Request):
+    """Deployment health: 503 while any user DB failed its startup migrations,
+    so a broken schema rollout stops the deploy instead of passing a /login ping."""
+    failures = getattr(request.app.state, "migration_failures", [])
+    status_code = 503 if failures else 200
+    return JSONResponse(
+        {"status": "degraded" if failures else "ok", "migration_failures": len(failures)},
+        status_code=status_code,
+    )
 
 
 @app.get("/service-worker.js")

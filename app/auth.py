@@ -24,6 +24,7 @@ PUBLIC_PATHS = frozenset(
         "/signup",
         "/mfa/verify",
         "/offline",
+        "/healthz",
         "/service-worker.js",
         "/api/oura/webhook",
         # REST API — each route enforces its own X-API-Key auth (app/routers/api.py).
@@ -34,9 +35,13 @@ PUBLIC_PATHS = frozenset(
         "/api/habits",
         "/api/experiments/active",
         "/api/training",
+        "/api/training/detail",
+        "/api/noporn",
     }
 )
-PUBLIC_PREFIXES = ("/static/",)
+# /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
+# HMAC signature inside the handler, never via session cookies.
+PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
 
 BCRYPT_ROUNDS = 12
 
@@ -87,21 +92,22 @@ def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str 
 
 
 def session_cookie_header(token: str) -> str:
-    """Build Set-Cookie header value for the session."""
+    """Build Set-Cookie header value for the session.
+
+    SameSite=Lax (not Strict): OAuth providers (Oura) redirect back to
+    /settings/oura/callback from a cross-site origin. Strict cookies are not
+    sent on that top-level navigation, so the callback would bounce to /login
+    and lose the authorization code. Lax still withholds the cookie on
+    cross-site POSTs, and every state-changing route is CSRF-protected.
+    """
     secure = "; Secure" if BASE_URL.startswith("https") else ""
-    return f"{SESSION_COOKIE}={token}; HttpOnly; SameSite=Strict{secure}; Max-Age={SESSION_MAX_AGE_SECONDS}; Path=/"
+    return f"{SESSION_COOKIE}={token}; HttpOnly; SameSite=Lax{secure}; Max-Age={SESSION_MAX_AGE_SECONDS}; Path=/"
 
 
 def clear_session_cookie() -> str:
     """Build Set-Cookie header value that clears the session."""
     secure = "; Secure" if BASE_URL.startswith("https") else ""
-    return f"{SESSION_COOKIE}=; HttpOnly; SameSite=Strict{secure}; Max-Age=0; Path=/"
-
-
-def _reset_caches():
-    """Reset all cached auth state — called on factory reset."""
-    global _signer
-    _signer = None
+    return f"{SESSION_COOKIE}=; HttpOnly; SameSite=Lax{secure}; Max-Age=0; Path=/"
 
 
 def mark_onboarding_complete():

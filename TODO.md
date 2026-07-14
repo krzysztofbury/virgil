@@ -1,5 +1,129 @@
 # Virgil TODO
 
+## CI/CD — automated deploy to QNAP (replaces manual QSync + ssh docker build)
+
+**Goal:** `git push` (or tag) → image built in CI → QNAP Container Station runs the new
+version automatically. No QSync, no ssh, no building on the NAS. Rollback = previous image tag.
+
+**Architecture (recommended): GitHub Actions → GHCR → Watchtower on QNAP**
+
+```
+git push main / tag v*
+   └─ GitHub Actions: uv sync + ruff + pytest  (gate)
+        └─ docker build --build-arg GIT_SHA=$GITHUB_SHA (linux/amd64)
+             └─ push ghcr.io/<owner>/virgil:latest + :<sha> + :<tag>
+QNAP (Container Station, behind Cloudflare Tunnel — unchanged)
+   └─ watchtower (poll ~5 min, label-scoped)
+        └─ pulls new :latest → recreates virgil → compose healthcheck (/healthz) gates it
+```
+
+**Why this variant:** zero inbound access to the NAS (tunnel stays outbound-only), no
+self-hosted runner to maintain, Container Station treats it as plain containers, per-SHA
+tags give instant rollback (`docker pull ...:<old-sha>` + retag), CI finally bakes GIT_SHA
+correctly so the PWA cache busts on every deploy.
+
+**Alternatives considered:**
+- *QNAP cron `docker compose pull && up -d`* — fewest moving parts, but blind (pulls on a
+  timer whether or not anything changed) and no update log. Fallback if Watchtower annoys.
+- *Actions → ssh/cloudflared into QNAP* — inbound path + SSH secrets in GitHub; more surface, no gain.
+- *Self-hosted runner on QNAP* — heavy, updates itself, overkill for one app.
+
+**Deliverables:**
+- [x] `.github/workflows/release.yml` — test gate → buildx → push to GHCR (`GITHUB_TOKEN`, `packages: write`); tags: `latest`, `sha-<short>`, `v*` on git tags; `ci.yml` narrowed to PRs/feature branches
+- [x] `docker-compose.yml`: `image: ghcr.io/krzysztofbury/virgil:latest` (build: kept for local dev), `watchtower` service (label-scoped, 5-min poll, cleanup)
+- [ ] One-time on QNAP: `docker login ghcr.io` with a `read:packages` PAT; remove the repo from QSync; copy the new compose + .env
+- [x] README deploy section rewritten (registry flow, auto-deploy, force-update + rollback recipes)
+- [ ] Optional: deploy notification (ntfy/Slack/WhatsApp) step in the workflow
+
+**Out of scope for round 1:** staging environment, multi-arch images (QNAP is amd64), signed images.
+
+## Backlog — 2026-07 Functionality Review
+
+Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
+
+### P0 — Safety & dependability ✅ DONE (this branch)
+
+- [x] Credential handling — `.qnap.setup` out of the Docker build context (**rotate the exposed LLM key + tunnel token**)
+- [x] Factory Reset — new DB filename, registry repoint, migrated schema, back to onboarding
+- [x] Multipart CSRF upload — medical-PDF onboarding unblocked, 20 MB limit unified
+- [x] Oura OAuth (SameSite=Lax, Secure state cookie) + webhook routing (per-user callback URLs, spec-verified challenge GET + HMAC(client_secret, timestamp+body))
+- [x] Private PWA cache — authenticated HTML never cached
+- [x] Multi-user export isolation — filenames derived from account identity, never user-chosen
+- [x] Legacy migration path — 007 rebuilds `llm_providers` before the claude→anthropic rename; upgrade test from a real pre-007 DB
+- [x] P0 test coverage — signup/bootstrap, reset, OAuth callback state, multipart upload, multi-user isolation, webhook protocol, logout, SW cache privacy, migration upgrades (96 tests)
+
+### P1 — Durable job model for LLM/sync/backup work
+
+**Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no duplicate LLM cost.
+**Plan:** Add a `jobs` table per user DB (id, kind, payload, status, attempts, last_error, created/finished). Scheduler loop doubles as the worker (claim → run → record). Onboarding enrichment, A.N.D.Y., experiment summaries, briefings, Oura sync, backup, export become job kinds. UI polls a lightweight `/api/jobs/{id}` partial via HTMX.
+**Deliverables:** jobs table migration; worker in scheduler; onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); tests for claim/retry/backoff.
+
+### P1 — Recovery & data-ownership story
+
+**Goal:** A user can fully restore their life data from an export/backup without SSH.
+**Plan:** Versioned export manifest (JSON, schema_version + all user tables); validated import endpoint (dry-run report → apply); restore-from-`.db`-upload in Settings > Data; backup age/status card; pre-reset backup download prompt.
+**Deliverables:** `export/import` service with round-trip test (export → wipe → import → identical data); restore UI; backup freshness indicator on the Automation tab; docs.
+
+### P1 — Mutation-feedback contract
+
+**Goal:** Every write gives visible, accessible progress/success/failure — no silent redirects.
+**Plan:** One helper pattern: disable control on submit, `aria-live` status region, persistent error toast with retry, `msg`/`err` params standardized across ALL pages (today only Settings renders them). Oura page sync (`/oura/api-sync`) currently swallows errors — add msg/err there first.
+**Deliverables:** shared toast partial in `base.html`; msg/err rendering on every page; draft retention on network failure for daily notes/journal; tests asserting error surfacing for Oura sync + import.
+
+### P1 — Multi-user hardening beyond a trusted household
+
+**Goal:** Safe to give accounts to people you don't fully trust.
+**Plan:** Password reset (email-less: admin-issued one-time reset codes); invite codes (admin panel, single-use, expiry) replacing the global open/closed switch; per-client API tokens (hashed at rest, scopes read/read-sensitive, revocable in Settings) replacing the single env key; API access log (who/what/when, no payloads).
+**Deliverables:** `api_tokens` + `invites` central tables; token management UI; MCP server updated for per-token auth; audit view under Settings > Security; tests.
+
+### P2 — Explicit offline behavior
+
+**Goal:** Mobile users know exactly what works offline; no silent data loss.
+**Plan:** Decide: offline **read-only** (persistent banner + disabled save controls when `navigator.onLine === false`) — cheap; or offline **capture** (IndexedDB queue + Background Sync + conflict policy) — expensive. Recommendation: read-only banner now, capture later only if real need appears.
+**Deliverables:** offline banner + disabled mutations; SW keeps never caching authenticated HTML; docs updated to match.
+
+### P2 — Edit/delete/audit paths for personal history
+
+**Goal:** Sensitive records (relapses, blood results, goals, workouts) are correctable without SQL.
+**Plan:** Add edit/delete endpoints + inline UI for blood results, pmo_events (with confirm + duplicate-date warning), goals (undo toast), workout sessions (already deletable — add per-entry edit); experiments day-detail sheet showing all activities per day.
+**Deliverables:** routes + templates + validation, deletion confirmations with non-judgmental copy for Feniks, tests per entity.
+
+### P2 — Longitudinal insights
+
+**Goal:** Turn raw tracking into reflection.
+**Plan:** 12-week daily heatmap (README already promises it), selectable ranges (4/12/26 weeks) for training + Oura trends, full life-score history list with detail view (diagnostic/priorities), Oura freshness badge ("last synced Xh ago") on dashboard + oura page.
+**Deliverables:** range-parameterized queries + chart endpoints, life-score history page, freshness indicator, tests for range math.
+
+### P2 — Accessibility
+
+**Goal:** Usable with keyboard and assistive tech.
+**Plan:** Replace clickable `<div>` menus (bottom bar) with `<button>` + `aria-expanded` + Escape handling; `aria-pressed` + visible state labels on three-state toggles; text/table equivalent for every chart; `prefers-reduced-motion` overrides; skip-to-content link; focusable help popovers instead of `title`-only tooltips.
+**Deliverables:** base template + daily/oura/bloodwork template updates, CSS motion guards, axe-style smoke checklist in CONTRIBUTING.
+
+### P3 — More wearables (after Oura webhook proves stable in prod)
+
+**Goal:** Garmin/Apple Health/Google Fit import without multiplying fragile integrations.
+**Plan:** Extract a `health_source` interface from the Oura sync (fetch window → normalized daily dict → `_upsert_daily`-style column groups per source); Garmin first (existing placeholder card).
+**Deliverables:** source abstraction, Garmin OAuth + sync, per-source column ownership to avoid cross-source overwrites.
+
+### P3 — i18n (EN + PL)
+
+**Goal:** Full Polish UI, matching seeded Polish content.
+**Plan:** Jinja2 `gettext` (`.po`/`.mo`) or JSON dict per locale; language setting per user; translate seed data (goal areas, milestones) via locale-aware seeds; date formatting per locale.
+**Deliverables:** i18n plumbing, EN+PL catalogs, language selector in Settings, translated seeds, no hardcoded strings in templates (lint check).
+
+### Deferred security/reliability (from reviews)
+
+- [ ] Complete restore flow (part of the P1 recovery story above)
+- [ ] Central DB migration system (today: `CREATE TABLE IF NOT EXISTS` only) — needed before more central schema changes
+- [ ] Webhook subscription auto-renewal (Oura subscriptions carry `expiration_time`) + periodic reconciliation of subscription state
+- [ ] Replay protection on webhook events (check `x-oura-timestamp` freshness)
+- [ ] Pin CDN assets with SRI or self-host; move CSP off `unsafe-inline`/`unsafe-eval` (blocked by Alpine.js)
+- [ ] Pin Docker base images by digest; `uv sync --frozen` in CI
+- [x] Encrypt central TOTP secrets (done — lazy migration on next MFA enable)
+- [x] SQLite `busy_timeout` on all connections (done)
+- [x] Morning briefing scheduler task (done)
+
 ## Code Review Findings (TigerStyle Audit)
 
 ### Critical — Security & Data Integrity

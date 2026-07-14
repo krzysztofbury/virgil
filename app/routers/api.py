@@ -15,7 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
-from app.services.streak import get_streak
+from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
 
 router = APIRouter(prefix="/api", tags=["api"])
@@ -182,3 +182,109 @@ async def api_training(
         (since,),
     )
     return {"range_days": days, "since": since, "sessions": [dict(r) for r in rows]}
+
+
+@router.get("/training/detail")
+async def api_training_detail(
+    db: ApiDb,
+    days: int = Query(7, ge=1, le=90, alias="range"),
+):
+    """Full per-set training detail for the last N days (?range=7): each session broken
+    into exercises (grouped) and every set — reps+weight, or weight+seconds for timed
+    lifts (carries/holds, metric='time')."""
+    since = (date.today() - timedelta(days=days - 1)).isoformat()
+    sessions = await db.execute_fetchall(
+        "SELECT id, date, duration_minutes, notes FROM training_sessions WHERE date >= ? ORDER BY date DESC",
+        (since,),
+    )
+    # One batched entries query instead of one per session (a 90-day range
+    # would otherwise fire dozens of serialized SQLite queries).
+    entries_by_session: dict[int, list] = {}
+    if sessions:
+        session_ids = [s["id"] for s in sessions]
+        placeholders = ",".join("?" * len(session_ids))
+        all_entries = await db.execute_fetchall(
+            f"SELECT e.session_id, ex.id AS exercise_id, ex.name, ex.section, ex.metric, "
+            f"e.set_number, e.reps, e.weight, e.duration "
+            f"FROM training_entries e JOIN training_exercises ex ON e.exercise_id = ex.id "
+            f"WHERE e.session_id IN ({placeholders}) ORDER BY ex.display_order, ex.name, e.set_number",
+            session_ids,
+        )
+        for r in all_entries:
+            entries_by_session.setdefault(r["session_id"], []).append(r)
+
+    result = []
+    for s in sessions:
+        sess = dict(s)
+        # Group by exercise ID, not name — two exercises may share a name and
+        # must not have their sets merged.
+        exercises: dict = {}
+        order: list = []
+        for r in entries_by_session.get(sess["id"], []):
+            ex_id = r["exercise_id"]
+            if ex_id not in exercises:
+                exercises[ex_id] = {
+                    "id": ex_id,
+                    "name": r["name"],
+                    "section": r["section"],
+                    "metric": r["metric"],
+                    "sets": [],
+                }
+                order.append(ex_id)
+            exercises[ex_id]["sets"].append(
+                {"set": r["set_number"], "reps": r["reps"], "weight": r["weight"], "duration": r["duration"]}
+            )
+        sess["exercises"] = [exercises[i] for i in order]
+        result.append(sess)
+    return {"range_days": days, "since": since, "sessions": result}
+
+
+@router.get("/noporn")
+async def api_noporn(
+    db: ApiDb,
+    days: int = Query(30, ge=1, le=365, alias="range"),
+):
+    """No-porn (Feniks) detail: config, streak, current-week clean rate (Gola), plus the
+    relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and logged
+    pleasures from the last N days (?range=30). This is the WHY behind the streak.
+
+    Gated behind VIRGIL_API_SENSITIVE — this is intimate journal content, and a
+    leaked API key must not expose it by default."""
+    from app import config
+
+    if not config.API_SENSITIVE:
+        raise HTTPException(
+            status_code=403,
+            detail="Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to expose /api/noporn)",
+        )
+    today = date.today()
+    since = (today - timedelta(days=days - 1)).isoformat()
+
+    conf = await db.execute_fetchall("SELECT start_date, target_days, big_why FROM feniks_config WHERE id = 1")
+    streak_days, last_relapse = await get_streak(db)
+    clean, elapsed, pct = await get_week_clean(db)
+
+    events = await db.execute_fetchall(
+        "SELECT date, event_type, notes FROM pmo_events WHERE date >= ? ORDER BY date DESC",
+        (since,),
+    )
+    journal = await db.execute_fetchall(
+        "SELECT date, emotions, triggers, thoughts, desired_feelings, coping_strategies "
+        "FROM feniks_journal WHERE date >= ? ORDER BY date DESC",
+        (since,),
+    )
+    pleasures = await db.execute_fetchall(
+        "SELECT date, pleasure_1, pleasure_2 FROM feniks_pleasures WHERE date >= ? ORDER BY date DESC",
+        (since,),
+    )
+    return {
+        "range_days": days,
+        "since": since,
+        "config": dict(conf[0]) if conf else None,
+        "streak_days": streak_days,
+        "last_relapse": last_relapse.isoformat() if last_relapse else None,
+        "week_clean": {"clean_days": clean, "days_elapsed": elapsed, "pct": pct},
+        "events": [dict(r) for r in events],
+        "journal": [dict(r) for r in journal],
+        "pleasures": [dict(r) for r in pleasures],
+    }

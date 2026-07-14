@@ -231,20 +231,53 @@ async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> None:
     if not isinstance(exp, dict) or not exp.get("title"):
         return
 
+    await create_suggested_experiment(db, exp)
+
+
+def _coerce_minutes(value, default: int) -> int:
+    """LLM output → bounded weekly minutes (0..10080, one week)."""
+    try:
+        minutes = int(value)
+    except (ValueError, TypeError):
+        return default
+    return max(0, min(10080, minutes))
+
+
+async def create_suggested_experiment(db, exp: dict) -> int:
+    """Persist an LLM-suggested experiment using the real schema.
+
+    Weekly targets live in experiment_weeks (one row per week), NOT on the
+    experiments table, and the UI cannot log entries without at least one
+    activity type — so both are created alongside the experiment.
+    Returns the new experiment id.
+    """
+    assert exp.get("title"), "Experiment suggestion must have a title"
+
     today = date.today().isoformat()
-    num_weeks = min(12, max(2, exp.get("num_weeks", 4)))
+    num_weeks = min(12, max(2, exp.get("num_weeks") if isinstance(exp.get("num_weeks"), int) else 4))
+    target_min = _coerce_minutes(exp.get("weekly_target_min"), default=60)
+    target_max = max(target_min, _coerce_minutes(exp.get("weekly_target_max"), default=120))
+
+    cursor = await db.execute(
+        """INSERT INTO experiments (title, description, start_date, num_weeks, status)
+           VALUES (?, ?, ?, ?, 'active')""",
+        (str(exp["title"])[:200], str(exp.get("description", ""))[:2000], today, num_weeks),
+    )
+    experiment_id = cursor.lastrowid
 
     await db.execute(
-        """INSERT INTO experiments (title, description, start_date, num_weeks,
-           weekly_target_min, weekly_target_max, status)
-           VALUES (?, ?, ?, ?, ?, ?, 'active')""",
-        (
-            exp["title"],
-            exp.get("description", ""),
-            today,
-            num_weeks,
-            exp.get("weekly_target_min", 60),
-            exp.get("weekly_target_max", 120),
-        ),
+        """INSERT INTO experiment_activity_types (experiment_id, name, color, display_order)
+           VALUES (?, ?, '#22c55e', 1)""",
+        (experiment_id, str(exp["title"])[:100]),
     )
+
+    for week_number in range(1, num_weeks + 1):
+        await db.execute(
+            """INSERT INTO experiment_weeks (experiment_id, week_number, target_min, target_max)
+               VALUES (?, ?, ?, ?)""",
+            (experiment_id, week_number, target_min, target_max),
+        )
+
     await db.commit()
+    logger.info("Onboarding experiment created: id=%d weeks=%d", experiment_id, num_weeks)
+    return experiment_id

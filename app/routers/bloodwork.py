@@ -79,6 +79,15 @@ async def bloodwork_page(request: Request, category: str = "all"):
     )
 
 
+def compute_flag(value: float, ref_low: float | None, ref_high: float | None) -> str:
+    """Derive the out-of-range flag from the marker's reference bounds."""
+    if ref_low is not None and value < ref_low:
+        return "L"
+    if ref_high is not None and value > ref_high:
+        return "H"
+    return ""
+
+
 @router.post("/bloodwork/result")
 async def save_result(
     request: Request,
@@ -94,6 +103,19 @@ async def save_result(
         flag = ""
     value_text = truncate(value_text, 200)
     db = get_user_db_from_request(request)
+
+    # Validate the marker exists — a stale/forged id otherwise surfaces as a
+    # foreign-key 500 instead of a controlled redirect.
+    marker_rows = await db.execute_fetchall("SELECT ref_low, ref_high FROM blood_markers WHERE id = ?", (marker_id,))
+    if not marker_rows:
+        return RedirectResponse("/bloodwork", status_code=303)
+
+    # No explicit flag → derive it from the stored reference range, so the
+    # lab-reported value can still override (labs use their own ranges).
+    if not flag:
+        marker = dict(marker_rows[0])
+        flag = compute_flag(value, marker["ref_low"], marker["ref_high"])
+
     await db.execute(
         """
         INSERT INTO blood_results (marker_id, date, value, value_text, flag)

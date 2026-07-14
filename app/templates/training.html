@@ -35,7 +35,7 @@
                             <button type="button" class="btn btn-sm btn-outline" @click="editing = {{ ex.id }}" style="font-size:0.65rem;padding:0.15rem 0.4rem;">Edit</button>
                             <form method="POST" action="/training/exercise/{{ ex.id }}/delete" style="display:inline;">
                                 <button type="submit" class="btn btn-sm btn-outline" style="font-size:0.65rem;padding:0.15rem 0.4rem;color:var(--flag-h);"
-                                        onclick="return confirm('Delete this exercise?')">Del</button>
+                                        onclick="return confirm('Remove this exercise from the protocol? Logged history and PBs are kept.')">Del</button>
                             </form>
                         </td>
                     </tr>

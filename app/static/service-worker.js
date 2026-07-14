@@ -95,19 +95,14 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // Pages — network-first with offline fallback
+    // Pages — network-only with offline fallback. Authenticated HTML is NEVER
+    // cached: Cache Storage outlives the session cookie, so cached dashboards,
+    // medical data and journals would stay readable offline after logout or on
+    // a shared device. Only the public precached /offline page is served.
     if (event.request.headers.get('Accept') && event.request.headers.get('Accept').includes('text/html')) {
         event.respondWith(
-            fetch(event.request).then(function(response) {
-                var clone = response.clone();
-                caches.open(CACHE_NAME).then(function(cache) {
-                    cache.put(event.request, clone);
-                });
-                return response;
-            }).catch(function() {
-                return caches.match(event.request).then(function(cached) {
-                    return cached || caches.match('/offline');
-                });
+            fetch(event.request).catch(function() {
+                return caches.match('/offline');
             })
         );
         return;

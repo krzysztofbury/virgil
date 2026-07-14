@@ -1,7 +1,10 @@
 services:
   # Personal tracking dashboard (FastAPI + SQLite)
   virgil:
-    image: virgil:latest
+    # Production images are built by GitHub Actions (release.yml) and pulled
+    # from GHCR — never built on the NAS. `build:` stays for local dev only
+    # (`docker compose up -d --build`).
+    image: ghcr.io/krzysztofbury/virgil:latest
     build:
       context: .
       args:
@@ -9,6 +12,10 @@ services:
     container_name: virgil
     restart: unless-stopped
     init: true
+    labels:
+      # Opt-in marker for Watchtower (WATCHTOWER_LABEL_ENABLE) — only this
+      # container is auto-updated.
+      - com.centurylinklabs.watchtower.enable=true
     expose:
       - "8123"
     env_file: .env
@@ -18,11 +25,14 @@ services:
       VIRGIL_ENV: prod
       VIRGIL_BASE_URL: ${VIRGIL_BASE_URL:-https://localhost:8123}
       VIRGIL_ADMIN_EMAILS: ${VIRGIL_ADMIN_EMAILS:-}
-      VIRGIL_REGISTRATION_OPEN: ${VIRGIL_REGISTRATION_OPEN:-true}
+      # Closed by default — the first account (bootstrap owner) can always sign up.
+      VIRGIL_REGISTRATION_OPEN: ${VIRGIL_REGISTRATION_OPEN:-false}
       VIRGIL_INTERNAL_LLM_MODEL: ${VIRGIL_INTERNAL_LLM_MODEL:-gemini/gemini-3-flash-preview}
       VIRGIL_INTERNAL_LLM_KEY: ${VIRGIL_INTERNAL_LLM_KEY:-}
       VIRGIL_API_KEY: ${VIRGIL_API_KEY:-}
       VIRGIL_API_USER_EMAIL: ${VIRGIL_API_USER_EMAIL:-}
+      # Opt-in: expose /api/noporn (intimate journal content) over the API key.
+      VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
       TZ: Europe/Warsaw
     volumes:
       - ./data:/data
@@ -33,11 +43,34 @@ services:
     cap_drop:
       - ALL
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/login')"]
+      # /healthz returns 503 (→ urlopen raises) while any user DB failed its
+      # startup migrations — a broken schema rollout fails the deploy.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/healthz')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
+    networks:
+      - virgil-net
+
+  # Auto-deploy: polls GHCR and recreates `virgil` when a new :latest lands.
+  # Requires `docker login ghcr.io` on the host first if the package is private
+  # (the mounted config.json carries the credentials).
+  watchtower:
+    image: containrrr/watchtower:1.7.1
+    container_name: virgil-watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_POLL_INTERVAL:-300}
+      WATCHTOWER_CLEANUP: "true"
+      TZ: Europe/Warsaw
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${DOCKER_CONFIG_JSON:-~/.docker/config.json}:/config.json:ro
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: 64m
     networks:
       - virgil-net
 

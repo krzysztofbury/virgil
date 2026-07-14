@@ -456,15 +456,48 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
     return "\n".join(lines) + "\n"
 
 
-async def write_export(db, scope: str = "weekly", sections: set[str] | None = None) -> str:
-    """Generate and write virgil.md to SECOND_BRAIN_PATH. Returns the content.
+_EXPORT_FILENAME_MAX_LEN = 100
+
+
+def valid_export_filename(filename: str) -> bool:
+    """A plain markdown filename — no path traversal into the second brain."""
+    if not filename or len(filename) > _EXPORT_FILENAME_MAX_LEN:
+        return False
+    if "/" in filename or "\\" in filename or ".." in filename:
+        return False
+    if filename.startswith("."):
+        return False
+    return filename.endswith(".md") and len(filename) > len(".md")
+
+
+async def export_filename_for(db, user_id: str) -> str:
+    """Per-user export filename, DERIVED from identity — never user-chosen.
+
+    All users share one SECOND_BRAIN_PATH; a free-form filename setting would
+    let one user select (and overwrite, and leak into) another user's export.
+    The primary (oldest) account keeps the legacy `virgil.md` for existing
+    single-user integrations (OpenClaw); every other account gets a name
+    derived from its immutable id.
+    """
+    from app.central_db import get_primary_user_id
+
+    assert user_id, "export_filename_for requires a user id"
+    if user_id == await get_primary_user_id():
+        return "virgil.md"
+    return f"virgil-{user_id[:8]}.md"
+
+
+async def write_export(db, scope: str = "weekly", sections: set[str] | None = None, filename: str = "virgil.md") -> str:
+    """Generate and write the markdown export to SECOND_BRAIN_PATH/filename.
+    Returns the content.
 
     Logs success/error to sync_log table.
     """
+    assert valid_export_filename(filename), f"Unsafe export filename: {filename!r}"
     content = await export_markdown(db, scope, sections=sections)
 
     if SECOND_BRAIN_PATH:
-        path = os.path.join(SECOND_BRAIN_PATH, "virgil.md")
+        path = os.path.join(SECOND_BRAIN_PATH, filename)
         tmp = path + ".tmp"
         try:
             with open(tmp, "w", encoding="utf-8") as f:
@@ -473,14 +506,14 @@ async def write_export(db, scope: str = "weekly", sections: set[str] | None = No
         except OSError as exc:
             await db.execute(
                 "INSERT INTO sync_log (file_name, status, message) VALUES (?, 'error', ?)",
-                ("virgil.md", str(exc)),
+                (filename, str(exc)),
             )
             await db.commit()
             raise
 
     await db.execute(
         "INSERT INTO sync_log (file_name, status, message) VALUES (?, 'success', ?)",
-        ("virgil.md", f"Exported scope: {scope}"),
+        (filename, f"Exported scope: {scope}"),
     )
     await db.commit()
     return content

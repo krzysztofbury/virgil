@@ -33,8 +33,15 @@ CENTRAL_DB_PATH = os.environ.get(
 )
 USERS_DB_DIR = str(Path(CENTRAL_DB_PATH).parent / "users")
 ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS", "").split(",") if e.strip()]
-REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "true").lower() == "true"
+# Closed by default: the documented deployment is internet-facing (Cloudflare
+# Tunnel), and open registration would let anyone create accounts and burn
+# disk/LLM resources. The FIRST account can always be created (bootstrap owner
+# — see app/routers/auth.py registration_allowed()).
+REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "false").lower() == "true"
 
 # Read-only REST API (machine-to-machine). Empty key = API disabled.
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
 API_USER_EMAIL = os.environ.get("VIRGIL_API_USER_EMAIL", "").strip().lower()
+# /api/noporn returns intimate journal/relapse content — a leaked API key should
+# not expose it by default. Opt in explicitly.
+API_SENSITIVE = os.environ.get("VIRGIL_API_SENSITIVE", "false").lower() == "true"

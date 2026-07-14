@@ -20,6 +20,13 @@ else:
     os.environ["VIRGIL_API_KEY"] = "test-key-123"
     os.environ["VIRGIL_ADMIN_EMAILS"] = "test@example.com"
     os.environ["VIRGIL_SECOND_BRAIN_PATH"] = ""
+    # Hermetic tests: app/config.py setdefault-loads the developer's real .env,
+    # which may carry a live LLM key or open registration — pin both here so a
+    # test can never fire a real LLM call and the signup path always exercises
+    # the closed-by-default + bootstrap-first-user flow.
+    os.environ["VIRGIL_INTERNAL_LLM_KEY"] = ""
+    os.environ["VIRGIL_REGISTRATION_OPEN"] = "false"
+    os.environ["VIRGIL_API_SENSITIVE"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -40,17 +47,31 @@ def csrf_token(client: TestClient, path: str = "/signup") -> str:
     return match.group(1)
 
 
+def user_db_path() -> Path:
+    """Path to the single user DB file created by signup (for direct seeding in tests)."""
+    db_files = list((Path(_TMP) / "users").glob("*.db"))
+    assert len(db_files) == 1, f"Expected exactly one user DB, got {db_files}"
+    return db_files[0]
+
+
 def _complete_onboarding() -> None:
     """Mark onboarding as done directly in the (single) user DB file."""
-    users_dir = Path(_TMP) / "users"
-    db_files = list(users_dir.glob("*.db"))
-    assert len(db_files) == 1, f"Expected exactly one user DB, got {db_files}"
-    conn = sqlite3.connect(db_files[0])
+    conn = sqlite3.connect(user_db_path())
     try:
         conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('onboarding_completed', '1')")
         conn.commit()
     finally:
         conn.close()
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter():
+    """Every TestClient request shares one client IP, so the per-IP auth limit
+    (10/min) trips across unrelated tests — reset the buckets between tests."""
+    import app.rate_limit as rate_limit
+
+    rate_limit._buckets.clear()
+    yield
 
 
 @pytest.fixture(scope="session")

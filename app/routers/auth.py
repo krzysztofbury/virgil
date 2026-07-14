@@ -17,7 +17,7 @@ from app.auth import (
     validate_session,
     verify_password,
 )
-from app.central_db import create_user, get_user_by_email, get_user_by_id, update_user
+from app.central_db import count_users, create_user, get_user_by_email, get_user_by_id, update_user
 from app.config import REGISTRATION_OPEN
 from app.main import templates
 from app.user_db import create_user_db
@@ -25,14 +25,49 @@ from app.user_db import create_user_db
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# Constant-time-ish login for unknown emails: verify against this throwaway
+# hash so response timing doesn't reveal whether an account exists.
+_DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing")
+
+
+def _totp_secret_plain(stored: str | None) -> str:
+    """TOTP secrets are Fernet-encrypted in the central DB; rows written before
+    encryption existed are plaintext base32 — fall back so old MFA keeps working
+    (they re-encrypt on the next enable)."""
+    if not stored:
+        return ""
+    from app.services.encryption import decrypt
+
+    try:
+        return decrypt(stored)
+    except Exception:
+        return stored
+
+
+def _totp_secret_stored(plain: str) -> str:
+    from app.services.encryption import encrypt
+
+    return encrypt(plain)
+
+
+async def registration_allowed() -> bool:
+    """Signups are allowed when explicitly opened, or on a fresh install —
+    the very first account must always be creatable (bootstrap owner)."""
+    if REGISTRATION_OPEN:
+        return True
+    return await count_users() == 0
+
 
 # --- Signup ---
 
 
 @router.get("/signup", response_class=HTMLResponse)
 async def signup_page(request: Request):
-    if not REGISTRATION_OPEN:
-        return RedirectResponse("/login", status_code=303)
+    if not await registration_allowed():
+        return templates.TemplateResponse(
+            "auth_login.html",
+            {"request": request, "info": "Registration is closed on this server.", "registration_open": False},
+        )
 
     session_token = request.cookies.get(SESSION_COOKIE, "")
     if session_token and validate_session(session_token):
@@ -49,7 +84,7 @@ async def signup_submit(
     password: str = Form(...),
     password_confirm: str = Form(...),
 ):
-    if not REGISTRATION_OPEN:
+    if not await registration_allowed():
         return RedirectResponse("/login", status_code=303)
 
     email = email.strip().lower()
@@ -74,8 +109,24 @@ async def signup_submit(
     if existing:
         return _render_error("An account with that email already exists.")
 
-    user = await create_user(email, password, display_name)
-    await create_user_db(user["db_filename"])
+    # With registration closed we're only here via the bootstrap-first-user
+    # rule — make the INSERT itself enforce it so two concurrent first signups
+    # can't both slip through the count check.
+    user = await create_user(email, password, display_name, only_if_first=not REGISTRATION_OPEN)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+
+    try:
+        await create_user_db(user["db_filename"])
+    except Exception:
+        # Never leave an account whose database was never provisioned — it
+        # could log in but every request would fail, and the email would be
+        # permanently burned.
+        from app.central_db import delete_user
+
+        logger.exception("User DB provisioning failed for %s — rolling back account", email)
+        await delete_user(user["id"])
+        return _render_error("Could not create your account. Please try again.")
 
     token = create_session(user["id"])
     response = RedirectResponse("/onboarding", status_code=303)
@@ -92,7 +143,9 @@ async def login_page(request: Request):
     if session_token and validate_session(session_token):
         return RedirectResponse("/", status_code=303)
 
-    return templates.TemplateResponse("auth_login.html", {"request": request})
+    return templates.TemplateResponse(
+        "auth_login.html", {"request": request, "registration_open": await registration_allowed()}
+    )
 
 
 @router.post("/login")
@@ -102,18 +155,43 @@ async def login_submit(
     password: str = Form(...),
 ):
     email = username.strip().lower()
-    user = await get_user_by_email(email)
 
-    if not user or not verify_password(password, user["password_hash"]):
+    # verify_password raises on empty input — reject it up front with the same
+    # generic error instead of a 500.
+    if not password:
         return templates.TemplateResponse(
             "auth_login.html",
-            {"request": request, "error": "Invalid email or password."},
+            {
+                "request": request,
+                "error": "Invalid email or password.",
+                "registration_open": await registration_allowed(),
+            },
+        )
+
+    user = await get_user_by_email(email)
+
+    # Burn a bcrypt verify even for unknown emails so timing stays uniform.
+    password_hash = user["password_hash"] if user else _DUMMY_PASSWORD_HASH
+    password_ok = verify_password(password, password_hash)
+
+    if not user or not password_ok:
+        return templates.TemplateResponse(
+            "auth_login.html",
+            {
+                "request": request,
+                "error": "Invalid email or password.",
+                "registration_open": await registration_allowed(),
+            },
         )
 
     if not user["is_active"]:
         return templates.TemplateResponse(
             "auth_login.html",
-            {"request": request, "error": "This account has been deactivated."},
+            {
+                "request": request,
+                "error": "This account has been deactivated.",
+                "registration_open": await registration_allowed(),
+            },
         )
 
     # If MFA is enabled, redirect to MFA verification
@@ -156,10 +234,10 @@ async def mfa_setup_page(request: Request):
             {"request": request, "mfa_enabled": True, "qr_url": ""},
         )
 
-    # Generate a new TOTP secret if not already stored
-    secret = user["totp_secret"] or pyotp.random_base32()
+    # Generate a new TOTP secret if not already stored (encrypted at rest)
+    secret = _totp_secret_plain(user["totp_secret"]) or pyotp.random_base32()
     if not user["totp_secret"]:
-        await update_user(user["id"], totp_secret=secret)
+        await update_user(user["id"], totp_secret=_totp_secret_stored(secret))
 
     totp = pyotp.TOTP(secret)
     provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="Virgil")
@@ -176,7 +254,8 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
     if not user or not user["totp_secret"]:
         return RedirectResponse("/settings/mfa", status_code=303)
 
-    totp = pyotp.TOTP(user["totp_secret"])
+    secret = _totp_secret_plain(user["totp_secret"])
+    totp = pyotp.TOTP(secret)
     if not totp.verify(totp_code, valid_window=1):
         provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="Virgil")
         return templates.TemplateResponse(
@@ -185,12 +264,13 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
                 "request": request,
                 "mfa_enabled": False,
                 "provisioning_uri": provisioning_uri,
-                "secret": user["totp_secret"],
+                "secret": secret,
                 "error": "Invalid code. Please try again.",
             },
         )
 
-    await update_user(user["id"], totp_enabled=1)
+    # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
+    await update_user(user["id"], totp_enabled=1, totp_secret=_totp_secret_stored(secret))
     return RedirectResponse("/settings", status_code=303)
 
 
@@ -200,7 +280,8 @@ async def mfa_disable(request: Request, password: str = Form(...)):
     if not user:
         return RedirectResponse("/settings", status_code=303)
 
-    if not verify_password(password, user["password_hash"]):
+    # verify_password raises on empty input — treat it as a wrong password.
+    if not password or not verify_password(password, user["password_hash"]):
         return templates.TemplateResponse(
             "auth_mfa_setup.html",
             {"request": request, "mfa_enabled": True, "error": "Invalid password."},
@@ -234,7 +315,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     if not user:
         return RedirectResponse("/login", status_code=303)
 
-    totp = pyotp.TOTP(user["totp_secret"])
+    totp = pyotp.TOTP(_totp_secret_plain(user["totp_secret"]))
     if not totp.verify(totp_code, valid_window=1):
         return templates.TemplateResponse(
             "auth_mfa_verify.html",

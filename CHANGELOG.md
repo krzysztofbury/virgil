@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-07-13
+
+> **Deployment notes:** rotate any credentials that were in `.qnap.setup`; registration now
+> defaults to closed (`VIRGIL_REGISTRATION_OPEN=false`, first account always bootstraps);
+> `/api/noporn` requires `VIRGIL_API_SENSITIVE=true`; Oura webhooks must be re-enabled and —
+> behind Cloudflare Access — need a **Bypass policy for `/api/oura/webhook/*`** (Oura's
+> verification challenge and event deliveries are unauthenticated calls, HMAC-verified by the app).
+
+- **Oura webhook protocol corrected against the live OpenAPI spec**: subscription management uses `x-client-id`/`x-client-secret` headers (was Bearer — every subscribe would have been rejected); verification is a GET challenge answered with `{"challenge": ...}`; event signatures verified as HMAC-SHA256(client_secret, timestamp + body), case-insensitive hex; event sync runs as a debounced background task inside Oura's 10-second response deadline; partial subscription coverage is surfaced to the user
+- **Migration 007 no longer bricks legacy databases** — it rebuilds `llm_providers` without the provider CHECK before the claude→anthropic rename (upgrade test from a real pre-007 DB with a Claude row)
+- **Factory reset provisions a NEW database filename** and repoints the central registry before deleting the old file — recreating at the same path raced live connections (SQLite WAL unlink hazard)
+- **Markdown export filenames are derived from account identity** (primary keeps `virgil.md`, others get `virgil-{id}.md`) — user-chosen shared filenames allowed cross-user overwrite by construction
+- Nested `<form>` removed from the Automation tab (Backup Now uses `formaction`) — invalid HTML that made Backup Now submit automation settings
+- Bootstrap signup made atomic (guarded INSERT — two concurrent first signups can't both win); central account rolled back if user-DB provisioning fails
+- Login with an empty password returns the normal error instead of 500; CSRF token comparison no longer 500s on non-ASCII input; webhook JSON shape validated pre-auth (no 500s)
+- Startup migrations cover ALL users (disabled accounts no longer wake up with stale schemas)
+- `/api/training/detail` groups sets by exercise id (duplicate names no longer merge) and returns `id`
+- Central TOTP secrets Fernet-encrypted at rest (legacy plaintext migrates on next MFA enable); OAuth-state cookie gets `Secure` under HTTPS; `busy_timeout=5000` on every SQLite connection; `Retry-After` sleeps bounded to 60 s and parse-safe; `sync_log` included in JSON/CSV export
+
+### Security
+
+- **`.qnap.setup` excluded from the Docker build context** — the file can carry live deployment credentials (rotate any credentials that were in it)
+- **Registration closed by default** (`VIRGIL_REGISTRATION_OPEN=false`); the first account (bootstrap owner) can always be created
+- **Service worker no longer caches authenticated HTML** — dashboards/journals are no longer readable offline after logout
+- **`/api/noporn` gated behind `VIRGIL_API_SENSITIVE=true`** (intimate journal content is opt-in)
+- **Webhook secrets encrypted at rest**; CSRF tokens compared in constant time; login burns a dummy bcrypt verify for unknown emails (timing)
+- Session cookie moved from `SameSite=Strict` to `Lax` so the Oura OAuth callback keeps its session (state-changing routes remain CSRF-protected)
+
+### Fixed
+
+- **Factory reset** no longer strands the account: the per-user DB is recreated and migrated, and the user is sent back to onboarding (previously: deleted DB + redirect to nonexistent `/setup`)
+- **Multipart CSRF** — medical-PDF onboarding uploads were always rejected 403 (`parse_qs` cannot parse multipart); upload limits unified (20 MB)
+- **Multi-user Oura webhooks** — per-user callback URLs (`/api/oura/webhook/{id}`) routed via a central registry instead of the retired global DB; subscriptions now register the handled data types (was `tag.updated`, which the handler ignored)
+- **Partial Oura sync no longer erases data** — columns from failed endpoints keep their stored values instead of being overwritten with NULLs
+- **Onboarding's suggested experiment is actually created** — targets go to `experiment_weeks` (+ a default activity type); previously the INSERT hit nonexistent columns and was silently swallowed
+- **`llm_providers` CHECK constraint removed** (migration 012) — unblocks `anthropic`/`mistral`/`groq`/`ollama` providers and migration 007's rename
+- **Internal LLM fallback recognized everywhere** — Daily A.N.D.Y. button and experiment summaries now work with only `VIRGIL_INTERNAL_LLM_KEY` set (`llm_available()`)
+- **PWA icons committed** — the `Icon?` gitignore rule swallowed `app/static/icons/` on case-insensitive filesystems, breaking SW install on fresh clones
+- **Backup Now** reports the real outcome (was an HTMX fire-and-forget that showed "started" even on failure)
+- Deleting a training exercise archives it instead of erasing all its historical entries and PBs (migration 013)
+- Empty and negative workout submissions are rejected server-side
+- Bloodwork: out-of-range flags computed from reference ranges (manual override still wins); unknown marker ids no longer 500
+- Dashboard radar only plots complete life-score assessments (missing areas rendered as fake zeros)
+- Experiments: inverted weekly targets normalized at creation; completed/abandoned experiments can be reopened; start date prefilled
+
+### Added
+
+- **Per-user markdown export filename** (Settings > Data) — multi-user deployments no longer overwrite each other's `virgil.md`
+- **Scheduled morning briefing** — the existing Automation toggle now actually generates the briefing once per day (after 06:00, 1 h failure backoff)
+- **`/healthz` endpoint** (503 while any user DB failed startup migrations) — wired into the Docker healthcheck
+- JSON/CSV export now includes `user_profiles`, `experiment_weeks`, `experiment_summaries`, `daily_briefings`, `exercise_library`, `app_settings`
+- `/api/training/detail` batches entry queries (N+1 removed)
+- **CI/CD pipeline**: GitHub Actions (`release.yml`) builds and pushes `ghcr.io/krzysztofbury/virgil`
+  (`latest` + per-commit `sha-<short>` + semver tags) after a full lint/test gate; `watchtower`
+  service on the NAS auto-deploys new images (label-scoped, 5-min poll, healthcheck-gated).
+  No more building on the NAS or QSync-ing the repo. `ci.yml` now covers PRs/feature branches only.
+
 ## [0.2.0] - 2026-03-21
 
 ### Added

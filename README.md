@@ -49,7 +49,7 @@ VIRGIL_SECOND_BRAIN_PATH="/path/to/second-brain/0 - LLM/ZYCIE/" \
   uv run python -m app
 ```
 
-On first launch, navigate to `http://localhost:8123` — you'll be redirected to `/setup` to create your account (email + password).
+On first launch, navigate to `http://localhost:8123` — sign up at `/signup` (email + password) and complete the onboarding wizard. Registration is closed by default, but the **first** account can always be created (bootstrap owner); open it for more users with `VIRGIL_REGISTRATION_OPEN=true`.
 
 `VIRGIL_ENV` defaults to `local` which enables hot reload. Set to `prod` to disable.
 
@@ -97,26 +97,43 @@ cp .env.example .env
 # Edit .env — fill in CLOUDFLARE_TUNNEL_TOKEN (required) and API keys (optional)
 ```
 
-**Step 3: Sync and deploy**
+**Step 3: First deploy (one-time)**
 
-Clone or sync the project to your NAS, then deploy via SSH:
+Production images are built by GitHub Actions on every push to `main` and pushed
+to GHCR (`ghcr.io/krzysztofbury/virgil`). The NAS only needs the compose file,
+`.env`, and a `data/` directory — no repo checkout, no building on the NAS:
 
 ```bash
 ssh <user>@<NAS_IP>
-cd /path/to/virgil
-mkdir -p data
-docker build -t virgil:latest .
+mkdir -p /path/to/virgil/data && cd /path/to/virgil
+# copy docker-compose.yml + .env here (once — they rarely change)
+docker login ghcr.io          # PAT with read:packages — needed if the package is private
+docker compose pull
 docker compose up -d
 ```
 
-> **QNAP Container Station limitation**: Container Station UI doesn't support `build:` or `${VAR}` interpolation in docker-compose. Build the image via SSH first, then manage in Container Station. The compose file uses `image: virgil:latest` for compatibility.
+> **QNAP Container Station limitation**: the Container Station UI doesn't support
+> `${VAR}` interpolation in docker-compose. Run `docker compose` via SSH; the
+> running containers then show up in Container Station normally.
 
-**Rebuilding after code changes:**
+**Deploys after that are automatic**: push to `main` → Actions runs lint+tests →
+builds the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
+GHCR → the `watchtower` container on the NAS notices the new `:latest` within
+~5 minutes and recreates `virgil` (gated by the `/healthz` healthcheck).
+
+**Force an immediate update:**
 
 ```bash
-ssh <user>@<NAS_IP>
-cd /path/to/virgil
-docker build -t virgil:latest . && docker compose up -d
+docker compose pull virgil && docker compose up -d virgil
+```
+
+**Rollback** (every commit has its own image tag):
+
+```bash
+docker pull ghcr.io/krzysztofbury/virgil:sha-<short>
+docker tag ghcr.io/krzysztofbury/virgil:sha-<short> ghcr.io/krzysztofbury/virgil:latest
+docker compose up -d virgil
+# then push a revert commit — otherwise watchtower re-applies the next :latest
 ```
 
 ## Configuration
@@ -132,9 +149,12 @@ All configuration via environment variables:
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL (for OAuth callbacks, webhook URLs) |
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for encrypting secrets |
 | `VIRGIL_ADMIN_EMAILS` | (empty) | Comma-separated admin emails (always have admin role) |
-| `VIRGIL_REGISTRATION_OPEN` | `true` | Allow new user signups (`true`/`false`) |
+| `VIRGIL_REGISTRATION_OPEN` | `false` | Allow new user signups. The first account (bootstrap owner) can always be created |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
+| `VIRGIL_API_KEY` | (empty) | Read-only REST API key (empty = API disabled) |
+| `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
 Port is always **8123**.
@@ -151,7 +171,7 @@ Overview with weekly completion stats, life score radar chart, Oura vitals, 7-da
 - A.N.D.Y. AI generation — uses configured LLM to suggest daily tasks based on goals, training, and weekly context
 - Saturday body measurements (weight, arm, waist, hips, thighs)
 - Markdown notes with edit/preview toggle
-- Per-habit streak counters and 12-week completion heatmap
+- Per-habit streak counters and 7-day completion heatmap
 - Swipe left/right to navigate between days (mobile)
 - Arrow keys to navigate between days (desktop)
 
@@ -168,13 +188,13 @@ Overview with weekly completion stats, life score radar chart, Oura vitals, 7-da
 - Session history with expandable details (including duration column)
 - Rest timer with presets (fixed-position bar above mobile nav)
 
-### Feniks (`/feniks`)
-90-day personal development program tracker (hidden by default — enable in Settings > General > Modules):
+### No Porn (`/feniks`)
+Recovery tracker (hidden by default — enable in Settings > General > Modules):
 - **Streak hero** — days clean counter with progress bar
-- **Progress graph** — streak timeline with red dots at relapse points
+- **Weekly clean rate** — a slip doesn't erase the week
 - **Journal** — daily emotional processing (emotions, triggers, thoughts, desired feelings, coping strategies)
 - **Pleasures** — daily two-pleasures log
-- **Milestones** — 90-day checklist grouped by week
+- **Relapse reporting** — reset events with notes
 
 ### Oura (`/oura`)
 Daily and monthly Oura Ring metrics — sleep, readiness, activity, HRV, stress, and more.
@@ -216,7 +236,7 @@ Five-tab settings page:
 ## UI/UX
 
 ### Dark/Light Theme
-Toggle via the sun/moon button in the navigation bar. Theme preference is saved to localStorage (instant, no FOUC) and synced to the server for cross-device persistence. All charts re-render with theme-appropriate colors.
+Toggle via the sun/moon button in the navigation bar. Theme preference is saved to localStorage (instant, no FOUC) and also stored server-side per user. All charts re-render with theme-appropriate colors.
 
 ### Keyboard Shortcuts
 Press `?` to see the shortcut overlay. Navigation uses a `g` prefix:
@@ -243,8 +263,8 @@ On mobile, swipe left/right on the daily page to navigate between days. Uses `da
 Virgil is installable as a PWA. The service worker provides:
 - **Cache-first** for `/static/` assets
 - **Stale-while-revalidate** for CDN resources (HTMX, Alpine.js, Chart.js, Lucide, Flatpickr)
-- **Network-first** for pages, with offline fallback page
-- **Network-only** for POST requests (passthrough)
+- **Network-only** for pages — authenticated HTML is never cached (privacy), offline shows the fallback page
+- **Network-only** for POST requests (passthrough) — logging data requires a connection
 
 ## Security
 
@@ -258,7 +278,7 @@ Virgil is installable as a PWA. The service worker provides:
 Request processing order:
 1. **Security Headers** — CSP (including `worker-src 'self'`, `'unsafe-eval'` for Alpine.js), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 2. **Rate Limiting** — 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window)
-3. **Authentication** — Cookie-based session verification (public paths: login, setup, MFA, offline, service worker, Oura webhook)
+3. **Authentication** — Cookie-based session verification (public paths: login, signup, MFA, offline, healthz, service worker, per-user Oura webhooks)
 4. **Feature Flags** — Loads `feature_*` settings from `app_settings` into `request.state.features` for templates and route guards
 5. **CSRF Protection** — Double-submit cookie on all POST forms (exempt: Oura webhook endpoint)
 
@@ -287,12 +307,22 @@ Current migrations:
 | 004 | `add_webhook_columns` | Adds `webhook_secret` column to `integrations` table |
 | 005 | `feature_flags` | Seeds `feature_feniks=0` in `app_settings` (Feniks hidden by default) |
 | 006 | `training_overhaul` | Adds `duration` column to entries, translates exercises to English, adds Stretching section |
+| 007 | `litellm_model_strings` | Converts `llm_providers` rows to LiteLLM format (`anthropic/...`, `gemini/...`) |
+| 008 | `onboarding` | Creates `user_profiles` table + `onboarding_completed` setting |
+| 009 | `exercise_library` | Creates the user-editable exercise picker dictionary |
+| 010 | `rename_feniks_flag` | Renames `feature_feniks` to `feature_no_porn` |
+| 011 | `exercise_metric` | Per-exercise `metric` ('reps' vs 'time') so timed holds don't pollute volume KPIs |
+| 012 | `llm_provider_no_check` | Rebuilds `llm_providers` without the provider CHECK (unblocks anthropic/mistral/groq/ollama) |
+| 013 | `training_exercise_archive` | Adds `training_exercises.archived` — deleting an exercise keeps history |
 
 ## Data Model
 
-### Core Tables
+### Central Database (`virgil-central.db`)
+- `users` — identities, bcrypt password hashes, roles, TOTP secrets, per-user DB filenames
+- `webhook_routes` — opaque webhook ids → user mapping for public Oura callbacks
+
+### Per-User Tables
 - `schema_migrations` — applied migration versions
-- `auth_users` — authentication credentials + TOTP secrets
 - `app_settings` — key-value configuration store (includes `feature_*` flags for optional modules)
 - `daily_logs` — daily tracking entries
 - `body_measurements` — Saturday weigh-ins
@@ -329,14 +359,16 @@ Virgil connects to the Oura API v2 via OAuth2 for automatic daily health data sy
 
 ### Webhook (Real-time Sync)
 1. In Settings > Integrations, click "Enable Webhook" on the Oura card
-2. Virgil registers a webhook subscription with the Oura API automatically
+2. Virgil registers one subscription per handled `(event_type, data_type)` pair with the Oura API, using a **per-user callback URL** (`/api/oura/webhook/{id}`) that routes events to the right user's database
 3. Oura sends a verification challenge — Virgil responds to complete registration
-4. Subsequent data events trigger a 2-day sync window with HMAC-SHA256 signature verification
-5. To remove, click "Disable Webhook" — Virgil deletes the subscription from Oura
+4. Subsequent data events trigger a 2-day sync window with HMAC-SHA256 signature verification against the user's encrypted webhook secret
+5. To remove, click "Disable Webhook" — Virgil deletes its subscriptions from Oura
 
 **Note**: Your `VIRGIL_BASE_URL` must be publicly reachable for Oura to deliver webhook events.
 
-Supported event types: `daily_sleep`, `daily_readiness`, `daily_activity`, `daily_stress`, `sleep`, `workout`.
+**Cloudflare Access**: if the site sits behind Access, add a **Bypass policy for the path `/api/oura/webhook/*`** — Oura's verification challenge (GET) and event deliveries (POST) are unauthenticated server-to-server calls and get bounced to the Access login page otherwise. The endpoint authenticates on its own: opaque per-user callback ids plus HMAC-SHA256 signatures.
+
+Supported data types: `daily_sleep`, `daily_readiness`, `daily_activity`, `daily_stress`, `sleep`, `workout` (event types `create` + `update`).
 
 ### What Gets Synced
 Daily data is stored in `oura_daily` (per-day) and aggregated into `oura_monthly` (averages):
@@ -347,7 +379,7 @@ Daily data is stored in `oura_daily` (per-day) and aggregated into `oura_monthly
 
 ## Markdown Export
 
-Generates a single `virgil.md` file in the second-brain directory, scoped by time range:
+Generates a single markdown file in the second-brain directory (per-user filename, default `virgil.md` — configurable in Settings > Data so multiple users never overwrite each other), scoped by time range:
 
 | Scope | Content |
 |---|---|
@@ -381,7 +413,7 @@ virgil/
 │   │   ├── 005_feature_flags.py
 │   │   └── 006_training_overhaul.py
 │   ├── routers/
-│   │   ├── auth.py           # /login, /setup, /logout, /mfa routes
+│   │   ├── auth.py           # /login, /signup, /logout, /mfa routes
 │   │   ├── dashboard.py      # / route + sparkline data + /offline
 │   │   ├── daily.py          # /daily routes + A.N.D.Y. AI generation
 │   │   ├── training.py       # /training routes + exercise CRUD + KPIs
@@ -407,7 +439,7 @@ virgil/
 │   ├── templates/
 │   │   ├── base.html         # Layout with nav, theme toggle, SW registration
 │   │   ├── offline.html      # Standalone offline fallback page
-│   │   ├── auth_*.html       # Login, setup, MFA templates
+│   │   ├── auth_*.html       # Login, signup, MFA templates
 │   │   ├── partials/         # HTMX partial templates
 │   │   └── *.html            # Page templates
 │   └── static/

@@ -210,13 +210,24 @@
 
 <!-- Actions -->
 <div class="exp-actions">
-    <form action="/experiments/{{ experiment.id }}/complete" method="post">
+    <form action="/experiments/{{ experiment.id }}/complete" method="post" onsubmit="return confirm('Mark this experiment as completed? You can reopen it later.')">
         <input type="hidden" name="new_status" value="completed">
         <button type="submit" class="btn btn-outline">Mark Completed</button>
     </form>
-    <form action="/experiments/{{ experiment.id }}/complete" method="post">
+    <form action="/experiments/{{ experiment.id }}/complete" method="post" onsubmit="return confirm('Abandon this experiment? You can reopen it later.')">
         <input type="hidden" name="new_status" value="abandoned">
         <button type="submit" class="btn btn-secondary">Abandon</button>
+    </form>
+    <form action="/experiments/{{ experiment.id }}/delete" method="post" onsubmit="return confirm('Delete this experiment and all its data?')">
+        <button type="submit" class="btn btn-danger">Delete</button>
+    </form>
+</div>
+{% else %}
+<!-- Non-active experiments can be reopened (undo a mistaken Complete/Abandon) -->
+<div class="exp-actions">
+    <form action="/experiments/{{ experiment.id }}/complete" method="post">
+        <input type="hidden" name="new_status" value="active">
+        <button type="submit" class="btn btn-outline">Reopen</button>
     </form>
     <form action="/experiments/{{ experiment.id }}/delete" method="post" onsubmit="return confirm('Delete this experiment and all its data?')">
         <button type="submit" class="btn btn-danger">Delete</button>

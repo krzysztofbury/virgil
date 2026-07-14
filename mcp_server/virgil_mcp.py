@@ -90,5 +90,21 @@ def get_training(days: int = 7) -> dict:
     return _get("/api/training", params={"range": days})
 
 
+@mcp.tool()
+def get_training_detail(days: int = 7) -> dict:
+    """Full per-set training detail for the last N days (1-90): every session broken into
+    exercises and sets (reps+weight, or weight+seconds for timed lifts like carries/holds).
+    Use when the volume summary from get_training isn't enough and you need what was actually done."""
+    return _get("/api/training/detail", params={"range": days})
+
+
+@mcp.tool()
+def get_noporn(days: int = 30) -> dict:
+    """No-porn (Feniks) detail for the last N days (1-365): config, streak, current-week clean
+    rate, plus relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and
+    logged pleasures. Use this to see WHY relapses happened — get_streaks only gives the count."""
+    return _get("/api/noporn", params={"range": days})
+
+
 if __name__ == "__main__":
     mcp.run()

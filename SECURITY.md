@@ -24,20 +24,23 @@ This information will help us triage your report more quickly.
 
 ## Security Model
 
-Virgil is a **single-user, self-hosted** application. The threat model assumes:
+Virgil is a **multi-user, self-hosted** application. The threat model assumes:
 
 - The application runs on a trusted network (home NAS, local machine) or behind a reverse proxy (Cloudflare Tunnel)
-- A single authenticated user has full access to all data
-- External attack surface is limited to the login page and Oura webhook endpoint
+- Each user's data lives in an isolated per-user SQLite database; the central registry holds only identities
+- Registration is **closed by default** (`VIRGIL_REGISTRATION_OPEN=false`); the first account (bootstrap owner) can always be created
+- External attack surface is limited to the login/signup pages, the health endpoint, and per-user HMAC-verified Oura webhook callbacks
 
 ### Key Security Features
 
-- **Authentication**: Email + password with bcrypt hashing, optional TOTP MFA
-- **Session management**: Signed cookie sessions via `itsdangerous` (7-day expiry)
-- **CSRF protection**: Double-submit cookie on all POST forms
+- **Authentication**: Email + password with bcrypt hashing (SHA-256 pre-hash), optional TOTP MFA
+- **Session management**: Signed cookie sessions via `itsdangerous` (7-day expiry, HttpOnly, SameSite=Lax so OAuth callbacks work; all state changes are CSRF-protected)
+- **CSRF protection**: Double-submit cookie on all POST forms (urlencoded and multipart)
 - **Rate limiting**: Per-IP sliding window (120/min general, 10/min auth)
 - **Encryption at rest**: Fernet encryption for OAuth tokens, LLM API keys, and webhook secrets
+- **Sensitive API scope**: `/api/noporn` (intimate journal content) requires explicit `VIRGIL_API_SENSITIVE=true`
 - **Security headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **Privacy-safe PWA**: the service worker never caches authenticated HTML — only static assets and the public offline page
 - **Webhook verification**: HMAC-SHA256 signature verification on Oura webhook payloads
 - **Input validation**: Server-side validation with length limits on all text fields
 

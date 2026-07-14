@@ -1,6 +1,9 @@
 .env
 .env.*
 !.env.example
+# Deployment configs can hold live credentials — never ship them to the build context.
+.qnap.setup
+*.setup
 data/
 .venv/
 .claude/
@@ -12,6 +15,7 @@ data/
 *.tmp
 .git/
 .gitignore
+.github/
 assets/
 TODO.md
 README.md

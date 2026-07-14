@@ -12,7 +12,9 @@ _db: aiosqlite.Connection | None = None
 
 # Initial schema from migration 001. See app/migrations/ for the current schema.
 # Migrations add: experiment_activity_types.source_match (003),
-# integrations.webhook_secret (004), app_settings.feature_no_porn (005/010).
+# integrations.webhook_secret (004), app_settings.feature_no_porn (005/010),
+# llm_providers rebuilt without provider CHECK (012),
+# training_exercises.archived (013).
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS daily_logs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -279,7 +281,7 @@ CREATE TABLE IF NOT EXISTS oura_daily (
 
 CREATE TABLE IF NOT EXISTS llm_providers (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    provider TEXT NOT NULL CHECK(provider IN ('claude','openai','gemini')),
+    provider TEXT NOT NULL,
     api_key_enc TEXT NOT NULL,
     model TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 0,

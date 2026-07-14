@@ -14,12 +14,43 @@ router = APIRouter()
 
 SECTION_ORDER = ["Warmup", "Core", "Cardio", "Stretching"]
 
+# Server-side sanity bounds — the client can send anything.
+MAX_SETS_PER_EXERCISE = 10
+REPS_MAX = 1000
+WEIGHT_KG_MAX = 1000.0
+DURATION_MINUTES_MAX = 1440.0
+DURATION_SECONDS_MAX = 86400.0
+
+
+def _parse_int_in_range(raw, minimum: int, maximum: int) -> int | None:
+    """Parse a form value as int within [minimum, maximum]; None if invalid."""
+    try:
+        value = int(raw)
+    except (ValueError, TypeError):
+        return None
+    if value < minimum or value > maximum:
+        return None
+    return value
+
+
+def _parse_float_in_range(raw, minimum: float, maximum: float) -> float | None:
+    """Parse a form value as float within [minimum, maximum]; None if invalid."""
+    try:
+        value = float(raw)
+    except (ValueError, TypeError):
+        return None
+    if value < minimum or value > maximum:
+        return None
+    return value
+
 
 @router.get("/training", response_class=HTMLResponse)
 async def training_page(request: Request):
     db = get_user_db_from_request(request)
 
-    exercises = await db.execute_fetchall("SELECT * FROM training_exercises ORDER BY display_order")
+    # Archived exercises stay out of the protocol/log forms but keep their
+    # historical entries (session history and PBs join by id regardless).
+    exercises = await db.execute_fetchall("SELECT * FROM training_exercises WHERE archived = 0 ORDER BY display_order")
     exercises = [dict(e) for e in exercises]
 
     # Group exercises by section, maintaining SECTION_ORDER
@@ -134,21 +165,16 @@ async def save_session(request: Request):
     session_date = form.get("date", date.today().isoformat())
     if not valid_date(session_date):
         return RedirectResponse("/training", status_code=303)
-    duration = form.get("duration_minutes") or None
-    try:
-        duration_int = int(duration) if duration else None
-    except (ValueError, TypeError):
-        duration_int = None
+    duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
     notes = truncate(form.get("session_notes", ""), 2000)
 
-    cursor = await db.execute(
-        "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, ?, ?)",
-        (session_date, duration_int, notes),
+    # Collect validated entries FIRST — the session row is only created when the
+    # workout actually contains something, so a stray submit can't pollute
+    # history/KPIs with empty sessions. Out-of-range values are skipped.
+    exercises = await db.execute_fetchall(
+        "SELECT id, section, metric FROM training_exercises WHERE archived = 0 ORDER BY display_order"
     )
-    session_id = cursor.lastrowid
-
-    # Load exercises with their sections + metric
-    exercises = await db.execute_fetchall("SELECT id, section, metric FROM training_exercises ORDER BY display_order")
+    entries: list[tuple] = []  # (exercise_id, set_number, reps, weight, duration)
 
     for ex in exercises:
         ex_id = ex["id"]
@@ -157,77 +183,68 @@ async def save_session(request: Request):
 
         if section in ("Warmup", "Stretching"):
             # Single entry with duration
-            dur_key = f"exercise_{ex_id}_duration"
-            done_key = f"exercise_{ex_id}_done"
-            dur_val = form.get(dur_key)
-            done_val = form.get(done_key)
+            dur_val = form.get(f"exercise_{ex_id}_duration")
+            done_val = form.get(f"exercise_{ex_id}_done")
             if dur_val or done_val:
-                try:
-                    dur_float = float(dur_val) if dur_val else None
-                except (ValueError, TypeError):
-                    dur_float = None
-                await db.execute(
-                    "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
-                    "VALUES (?, ?, 1, NULL, NULL, ?)",
-                    (session_id, ex_id, dur_float),
-                )
+                dur_float = _parse_float_in_range(dur_val, 0.0, DURATION_MINUTES_MAX) if dur_val else None
+                if dur_val and dur_float is None and not done_val:
+                    continue
+                entries.append((ex_id, 1, None, None, dur_float))
 
         elif section == "Core" and metric == "time":
             # Weighted hold/carry: weight + seconds (reps NULL → excluded from volume/reps)
-            for set_num in range(1, 11):
-                sec_key = f"exercise_{ex_id}_set_{set_num}_seconds"
-                weight_key = f"exercise_{ex_id}_set_{set_num}_weight"
-                sec_val = form.get(sec_key)
-                weight_val = form.get(weight_key)
-                if sec_val or weight_val:
-                    try:
-                        sec_float = float(sec_val) if sec_val else None
-                        weight_float = float(weight_val) if weight_val else None
-                    except (ValueError, TypeError):
-                        continue
-                    await db.execute(
-                        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
-                        "VALUES (?, ?, ?, NULL, ?, ?)",
-                        (session_id, ex_id, set_num, weight_float, sec_float),
-                    )
+            for set_num in range(1, MAX_SETS_PER_EXERCISE + 1):
+                sec_val = form.get(f"exercise_{ex_id}_set_{set_num}_seconds")
+                weight_val = form.get(f"exercise_{ex_id}_set_{set_num}_weight")
+                if not sec_val and not weight_val:
+                    continue
+                sec_float = _parse_float_in_range(sec_val, 0.0, DURATION_SECONDS_MAX) if sec_val else None
+                weight_float = _parse_float_in_range(weight_val, 0.0, WEIGHT_KG_MAX) if weight_val else None
+                if sec_float is None and weight_float is None:
+                    continue
+                entries.append((ex_id, set_num, None, weight_float, sec_float))
 
         elif section == "Core":
             # Multi-set: reps + weight
-            for set_num in range(1, 11):
-                reps_key = f"exercise_{ex_id}_set_{set_num}_reps"
-                weight_key = f"exercise_{ex_id}_set_{set_num}_weight"
-                reps_val = form.get(reps_key)
-                weight_val = form.get(weight_key)
-                if reps_val:
-                    try:
-                        reps_int = int(reps_val)
-                        weight_float = float(weight_val) if weight_val else None
-                    except (ValueError, TypeError):
-                        continue
-                    await db.execute(
-                        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) "
-                        "VALUES (?, ?, ?, ?, ?)",
-                        (session_id, ex_id, set_num, reps_int, weight_float),
-                    )
+            for set_num in range(1, MAX_SETS_PER_EXERCISE + 1):
+                reps_val = form.get(f"exercise_{ex_id}_set_{set_num}_reps")
+                if not reps_val:
+                    continue
+                reps_int = _parse_int_in_range(reps_val, 1, REPS_MAX)
+                if reps_int is None:
+                    continue
+                weight_val = form.get(f"exercise_{ex_id}_set_{set_num}_weight")
+                weight_float = _parse_float_in_range(weight_val, 0.0, WEIGHT_KG_MAX) if weight_val else None
+                entries.append((ex_id, set_num, reps_int, weight_float, None))
 
         elif section == "Cardio":
             # Multi-set: rounds + duration
-            for set_num in range(1, 11):
-                rounds_key = f"exercise_{ex_id}_set_{set_num}_reps"
-                dur_key = f"exercise_{ex_id}_set_{set_num}_duration"
-                rounds_val = form.get(rounds_key)
-                dur_val = form.get(dur_key)
-                if rounds_val or dur_val:
-                    try:
-                        rounds_int = int(rounds_val) if rounds_val else None
-                        dur_float = float(dur_val) if dur_val else None
-                    except (ValueError, TypeError):
-                        continue
-                    await db.execute(
-                        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
-                        "VALUES (?, ?, ?, ?, NULL, ?)",
-                        (session_id, ex_id, set_num, rounds_int, dur_float),
-                    )
+            for set_num in range(1, MAX_SETS_PER_EXERCISE + 1):
+                rounds_val = form.get(f"exercise_{ex_id}_set_{set_num}_reps")
+                dur_val = form.get(f"exercise_{ex_id}_set_{set_num}_duration")
+                if not rounds_val and not dur_val:
+                    continue
+                rounds_int = _parse_int_in_range(rounds_val, 1, REPS_MAX) if rounds_val else None
+                dur_float = _parse_float_in_range(dur_val, 0.0, DURATION_MINUTES_MAX) if dur_val else None
+                if rounds_int is None and dur_float is None:
+                    continue
+                entries.append((ex_id, set_num, rounds_int, None, dur_float))
+
+    if not entries and not notes and duration_int is None:
+        # Nothing was logged — don't create an empty session.
+        return RedirectResponse("/training", status_code=303)
+
+    cursor = await db.execute(
+        "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, ?, ?)",
+        (session_date, duration_int, notes),
+    )
+    session_id = cursor.lastrowid
+
+    await db.executemany(
+        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
+        "VALUES (?, ?, ?, ?, ?, ?)",
+        [(session_id, ex_id, set_num, reps, weight, duration) for ex_id, set_num, reps, weight, duration in entries],
+    )
 
     await db.commit()
     return RedirectResponse("/training", status_code=303)
@@ -305,9 +322,18 @@ async def edit_exercise(exercise_id: int, request: Request):
 
 @router.post("/training/exercise/{exercise_id}/delete")
 async def delete_exercise(request: Request, exercise_id: int):
+    """Archive an exercise that has history; hard-delete only unused ones.
+
+    Hard-deleting used to cascade through every historical training entry —
+    one click silently destroyed months of workout history and PBs.
+    """
     db = get_user_db_from_request(request)
-    # Delete entries referencing this exercise first
-    await db.execute("DELETE FROM training_entries WHERE exercise_id = ?", (exercise_id,))
-    await db.execute("DELETE FROM training_exercises WHERE id = ?", (exercise_id,))
+    entry_rows = await db.execute_fetchall(
+        "SELECT COUNT(*) AS n FROM training_entries WHERE exercise_id = ?", (exercise_id,)
+    )
+    if entry_rows[0]["n"] > 0:
+        await db.execute("UPDATE training_exercises SET archived = 1 WHERE id = ?", (exercise_id,))
+    else:
+        await db.execute("DELETE FROM training_exercises WHERE id = ?", (exercise_id,))
     await db.commit()
     return RedirectResponse("/training", status_code=303)
