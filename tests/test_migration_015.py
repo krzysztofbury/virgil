@@ -97,3 +97,34 @@ def test_migration_015_backfills_and_drops(tmp_path):
     assert lib["builtin"] == 1
     assert lib["archived"] == 0
     assert entry_after["value"] == 45
+
+
+def test_migration_015_crash_retry_still_backfills(tmp_path):
+    """ALTER TABLE ADD COLUMN autocommits before the data steps commit — a crash
+    in between leaves the new columns present with the data steps undone. The
+    retry must still backfill `value` and flag builtin rows, not skip them."""
+
+    async def scenario():
+        db = await _legacy_db(tmp_path)
+        try:
+            # Simulate the crash window: columns added (committed), data steps lost.
+            await db.execute("ALTER TABLE experiment_entries ADD COLUMN value INTEGER NOT NULL DEFAULT 0")
+            await db.execute("ALTER TABLE exercise_library ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0")
+            await db.commit()
+
+            mod = importlib.import_module("app.migrations.015_general_experiments")
+            await mod.up(db)
+            await db.commit()
+
+            entry = dict((await db.execute_fetchall("SELECT * FROM experiment_entries"))[0])
+            entry_cols = {r["name"] for r in await db.execute_fetchall("PRAGMA table_info(experiment_entries)")}
+            lib = dict((await db.execute_fetchall("SELECT * FROM exercise_library"))[0])
+            return entry, entry_cols, lib
+        finally:
+            await db.close()
+
+    entry, entry_cols, lib = asyncio.run(scenario())
+    assert entry["value"] == 45, "crash-retry must still backfill from duration_minutes"
+    assert "duration_minutes" not in entry_cols
+    assert lib["builtin"] == 1, "crash-retry must still flag seeded rows as builtin"
+    assert lib["archived"] == 0

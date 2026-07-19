@@ -186,8 +186,11 @@ async def library_update(
         sets_val = None
 
     db = get_user_db_from_request(request)
+    # OR IGNORE mirrors library_add: a rename colliding with UNIQUE(category, name)
+    # must no-op instead of raising a 500.
     await db.execute(
-        "UPDATE exercise_library SET name = ?, section = ?, sets = ?, reps = ?, notes = ? WHERE id = ? AND builtin = 0",
+        "UPDATE OR IGNORE exercise_library SET name = ?, section = ?, sets = ?, reps = ?, notes = ? "
+        "WHERE id = ? AND builtin = 0",
         (name, section, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300), entry_id),
     )
     await db.commit()

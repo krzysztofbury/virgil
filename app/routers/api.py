@@ -181,6 +181,11 @@ async def api_experiments_active(db: ApiDb):
                 (exp["id"],),
             )
         ]
+        # Per-metric weeks are Monday-aligned (same window the web grid and
+        # per-metric targets use) — NOT the legacy start-anchored week_window
+        # that the minutes fields keep for backward compatibility.
+        cal_week_start = today - timedelta(days=today.weekday())
+        cal_week_end = cal_week_start + timedelta(days=6)
         metrics = []
         for mr in metric_rows:
             m = dict(mr)
@@ -195,7 +200,9 @@ async def api_experiments_active(db: ApiDb):
                     "target_value": m["target_value"],
                     "target_period": m["target_period"],
                     "logged_today": _metric_logged(m["kind"], mine, today_s, today_s),
-                    "logged_week": _metric_logged(m["kind"], mine, week_start.isoformat(), week_end.isoformat()),
+                    "logged_week": _metric_logged(
+                        m["kind"], mine, cal_week_start.isoformat(), cal_week_end.isoformat()
+                    ),
                     "logged_total": _metric_logged(m["kind"], mine, start.isoformat(), end.isoformat()),
                 }
             )
@@ -236,23 +243,35 @@ async def api_log_entry(experiment_id: int, payload: ApiEntryIn, db: ApiDb):
     if exp_rows[0]["status"] != "active":
         raise HTTPException(status_code=409, detail="Experiment is not active")
 
+    metric_rows = await db.execute_fetchall(
+        "SELECT * FROM experiment_activity_types WHERE experiment_id = ? ORDER BY display_order",
+        (experiment_id,),
+    )
     if isinstance(payload.metric, int) or (isinstance(payload.metric, str) and payload.metric.isdigit()):
-        metric_rows = await db.execute_fetchall(
-            "SELECT * FROM experiment_activity_types WHERE id = ? AND experiment_id = ?",
-            (int(payload.metric), experiment_id),
-        )
+        wanted_id = int(payload.metric)
+        matches = [dict(m) for m in metric_rows if m["id"] == wanted_id]
     else:
-        metric_rows = await db.execute_fetchall(
-            "SELECT * FROM experiment_activity_types WHERE experiment_id = ? AND LOWER(name) = LOWER(?)",
-            (experiment_id, payload.metric.strip()),
-        )
-    if not metric_rows:
+        # Python casefold, not SQL LOWER(): SQLite lowercases ASCII only, which
+        # breaks case-insensitive matching for Polish metric names ("Medytacja").
+        wanted = payload.metric.strip().casefold()
+        matches = [dict(m) for m in metric_rows if m["name"].casefold() == wanted]
+    if not matches:
         raise HTTPException(status_code=404, detail="Metric not found in this experiment")
-    metric = dict(metric_rows[0])
+    metric = matches[0]  # deterministic: first by display_order
 
     entry_date = payload.date or date.today().isoformat()
     if not valid_date(entry_date):
         raise HTTPException(status_code=422, detail="Invalid date (expected YYYY-MM-DD)")
+    # Reject out-of-window dates: the entry would be invisible in the grid and
+    # all progress windows — a silent success an MCP client can't notice.
+    exp = dict(exp_rows[0])
+    exp_start = date.fromisoformat(exp["start_date"])
+    exp_end = exp_start + timedelta(weeks=exp["num_weeks"]) - timedelta(days=1)
+    if not (exp_start.isoformat() <= entry_date <= exp_end.isoformat()):
+        raise HTTPException(
+            status_code=422,
+            detail=f"Date {entry_date} outside the experiment window ({exp_start} – {exp_end})",
+        )
     value = clamp_metric_value(metric["kind"], payload.value)
     if value is None:
         raise HTTPException(

@@ -34,6 +34,8 @@ PUBLIC_PATHS = frozenset(
         "/api/oura/today",
         "/api/habits",
         "/api/experiments/active",
+        # Inventory entry only (tests assert every API route is enumerated here);
+        # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
         "/api/experiments/{experiment_id}/entries",
         "/api/training",
         "/api/training/detail",
@@ -43,9 +45,11 @@ PUBLIC_PATHS = frozenset(
 # /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
 # HMAC signature inside the handler, never via session cookies.
 PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
-# Parametrized API routes can't exact-match a request path — matched as
-# (prefix, suffix) pairs. The route itself still enforces X-API-Key auth.
-PUBLIC_PATTERNS = (("/api/experiments/", "/entries"),)
+# Parametrized API routes can't exact-match a request path. Anchored regexes,
+# one numeric segment only — a broad prefix/suffix match would silently make
+# any future /api/experiments/*/entries session route public. The route itself
+# still enforces X-API-Key auth.
+PUBLIC_PATTERNS = (re.compile(r"^/api/experiments/\d+/entries$"),)
 
 BCRYPT_ROUNDS = 12
 
@@ -134,7 +138,7 @@ class AuthMiddleware:
         if (
             path in PUBLIC_PATHS
             or any(path.startswith(p) for p in PUBLIC_PREFIXES)
-            or any(path.startswith(p) and path.endswith(s) for p, s in PUBLIC_PATTERNS)
+            or any(p.match(path) for p in PUBLIC_PATTERNS)
         ):
             await self.app(scope, receive, send)
             return

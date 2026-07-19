@@ -216,7 +216,7 @@
                             <button type="submit" class="btn btn-secondary btn-sm">{{ 'Restore' if ex.archived else 'Archive' }}</button>
                         </form>
                         <form action="/settings/library/delete" method="post" style="display: inline; margin: 0;"
-                              onsubmit="return confirm('Delete \'{{ ex.name }}\' from the library?')">
+                              onsubmit="return confirm('Delete ' + {{ ex.name | tojson }} + ' from the library?')">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <button type="submit" class="btn btn-danger btn-sm">&times;</button>
                         </form>

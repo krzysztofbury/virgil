@@ -77,8 +77,10 @@
             {% endif %}
             <button type="submit" class="btn btn-secondary btn-sm">Save</button>
         </form>
+        {# name via |tojson: a quote/backslash in the name must not break the JS
+           and silently disable this confirm (the delete cascades entries) #}
         <form action="/experiments/{{ experiment.id }}/metric/{{ m.id }}/delete" method="post" style="margin: 0;"
-              onsubmit="return confirm('Delete metric \'{{ m.name }}\' and its {{ m.entry_count }} logged entr{{ 'y' if m.entry_count == 1 else 'ies' }}?')">
+              onsubmit="return confirm('Delete metric ' + {{ m.name | tojson }} + ' and its {{ m.entry_count }} logged entr{{ 'y' if m.entry_count == 1 else 'ies' }}?')">
             <button type="submit" class="btn btn-danger btn-sm">Delete</button>
         </form>
     </div>

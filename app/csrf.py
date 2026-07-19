@@ -1,4 +1,5 @@
 import logging
+import re
 import secrets
 from urllib.parse import parse_qs
 
@@ -20,7 +21,9 @@ CSRF_EXEMPT_PATHS = frozenset({"/api/oura/webhook"})
 CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 # API writes authenticate via the X-API-Key header, never cookies — CSRF does not
 # apply (browsers cannot attach custom headers cross-site without a CORS preflight).
-CSRF_EXEMPT_PATTERNS = (("/api/experiments/", "/entries"),)
+# Anchored, one numeric segment: a broad prefix/suffix match would silently exempt
+# any future session-authenticated /api/experiments/*/entries route.
+CSRF_EXEMPT_PATTERNS = (re.compile(r"^/api/experiments/\d+/entries$"),)
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB
 # (app/routers/onboarding.py MAX_UPLOAD_BYTES) plus multipart framing overhead.
@@ -79,7 +82,7 @@ class CSRFMiddleware:
         if method not in SAFE_METHODS and (
             path in CSRF_EXEMPT_PATHS
             or any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES)
-            or any(path.startswith(p) and path.endswith(s) for p, s in CSRF_EXEMPT_PATTERNS)
+            or any(p.match(path) for p in CSRF_EXEMPT_PATTERNS)
         ):
             await self.app(scope, receive, send_with_cookie)
             return

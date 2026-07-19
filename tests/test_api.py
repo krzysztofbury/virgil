@@ -321,6 +321,14 @@ def test_api_post_entry_validation(auth_client):
             headers=KEY,
         )
         assert resp.status_code == 422
+        # Valid ISO date outside the experiment window → 422 (would be invisible
+        # in every grid/progress view — a silent success for the MCP client)
+        resp = auth_client.post(
+            f"/api/experiments/{exp_id}/entries",
+            json={"metric": metric_id, "date": "2020-01-01"},
+            headers=KEY,
+        )
+        assert resp.status_code == 422
         # Unknown experiment → 404
         resp = auth_client.post("/api/experiments/999999/entries", json={"metric": "x"}, headers=KEY)
         assert resp.status_code == 404

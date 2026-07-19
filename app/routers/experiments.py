@@ -8,6 +8,7 @@ from app.user_db import get_user_db_from_request
 from app.validation import (
     METRIC_KINDS,
     TARGET_PERIODS,
+    OptionalFormInt,
     clamp_metric_value,
     truncate,
     valid_date,
@@ -16,9 +17,6 @@ from app.validation import (
 router = APIRouter(prefix="/experiments")
 
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
-# Human units per metric kind, used in stats and entry listings.
-KIND_UNITS = {"duration": "m", "count": "×", "boolean": "d", "scale": ""}
 
 
 def _fmt_date(d: date) -> str:
@@ -85,14 +83,17 @@ def _metric_progress(metric: dict, entries: list[dict], exp_start: date, num_wee
 
     if metric["kind"] == "boolean" and period == "day":
         # "Every day": measure yes-days against elapsed experiment days.
+        # Both window and denominator clamp to the experiment end, so stray
+        # post-end entries (API accepts any in-window date) can't yield 15/14.
+        window_end = min(today, exp_end)
         elapsed = max(1, min((today - exp_start).days + 1, num_weeks * 7))
         all_mine = [e for e in entries if e["activity_type_id"] == metric["id"] and e["value"] == 1]
-        done = len({e["date"] for e in all_mine if exp_start.isoformat() <= e["date"] <= today.isoformat()})
+        done = len({e["date"] for e in all_mine if exp_start.isoformat() <= e["date"] <= window_end.isoformat()})
         return {
             "name": metric["name"],
             "color": metric["color"],
             "label": f"{done}/{elapsed} days",
-            "pct": round(done / elapsed * 100),
+            "pct": min(100, round(done / elapsed * 100)),
             "met": done >= elapsed,
         }
 
@@ -371,8 +372,8 @@ async def create_experiment(
     description: str = Form(""),
     start_date: str = Form(...),
     num_weeks: int = Form(...),
-    target_min: int = Form(0),
-    target_max: int = Form(0),
+    target_min: OptionalFormInt = None,  # blank when the weekly-targets card is hidden
+    target_max: OptionalFormInt = None,
     metric_names: list[str] = Form(default=[]),  # noqa: B008
     metric_colors: list[str] = Form(default=[]),  # noqa: B008
     metric_kinds: list[str] = Form(default=[]),  # noqa: B008
@@ -391,8 +392,8 @@ async def create_experiment(
         return RedirectResponse("/experiments/new", status_code=303)
     # Normalize targets the same way week editing does — an inverted range
     # otherwise renders nonsense progress percentages.
-    target_min = max(0, target_min)
-    target_max = max(target_min, target_max)
+    target_min = max(0, target_min or 0)
+    target_max = max(target_min, target_max or 0)
 
     # Parse metric rows up front — weekly minute targets only mean something
     # when at least one duration metric exists.
@@ -617,6 +618,10 @@ async def edit_experiment(
         status = "active"
 
     db = get_user_db_from_request(request)
+    # Unknown id: the week INSERT below would otherwise raise an FK violation (500).
+    rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not rows:
+        return RedirectResponse("/experiments", status_code=303)
     await db.execute(
         "UPDATE experiments SET title = ?, description = ?, start_date = ?, num_weeks = ?, status = ? WHERE id = ?",
         (title, truncate(description, 2000), start_date, num_weeks, status, experiment_id),
@@ -658,6 +663,10 @@ async def add_metric(
     if metric is None:
         return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
     db = get_user_db_from_request(request)
+    # Unknown id: the metric INSERT below would otherwise raise an FK violation (500).
+    rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not rows:
+        return RedirectResponse("/experiments", status_code=303)
     order_rows = await db.execute_fetchall(
         "SELECT COALESCE(MAX(display_order), 0) AS mx FROM experiment_activity_types WHERE experiment_id = ?",
         (experiment_id,),
