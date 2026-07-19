@@ -40,14 +40,24 @@ CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 mcp = FastMCP("virgil")
 
 
-def _get(path: str, params: dict | None = None) -> dict:
+def _headers() -> dict:
     if not API_URL or not API_KEY:
         raise RuntimeError("Set VIRGIL_API_URL and VIRGIL_API_KEY environment variables")
     headers = {"X-API-Key": API_KEY}
     if CF_ID and CF_SECRET:  # Cloudflare Access gate in front of the app
         headers["CF-Access-Client-Id"] = CF_ID
         headers["CF-Access-Client-Secret"] = CF_SECRET
-    resp = httpx.get(f"{API_URL}{path}", params=params, headers=headers, timeout=30.0)
+    return headers
+
+
+def _get(path: str, params: dict | None = None) -> dict:
+    resp = httpx.get(f"{API_URL}{path}", params=params, headers=_headers(), timeout=30.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _post(path: str, payload: dict) -> dict:
+    resp = httpx.post(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
     resp.raise_for_status()
     return resp.json()
 
@@ -80,8 +90,23 @@ def get_weekly_habits(days: int = 7) -> dict:
 
 @mcp.tool()
 def get_experiments() -> dict:
-    """Active experiments with current week number, weekly target (min/max) and logged progress."""
+    """Active experiments with current week number, weekly minutes target/progress and
+    per-metric progress. Each experiment lists its metrics: kind (duration=minutes,
+    count=events, boolean=daily yes/no, scale=0-10 rating), target (target_value per
+    target_period: day/week/total) and logged_today / logged_week / logged_total."""
     return _get("/api/experiments/active")
+
+
+@mcp.tool()
+def log_experiment_entry(experiment_id: int, metric: str, value: int = 1, notes: str = "", date: str = "") -> dict:
+    """Log one entry into an active experiment. `metric` is the metric name
+    (e.g. 'Gate executed') or its numeric id — see get_experiments. `value` by kind:
+    duration=minutes, count=events (default 1), boolean=1 yes / 0 no (one per day,
+    last write wins), scale=0-10 rating. `date` YYYY-MM-DD, empty = today."""
+    payload: dict = {"metric": metric, "value": value, "notes": notes}
+    if date:
+        payload["date"] = date
+    return _post(f"/api/experiments/{experiment_id}/entries", payload)
 
 
 @mcp.tool()

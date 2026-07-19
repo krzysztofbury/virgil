@@ -1,22 +1,26 @@
-"""Read-only REST API for machine-to-machine access (OpenClaw, AI agents, scripts).
+"""REST API for machine-to-machine access (OpenClaw, AI agents, scripts).
 
 Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
-All endpoints are GET — this API never mutates data.
+GET endpoints are read-only. The single write is
+POST /api/experiments/{id}/entries — experiment logging for MCP clients.
 """
 
 import hmac
 from datetime import date, timedelta
 from typing import Annotated
+from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from pydantic import BaseModel
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
+from app.validation import clamp_metric_value, truncate, valid_date
 
 router = APIRouter(prefix="/api", tags=["api"])
 
@@ -128,15 +132,28 @@ async def api_habits(
     return {"range_days": days, "since": since, "logs": [dict(r) for r in rows]}
 
 
+def _metric_logged(kind: str, entries: list[dict], lo: str, hi: str) -> int | float:
+    """Aggregate entry values for one metric inside [lo, hi] (ISO dates), by kind:
+    boolean → distinct yes-days, scale → average, duration/count → sum."""
+    sel = [e for e in entries if lo <= e["date"] <= hi]
+    if kind == "boolean":
+        return len({e["date"] for e in sel if e["value"] == 1})
+    if kind == "scale":
+        return round(sum(e["value"] for e in sel) / len(sel), 1) if sel else 0
+    return sum(e["value"] for e in sel)
+
+
 @router.get("/experiments/active")
 async def api_experiments_active(db: ApiDb):
-    """Active experiments with current-week target vs logged minutes."""
+    """Active experiments: current-week minutes vs target plus per-metric progress
+    (kind, target, logged today/this week/total)."""
     today = date.today()
     exps = await db.execute_fetchall("SELECT * FROM experiments WHERE status = 'active' ORDER BY start_date")
     result = []
     for row in exps:
         exp = dict(row)
         start = date.fromisoformat(exp["start_date"])
+        end = start + timedelta(weeks=exp["num_weeks"]) - timedelta(days=1)
         week_no = max(1, min(((today - start).days // 7) + 1, exp["num_weeks"]))
         week_start = start + timedelta(days=(week_no - 1) * 7)
         week_end = week_start + timedelta(days=6)
@@ -146,10 +163,43 @@ async def api_experiments_active(db: ApiDb):
             (exp["id"], week_no),
         )
         logged = await db.execute_fetchall(
-            "SELECT COALESCE(SUM(duration_minutes), 0) AS total, COUNT(*) AS entries "
-            "FROM experiment_entries WHERE experiment_id = ? AND date BETWEEN ? AND ?",
+            "SELECT COALESCE(SUM(CASE WHEN eat.kind = 'duration' THEN ee.value ELSE 0 END), 0) AS total, "
+            "COUNT(*) AS entries "
+            "FROM experiment_entries ee JOIN experiment_activity_types eat ON ee.activity_type_id = eat.id "
+            "WHERE ee.experiment_id = ? AND ee.date BETWEEN ? AND ?",
             (exp["id"], week_start.isoformat(), week_end.isoformat()),
         )
+
+        metric_rows = await db.execute_fetchall(
+            "SELECT * FROM experiment_activity_types WHERE experiment_id = ? ORDER BY display_order",
+            (exp["id"],),
+        )
+        entry_rows = [
+            dict(r)
+            for r in await db.execute_fetchall(
+                "SELECT date, activity_type_id, value FROM experiment_entries WHERE experiment_id = ?",
+                (exp["id"],),
+            )
+        ]
+        metrics = []
+        for mr in metric_rows:
+            m = dict(mr)
+            mine = [e for e in entry_rows if e["activity_type_id"] == m["id"]]
+            today_s = today.isoformat()
+            metrics.append(
+                {
+                    "id": m["id"],
+                    "name": m["name"],
+                    "kind": m["kind"],
+                    "color": m["color"],
+                    "target_value": m["target_value"],
+                    "target_period": m["target_period"],
+                    "logged_today": _metric_logged(m["kind"], mine, today_s, today_s),
+                    "logged_week": _metric_logged(m["kind"], mine, week_start.isoformat(), week_end.isoformat()),
+                    "logged_total": _metric_logged(m["kind"], mine, start.isoformat(), end.isoformat()),
+                }
+            )
+
         result.append(
             {
                 "id": exp["id"],
@@ -160,9 +210,77 @@ async def api_experiments_active(db: ApiDb):
                 "week_window": {"from": week_start.isoformat(), "to": week_end.isoformat()},
                 "week_target": dict(target_rows[0]) if target_rows else None,
                 "week_logged": dict(logged[0]),
+                "metrics": metrics,
             }
         )
     return {"experiments": result}
+
+
+class ApiEntryIn(BaseModel):
+    """Body of POST /experiments/{id}/entries. `metric` is a metric name or id;
+    `value` semantics follow the metric kind: duration=minutes, count=events,
+    boolean=1/0 (one per day, last write wins), scale=0-10."""
+
+    metric: str | int
+    value: int = 1
+    date: str | None = None
+    notes: str = ""
+
+
+@router.post("/experiments/{experiment_id}/entries")
+async def api_log_entry(experiment_id: int, payload: ApiEntryIn, db: ApiDb):
+    """Log one entry into an active experiment (the API's only write)."""
+    exp_rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))
+    if not exp_rows:
+        raise HTTPException(status_code=404, detail="Experiment not found")
+    if exp_rows[0]["status"] != "active":
+        raise HTTPException(status_code=409, detail="Experiment is not active")
+
+    if isinstance(payload.metric, int) or (isinstance(payload.metric, str) and payload.metric.isdigit()):
+        metric_rows = await db.execute_fetchall(
+            "SELECT * FROM experiment_activity_types WHERE id = ? AND experiment_id = ?",
+            (int(payload.metric), experiment_id),
+        )
+    else:
+        metric_rows = await db.execute_fetchall(
+            "SELECT * FROM experiment_activity_types WHERE experiment_id = ? AND LOWER(name) = LOWER(?)",
+            (experiment_id, payload.metric.strip()),
+        )
+    if not metric_rows:
+        raise HTTPException(status_code=404, detail="Metric not found in this experiment")
+    metric = dict(metric_rows[0])
+
+    entry_date = payload.date or date.today().isoformat()
+    if not valid_date(entry_date):
+        raise HTTPException(status_code=422, detail="Invalid date (expected YYYY-MM-DD)")
+    value = clamp_metric_value(metric["kind"], payload.value)
+    if value is None:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Value {payload.value} out of bounds for kind '{metric['kind']}'",
+        )
+
+    if metric["kind"] == "boolean":
+        # One row per metric per day — the latest answer wins.
+        await db.execute(
+            "DELETE FROM experiment_entries WHERE experiment_id = ? AND activity_type_id = ? AND date = ?",
+            (experiment_id, metric["id"], entry_date),
+        )
+    cursor = await db.execute(
+        "INSERT INTO experiment_entries (experiment_id, date, activity_type_id, value, notes, source, source_ref) "
+        "VALUES (?, ?, ?, ?, ?, 'api', ?)",
+        (experiment_id, entry_date, metric["id"], value, truncate(payload.notes, 500), str(uuid4())),
+    )
+    await db.commit()
+    return {
+        "ok": True,
+        "entry_id": cursor.lastrowid,
+        "experiment_id": experiment_id,
+        "metric_id": metric["id"],
+        "kind": metric["kind"],
+        "date": entry_date,
+        "value": value,
+    }
 
 
 @router.get("/training")

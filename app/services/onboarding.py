@@ -266,8 +266,8 @@ async def create_suggested_experiment(db, exp: dict) -> int:
     experiment_id = cursor.lastrowid
 
     await db.execute(
-        """INSERT INTO experiment_activity_types (experiment_id, name, color, display_order)
-           VALUES (?, ?, '#22c55e', 1)""",
+        """INSERT INTO experiment_activity_types (experiment_id, name, color, kind, display_order)
+           VALUES (?, ?, '#22c55e', 'duration', 1)""",
         (experiment_id, str(exp["title"])[:100]),
     )
 

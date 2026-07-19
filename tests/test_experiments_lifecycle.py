@@ -15,8 +15,11 @@ def test_inverted_targets_normalized_and_reopen_allowed(auth_client):
             "num_weeks": "4",
             "target_min": "200",
             "target_max": "100",  # inverted on purpose
-            "activity_names": "Zone 2",
-            "activity_colors": "#22c55e",
+            "metric_names": "Zone 2",
+            "metric_colors": "#22c55e",
+            "metric_kinds": "duration",
+            "metric_targets": "0",
+            "metric_periods": "week",
             "source_matches": "",
             "_csrf_token": token,
         },

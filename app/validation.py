@@ -31,6 +31,28 @@ OptionalFormInt = Annotated[int | None, BeforeValidator(_blank_to_none), Form()]
 OptionalFormFloat = Annotated[float | None, BeforeValidator(_blank_to_none_decimal), Form()]
 
 
+# --- Experiment metrics ---------------------------------------------------
+# Shared by the experiments router (forms) and the REST API (MCP writes).
+
+METRIC_KINDS = ("duration", "count", "boolean", "scale")
+TARGET_PERIODS = ("day", "week", "total")
+
+_METRIC_VALUE_BOUNDS = {
+    "duration": (1, 1440),  # minutes; a day has 1440
+    "count": (1, 1000),  # events per single log
+    "boolean": (0, 1),
+    "scale": (0, 10),
+}
+
+
+def clamp_metric_value(kind: str, value: int) -> int | None:
+    """Validate an entry value against its metric kind's bounds. None = reject."""
+    lo, hi = _METRIC_VALUE_BOUNDS.get(kind, (1, 1440))
+    if lo <= value <= hi:
+        return value
+    return None
+
+
 def valid_date(s: str) -> bool:
     """Return True if s is a valid ISO date string."""
     try:

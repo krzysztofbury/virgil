@@ -195,3 +195,142 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
         cur.execute("DELETE FROM feniks_journal WHERE date = '2026-07-05'")
         conn.commit()
         conn.close()
+
+
+# --- General experiments: per-metric progress + the API's single write ---
+
+
+def _seed_api_experiment(exp_title="API Exp"):
+    """Insert an active experiment with a count metric (target 8 total) directly."""
+    from datetime import date
+
+    conn = sqlite3.connect(user_db_path())
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO experiments (title, start_date, num_weeks, status) VALUES (?, ?, 2, 'active')",
+        (exp_title, date.today().isoformat()),
+    )
+    exp_id = cur.lastrowid
+    cur.execute(
+        "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, target_value, target_period) "
+        "VALUES (?, 'Gate executed', '#3b82f6', 'count', 8, 'total')",
+        (exp_id,),
+    )
+    metric_id = cur.lastrowid
+    cur.execute(
+        "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, target_value, target_period) "
+        "VALUES (?, 'Meditation', '#22c55e', 'boolean', 1, 'day')",
+        (exp_id,),
+    )
+    bool_id = cur.lastrowid
+    conn.commit()
+    conn.close()
+    return exp_id, metric_id, bool_id
+
+
+def _delete_api_experiment(exp_id):
+    conn = sqlite3.connect(user_db_path())
+    conn.execute("DELETE FROM experiments WHERE id = ?", (exp_id,))
+    conn.commit()
+    conn.close()
+
+
+def test_experiments_active_has_metrics(auth_client):
+    exp_id, _, _ = _seed_api_experiment()
+    try:
+        body = auth_client.get("/api/experiments/active", headers=KEY).json()
+        exp = next(e for e in body["experiments"] if e["id"] == exp_id)
+        assert len(exp["metrics"]) == 2
+        gate = next(m for m in exp["metrics"] if m["name"] == "Gate executed")
+        for key in ("kind", "color", "target_value", "target_period", "logged_today", "logged_week", "logged_total"):
+            assert key in gate
+        assert gate["kind"] == "count"
+        assert gate["target_value"] == 8
+    finally:
+        _delete_api_experiment(exp_id)
+
+
+def test_api_post_entry_requires_key(auth_client):
+    exp_id, metric_id, _ = _seed_api_experiment()
+    try:
+        resp = auth_client.post(f"/api/experiments/{exp_id}/entries", json={"metric": metric_id})
+        assert resp.status_code == 401
+    finally:
+        _delete_api_experiment(exp_id)
+
+
+def test_api_post_entry_by_name_and_progress(auth_client):
+    exp_id, _, _ = _seed_api_experiment()
+    try:
+        resp = auth_client.post(
+            f"/api/experiments/{exp_id}/entries",
+            json={"metric": "gate executed", "value": 2, "notes": "10-min walk"},
+            headers=KEY,
+        )
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["ok"] is True
+        assert body["kind"] == "count"
+        assert body["value"] == 2
+
+        active = auth_client.get("/api/experiments/active", headers=KEY).json()
+        exp = next(e for e in active["experiments"] if e["id"] == exp_id)
+        gate = next(m for m in exp["metrics"] if m["name"] == "Gate executed")
+        assert gate["logged_today"] == 2
+        assert gate["logged_total"] == 2
+    finally:
+        _delete_api_experiment(exp_id)
+
+
+def test_api_post_entry_boolean_upsert(auth_client):
+    exp_id, _, bool_id = _seed_api_experiment()
+    try:
+        for value in (1, 0):
+            resp = auth_client.post(
+                f"/api/experiments/{exp_id}/entries",
+                json={"metric": bool_id, "value": value},
+                headers=KEY,
+            )
+            assert resp.status_code == 200
+        conn = sqlite3.connect(user_db_path())
+        rows = conn.execute(
+            "SELECT value FROM experiment_entries WHERE experiment_id = ? AND activity_type_id = ?",
+            (exp_id, bool_id),
+        ).fetchall()
+        conn.close()
+        assert rows == [(0,)], "boolean via API must upsert to one row, last write wins"
+    finally:
+        _delete_api_experiment(exp_id)
+
+
+def test_api_post_entry_validation(auth_client):
+    exp_id, metric_id, _ = _seed_api_experiment()
+    try:
+        # Unknown metric name → 404
+        resp = auth_client.post(f"/api/experiments/{exp_id}/entries", json={"metric": "ghost"}, headers=KEY)
+        assert resp.status_code == 404
+        # Out-of-bounds value → 422
+        resp = auth_client.post(
+            f"/api/experiments/{exp_id}/entries", json={"metric": metric_id, "value": 100000}, headers=KEY
+        )
+        assert resp.status_code == 422
+        # Bad date → 422
+        resp = auth_client.post(
+            f"/api/experiments/{exp_id}/entries",
+            json={"metric": metric_id, "date": "not-a-date"},
+            headers=KEY,
+        )
+        assert resp.status_code == 422
+        # Unknown experiment → 404
+        resp = auth_client.post("/api/experiments/999999/entries", json={"metric": "x"}, headers=KEY)
+        assert resp.status_code == 404
+
+        # Inactive experiment → 409
+        conn = sqlite3.connect(user_db_path())
+        conn.execute("UPDATE experiments SET status = 'completed' WHERE id = ?", (exp_id,))
+        conn.commit()
+        conn.close()
+        resp = auth_client.post(f"/api/experiments/{exp_id}/entries", json={"metric": metric_id}, headers=KEY)
+        assert resp.status_code == 409
+    finally:
+        _delete_api_experiment(exp_id)

@@ -34,6 +34,7 @@ PUBLIC_PATHS = frozenset(
         "/api/oura/today",
         "/api/habits",
         "/api/experiments/active",
+        "/api/experiments/{experiment_id}/entries",
         "/api/training",
         "/api/training/detail",
         "/api/noporn",
@@ -42,6 +43,9 @@ PUBLIC_PATHS = frozenset(
 # /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
 # HMAC signature inside the handler, never via session cookies.
 PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
+# Parametrized API routes can't exact-match a request path — matched as
+# (prefix, suffix) pairs. The route itself still enforces X-API-Key auth.
+PUBLIC_PATTERNS = (("/api/experiments/", "/entries"),)
 
 BCRYPT_ROUNDS = 12
 
@@ -127,7 +131,11 @@ class AuthMiddleware:
         path = scope.get("path", "")
 
         # Allow public paths.
-        if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES):
+        if (
+            path in PUBLIC_PATHS
+            or any(path.startswith(p) for p in PUBLIC_PREFIXES)
+            or any(path.startswith(p) and path.endswith(s) for p, s in PUBLIC_PATTERNS)
+        ):
             await self.app(scope, receive, send)
             return
 

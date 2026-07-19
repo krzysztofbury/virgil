@@ -38,8 +38,8 @@ async def generate_week_summary(db, experiment_id: int, week_number: int) -> str
 
     # Collect experiment entries for this week
     entries = await db.execute_fetchall(
-        """SELECT ee.date, ee.duration_minutes, ee.notes, ee.source,
-                  eat.name as activity_name
+        """SELECT ee.date, ee.value, ee.notes, ee.source,
+                  eat.name as activity_name, eat.kind
            FROM experiment_entries ee
            JOIN experiment_activity_types eat ON ee.activity_type_id = eat.id
            WHERE ee.experiment_id = ? AND ee.date >= ? AND ee.date <= ?
@@ -47,6 +47,16 @@ async def generate_week_summary(db, experiment_id: int, week_number: int) -> str
         (experiment_id, week_start.isoformat(), week_end.isoformat()),
     )
     entries = [dict(e) for e in entries]
+
+    # Metric definitions give the LLM the target context per kind
+    metrics = [
+        dict(m)
+        for m in await db.execute_fetchall(
+            "SELECT name, kind, target_value, target_period FROM experiment_activity_types "
+            "WHERE experiment_id = ? ORDER BY display_order",
+            (experiment_id,),
+        )
+    ]
 
     # Week targets
     week_cfg = await db.execute_fetchall(
@@ -79,14 +89,29 @@ async def generate_week_summary(db, experiment_id: int, week_number: int) -> str
     # Is this the final week?
     is_final = week_number == exp["num_weeks"]
 
-    # Build the prompt
-    total_mins = sum(e["duration_minutes"] for e in entries)
+    # Build the prompt — render each entry value in its metric's unit
+    def _fmt_value(kind: str, value: int) -> str:
+        if kind == "duration":
+            return f"{value}m"
+        if kind == "count":
+            return f"+{value}"
+        if kind == "boolean":
+            return "yes" if value == 1 else "no"
+        return f"{value}/10"
+
+    total_mins = sum(e["value"] for e in entries if e["kind"] == "duration")
     entries_text = (
         "\n".join(
-            f"  {e['date']} | {e['activity_name']} | {e['duration_minutes']}m | {e['source']} | {e['notes']}"
+            f"  {e['date']} | {e['activity_name']} | {_fmt_value(e['kind'], e['value'])} | {e['source']} | {e['notes']}"
             for e in entries
         )
         or "  No entries logged."
+    )
+
+    metrics_text = "\n".join(
+        f"  {m['name']} ({m['kind']})"
+        + (f" — target {m['target_value']}/{m['target_period']}" if m["target_value"] else "")
+        for m in metrics
     )
 
     oura_text = (
@@ -123,13 +148,23 @@ async def generate_week_summary(db, experiment_id: int, week_number: int) -> str
 
     scope = "FINAL EXPERIMENT SUMMARY" if is_final else f"WEEK {week_number} SUMMARY"
 
+    has_duration = any(m["kind"] == "duration" for m in metrics)
+    weekly_target_line = (
+        f"**Weekly minutes target:** {week_cfg['target_min']}–{week_cfg['target_max']} minutes\n"
+        if has_duration
+        else ""
+    )
+    entries_heading = f"### Experiment Entries ({total_mins}m total)" if has_duration else "### Experiment Entries"
+
     user_prompt = f"""## {scope}: {exp["title"]}
 
 **Description:** {exp["description"]}
 **Week {week_number}/{exp["num_weeks"]}** ({week_start.isoformat()} → {week_end.isoformat()})
-**Target:** {week_cfg["target_min"]}–{week_cfg["target_max"]} minutes
+{weekly_target_line}
+### Tracked Metrics
+{metrics_text or "  (none)"}
 
-### Experiment Entries ({total_mins}m total)
+{entries_heading}
 {entries_text}
 
 ### Oura Ring Data

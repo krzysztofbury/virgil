@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SETTINGS_TABS = ["general", "integrations", "data", "automation", "security"]
+SETTINGS_TABS = ["general", "configuration", "integrations", "data", "automation", "security"]
 
 
 @router.post("/api/settings/theme")
@@ -68,6 +68,17 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["second_brain_path"] = SECOND_BRAIN_PATH
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
+
+    elif tab == "configuration":
+        from app.routers.training import SECTION_ORDER
+
+        lib_rows = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY category, display_order, name")
+        library_by_category: dict[str, list[dict]] = {}
+        for r in lib_rows:
+            library_by_category.setdefault(r["category"], []).append(dict(r))
+        context["library_by_category"] = library_by_category
+        context["library_categories"] = sorted(library_by_category.keys())
+        context["section_order"] = SECTION_ORDER
 
     elif tab == "integrations":
         oura_row = await db.execute_fetchall("SELECT * FROM integrations WHERE provider = 'oura'")
@@ -110,6 +121,93 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["sync_logs"] = [dict(row) for row in logs]
 
     return templates.TemplateResponse("settings.html", context)
+
+
+# --- App Configuration: dictionary tables ---
+# Rules: users add their own rows; built-in (seeded) rows can only be
+# archived/restored — never edited or deleted, so app upgrades stay clean.
+
+
+@router.post("/settings/library/add")
+async def library_add(
+    request: Request,
+    name: str = Form(...),
+    category: str = Form(...),
+    section: str = Form("Core"),
+    sets: str = Form(""),
+    reps: str = Form(""),
+    notes: str = Form(""),
+):
+    from app.routers.training import SECTION_ORDER
+    from app.validation import truncate
+
+    if section not in SECTION_ORDER:
+        section = "Core"
+    name = truncate(name.strip(), 100)
+    category = truncate(category.strip(), 100)
+    if not name or not category:
+        return RedirectResponse("/settings?tab=configuration", status_code=303)
+    try:
+        sets_val = max(1, min(20, int(sets))) if sets.strip() else None
+    except ValueError:
+        sets_val = None
+
+    db = get_user_db_from_request(request)
+    await db.execute(
+        "INSERT OR IGNORE INTO exercise_library (category, section, name, sets, reps, notes, display_order, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), 0)",
+        (category, section, name, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300)),
+    )
+    await db.commit()
+    return RedirectResponse("/settings?tab=configuration", status_code=303)
+
+
+@router.post("/settings/library/update")
+async def library_update(
+    request: Request,
+    entry_id: int = Form(...),
+    name: str = Form(...),
+    section: str = Form("Core"),
+    sets: str = Form(""),
+    reps: str = Form(""),
+    notes: str = Form(""),
+):
+    from app.routers.training import SECTION_ORDER
+    from app.validation import truncate
+
+    if section not in SECTION_ORDER:
+        section = "Core"
+    name = truncate(name.strip(), 100)
+    if not name:
+        return RedirectResponse("/settings?tab=configuration", status_code=303)
+    try:
+        sets_val = max(1, min(20, int(sets))) if sets.strip() else None
+    except ValueError:
+        sets_val = None
+
+    db = get_user_db_from_request(request)
+    await db.execute(
+        "UPDATE exercise_library SET name = ?, section = ?, sets = ?, reps = ?, notes = ? WHERE id = ? AND builtin = 0",
+        (name, section, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300), entry_id),
+    )
+    await db.commit()
+    return RedirectResponse("/settings?tab=configuration", status_code=303)
+
+
+@router.post("/settings/library/delete")
+async def library_delete(request: Request, entry_id: int = Form(...)):
+    db = get_user_db_from_request(request)
+    await db.execute("DELETE FROM exercise_library WHERE id = ? AND builtin = 0", (entry_id,))
+    await db.commit()
+    return RedirectResponse("/settings?tab=configuration", status_code=303)
+
+
+@router.post("/settings/library/archive")
+async def library_archive(request: Request, entry_id: int = Form(...), archived: int = Form(1)):
+    db = get_user_db_from_request(request)
+    await db.execute("UPDATE exercise_library SET archived = ? WHERE id = ?", (1 if archived else 0, entry_id))
+    await db.commit()
+    return RedirectResponse("/settings?tab=configuration", status_code=303)
 
 
 # --- Automation settings ---
