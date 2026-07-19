@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Edit {{ experiment.title }}{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Edit Experiment</h1>
+    <p class="text-muted"><a href="/experiments/{{ experiment.id }}">&larr; Back to {{ experiment.title }}</a></p>
+</div>
+
+<form action="/experiments/{{ experiment.id }}/edit" method="post">
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Basics</h3></div>
+
+        <div style="margin-bottom: 0.75rem;">
+            <label for="title">Title</label>
+            <input type="text" id="title" name="title" value="{{ experiment.title }}" required>
+        </div>
+
+        <div style="margin-bottom: 0.75rem;">
+            <label for="description">Description</label>
+            <input type="text" id="description" name="description" value="{{ experiment.description }}">
+        </div>
+
+        <div class="grid">
+            <div>
+                <label for="start_date">Start Date</label>
+                <input type="date" id="start_date" name="start_date" value="{{ experiment.start_date }}" required>
+            </div>
+            <div>
+                <label for="num_weeks">Number of Weeks</label>
+                <input type="number" id="num_weeks" name="num_weeks" min="1" max="52" value="{{ experiment.num_weeks }}" required>
+                <small class="text-muted">Shrinking removes the trailing weeks' targets/labels.</small>
+            </div>
+            <div>
+                <label for="status">Status</label>
+                <select id="status" name="status">
+                    <option value="active" {{ 'selected' if experiment.status == 'active' else '' }}>active</option>
+                    <option value="completed" {{ 'selected' if experiment.status == 'completed' else '' }}>completed</option>
+                    <option value="abandoned" {{ 'selected' if experiment.status == 'abandoned' else '' }}>abandoned</option>
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save Changes</button>
+    </div>
+</form>
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Metrics</h3>
+        <small class="text-muted">Type is fixed after creation — logged values keep their meaning. Targets apply to Count and Yes/No metrics.</small>
+    </div>
+
+    {% for m in metrics %}
+    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border);">
+        <form action="/experiments/{{ experiment.id }}/metric/{{ m.id }}/update" method="post"
+              style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; flex: 1;">
+            <input type="text" name="name" value="{{ m.name }}" required style="width: 11rem; margin: 0;">
+            <input type="color" name="color" value="{{ m.color }}" style="width: 2.6rem; height: 2.2rem; padding: 0.15rem; margin: 0;">
+            <span class="text-muted" style="font-size: var(--text-xs); min-width: 5.5rem;">{{ {'duration': 'Minutes', 'count': 'Count', 'boolean': 'Yes/No', 'scale': 'Rating 0-10'}[m.kind] }}</span>
+            {% if m.kind in ('count', 'boolean') %}
+            <input type="number" name="target_value" value="{{ m.target_value }}" min="0" title="Target (0 = none)"
+                   style="width: 4.5rem; margin: 0; font-size: var(--text-xs);">
+            <select name="target_period" style="width: auto; margin: 0; font-size: var(--text-xs);">
+                <option value="day" {{ 'selected' if m.target_period == 'day' else '' }}>per day</option>
+                <option value="week" {{ 'selected' if m.target_period == 'week' else '' }}>per week</option>
+                <option value="total" {{ 'selected' if m.target_period == 'total' else '' }}>total</option>
+            </select>
+            {% else %}
+            <input type="hidden" name="target_value" value="0">
+            <input type="hidden" name="target_period" value="week">
+            {% endif %}
+            {% if m.kind == 'duration' %}
+            <input type="text" name="source_match" value="{{ m.source_match }}" placeholder="Oura names, comma-separated"
+                   style="width: 13rem; margin: 0; font-size: var(--text-xs);">
+            {% else %}
+            <input type="hidden" name="source_match" value="">
+            {% endif %}
+            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+        </form>
+        {# name via |tojson: a quote/backslash in the name must not break the JS
+           and silently disable this confirm (the delete cascades entries) #}
+        <form action="/experiments/{{ experiment.id }}/metric/{{ m.id }}/delete" method="post" style="margin: 0;"
+              onsubmit="return confirm('Delete metric ' + {{ m.name | tojson }} + ' and its {{ m.entry_count }} logged entr{{ 'y' if m.entry_count == 1 else 'ies' }}?')">
+            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
+        </form>
+    </div>
+    {% endfor %}
+
+    <form action="/experiments/{{ experiment.id }}/metric/add" method="post"
+          style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem;">
+        <input type="text" name="name" placeholder="New metric name" required style="width: 11rem; margin: 0;">
+        <select name="kind" style="width: auto; margin: 0;">
+            <option value="duration">Minutes</option>
+            <option value="count">Count</option>
+            <option value="boolean">Yes / No (daily)</option>
+            <option value="scale">Rating 0-10</option>
+        </select>
+        <input type="color" name="color" value="#3b82f6" style="width: 2.6rem; height: 2.2rem; padding: 0.15rem; margin: 0;">
+        <input type="number" name="target_value" value="0" min="0" title="Target (0 = none; Count/Yes-No only)"
+               style="width: 4.5rem; margin: 0; font-size: var(--text-xs);">
+        <select name="target_period" style="width: auto; margin: 0; font-size: var(--text-xs);">
+            <option value="day">per day</option>
+            <option value="week" selected>per week</option>
+            <option value="total">total</option>
+        </select>
+        <input type="text" name="source_match" placeholder="Oura names (Minutes only)" style="width: 13rem; margin: 0; font-size: var(--text-xs);">
+        <button type="submit" class="btn btn-primary btn-sm">+ Add Metric</button>
+    </form>
+</div>
+
+{% endblock %}

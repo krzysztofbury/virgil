@@ -21,7 +21,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/no-porn.png" alt="No Porn tracker"><br><sub><b>No Porn</b> — weekly clean-rate, journal & pleasures</sub></td>
-<td width="50%"><img src="docs/screenshots/experiments.png" alt="Experiments"><br><sub><b>Experiments</b> — weekly-target habit sprints</sub></td>
+<td width="50%"><img src="docs/screenshots/experiments.png" alt="Experiments"><br><sub><b>Experiments</b> — metric-based protocols (minutes, counts, daily yes/no, 0-10 ratings) with one-tap logging</sub></td>
 </tr>
 </table>
 
@@ -163,7 +163,7 @@ All configuration via environment variables:
 | `VIRGIL_REGISTRATION_OPEN` | `false` | Allow new user signups. The first account (bootstrap owner) can always be created |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
-| `VIRGIL_API_KEY` | (empty) | Read-only REST API key (empty = API disabled) |
+| `VIRGIL_API_KEY` | (empty) | REST API key: read endpoints + experiment-entry logging (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
 | `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
@@ -229,16 +229,26 @@ Periodic self-assessment across 8 life areas with power level composite score an
 Goal mapping across 8 life areas with 1yr/3yr/10yr horizons. Inline editing support.
 
 ### Experiments (`/experiments`)
-Time-boxed activity experiments with:
-- Weekly targets (min/max minutes)
-- Activity types with color coding
-- Day-by-day grid with progress tracking
-- AI-generated weekly summaries
-- Oura workout auto-import
+Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
+
+| Kind | Logs | Example |
+|---|---|---|
+| Minutes (`duration`) | minutes per session, Oura auto-import | "Zone 2" 180–210 min/week |
+| Count (`count`) | events, one tap (`+1` + optional note) | "Gate executed" ≥8 total |
+| Yes/No (`boolean`) | one check per day (last write wins) | "Meditation" every day |
+| Rating 0-10 (`scale`) | quick 0-10 entries | "Craving before" |
+
+- Weekly min–max minute targets (with per-week labels like DELOAD) for duration metrics
+- Per-metric targets for count/yes-no metrics: value per day / week / whole experiment
+- One-tap **Today** quick-log bar; day-grid shows minutes fills plus per-metric markers
+- Full **edit** page (any status — active/completed/abandoned): basics, status, metrics
+- AI-generated weekly summaries (kind-aware)
+- Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`
 
 ### Settings (`/settings`)
-Five-tab settings page:
+Six-tab settings page:
 - **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), feature flag modules (enable/disable optional modules like Feniks)
+- **App Config** — Dictionary tables (exercise library for the Training picker): add your own entries, edit/delete them; built-in entries can be archived (hidden from pickers) but never edited or deleted
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
 - **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
@@ -326,6 +336,7 @@ Current migrations:
 | 012 | `llm_provider_no_check` | Rebuilds `llm_providers` without the provider CHECK (unblocks anthropic/mistral/groq/ollama) |
 | 013 | `training_exercise_archive` | Adds `training_exercises.archived` — deleting an exercise keeps history |
 | 014 | `backup_default_on` | Flips `backup_enabled` to `1` on existing installs (backups become opt-out) |
+| 015 | `general_experiments` | Metric kinds (duration/count/boolean/scale) + per-metric targets; `experiment_entries.value` replaces `duration_minutes`; `exercise_library.builtin`/`archived` flags |
 
 ## Data Model
 

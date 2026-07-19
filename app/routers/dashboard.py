@@ -211,10 +211,17 @@ async def dashboard(request: Request):
             current_week = min(exp["num_weeks"], (today - start).days // 7 + 1)
             exp["not_started"] = False
         total_row = await db.execute_fetchall(
-            "SELECT COALESCE(SUM(duration_minutes), 0) as total FROM experiment_entries WHERE experiment_id = ?",
+            "SELECT COALESCE(SUM(CASE WHEN eat.kind = 'duration' THEN ee.value ELSE 0 END), 0) as minutes, "
+            "COUNT(*) as entries "
+            "FROM experiment_entries ee JOIN experiment_activity_types eat ON ee.activity_type_id = eat.id "
+            "WHERE ee.experiment_id = ?",
             (exp["id"],),
         )
-        exp["total_minutes"] = total_row[0]["total"] if total_row else 0
+        minutes = total_row[0]["minutes"] if total_row else 0
+        entries = total_row[0]["entries"] if total_row else 0
+        # Kind-aware label: minutes for training-style experiments, entry count otherwise.
+        exp["total_minutes"] = minutes
+        exp["logged_label"] = f"{minutes}m" if minutes else f"{entries} logged"
         exp["current_week"] = current_week
         exp["end_date"] = end.isoformat()
         active_experiments.append(exp)

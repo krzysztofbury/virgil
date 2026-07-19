@@ -10,6 +10,7 @@
         {% if experiment.description %} &middot; {% endif %}
         {{ start_fmt }} &mdash; {{ end_fmt }}
         &middot; <a href="/">Dashboard</a>
+        &middot; <a href="/experiments/{{ experiment.id }}/edit">Edit</a>
         {% if experiment.status != 'active' %}
         &middot; <span class="exp-status-badge exp-status-{{ experiment.status }}">{{ experiment.status }}</span>
         {% endif %}
@@ -20,14 +21,22 @@
 <div class="exp-stats-bar">
     {% for ts in stats.type_stats %}
     <div class="exp-stat">
-        <span class="exp-stat-value" style="color: {{ ts.color }};">{{ ts.total_minutes }}m</span>
+        <span class="exp-stat-value" style="color: {{ ts.color }};">{{ ts.display }}</span>
         <span class="exp-stat-label">TOTAL {{ ts.name|upper }}</span>
     </div>
     {% endfor %}
+    {% for mp in stats.metric_progress %}
+    <div class="exp-stat">
+        <span class="exp-stat-value" style="color: {{ '#22c55e' if mp.met else mp.color }};">{{ mp.label }}</span>
+        <span class="exp-stat-label">TARGET {{ mp.name|upper }}</span>
+    </div>
+    {% endfor %}
+    {% if stats.has_duration %}
     <div class="exp-stat">
         <span class="exp-stat-value">{{ stats.target_total }}m</span>
         <span class="exp-stat-label">TARGET</span>
     </div>
+    {% endif %}
     <div class="exp-stat">
         <span class="exp-stat-value">{{ stats.weeks_done }} <small>/ {{ experiment.num_weeks }}</small></span>
         <span class="exp-stat-label">WEEKS DONE</span>
@@ -37,6 +46,31 @@
         <span class="exp-stat-label">WEEK</span>
     </div>
 </div>
+
+{% set quick_metrics = activity_types | rejectattr("kind", "equalto", "duration") | list %}
+{% if experiment.status == 'active' and quick_metrics %}
+<!-- One-tap logging for today -->
+<div class="exp-quicklog">
+    <strong style="font-size: var(--text-sm);">Today</strong>
+    {% for m in quick_metrics %}
+    <form action="/experiments/{{ experiment.id }}/entry" method="post" class="exp-quicklog-item">
+        <input type="hidden" name="date" value="{{ today }}">
+        <input type="hidden" name="metric_id" value="{{ m.id }}">
+        {% if m.kind == 'boolean' %}
+        <button type="submit" name="value" value="1" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">&#10003; {{ m.name }}</button>
+        <button type="submit" name="value" value="0" class="btn btn-sm btn-secondary" title="Mark as not done">&#10007;</button>
+        {% elif m.kind == 'count' %}
+        <input type="hidden" name="value" value="1">
+        <input type="text" name="notes" placeholder="note (optional)" class="exp-quicklog-note">
+        <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">+1 {{ m.name }}</button>
+        {% else %}
+        <input type="number" name="value" min="0" max="10" placeholder="0-10" required class="exp-quicklog-scale">
+        <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
+        {% endif %}
+    </form>
+    {% endfor %}
+</div>
+{% endif %}
 
 <!-- Legend -->
 <div class="exp-legend">
@@ -78,10 +112,17 @@
         <div class="exp-days">
             {% for day in week.days %}
             {% set has_oura = day.entries|selectattr("source", "equalto", "oura")|list|length > 0 if day.entries else false %}
-            <div class="exp-day {{ 'exp-day-today' if day.is_today else '' }} {{ 'exp-day-filled' if day.color else '' }}"
+            <div class="exp-day {{ 'exp-day-today' if day.is_today else '' }} {{ 'exp-day-filled' if day.color else '' }} {{ 'exp-day-marked' if day.dots else '' }}"
                  {% if day.color %}style="background: {{ day.color }};{{ ' border: 2px dashed rgba(255,255,255,0.6);' if has_oura else '' }}"{% endif %}>
                 {% if day.label %}
                 <span class="exp-day-label">{{ day.label }}</span>
+                {% endif %}
+                {% if day.dots %}
+                <span class="exp-day-dots">
+                    {% for dot in day.dots %}
+                    <span class="exp-day-dot" style="background: {{ dot.color }};" title="{{ dot.title }}">{{ dot.text }}</span>
+                    {% endfor %}
+                </span>
                 {% endif %}
             </div>
             {% endfor %}
@@ -91,6 +132,7 @@
         <div class="exp-week-progress" x-data="{ editing: false }">
             <template x-if="!editing">
                 <div>
+                    {% if week.has_duration %}
                     <span class="exp-week-summary" @dblclick="editing = true" title="Double-click to edit targets">
                         <strong>{{ week.total }}m</strong> / {{ week.target_min }}&ndash;{{ week.target_max }}m
                     </span>
@@ -98,6 +140,15 @@
                         <div class="fill {{ 'exp-bar-success' if week.status_class == 'success' else '' }}"
                              style="width: {{ week.progress_pct }}%;"></div>
                     </div>
+                    {% endif %}
+                    {% if not week.is_future %}
+                    {% for line in week.metric_lines %}
+                    <div class="exp-metric-line {{ 'met' if line.met else '' }}">
+                        <span class="exp-legend-dot" style="background: {{ line.color }}; display: inline-block; width: 7px; height: 7px;"></span>
+                        {{ line.name }} <strong>{{ line.text }}</strong>
+                    </div>
+                    {% endfor %}
+                    {% endif %}
                     <small class="exp-status-text exp-status-{{ week.status_class }}">
                         {% if week.status == 'complete' %}complete &#10003;{% else %}{{ week.status }}{% endif %}
                     </small>
@@ -135,15 +186,18 @@
 </div>
 
 {% if experiment.status == 'active' %}
-{% if oura_connected %}
+{% if oura_connected and stats.has_duration %}
 <form action="/experiments/{{ experiment.id }}/import-workouts" method="post" style="margin-bottom: 1rem;">
     <button type="submit" class="btn btn-secondary btn-sm">&#8986; Import Oura Workouts</button>
 </form>
 {% endif %}
 
 <!-- Log Entry Form -->
-<div class="exp-log-form">
-    <h3>Log Activity</h3>
+<div class="exp-log-form"
+     x-data='{ kinds: { {% for at in activity_types %}"{{ at.id }}": "{{ at.kind }}"{{ "," if not loop.last }}{% endfor %} },
+               sel: "{{ activity_types[0].id if activity_types else '' }}",
+               hints: {"duration": "minutes, e.g. 45", "count": "events, e.g. 1", "boolean": "1 = yes, 0 = no", "scale": "rating 0-10"} }'>
+    <h3>Log Entry</h3>
     <form action="/experiments/{{ experiment.id }}/entry" method="post">
         <div class="grid">
             <div>
@@ -151,20 +205,21 @@
                 <input type="date" id="entry_date" name="date" value="{{ today }}">
             </div>
             <div>
-                <label for="entry_type">Type</label>
-                <select id="entry_type" name="activity_type_id">
+                <label for="entry_type">Metric</label>
+                <select id="entry_type" name="metric_id" x-model="sel">
                     {% for at in activity_types %}
                     <option value="{{ at.id }}">{{ at.name }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div>
-                <label for="entry_duration">Minutes</label>
-                <input type="number" id="entry_duration" name="duration_minutes" min="1" placeholder="45" required>
+                <label for="entry_value">Value</label>
+                <input type="number" id="entry_value" name="value" :placeholder="hints[kinds[sel]] || ''" required>
+                <small class="text-muted" x-text="hints[kinds[sel]] || ''"></small>
             </div>
             <div>
                 <label for="entry_notes">Notes</label>
-                <input type="text" id="entry_notes" name="notes" placeholder="easy pace">
+                <input type="text" id="entry_notes" name="notes" placeholder="easy pace / NAPIĘCIE, 7→3">
             </div>
         </div>
         <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Log Entry</button>
@@ -177,7 +232,7 @@
     <summary>Recent Entries ({{ entries|length }})</summary>
     <table class="exp-entries-table">
         <thead>
-            <tr><th>Date</th><th>Activity</th><th>Duration</th><th>Notes</th><th></th></tr>
+            <tr><th>Date</th><th>Metric</th><th>Value</th><th>Notes</th><th></th></tr>
         </thead>
         <tbody>
             {% for e in entries|reverse %}
@@ -191,9 +246,11 @@
                     {% endif %}
                     {% if e.source == 'oura' %}
                     <span class="exp-source-badge" title="Auto-imported from Oura" style="font-size: var(--text-xs); opacity: 0.7;">&#8986;</span>
+                    {% elif e.source == 'api' %}
+                    <span class="exp-source-badge" title="Logged via API/MCP" style="font-size: var(--text-xs); opacity: 0.7;">&#9881;</span>
                     {% endif %}
                 </td>
-                <td><strong>{{ e.duration_minutes }}m</strong></td>
+                <td><strong>{{ e.display }}</strong></td>
                 <td class="text-muted">{{ e.notes }}</td>
                 <td>
                     <form action="/experiments/{{ experiment.id }}/delete-entry" method="post" style="margin: 0;">

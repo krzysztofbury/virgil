@@ -15,7 +15,7 @@
 <div id="settings-content">
 <!-- Tab Navigation -->
 <nav class="tabs" style="margin-bottom: 1.5rem;">
-    {% set tab_labels = {'general': 'General', 'integrations': 'Integrations', 'data': 'Data', 'automation': 'Automation', 'security': 'Security'} %}
+    {% set tab_labels = {'general': 'General', 'configuration': 'App Config', 'integrations': 'Integrations', 'data': 'Data', 'automation': 'Automation', 'security': 'Security'} %}
     {% for t in tabs %}
     <a href="/settings?tab={{ t }}"
        hx-get="/settings?tab={{ t }}"
@@ -145,6 +145,90 @@
             <button type="submit" class="btn btn-primary btn-sm">Save</button>
         </div>
     </form>
+</div>
+
+{% elif active_tab == 'configuration' %}
+<!-- ═══ APP CONFIG TAB: dictionary tables ═══ -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Exercise Library</h3>
+        <small class="text-muted">Dictionary used by the Training exercise picker. Add your own entries; built-in ones can be archived (hidden from pickers) but not edited or deleted.</small>
+    </div>
+
+    <form action="/settings/library/add" method="post"
+          style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.25rem;">
+        <input type="text" name="name" placeholder="Exercise name" required style="width: 12rem; margin: 0;">
+        <input type="text" name="category" placeholder="Category" required list="lib-categories" style="width: 10rem; margin: 0;">
+        <datalist id="lib-categories">
+            {% for c in library_categories %}<option value="{{ c }}">{% endfor %}
+        </datalist>
+        <select name="section" style="width: auto; margin: 0;">
+            {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == 'Core' else '' }}>{{ s }}</option>{% endfor %}
+        </select>
+        <input type="number" name="sets" placeholder="Sets" min="1" max="20" style="width: 4.5rem; margin: 0;">
+        <input type="text" name="reps" placeholder="Reps (e.g. 10-12)" style="width: 8rem; margin: 0;">
+        <input type="text" name="notes" placeholder="Cue / notes" style="flex: 1; min-width: 10rem; margin: 0;">
+        <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
+    </form>
+
+    {% for category in library_categories %}
+    <details {{ 'open' if loop.first else '' }} style="margin-bottom: 0.75rem;">
+        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">{{ category }}
+            <small class="text-muted">({{ library_by_category[category]|length }})</small>
+        </summary>
+        <div class="overflow-x">
+        <table class="exp-metric-table" style="width: 100%;">
+            <thead><tr><th>Name</th><th>Section</th><th>Sets</th><th>Reps</th><th>Notes</th><th></th></tr></thead>
+            <tbody>
+                {% for ex in library_by_category[category] %}
+                <tr {% if ex.archived %}style="opacity: 0.45;"{% endif %}>
+                    {% if ex.builtin %}
+                    <td>{{ ex.name }} <span class="badge" style="font-size: 0.6rem; opacity: 0.7;">built-in</span></td>
+                    <td>{{ ex.section }}</td>
+                    <td>{{ ex.sets if ex.sets is not none else '' }}</td>
+                    <td>{{ ex.reps }}</td>
+                    <td class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
+                    <td style="white-space: nowrap;">
+                        <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
+                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                            <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
+                            <button type="submit" class="btn btn-secondary btn-sm">{{ 'Restore' if ex.archived else 'Archive' }}</button>
+                        </form>
+                    </td>
+                    {% else %}
+                    <td colspan="5" style="padding: 0.2rem 0;">
+                        <form action="/settings/library/update" method="post"
+                              style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0;">
+                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                            <input type="text" name="name" value="{{ ex.name }}" required style="width: 11rem; margin: 0; font-size: var(--text-xs);">
+                            <select name="section" style="width: auto; margin: 0; font-size: var(--text-xs);">
+                                {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == ex.section else '' }}>{{ s }}</option>{% endfor %}
+                            </select>
+                            <input type="number" name="sets" value="{{ ex.sets if ex.sets is not none else '' }}" min="1" max="20" style="width: 4rem; margin: 0; font-size: var(--text-xs);">
+                            <input type="text" name="reps" value="{{ ex.reps }}" style="width: 6rem; margin: 0; font-size: var(--text-xs);">
+                            <input type="text" name="notes" value="{{ ex.notes }}" style="flex: 1; min-width: 8rem; margin: 0; font-size: var(--text-xs);">
+                            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+                        </form>
+                    </td>
+                    <td style="white-space: nowrap;">
+                        <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
+                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                            <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
+                            <button type="submit" class="btn btn-secondary btn-sm">{{ 'Restore' if ex.archived else 'Archive' }}</button>
+                        </form>
+                        <form action="/settings/library/delete" method="post" style="display: inline; margin: 0;"
+                              onsubmit="return confirm('Delete ' + {{ ex.name | tojson }} + ' from the library?')">
+                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                            <button type="submit" class="btn btn-danger btn-sm">&times;</button>
+                        </form>
+                    </td>
+                    {% endif %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </details>
+    {% endfor %}
 </div>
 
 {% elif active_tab == 'integrations' %}

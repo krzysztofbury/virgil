@@ -323,9 +323,11 @@ async def _auto_populate_experiments(db):
         start = date.fromisoformat(exp["start_date"])
         end = start + timedelta(weeks=exp["num_weeks"])
 
-        # Get activity types with source_match configured
+        # Get duration metrics with source_match configured — Oura workouts are
+        # minutes, so only duration metrics may auto-import.
         type_rows = await db.execute_fetchall(
-            "SELECT * FROM experiment_activity_types WHERE experiment_id = ? AND source_match != ''",
+            "SELECT * FROM experiment_activity_types "
+            "WHERE experiment_id = ? AND source_match != '' AND kind = 'duration'",
             (exp["id"],),
         )
         if not type_rows:
@@ -357,7 +359,7 @@ async def _auto_populate_experiments(db):
                 notes += f" ({w['intensity']})"
             await db.execute(
                 "INSERT OR IGNORE INTO experiment_entries "
-                "(experiment_id, date, activity_type_id, duration_minutes, notes, source, source_ref) "
+                "(experiment_id, date, activity_type_id, value, notes, source, source_ref) "
                 "VALUES (?, ?, ?, ?, ?, 'oura', ?)",
                 (exp["id"], w["date"], type_id, w["duration_minutes"], notes, w["oura_id"]),
             )

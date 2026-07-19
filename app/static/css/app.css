@@ -1922,3 +1922,40 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .exp-card-stat-value {
   font-family: var(--font-mono);
 }
+
+/* --- General experiments: quick-log bar + per-metric day markers --- */
+.exp-quicklog {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg-surface);
+  border-radius: 8px;
+}
+.exp-quicklog-item { display: flex; gap: 0.3rem; align-items: center; margin: 0; }
+.exp-quicklog-note { width: 9rem; padding: 0.25rem 0.4rem; margin: 0; font-size: var(--text-xs); }
+.exp-quicklog-scale { width: 3.5rem; padding: 0.25rem 0.4rem; margin: 0; font-size: var(--text-xs); }
+.exp-day-marked { opacity: 1 !important; }
+.exp-day-dots {
+  position: absolute;
+  bottom: 2px;
+  left: 0;
+  right: 0;
+  display: flex;
+  gap: 2px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.exp-day-dot {
+  font-size: 0.55rem;
+  line-height: 1;
+  padding: 1px 3px;
+  border-radius: 4px;
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+}
+.exp-metric-line { font-size: 0.65rem; white-space: nowrap; color: var(--text-secondary); }
+.exp-metric-line.met { color: var(--green); }
+.exp-metric-table td { padding: 0.3rem 0.4rem; vertical-align: middle; }

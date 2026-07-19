@@ -30,57 +30,92 @@
                 <input type="number" id="num_weeks" name="num_weeks" min="1" max="52" value="8" required>
             </div>
         </div>
-
-        <div class="grid" style="margin-top: 0.75rem;">
-            <div>
-                <label for="target_min">Weekly Target Min (minutes)</label>
-                <input type="number" id="target_min" name="target_min" min="0" value="180">
-            </div>
-            <div>
-                <label for="target_max">Weekly Target Max (minutes)</label>
-                <input type="number" id="target_max" name="target_max" min="0" value="210">
-            </div>
-        </div>
-    </div>
-
-    <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Activity Types</h3></div>
-
-        <template x-for="(at, i) in activityTypes" :key="i">
-            <div style="margin-bottom: 0.75rem;">
-                <div class="grid" style="align-items: end; margin-bottom: 0.25rem;">
-                    <div>
-                        <label x-show="i === 0">Name</label>
-                        <input type="text" x-model="at.name" name="activity_names" placeholder="Zone 2" required>
-                    </div>
-                    <div>
-                        <label x-show="i === 0">Color</label>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <input type="color" x-model="at.color" name="activity_colors" style="width: 3rem; height: 2.5rem; padding: 0.25rem;">
-                            <button type="button" @click="activityTypes.splice(i, 1)" class="btn btn-secondary btn-sm"
-                                    x-show="activityTypes.length > 1">-</button>
-                        </div>
-                    </div>
-                </div>
-                <input type="text" name="source_matches" x-model="at.source_match" placeholder="walking,hiking,running"
-                       style="font-size: var(--text-xs); margin: 0;">
-                <small class="text-muted">Oura activity names to auto-import (comma-separated)</small>
-            </div>
-        </template>
-
-        <button type="button" @click="activityTypes.push({name: '', color: randomColor(), source_match: ''})" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;">
-            + Add Activity Type
-        </button>
     </div>
 
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header">
-            <h3>Week Labels</h3>
-            <small class="text-muted">Optional, comma-separated: e.g. ",,DELOAD,,,,TAPER,"</small>
+            <h3>Metrics</h3>
+            <small class="text-muted">What this experiment tracks: minutes of activity, event counts, daily yes/no checks or 0-10 ratings.</small>
         </div>
-        <input type="text" name="week_labels" placeholder=",,DELOAD,,,,TAPER,">
+
+        <template x-for="(m, i) in metrics" :key="i">
+            <div style="margin-bottom: 0.9rem; padding-bottom: 0.9rem; border-bottom: 1px solid var(--border);">
+                <div class="grid" style="align-items: end; margin-bottom: 0.25rem;">
+                    <div>
+                        <label x-show="i === 0">Name</label>
+                        <input type="text" x-model="m.name" name="metric_names" placeholder="Zone 2 / Meditation / Urge logged" required>
+                    </div>
+                    <div>
+                        <label x-show="i === 0">Type</label>
+                        <select x-model="m.kind" name="metric_kinds">
+                            <option value="duration">Minutes</option>
+                            <option value="count">Count</option>
+                            <option value="boolean">Yes / No (daily)</option>
+                            <option value="scale">Rating 0-10</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label x-show="i === 0">Color</label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="color" x-model="m.color" name="metric_colors" style="width: 3rem; height: 2.5rem; padding: 0.25rem;">
+                            <button type="button" @click="metrics.splice(i, 1)" class="btn btn-secondary btn-sm"
+                                    x-show="metrics.length > 1">-</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Always submit target/period/source_match so row indexes stay aligned -->
+                <div x-show="m.kind === 'count' || m.kind === 'boolean'" style="display: flex; gap: 0.5rem; align-items: center;">
+                    <input type="number" x-model="m.target" name="metric_targets" min="0" placeholder="0 = no target"
+                           style="width: 8rem; margin: 0; font-size: var(--text-xs);">
+                    <span class="text-muted" style="font-size: var(--text-xs);">per</span>
+                    <select x-model="m.period" name="metric_periods" style="width: auto; margin: 0; font-size: var(--text-xs);">
+                        <option value="day">day</option>
+                        <option value="week">week</option>
+                        <option value="total">whole experiment</option>
+                    </select>
+                    <small class="text-muted" x-show="m.kind === 'boolean' && m.period === 'day'">= every day</small>
+                </div>
+                <!-- x-show keeps hidden inputs in the DOM so they still POST;
+                     the server zeroes targets/source_match for kinds they don't apply to -->
+                <div x-show="m.kind === 'duration'">
+                    <input type="text" name="source_matches" x-model="m.source_match" placeholder="walking,hiking,running"
+                           style="font-size: var(--text-xs); margin: 0;">
+                    <small class="text-muted">Oura activity names to auto-import (comma-separated)</small>
+                </div>
+            </div>
+        </template>
+
+        <button type="button" @click="metrics.push(newMetric())" class="btn btn-secondary btn-sm" style="margin-top: 0.5rem;">
+            + Add Metric
+        </button>
     </div>
 
+    <div x-show="hasDuration()">
+        <div class="card" style="margin-bottom: 1rem;">
+            <div class="card-header"><h3>Weekly Minutes Target</h3>
+                <small class="text-muted">Applies to the sum of all "Minutes" metrics per week.</small>
+            </div>
+            <div class="grid">
+                <div>
+                    <label for="target_min">Weekly Target Min (minutes)</label>
+                    <input type="number" id="target_min" name="target_min" min="0" value="180">
+                </div>
+                <div>
+                    <label for="target_max">Weekly Target Max (minutes)</label>
+                    <input type="number" id="target_max" name="target_max" min="0" value="210">
+                </div>
+            </div>
+        </div>
+
+        <div class="card" style="margin-bottom: 1rem;">
+            <div class="card-header">
+                <h3>Week Labels</h3>
+                <small class="text-muted">Optional, comma-separated: e.g. ",,DELOAD,,,,TAPER,"</small>
+            </div>
+            <input type="text" name="week_labels" placeholder=",,DELOAD,,,,TAPER,">
+        </div>
+    </div>
     <div style="display: flex; gap: 0.75rem;">
         <button type="submit" class="btn btn-primary">Create Experiment</button>
         <a href="/experiments" class="btn btn-secondary">Cancel</a>
@@ -95,13 +130,15 @@ function experimentForm() {
     const colors = ['#22c55e', '#ef4444', '#3b82f6', '#eab308', '#a855f7', '#f97316'];
     let ci = 0;
     return {
-        activityTypes: [
-            {name: '', color: '#22c55e', source_match: ''},
-            {name: '', color: '#ef4444', source_match: ''}
+        metrics: [
+            {name: '', color: '#22c55e', kind: 'duration', target: '', period: 'week', source_match: ''}
         ],
-        randomColor() {
-            ci = (ci + 2) % colors.length;
-            return colors[ci];
+        newMetric() {
+            ci = (ci + 1) % colors.length;
+            return {name: '', color: colors[ci], kind: 'count', target: '', period: 'week', source_match: ''};
+        },
+        hasDuration() {
+            return this.metrics.some(m => m.kind === 'duration');
         }
     }
 }

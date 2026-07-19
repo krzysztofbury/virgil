@@ -197,7 +197,11 @@ CREATE TABLE IF NOT EXISTS experiment_activity_types (
     experiment_id INTEGER NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     color TEXT NOT NULL DEFAULT '#3b82f6',
-    display_order INTEGER DEFAULT 0
+    display_order INTEGER DEFAULT 0,
+    source_match TEXT NOT NULL DEFAULT '',
+    kind TEXT NOT NULL DEFAULT 'duration' CHECK(kind IN ('duration','count','boolean','scale')),
+    target_value INTEGER NOT NULL DEFAULT 0,
+    target_period TEXT NOT NULL DEFAULT 'week' CHECK(target_period IN ('day','week','total'))
 );
 
 CREATE TABLE IF NOT EXISTS experiment_weeks (
@@ -215,7 +219,7 @@ CREATE TABLE IF NOT EXISTS experiment_entries (
     experiment_id INTEGER NOT NULL REFERENCES experiments(id) ON DELETE CASCADE,
     date TEXT NOT NULL,
     activity_type_id INTEGER NOT NULL REFERENCES experiment_activity_types(id) ON DELETE CASCADE,
-    duration_minutes INTEGER NOT NULL DEFAULT 0,
+    value INTEGER NOT NULL DEFAULT 0,
     notes TEXT DEFAULT '',
     source TEXT NOT NULL DEFAULT 'manual',
     source_ref TEXT NOT NULL DEFAULT '',

@@ -233,7 +233,7 @@
             <div class="progress-bar" style="height: 6px; flex: 1;">
                 <div class="fill" style="width: {{ (exp.current_week / exp.num_weeks * 100)|round if not exp.not_started else 0 }}%;"></div>
             </div>
-            <small class="text-muted">{{ exp.total_minutes }}m</small>
+            <small class="text-muted">{{ exp.logged_label }}</small>
         </div>
     </div>
     {% endfor %}

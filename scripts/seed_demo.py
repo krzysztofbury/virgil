@@ -221,14 +221,69 @@ async def _seed(db) -> None:
         (exp_id, 10, 14),
     )
     cur = await db.execute(
-        "INSERT INTO experiment_activity_types (experiment_id, name, color, display_order) VALUES (?,?,?,0)",
+        "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, display_order) "
+        "VALUES (?,?,?,'duration',0)",
         (exp_id, "Focus block", "#7c5cff"),
     )
     at_id = cur.lastrowid
     await db.executemany(
-        "INSERT INTO experiment_entries (experiment_id, date, activity_type_id, duration_minutes, notes, source) "
+        "INSERT INTO experiment_entries (experiment_id, date, activity_type_id, value, notes, source) "
         "VALUES (?,?,?,?,?,'manual')",
         [(exp_id, d(1), at_id, 10, ""), (exp_id, d(0), at_id, 10, "")],
+    )
+
+    # --- Experiment 2: general (non-sport) protocol — boolean + count metrics ---
+    cur = await db.execute(
+        "INSERT INTO experiments (title, description, start_date, num_weeks, status) VALUES (?,?,?,?,'active')",
+        (
+            "Daily Reset Protocol",
+            "Meditate daily; log each urge and whether the 10-min gate was executed. Success = 8 gates total.",
+            d(9),
+            2,
+        ),
+    )
+    exp2_id = cur.lastrowid
+    for wn in (1, 2):
+        await db.execute(
+            "INSERT INTO experiment_weeks (experiment_id, week_number, label, target_min, target_max) "
+            "VALUES (?,?,'',0,0)",
+            (exp2_id, wn),
+        )
+    cur = await db.execute(
+        "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, target_value, target_period, display_order) "
+        "VALUES (?,?,?,'boolean',1,'day',1)",
+        (exp2_id, "Meditation", "#22c55e"),
+    )
+    med_id = cur.lastrowid
+    cur = await db.execute(
+        "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, target_value, target_period, display_order) "
+        "VALUES (?,?,?,'count',0,'week',2)",
+        (exp2_id, "Urge logged", "#ef4444"),
+    )
+    urge_id = cur.lastrowid
+    cur = await db.execute(
+        "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, target_value, target_period, display_order) "
+        "VALUES (?,?,?,'count',8,'total',3)",
+        (exp2_id, "Gate executed", "#3b82f6"),
+    )
+    gate_id = cur.lastrowid
+    await db.executemany(
+        "INSERT INTO experiment_entries (experiment_id, date, activity_type_id, value, notes, source) "
+        "VALUES (?,?,?,?,?,'manual')",
+        [
+            (exp2_id, d(8), med_id, 1, ""),
+            (exp2_id, d(7), med_id, 1, ""),
+            (exp2_id, d(6), med_id, 0, "skipped — travel"),
+            (exp2_id, d(5), med_id, 1, ""),
+            (exp2_id, d(4), med_id, 1, ""),
+            (exp2_id, d(2), med_id, 1, ""),
+            (exp2_id, d(1), med_id, 1, ""),
+            (exp2_id, d(7), urge_id, 1, "TENSION, craving 7→3"),
+            (exp2_id, d(7), gate_id, 1, "10-min walk"),
+            (exp2_id, d(4), urge_id, 1, "AUTOPILOT, craving 5→2"),
+            (exp2_id, d(4), gate_id, 1, "device out of room"),
+            (exp2_id, d(1), urge_id, 1, "EMPTINESS, craving 6→4"),
+        ],
     )
 
     # --- Bloodwork: a few markers + latest results (so the Blood page isn't empty) ---

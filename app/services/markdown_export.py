@@ -280,7 +280,7 @@ async def _section_experiments(db, start: str, end: str) -> list[str]:
 
     # Batch-load entries and summaries for all experiments
     all_entries = await db.execute_fetchall(
-        f"""SELECT ee.experiment_id, ee.date, ee.duration_minutes, ee.notes, eat.name as activity_name
+        f"""SELECT ee.experiment_id, ee.date, ee.value, ee.notes, eat.name as activity_name, eat.kind
            FROM experiment_entries ee
            JOIN experiment_activity_types eat ON ee.activity_type_id = eat.id
            WHERE ee.experiment_id IN ({ph}) AND ee.date BETWEEN ? AND ?
@@ -310,11 +310,18 @@ async def _section_experiments(db, start: str, end: str) -> list[str]:
         entries = entries_by_exp.get(exp["id"], [])
         if entries:
             lines.append("")
-            lines.append("| Date | Activity | Duration | Notes |")
-            lines.append("|------|----------|----------|-------|")
+            lines.append("| Date | Metric | Value | Notes |")
+            lines.append("|------|--------|-------|-------|")
+            value_fmt = {
+                "duration": lambda v: f"{v} min",
+                "count": lambda v: f"+{v}",
+                "boolean": lambda v: "yes" if v == 1 else "no",
+                "scale": lambda v: f"{v}/10",
+            }
             for e in entries:
                 notes = e.get("notes", "") or ""
-                lines.append(f"| {e['date']} | {e['activity_name']} | {e['duration_minutes']} min | {notes} |")
+                rendered = value_fmt.get(e["kind"], value_fmt["duration"])(e["value"])
+                lines.append(f"| {e['date']} | {e['activity_name']} | {rendered} | {notes} |")
 
         summaries = summaries_by_exp.get(exp["id"], [])
         if summaries:

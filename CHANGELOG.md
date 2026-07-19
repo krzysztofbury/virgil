@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **General experiments** (migration 015) — experiment metrics now have kinds: `duration` (minutes, Oura auto-import), `count` (events), `boolean` (daily yes/no, one row per day), `scale` (0-10 rating). Count/boolean metrics carry their own target (value per day/week/whole experiment). Entries store a generic `value` (replaces `duration_minutes`)
+- **Experiments quick-log bar** — one-tap Today logging (✓/✗, `+1` with a note, 0-10 input); day-grid cells show per-metric markers; week rows and stats are kind-aware
+- **Experiment edit page** (`/experiments/{id}/edit`) — works for any status (active/completed/abandoned): title, description, dates, status, and metric add/rename/retarget/delete (kind is immutable). `num_weeks` changes resync week rows preserving edited targets/labels
+- **Experiment logging over the API** — `POST /api/experiments/{id}/entries` (the API's single write, X-API-Key auth) + MCP tool `log_experiment_entry`; `GET /api/experiments/active` now returns per-metric progress (logged today/week/total vs target)
+- **Settings → App Config** — dictionary-table management (exercise library): add/edit/delete your own entries; built-in entries are archive-only (hidden from the Training picker, never deleted)
+
 ### Fixed
 
 - **Oura reconcile is user-scoped** — it deletes only THIS user's stale subscriptions (current/previous id, legacy endpoint, unowned orphans); other users' active callbacks on a shared OAuth app are preserved
