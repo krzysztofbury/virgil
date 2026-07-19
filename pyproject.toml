@@ -1,6 +1,6 @@
 [project]
 name = "virgil"
-version = "0.3.0"
+version = "0.4.0"
 description = "Personal life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX"
 readme = "README.md"
 license = "MIT"
