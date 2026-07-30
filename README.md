@@ -337,6 +337,7 @@ Current migrations:
 | 013 | `training_exercise_archive` | Adds `training_exercises.archived` — deleting an exercise keeps history |
 | 014 | `backup_default_on` | Flips `backup_enabled` to `1` on existing installs (backups become opt-out) |
 | 015 | `general_experiments` | Metric kinds (duration/count/boolean/scale) + per-metric targets; `experiment_entries.value` replaces `duration_minutes`; `exercise_library.builtin`/`archived` flags |
+| 016 | `crossfit_movements` | Adds `training_exercises.ad_hoc` to mark parser-created movements; seeds 31 CrossFit movements (vocabulary for WOD parser) |
 
 ## Data Model
 

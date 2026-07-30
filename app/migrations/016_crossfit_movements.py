@@ -24,11 +24,14 @@ async def up(db: aiosqlite.Connection) -> None:
 
     from app.exercise_library import CROSSFIT_MOVEMENTS
 
-    crossfit = CROSSFIT_MOVEMENTS
     order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) as m FROM exercise_library")
     base_order = order_row[0]["m"] if order_row else 0
 
-    for offset, ex in enumerate(crossfit, start=1):
+    for offset, ex in enumerate(CROSSFIT_MOVEMENTS, start=1):
+        # Direct indexing (not .get()) ensures missing keys raise loudly at migration
+        # time, catching future bugs. This structure prevents silent mis-typing:
+        # a movement added without an explicit metric would default to 'reps',
+        # recreating the exact defect that motivated the CROSSFIT_MOVEMENTS separation.
         await db.execute(
             "INSERT OR IGNORE INTO exercise_library "
             "(category, section, name, sets, reps, notes, display_order, metric, builtin) "
@@ -37,10 +40,10 @@ async def up(db: aiosqlite.Connection) -> None:
                 ex["category"],
                 ex["section"],
                 ex["name"],
-                ex.get("sets"),
-                ex.get("reps", ""),
-                ex.get("notes", ""),
+                ex["sets"],
+                ex["reps"],
+                ex["notes"],
                 base_order + offset,
-                ex.get("metric", "reps"),
+                ex["metric"],
             ),
         )
