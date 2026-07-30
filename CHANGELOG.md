@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **CrossFit WOD tracking.** A free-text note written after training is parsed by
+  an LLM into training entries, constrained to a seeded CrossFit movement
+  vocabulary. The raw note is saved before parsing and stays the source of truth;
+  entries are written only after an on-screen confirmation.
+- `training_exercises.ad_hoc` (migration 016): movements created by the WOD parser
+  keep their history, volume and PB contribution but stay out of the daily
+  protocol form.
+
+### Changed
+- **Weekly volume is no longer continuous with pre-CrossFit numbers.** Metcon work
+  counts as real Core volume — a single 21-15-9 thruster couplet at 43 kg is
+  ~1935 kg, against 2880 kg for all of July 2026. This is intentional: it is
+  genuine barbell volume, and excluding it to keep the chart comparable would
+  invert the purpose of the metric.
+
 ## [0.4.0] - 2026-07-19
 
 ### Added

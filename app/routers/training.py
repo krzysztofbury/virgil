@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.main import templates
+from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements, parse_wod
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
@@ -306,6 +307,44 @@ async def capture_wod(request: Request):
             "movements": await canonical_movements(db),
         },
     )
+
+
+@router.post("/training/wod/confirm")
+async def confirm_wod(request: Request):
+    """Persist the user-reviewed WOD entries against an existing session."""
+    db = get_user_db_from_request(request)
+    form = await request.form()
+
+    session_id = _parse_int_in_range(form.get("session_id"), 1, 2**31 - 1)
+    if session_id is None:
+        return RedirectResponse("/training", status_code=303)
+    owned = await db.execute_fetchall("SELECT id FROM training_sessions WHERE id = ?", (session_id,))
+    if not owned:
+        return RedirectResponse("/training", status_code=303)
+
+    entry_count = _parse_int_in_range(form.get("entry_count"), 0, 200) or 0
+
+    rows: list[tuple] = []
+    for i in range(entry_count):
+        movement = (form.get(f"entry_{i}_movement") or "").strip()
+        exercise_id = await resolve_movement(db, movement)
+        if exercise_id is None:
+            continue
+        set_number = _parse_int_in_range(form.get(f"entry_{i}_set_number"), 1, 100) or 1
+        reps = _parse_int_in_range(form.get(f"entry_{i}_reps"), 0, 1000)
+        weight = _parse_float_in_range(form.get(f"entry_{i}_weight"), 0, 1000)
+        duration = _parse_float_in_range(form.get(f"entry_{i}_duration"), 0, 86400)
+        note = truncate(form.get(f"entry_{i}_note", ""), 200)
+        rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
+
+    if rows:
+        await db.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+    await db.commit()
+    return RedirectResponse("/training", status_code=303)
 
 
 @router.post("/training/session/{session_id}/delete")
