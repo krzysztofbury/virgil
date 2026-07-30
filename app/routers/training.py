@@ -1,4 +1,6 @@
+import json
 import logging
+from dataclasses import asdict
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Request
@@ -260,9 +262,16 @@ async def save_session(request: Request):
 
 @router.post("/training/wod")
 async def capture_wod(request: Request):
-    """Capture a free-text WOD note, then parse it into proposed entries.
+    """Capture a free-text WOD note, parse it, and redirect to the confirm screen.
 
-    The session row and the user's own words are committed BEFORE the LLM is
+    Post/Redirect/Get: the parse result is persisted (training_sessions.wod_parsed)
+    so GET /training/wod/confirm/{session_id} can render it without re-invoking the
+    LLM. This is what stops a double-submit or an F5 from creating a second session
+    and firing a second paid parse call — before this, replaying the POST created
+    session #2, the confirm form silently rebound to it, and session #1 survived
+    entry-less while still counting toward the weekly kpi_sessions KPI.
+
+    The session row and the user's own words are still committed BEFORE the LLM is
     called, so a parser failure costs structure, never the record.
     """
     db = get_user_db_from_request(request)
@@ -295,15 +304,46 @@ async def capture_wod(request: Request):
         parse_error = str(exc)
         logger.warning("WOD parse failed for session %s: %s", session_id, exc)
 
+    wod_parsed = json.dumps(
+        {
+            "entries": [asdict(e) for e in entries],
+            "unmatched": unmatched,
+            "parse_error": parse_error,
+        }
+    )
+    await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (wod_parsed, session_id))
+    await db.commit()
+
+    return RedirectResponse(f"/training/wod/confirm/{session_id}", status_code=303)
+
+
+@router.get("/training/wod/confirm/{session_id}", response_class=HTMLResponse)
+async def wod_confirm_page(request: Request, session_id: int):
+    """Render the WOD confirmation screen from the STORED parse result.
+
+    Never re-parses: a GET (including a plain browser refresh) must never
+    invoke the LLM again — that's the whole point of persisting the result in
+    capture_wod rather than rendering it directly there.
+    """
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT id, date, wod_parsed FROM training_sessions WHERE id = ?", (session_id,))
+    if not rows or not rows[0]["wod_parsed"]:
+        # Unknown session, or one not created by the WOD capture flow (no
+        # stored parse result to show) — nothing to confirm here.
+        return RedirectResponse("/training", status_code=303)
+
+    session = rows[0]
+    parsed = json.loads(session["wod_parsed"])
+
     return templates.TemplateResponse(
         "wod_confirm.html",
         {
             "request": request,
             "session_id": session_id,
-            "session_date": session_date,
-            "entries": entries,
-            "unmatched": unmatched,
-            "parse_error": parse_error,
+            "session_date": session["date"],
+            "entries": parsed.get("entries", []),
+            "unmatched": parsed.get("unmatched", []),
+            "parse_error": parsed.get("parse_error", ""),
             "movements": await canonical_movements(db),
         },
     )

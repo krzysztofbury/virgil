@@ -192,3 +192,69 @@ def test_unmatched_movements_are_surfaced(auth_client, monkeypatch):
         },
     )
     assert "Devil Press" in resp.text
+
+
+def test_wod_redirects_to_confirm_and_get_does_not_reparse(auth_client, monkeypatch):
+    """POST /training/wod is Post/Redirect/Get: it must 303 to a confirm URL
+    instead of rendering HTML directly — a raw 200 means replaying the POST
+    (double submit, or a browser's resubmission prompt on refresh) fires the
+    parser, and the paid LLM call, a second time. The GET the redirect points
+    to must render the STORED parse result and never invoke the parser again:
+    a plain page refresh must never cost money.
+    """
+    calls = {"n": 0}
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        calls["n"] += 1
+        return json.dumps(
+            {
+                "entries": [
+                    {
+                        "movement": "Thruster",
+                        "set_number": 1,
+                        "reps": 21,
+                        "weight": 43.0,
+                        "duration": None,
+                        "note": "",
+                    }
+                ],
+                "unmatched": [],
+            }
+        )
+
+    import app.services.wod_parser as wp
+
+    monkeypatch.setattr(wp, "call_llm", fake_call_llm)
+
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "60",
+            "wod_text": "21-15-9 thruster 43kg",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303, "POST /training/wod must Post/Redirect/Get, not render HTML directly"
+    location = resp.headers["location"]
+    assert location.startswith("/training/wod/confirm/")
+    assert calls["n"] == 1
+
+    first = auth_client.get(location)
+    assert first.status_code == 200
+    assert 'value="Thruster" selected' in first.text
+    assert calls["n"] == 1, "the confirm GET must not re-invoke the parser"
+
+    # A refresh (second GET on the same URL) must still not re-parse.
+    second = auth_client.get(location)
+    assert second.status_code == 200
+    assert 'value="Thruster" selected' in second.text
+    assert calls["n"] == 1, "a refresh of the confirm screen must never cost another LLM call"
+
+
+def test_confirm_get_unknown_session_redirects_to_training(auth_client):
+    resp = auth_client.get("/training/wod/confirm/999999", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/training"
