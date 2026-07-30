@@ -50,27 +50,38 @@ def _headers() -> dict:
     return headers
 
 
+def _check(resp: httpx.Response) -> None:
+    """Surface the API's `detail` — a bare '409 Conflict' cannot tell a builtin
+    refusal from a name collision, which is the whole point of the API refusing loudly."""
+    if resp.is_error:
+        try:
+            detail = resp.json().get("detail")
+        except Exception:
+            detail = None
+        raise RuntimeError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
+
+
 def _get(path: str, params: dict | None = None) -> dict:
     resp = httpx.get(f"{API_URL}{path}", params=params, headers=_headers(), timeout=30.0)
-    resp.raise_for_status()
+    _check(resp)
     return resp.json()
 
 
 def _post(path: str, payload: dict) -> dict:
     resp = httpx.post(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
-    resp.raise_for_status()
+    _check(resp)
     return resp.json()
 
 
 def _patch(path: str, payload: dict) -> dict:
     resp = httpx.patch(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
-    resp.raise_for_status()
+    _check(resp)
     return resp.json()
 
 
 def _delete(path: str) -> dict:
     resp = httpx.delete(f"{API_URL}{path}", headers=_headers(), timeout=30.0)
-    resp.raise_for_status()
+    _check(resp)
     return {"deleted": True}
 
 
@@ -165,9 +176,11 @@ def add_exercise(
     notes: str = "",
 ) -> dict:
     """Add a movement to the exercise dictionary. `section` is Warmup/Core/Cardio/
-    Stretching — Core+reps feeds weekly volume and personal bests, Cardio does not.
-    `metric` is 'reps' or 'time' (time entries log weight+seconds and are excluded
-    from rep-based aggregates). Adding to category 'CrossFit' also teaches the WOD parser."""
+    Stretching — Core+reps feeds weekly volume; PBs include weighted Core entries
+    regardless of metric. Cardio always logs rounds+duration and does not feed volume.
+    For Core entries, `metric` 'reps' logs weight+reps (feeds volume/aggregate), while
+    'time' logs weight+seconds (excluded from rep aggregates). Adding to category
+    'CrossFit' also teaches the WOD parser what movements it can recognise."""
     return _post(
         "/api/library",
         {
@@ -185,15 +198,17 @@ def add_exercise(
 @mcp.tool()
 def update_exercise(
     entry_id: int,
-    name: str = "",
-    section: str = "",
-    metric: str = "",
-    reps: str = "",
-    notes: str = "",
+    name: str | None = None,
+    section: str | None = None,
+    metric: str | None = None,
+    reps: str | None = None,
+    notes: str | None = None,
+    sets: int | None = None,
     archived: int | None = None,
 ) -> dict:
     """Edit one dictionary entry — see get_exercise_library for ids. Only the fields
-    you pass change. A builtin entry refuses everything except `archived`."""
+    you pass change. A builtin entry refuses everything except `archived`. Editing
+    a category='CrossFit' entry narrows what the WOD parser is allowed to recognise."""
     payload = {
         k: v
         for k, v in (
@@ -202,18 +217,21 @@ def update_exercise(
             ("metric", metric),
             ("reps", reps),
             ("notes", notes),
+            ("sets", sets),
+            ("archived", archived),
         )
-        if v
+        if v is not None
     }
-    if archived is not None:
-        payload["archived"] = archived
+    if not payload:
+        raise ValueError("update_exercise needs at least one field to change")
     return _patch(f"/api/library/{entry_id}", payload)
 
 
 @mcp.tool()
 def delete_exercise(entry_id: int) -> dict:
     """Remove a dictionary entry permanently. Builtin entries refuse deletion —
-    archive them instead. Deleting does NOT touch logged training history."""
+    archive them instead. Deleting a category='CrossFit' entry narrows what the WOD
+    parser is allowed to recognise. Deleting does NOT touch logged training history."""
     return _delete(f"/api/library/{entry_id}")
 
 
