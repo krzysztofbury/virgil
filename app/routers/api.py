@@ -19,6 +19,12 @@ from pydantic import BaseModel, ConfigDict
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
+from app.library_validation import (
+    LIBRARY_METRICS,
+    clamp_library_sets,
+    normalize_library_text,
+    valid_library_metric,
+)
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
@@ -440,7 +446,6 @@ async def api_noporn(
 # movements the parser is allowed to recognise in a future WOD note.
 
 _LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
-_LIBRARY_METRICS = ("reps", "time")
 
 
 def _check_section(section: str) -> None:
@@ -451,16 +456,9 @@ def _check_section(section: str) -> None:
 
 
 def _check_metric(metric: str) -> None:
-    if metric not in _LIBRARY_METRICS:
-        raise HTTPException(
-            status_code=422, detail=f"metric must be one of {'/'.join(_LIBRARY_METRICS)}, got {metric!r}"
-        )
-
-
-def _clamp_sets(sets: int | None) -> int | None:
-    """Mirrors settings.py's form handlers: sets is a small human rep count, not
-    a free integer — 20 sets in one exercise is already an outlier."""
-    return max(1, min(20, sets)) if sets is not None else None
+    if not valid_library_metric(metric):
+        detail = f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}"
+        raise HTTPException(status_code=422, detail=detail)
 
 
 # extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
@@ -520,8 +518,8 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
     # (library_add) — untrimmed whitespace would create a visually-identical
     # second "Thruster " that both the picker and the WOD parser's closed
     # vocabulary would treat as a distinct movement.
-    category = truncate(payload.category.strip(), 100)
-    name = truncate(payload.name.strip(), 100)
+    category = normalize_library_text(payload.category, 100)
+    name = normalize_library_text(payload.name, 100)
     if not category or not name:
         raise HTTPException(status_code=422, detail="category and name are required")
     existing = await db.execute_fetchall(
@@ -537,9 +535,9 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
             category,
             payload.section,
             name,
-            _clamp_sets(payload.sets),
-            truncate(payload.reps, 100),
-            truncate(payload.notes, 300),
+            clamp_library_sets(payload.sets),
+            normalize_library_text(payload.reps, 100),
+            normalize_library_text(payload.notes, 300),
             (order_row[0]["m"] if order_row else 0) + 1,
             payload.metric,
         ),
@@ -573,9 +571,9 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
     if "metric" in fields:
         _check_metric(fields["metric"])
     if "sets" in fields:
-        fields["sets"] = _clamp_sets(fields["sets"])
+        fields["sets"] = clamp_library_sets(fields["sets"])
     if "name" in fields:
-        fields["name"] = truncate(fields["name"].strip(), 100)
+        fields["name"] = normalize_library_text(fields["name"], 100)
         if not fields["name"]:
             raise HTTPException(status_code=422, detail="name cannot be blank")
         clash = await db.execute_fetchall(
@@ -587,9 +585,9 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
                 status_code=409, detail=f"{fields['name']!r} already exists in category {row['category']!r}"
             )
     if "reps" in fields:
-        fields["reps"] = truncate(fields["reps"], 100)
+        fields["reps"] = normalize_library_text(fields["reps"], 100)
     if "notes" in fields:
-        fields["notes"] = truncate(fields["notes"], 300)
+        fields["notes"] = normalize_library_text(fields["notes"], 300)
 
     assignments = ", ".join(f"{k} = ?" for k in fields)
     await db.execute(

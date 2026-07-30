@@ -109,6 +109,90 @@ def test_builtin_rows_protected(auth_client):
     assert _row(builtin["name"]) is not None
 
 
+def test_add_with_metric_time_is_persisted(auth_client):
+    """A user adding a cardio/erg movement through Settings -> App Config with
+    metric=time must not silently fall back to the reps column default: a
+    'time' movement logged in minutes/seconds must never land in the weekly
+    Total Reps aggregate (app/routers/training.py sums metric='reps' rows only).
+    """
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    resp = auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "Echo Bike",
+            "category": "Cardio",
+            "section": "Cardio",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "time",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    row = _row("Echo Bike")
+    assert row is not None
+    assert row["metric"] == "time", "settings form must persist metric, not silently default to 'reps'"
+
+
+def test_update_changes_metric(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "Ski Erg Intervals",
+            "category": "Cardio",
+            "section": "Cardio",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "reps",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    row = _row("Ski Erg Intervals")
+    assert row["metric"] == "reps"
+
+    auth_client.post(
+        "/settings/library/update",
+        data={
+            "entry_id": str(row["id"]),
+            "name": "Ski Erg Intervals",
+            "section": "Cardio",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "time",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert _row("Ski Erg Intervals")["metric"] == "time", "update must persist a changed metric, not ignore it"
+
+
+def test_add_rejects_invalid_metric_defaults_to_reps(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "Bogus Metric Move",
+            "category": "Cardio",
+            "section": "Cardio",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "not-a-real-metric",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    row = _row("Bogus Metric Move")
+    assert row is not None
+    assert row["metric"] == "reps", "an invalid metric must fall back to the safe default, not persist garbage"
+
+
 def test_archive_hides_from_training_picker(auth_client):
     token = csrf_token(auth_client, "/settings?tab=configuration")
     builtin = _any_builtin_id()

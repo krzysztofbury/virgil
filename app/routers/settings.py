@@ -137,26 +137,42 @@ async def library_add(
     sets: str = Form(""),
     reps: str = Form(""),
     notes: str = Form(""),
+    metric: str = Form("reps"),
 ):
+    from app.library_validation import (
+        clamp_library_sets,
+        normalize_library_text,
+        valid_library_metric,
+    )
     from app.routers.training import SECTION_ORDER
-    from app.validation import truncate
 
     if section not in SECTION_ORDER:
         section = "Core"
-    name = truncate(name.strip(), 100)
-    category = truncate(category.strip(), 100)
+    if not valid_library_metric(metric):
+        metric = "reps"
+    name = normalize_library_text(name, 100)
+    category = normalize_library_text(category, 100)
     if not name or not category:
         return RedirectResponse("/settings?tab=configuration", status_code=303)
     try:
-        sets_val = max(1, min(20, int(sets))) if sets.strip() else None
+        sets_val = clamp_library_sets(int(sets)) if sets.strip() else None
     except ValueError:
         sets_val = None
 
     db = get_user_db_from_request(request)
     await db.execute(
-        "INSERT OR IGNORE INTO exercise_library (category, section, name, sets, reps, notes, display_order, builtin) "
-        "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), 0)",
-        (category, section, name, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300)),
+        "INSERT OR IGNORE INTO exercise_library "
+        "(category, section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), ?, 0)",
+        (
+            category,
+            section,
+            name,
+            sets_val,
+            normalize_library_text(reps, 100),
+            normalize_library_text(notes, 300),
+            metric,
+        ),
     )
     await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
@@ -171,17 +187,24 @@ async def library_update(
     sets: str = Form(""),
     reps: str = Form(""),
     notes: str = Form(""),
+    metric: str = Form("reps"),
 ):
+    from app.library_validation import (
+        clamp_library_sets,
+        normalize_library_text,
+        valid_library_metric,
+    )
     from app.routers.training import SECTION_ORDER
-    from app.validation import truncate
 
     if section not in SECTION_ORDER:
         section = "Core"
-    name = truncate(name.strip(), 100)
+    if not valid_library_metric(metric):
+        metric = "reps"
+    name = normalize_library_text(name, 100)
     if not name:
         return RedirectResponse("/settings?tab=configuration", status_code=303)
     try:
-        sets_val = max(1, min(20, int(sets))) if sets.strip() else None
+        sets_val = clamp_library_sets(int(sets)) if sets.strip() else None
     except ValueError:
         sets_val = None
 
@@ -189,9 +212,17 @@ async def library_update(
     # OR IGNORE mirrors library_add: a rename colliding with UNIQUE(category, name)
     # must no-op instead of raising a 500.
     await db.execute(
-        "UPDATE OR IGNORE exercise_library SET name = ?, section = ?, sets = ?, reps = ?, notes = ? "
+        "UPDATE OR IGNORE exercise_library SET name = ?, section = ?, sets = ?, reps = ?, notes = ?, metric = ? "
         "WHERE id = ? AND builtin = 0",
-        (name, section, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300), entry_id),
+        (
+            name,
+            section,
+            sets_val,
+            normalize_library_text(reps, 100),
+            normalize_library_text(notes, 300),
+            metric,
+            entry_id,
+        ),
     )
     await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
