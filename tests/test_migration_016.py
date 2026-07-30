@@ -123,3 +123,78 @@ def test_crossfit_movements_stay_out_of_the_009_seed_list():
     assert not [e for e in EXERCISE_LIBRARY if e["category"] == "CrossFit"]
     assert len(CROSSFIT_MOVEMENTS) == 31
     assert all(m["category"] == "CrossFit" for m in CROSSFIT_MOVEMENTS)
+
+
+def test_017_flips_crossfit_rows_to_user_editable(tmp_path):
+    """Migration 017 corrects the builtin flag for CrossFit rows on already-migrated
+    databases. This test simulates a DB that ran the old 016 (with builtin=1) and
+    now runs 017.
+
+    The critical assertion is that non-CrossFit rows stay builtin=1 — this catches
+    a WHERE-clause typo that would flip everything.
+    """
+
+    async def run():
+        import aiosqlite
+
+        db = await aiosqlite.connect(tmp_path / "post_016.db")
+        db.row_factory = aiosqlite.Row
+        await db.execute(
+            """CREATE TABLE exercise_library (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                category TEXT NOT NULL,
+                section TEXT NOT NULL,
+                name TEXT NOT NULL,
+                sets INTEGER,
+                reps TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                display_order INTEGER DEFAULT 0,
+                metric TEXT NOT NULL DEFAULT 'reps',
+                builtin INTEGER NOT NULL DEFAULT 0,
+                archived INTEGER NOT NULL DEFAULT 0,
+                UNIQUE(category, name)
+            )"""
+        )
+        # Simulate the old 016: CrossFit rows with builtin=1
+        await db.execute(
+            "INSERT INTO exercise_library (category, section, name, metric, builtin) VALUES (?, ?, ?, ?, 1)",
+            ("CrossFit", "Core", "Thruster", "reps"),
+        )
+        # Simulate legacy rows from migration 015: non-CrossFit with builtin=1
+        await db.execute(
+            "INSERT INTO exercise_library (category, section, name, metric, builtin) VALUES (?, ?, ?, ?, 1)",
+            ("Gym classics", "Core", "Back Squat", "reps"),
+        )
+        await db.commit()
+
+        # Verify initial state
+        rows_before = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
+        by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_before}
+        assert by_cat_name[("CrossFit", "Thruster")] == 1, "CrossFit row starts at builtin=1"
+        assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row is builtin=1"
+
+        # Run 017
+        mod = importlib.import_module("app.migrations.017_crossfit_editable")
+        await mod.up(db)
+        await db.commit()
+
+        # Verify 017 changed only the CrossFit row
+        rows_after = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
+        by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_after}
+        assert by_cat_name[("CrossFit", "Thruster")] == 0, "CrossFit row flipped to builtin=0"
+        assert by_cat_name[("Gym classics", "Back Squat")] == 1, (
+            "Non-CrossFit row still builtin=1 (catches WHERE-clause typo)"
+        )
+
+        # Run 017 again and verify idempotency
+        await mod.up(db)
+        await db.commit()
+
+        rows_final = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
+        by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_final}
+        assert by_cat_name[("CrossFit", "Thruster")] == 0, "Second run unchanged"
+        assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row still protected"
+
+        await db.close()
+
+    asyncio.run(run())
