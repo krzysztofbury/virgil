@@ -259,7 +259,13 @@ async def generate_andy(request: Request, date: str = Form(...)):
         context_parts.append("\n".join(week_lines))
 
     # 3. Training protocol + recent sessions
-    exercises = await db.execute_fetchall("SELECT * FROM training_exercises ORDER BY display_order")
+    # archived (retired) and ad_hoc (WOD-parser-created, no target_sets/target_reps)
+    # rows must stay out of this block: an ad_hoc row renders as "- Thruster: NonexNone"
+    # (resolve_movement never sets target_sets/target_reps), and after a month of
+    # CrossFit logging those garbage lines would dominate what the planner reads.
+    exercises = await db.execute_fetchall(
+        "SELECT * FROM training_exercises WHERE archived = 0 AND ad_hoc = 0 ORDER BY display_order"
+    )
     if exercises:
         train_lines = ["--- Training Protocol ---"]
         for ex in exercises:
