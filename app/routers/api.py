@@ -3,8 +3,9 @@
 Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
-GET endpoints are read-only. The single write is
-POST /api/experiments/{id}/entries — experiment logging for MCP clients.
+Most GET endpoints are read-only. Writes: POST /api/experiments/{id}/entries
+(experiment logging) and full CRUD on /api/library — the exercise dictionary
+the training picker and the WOD parser (app/services/wod_parser.py) both draw from.
 """
 
 import hmac
@@ -425,3 +426,150 @@ async def api_noporn(
         "journal": [dict(r) for r in journal],
         "pleasures": [dict(r) for r in pleasures],
     }
+
+
+# --- Exercise library: dictionary CRUD ---
+# Mirrors app/routers/settings.py's rules exactly (do not diverge): a builtin
+# row may be archived/unarchived but never otherwise edited or deleted — the
+# settings form silently no-ops that case, but an MCP client can't see a
+# redirect, so here it's a loud 409 instead.
+#
+# CrossFit rows (category = 'CrossFit') are also the WOD parser's closed
+# prompt vocabulary (app/services/wod_parser.py:canonical_movements) — editing
+# or deleting one of those rows through these endpoints directly changes what
+# movements the parser is allowed to recognise in a future WOD note.
+
+_LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
+_LIBRARY_METRICS = ("reps", "time")
+
+
+class LibraryCreate(BaseModel):
+    category: str
+    section: str
+    name: str
+    sets: int | None = None
+    reps: str = ""
+    notes: str = ""
+    metric: str = "reps"
+
+
+class LibraryPatch(BaseModel):
+    name: str | None = None
+    section: str | None = None
+    sets: int | None = None
+    reps: str | None = None
+    notes: str | None = None
+    metric: str | None = None
+    archived: int | None = None
+
+
+@router.get("/library")
+async def api_library_list(
+    db: ApiDb,
+    category: str | None = Query(None),
+    include_archived: bool = Query(False),
+):
+    """The exercise library — the dictionary the WOD parser and the picker draw from."""
+    sql = "SELECT * FROM exercise_library WHERE 1 = 1"
+    params: list = []
+    if category:
+        sql += " AND category = ?"
+        params.append(category)
+    if not include_archived:
+        sql += " AND archived = 0"
+    sql += " ORDER BY display_order, name"
+    rows = await db.execute_fetchall(sql, params)
+    return {"entries": [dict(r) for r in rows]}
+
+
+@router.post("/library", status_code=201)
+async def api_library_create(db: ApiDb, payload: LibraryCreate):
+    if payload.section not in _LIBRARY_SECTIONS:
+        raise HTTPException(
+            status_code=422, detail=f"section must be one of {'/'.join(_LIBRARY_SECTIONS)}, got {payload.section!r}"
+        )
+    if payload.metric not in _LIBRARY_METRICS:
+        raise HTTPException(
+            status_code=422, detail=f"metric must be one of {'/'.join(_LIBRARY_METRICS)}, got {payload.metric!r}"
+        )
+    category = truncate(payload.category, 60)
+    name = truncate(payload.name, 100)
+    existing = await db.execute_fetchall(
+        "SELECT id FROM exercise_library WHERE category = ? AND name = ?", (category, name)
+    )
+    if existing:
+        raise HTTPException(status_code=409, detail=f"{name!r} already exists in category {category!r}")
+    order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) AS m FROM exercise_library")
+    cursor = await db.execute(
+        "INSERT INTO exercise_library (category, section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        (
+            category,
+            payload.section,
+            name,
+            payload.sets,
+            truncate(payload.reps, 100),
+            truncate(payload.notes, 300),
+            (order_row[0]["m"] if order_row else 0) + 1,
+            payload.metric,
+        ),
+    )
+    await db.commit()
+    return {"id": cursor.lastrowid}
+
+
+@router.patch("/library/{entry_id}")
+async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"library entry {entry_id} not found")
+    row = rows[0]
+
+    fields = payload.model_dump(exclude_none=True)
+    # Mirrors settings.py: a builtin row may be archived but never re-shaped.
+    if row["builtin"] and set(fields) - {"archived"}:
+        raise HTTPException(status_code=409, detail=f"library entry {entry_id} is builtin — only 'archived' can change")
+    if not fields:
+        return {"id": entry_id, "updated": []}
+    if "section" in fields and fields["section"] not in _LIBRARY_SECTIONS:
+        raise HTTPException(
+            status_code=422,
+            detail=f"section must be one of {'/'.join(_LIBRARY_SECTIONS)}, got {fields['section']!r}",
+        )
+    if "metric" in fields and fields["metric"] not in _LIBRARY_METRICS:
+        raise HTTPException(
+            status_code=422, detail=f"metric must be one of {'/'.join(_LIBRARY_METRICS)}, got {fields['metric']!r}"
+        )
+    if "name" in fields:
+        fields["name"] = truncate(fields["name"], 100)
+        clash = await db.execute_fetchall(
+            "SELECT id FROM exercise_library WHERE category = ? AND name = ? AND id != ?",
+            (row["category"], fields["name"], entry_id),
+        )
+        if clash:
+            raise HTTPException(
+                status_code=409, detail=f"{fields['name']!r} already exists in category {row['category']!r}"
+            )
+    if "reps" in fields:
+        fields["reps"] = truncate(fields["reps"], 100)
+    if "notes" in fields:
+        fields["notes"] = truncate(fields["notes"], 300)
+
+    assignments = ", ".join(f"{k} = ?" for k in fields)
+    await db.execute(
+        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are model fields, not input
+        [*fields.values(), entry_id],
+    )
+    await db.commit()
+    return {"id": entry_id, "updated": sorted(fields)}
+
+
+@router.delete("/library/{entry_id}", status_code=204)
+async def api_library_delete(db: ApiDb, entry_id: int):
+    rows = await db.execute_fetchall("SELECT builtin FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"library entry {entry_id} not found")
+    if rows[0]["builtin"]:
+        raise HTTPException(status_code=409, detail=f"library entry {entry_id} is builtin — archive it instead")
+    await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
+    await db.commit()

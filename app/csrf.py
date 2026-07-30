@@ -22,8 +22,12 @@ CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 # API writes authenticate via the X-API-Key header, never cookies — CSRF does not
 # apply (browsers cannot attach custom headers cross-site without a CORS preflight).
 # Anchored, one numeric segment: a broad prefix/suffix match would silently exempt
-# any future session-authenticated /api/experiments/*/entries route.
-CSRF_EXEMPT_PATTERNS = (re.compile(r"^/api/experiments/\d+/entries$"),)
+# any future session-authenticated /api/experiments/*/entries or /api/library/* route.
+CSRF_EXEMPT_PATTERNS = (
+    re.compile(r"^/api/experiments/\d+/entries$"),
+    re.compile(r"^/api/library$"),
+    re.compile(r"^/api/library/\d+$"),
+)
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB
 # (app/routers/onboarding.py MAX_UPLOAD_BYTES) plus multipart framing overhead.
