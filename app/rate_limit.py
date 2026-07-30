@@ -11,6 +11,12 @@ GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
 AUTH_WINDOW_SECONDS = 60
 AUTH_PATHS = frozenset({"/login", "/signup", "/setup", "/mfa/verify"})
+
+# LLM-backed endpoints cost money per call — a far tighter bucket than GENERAL.
+LLM_LIMIT = 10
+LLM_WINDOW_SECONDS = 60
+LLM_PATHS = frozenset({"/training/wod"})
+
 MAX_BUCKETS = 10_000
 
 # {ip: [(timestamp, ...), ...]}
@@ -37,10 +43,12 @@ class RateLimitMiddleware:
         path = scope.get("path", "")
         now = time.monotonic()
 
-        is_auth = path in AUTH_PATHS
-        limit = AUTH_LIMIT if is_auth else GENERAL_LIMIT
-        window = AUTH_WINDOW_SECONDS if is_auth else GENERAL_WINDOW_SECONDS
-        key = f"{ip}:auth" if is_auth else ip
+        if path in AUTH_PATHS:
+            limit, window, key = AUTH_LIMIT, AUTH_WINDOW_SECONDS, f"{ip}:auth"
+        elif path in LLM_PATHS:
+            limit, window, key = LLM_LIMIT, LLM_WINDOW_SECONDS, f"{ip}:llm"
+        else:
+            limit, window, key = GENERAL_LIMIT, GENERAL_WINDOW_SECONDS, ip
 
         bucket = _clean_bucket(_buckets.get(key, []), window, now)
 

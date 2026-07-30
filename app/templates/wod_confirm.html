@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Virgil - WOD{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-header"><h3>WOD — {{ session_date }}</h3></div>
+  <div class="card-body">
+
+    {% if parse_error %}
+      <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
+      Notatka jest zapisana przy sesji — możesz wrócić i uzupełnić wpisy ręcznie.</p>
+    {% endif %}
+
+    {% if unmatched %}
+      <p class="text-muted">Nierozpoznane ruchy — wybierz odpowiednik albo pomiń:</p>
+      <ul>
+        {% for name in unmatched %}
+          <li>{{ name }}</li>
+        {% endfor %}
+      </ul>
+    {% endif %}
+
+    {% if entries %}
+    <form method="post" action="/training/wod/confirm">
+      <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+      <input type="hidden" name="session_id" value="{{ session_id }}">
+      <div class="overflow-x">
+      <table>
+        <thead><tr><th>Ruch</th><th>Seria</th><th>Powt.</th><th>Ciężar (kg)</th><th>Czas (s)</th><th>Notatka</th></tr></thead>
+        <tbody>
+        {% for e in entries %}
+          <tr>
+            <td>
+              <select name="entry_{{ loop.index0 }}_movement">
+                {% for m in movements %}
+                  <option value="{{ m.name }}" {% if m.name == e.movement %}selected{% endif %}>{{ m.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="number" name="entry_{{ loop.index0 }}_set_number" value="{{ e.set_number }}" min="1"></td>
+            <td><input type="number" name="entry_{{ loop.index0 }}_reps" value="{{ e.reps if e.reps is not none else '' }}" min="0"></td>
+            <td><input type="number" step="0.5" name="entry_{{ loop.index0 }}_weight" value="{{ e.weight if e.weight is not none else '' }}" min="0"></td>
+            <td><input type="number" step="1" name="entry_{{ loop.index0 }}_duration" value="{{ e.duration if e.duration is not none else '' }}" min="0"></td>
+            <td><input type="text" name="entry_{{ loop.index0 }}_note" value="{{ e.note }}" maxlength="200"></td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+      </div>
+      <input type="hidden" name="entry_count" value="{{ entries|length }}">
+      <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
+    </form>
+    {% else %}
+      <p class="text-muted">Nic nie udało się sparsować. Notatka została zapisana przy sesji.</p>
+      <a href="/training">Wróć do treningu</a>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

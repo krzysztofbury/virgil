@@ -5,6 +5,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.main import templates
+from app.services.wod_parser import canonical_movements, parse_wod
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
@@ -254,6 +255,56 @@ async def save_session(request: Request):
 
     await db.commit()
     return RedirectResponse("/training", status_code=303)
+
+
+@router.post("/training/wod")
+async def capture_wod(request: Request):
+    """Capture a free-text WOD note, then parse it into proposed entries.
+
+    The session row and the user's own words are committed BEFORE the LLM is
+    called, so a parser failure costs structure, never the record.
+    """
+    db = get_user_db_from_request(request)
+    form = await request.form()
+
+    session_date = form.get("date", date.today().isoformat())
+    if not valid_date(session_date):
+        return RedirectResponse("/training", status_code=303)
+
+    wod_text = truncate(form.get("wod_text", "").strip(), 4000)
+    if not wod_text:
+        return RedirectResponse("/training", status_code=303)
+
+    duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
+
+    cursor = await db.execute(
+        "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, ?, ?)",
+        (session_date, duration_int, wod_text),
+    )
+    session_id = cursor.lastrowid
+    await db.commit()
+
+    entries: list = []
+    unmatched: list[str] = []
+    parse_error = ""
+    try:
+        parsed = await parse_wod(db, wod_text)
+        entries, unmatched = parsed.entries, parsed.unmatched
+    except ValueError as exc:
+        parse_error = str(exc)
+
+    return templates.TemplateResponse(
+        "wod_confirm.html",
+        {
+            "request": request,
+            "session_id": session_id,
+            "session_date": session_date,
+            "entries": entries,
+            "unmatched": unmatched,
+            "parse_error": parse_error,
+            "movements": await canonical_movements(db),
+        },
+    )
 
 
 @router.post("/training/session/{session_id}/delete")

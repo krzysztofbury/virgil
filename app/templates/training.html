@@ -156,6 +156,31 @@
 </div>
 {% endif %}
 
+<!-- 3b. WOD Capture -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Zapisz WOD</h3></div>
+    <div class="card-body">
+        <form method="post" action="/training/wod">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <div class="grid" style="margin-bottom: 0.75rem;">
+                <div>
+                    <label>Date
+                        <input type="date" name="date" value="{{ today }}" required>
+                    </label>
+                </div>
+                <div>
+                    <label>Duration (min)
+                        <input type="number" name="duration_minutes" placeholder="minuty" min="1">
+                    </label>
+                </div>
+            </div>
+            <textarea name="wod_text" rows="4" maxlength="4000"
+                placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42"></textarea>
+            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Sparsuj WOD</button>
+        </form>
+    </div>
+</div>
+
 <!-- 4. Log Workout -->
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;">
