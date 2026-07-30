@@ -383,3 +383,74 @@ EXERCISE_LIBRARY: list[dict] = [
         "notes": "4s in — 4s hold — 4s out — 4s hold",
     },
 ]
+
+# ── CrossFit movements (WOD parser vocabulary) ───────────────────────
+# Deliberately NOT part of EXERCISE_LIBRARY: migration 009 seeds that list
+# before the `metric` column exists, and migration 011 would then derive
+# metric='reps' for every row below — silently mis-typing the Cardio/time
+# movements on fresh databases. Migration 016 owns seeding these, with the
+# metric written explicitly.
+CROSSFIT_MOVEMENTS: list[dict] = [
+    *[
+        {
+            "category": "CrossFit",
+            "section": "Core",
+            "metric": "reps",
+            "name": n,
+            "sets": None,
+            "reps": "",
+            "notes": "",
+        }
+        for n in (
+            "Back Squat",
+            "Front Squat",
+            "Overhead Squat",
+            "Deadlift",
+            "Shoulder Press",
+            "Push Press",
+            "Push Jerk",
+            "Clean",
+            "Power Clean",
+            "Snatch",
+            "Power Snatch",
+            "Thruster",
+            "Wall Ball",
+            "Kettlebell Swing",
+            "Pull-up",
+            "Chest-to-bar Pull-up",
+            "Muscle-up",
+            "Ring Dip",
+            "Handstand Push-up",
+            "Bench Press",
+            "Box Jump",
+            "Burpee",
+            "Toes-to-bar",
+            "Sit-up",
+            "Lunge",
+        )
+    ],
+    *[
+        {
+            "category": "CrossFit",
+            "section": "Cardio",
+            "metric": "time",
+            "name": n,
+            "sets": None,
+            "reps": "",
+            "notes": "",
+        }
+        for n in ("Row", "Assault Bike", "Ski Erg", "Run")
+    ],
+    *[
+        {
+            "category": "CrossFit",
+            "section": "Cardio",
+            "metric": "reps",
+            "name": n,
+            "sets": None,
+            "reps": "",
+            "notes": "",
+        }
+        for n in ("Double-under", "Single-under")
+    ],
+]

@@ -50,7 +50,11 @@ async def training_page(request: Request):
 
     # Archived exercises stay out of the protocol/log forms but keep their
     # historical entries (session history and PBs join by id regardless).
-    exercises = await db.execute_fetchall("SELECT * FROM training_exercises WHERE archived = 0 ORDER BY display_order")
+    # ad_hoc rows are parser-created WOD movements: they keep their history,
+    # volume and PB contribution but must not accumulate in the daily protocol.
+    exercises = await db.execute_fetchall(
+        "SELECT * FROM training_exercises WHERE archived = 0 AND ad_hoc = 0 ORDER BY display_order"
+    )
     exercises = [dict(e) for e in exercises]
 
     # Group exercises by section, maintaining SECTION_ORDER
