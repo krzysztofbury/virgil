@@ -292,6 +292,7 @@ async def capture_wod(request: Request):
         entries, unmatched = parsed.entries, parsed.unmatched
     except ValueError as exc:
         parse_error = str(exc)
+        logger.warning("WOD parse failed for session %s: %s", session_id, exc)
 
     return templates.TemplateResponse(
         "wod_confirm.html",

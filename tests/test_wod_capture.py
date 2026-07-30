@@ -3,6 +3,7 @@
 import json
 import sqlite3
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -56,7 +57,12 @@ def test_saves_raw_text_and_shows_parsed_entries(auth_client, monkeypatch):
         },
     )
     assert resp.status_code == 200
-    assert "Thruster" in resp.text
+    # Mapping-sensitive: "Thruster" alone is a false-positive magnet — it is one of
+    # the 31 canonical movements rendered as an <option> in every entry row's
+    # <select> regardless of what was actually parsed. Assert the specific option
+    # is the one marked selected, and that the parsed reps landed on entry 0.
+    assert 'value="Thruster" selected' in resp.text
+    assert 'name="entry_0_reps" value="21"' in resp.text
     latest = _sessions()[0]
     assert latest["notes"] == "21-15-9 thruster 43 kg, 8:42"
     assert latest["duration_minutes"] == 60
@@ -100,6 +106,48 @@ def test_garbled_llm_response_still_saves_the_note(auth_client, monkeypatch):
     latest = _sessions()[0]
     assert latest["notes"] == "3 rundy: 10 burpees, 15 kb swing 24", "raw text must survive a garbled LLM reply"
     assert "did not return a JSON object" in resp.text or "parsowanie" in resp.text.lower()
+
+
+def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
+    """The INSERT+commit must precede parse_wod. A ValueError is caught by the
+    route and proves nothing about ordering (the commit already happened either
+    way by the time we inspect the response). An exception the route does NOT
+    catch is the only thing that can tell the two orderings apart: if the insert
+    were moved after the parse call, this crash would take the session with it.
+
+    Not hypothetical: call_llm can raise non-ValueError — the bare asserts in
+    app/services/llm.py (max_tokens bounds, missing content), transport errors
+    that aren't litellm.APIError subclasses, and asyncio.CancelledError on
+    client disconnect.
+    """
+    import app.services.wod_parser as wp
+
+    async def boom(db, system_prompt, user_prompt, **kwargs):
+        raise RuntimeError("connection reset by peer")
+
+    monkeypatch.setattr(wp, "call_llm", boom)
+    token = csrf_token(auth_client, "/training")
+    with pytest.raises(RuntimeError):
+        auth_client.post(
+            "/training/wod",
+            data={
+                "date": "2026-07-30",
+                "duration_minutes": "50",
+                "wod_text": "5 rund: 10 burpee, 15 wall ball",
+                "_csrf_token": token,
+            },
+        )
+    assert _sessions()[0]["notes"] == "5 rund: 10 burpee, 15 wall ball"
+
+
+def test_capture_form_renders_on_training_page(auth_client):
+    """A wrong action= or renamed field on the WOD capture form would ship green
+    without this — nothing else in the suite posts to /training/wod via the
+    rendered form, only via a hand-built payload."""
+    resp = auth_client.get("/training")
+    assert resp.status_code == 200
+    assert 'action="/training/wod"' in resp.text
+    assert 'name="wod_text"' in resp.text
 
 
 def test_empty_text_creates_no_session(auth_client):

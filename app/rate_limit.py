@@ -5,7 +5,7 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 # Sliding window rate limiter: per-IP, in-memory
-# General endpoints: 120 req/min, auth endpoints: 10 req/min
+# General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min
 GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
