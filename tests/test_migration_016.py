@@ -51,15 +51,17 @@ async def _legacy_db(tmp_path):
 def test_adds_ad_hoc_column_defaulting_to_zero(tmp_path):
     async def run():
         db = await _legacy_db(tmp_path)
-        mod = importlib.import_module("app.migrations.016_crossfit_movements")
-        await mod.up(db)
-        await db.commit()
-        cols = await db.execute_fetchall("PRAGMA table_info(training_exercises)")
-        names = {c["name"] for c in cols}
-        assert "ad_hoc" in names
-        rows = await db.execute_fetchall("SELECT ad_hoc FROM training_exercises WHERE name = 'Goblet Squat'")
-        assert rows[0]["ad_hoc"] == 0
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.016_crossfit_movements")
+            await mod.up(db)
+            await db.commit()
+            cols = await db.execute_fetchall("PRAGMA table_info(training_exercises)")
+            names = {c["name"] for c in cols}
+            assert "ad_hoc" in names
+            rows = await db.execute_fetchall("SELECT ad_hoc FROM training_exercises WHERE name = 'Goblet Squat'")
+            assert rows[0]["ad_hoc"] == 0
+        finally:
+            await db.close()
 
     asyncio.run(run())
 
@@ -67,28 +69,30 @@ def test_adds_ad_hoc_column_defaulting_to_zero(tmp_path):
 def test_seeds_crossfit_movements_with_sections_and_metrics(tmp_path):
     async def run():
         db = await _legacy_db(tmp_path)
-        mod = importlib.import_module("app.migrations.016_crossfit_movements")
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall(
-            "SELECT name, section, metric, builtin FROM exercise_library WHERE category = 'CrossFit'"
-        )
-        by_name = {r["name"]: r for r in rows}
-        assert len(rows) == 31, f"expected 31 CrossFit movements, got {len(rows)}"
-        assert by_name["Thruster"]["section"] == "Core"
-        assert by_name["Thruster"]["metric"] == "reps"
-        assert by_name["Row"]["section"] == "Cardio"
-        assert by_name["Row"]["metric"] == "time"
-        assert by_name["Double-under"]["section"] == "Cardio"
-        assert by_name["Double-under"]["metric"] == "reps"
-        assert all(r["builtin"] == 0 for r in rows)
-        # Verify the full vocabulary split
-        assert Counter((r["section"], r["metric"]) for r in rows) == {
-            ("Core", "reps"): 25,
-            ("Cardio", "time"): 4,
-            ("Cardio", "reps"): 2,
-        }
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.016_crossfit_movements")
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall(
+                "SELECT name, section, metric, builtin FROM exercise_library WHERE category = 'CrossFit'"
+            )
+            by_name = {r["name"]: r for r in rows}
+            assert len(rows) == 31, f"expected 31 CrossFit movements, got {len(rows)}"
+            assert by_name["Thruster"]["section"] == "Core"
+            assert by_name["Thruster"]["metric"] == "reps"
+            assert by_name["Row"]["section"] == "Cardio"
+            assert by_name["Row"]["metric"] == "time"
+            assert by_name["Double-under"]["section"] == "Cardio"
+            assert by_name["Double-under"]["metric"] == "reps"
+            assert all(r["builtin"] == 0 for r in rows)
+            # Verify the full vocabulary split
+            assert Counter((r["section"], r["metric"]) for r in rows) == {
+                ("Core", "reps"): 25,
+                ("Cardio", "time"): 4,
+                ("Cardio", "reps"): 2,
+            }
+        finally:
+            await db.close()
 
     asyncio.run(run())
 
@@ -96,13 +100,15 @@ def test_seeds_crossfit_movements_with_sections_and_metrics(tmp_path):
 def test_is_idempotent(tmp_path):
     async def run():
         db = await _legacy_db(tmp_path)
-        mod = importlib.import_module("app.migrations.016_crossfit_movements")
-        await mod.up(db)
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM exercise_library WHERE category = 'CrossFit'")
-        assert rows[0]["c"] == 31
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.016_crossfit_movements")
+            await mod.up(db)
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM exercise_library WHERE category = 'CrossFit'")
+            assert rows[0]["c"] == 31
+        finally:
+            await db.close()
 
     asyncio.run(run())
 
@@ -138,63 +144,66 @@ def test_017_flips_crossfit_rows_to_user_editable(tmp_path):
         import aiosqlite
 
         db = await aiosqlite.connect(tmp_path / "post_016.db")
-        db.row_factory = aiosqlite.Row
-        await db.execute(
-            """CREATE TABLE exercise_library (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                category TEXT NOT NULL,
-                section TEXT NOT NULL,
-                name TEXT NOT NULL,
-                sets INTEGER,
-                reps TEXT DEFAULT '',
-                notes TEXT DEFAULT '',
-                display_order INTEGER DEFAULT 0,
-                metric TEXT NOT NULL DEFAULT 'reps',
-                builtin INTEGER NOT NULL DEFAULT 0,
-                archived INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(category, name)
-            )"""
-        )
-        # Simulate the old 016: CrossFit rows with builtin=1
-        await db.execute(
-            "INSERT INTO exercise_library (category, section, name, metric, builtin) VALUES (?, ?, ?, ?, 1)",
-            ("CrossFit", "Core", "Thruster", "reps"),
-        )
-        # Simulate legacy rows from migration 015: non-CrossFit with builtin=1
-        await db.execute(
-            "INSERT INTO exercise_library (category, section, name, metric, builtin) VALUES (?, ?, ?, ?, 1)",
-            ("Gym classics", "Core", "Back Squat", "reps"),
-        )
-        await db.commit()
+        try:
+            db.row_factory = aiosqlite.Row
+            await db.execute(
+                """CREATE TABLE exercise_library (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    category TEXT NOT NULL,
+                    section TEXT NOT NULL,
+                    name TEXT NOT NULL,
+                    sets INTEGER,
+                    reps TEXT DEFAULT '',
+                    notes TEXT DEFAULT '',
+                    display_order INTEGER DEFAULT 0,
+                    metric TEXT NOT NULL DEFAULT 'reps',
+                    builtin INTEGER NOT NULL DEFAULT 0,
+                    archived INTEGER NOT NULL DEFAULT 0,
+                    UNIQUE(category, name)
+                )"""
+            )
+            # Simulate the old 016: CrossFit rows with builtin=1
+            await db.execute(
+                "INSERT INTO exercise_library (category, section, name, metric, builtin) VALUES (?, ?, ?, ?, 1)",
+                ("CrossFit", "Core", "Thruster", "reps"),
+            )
+            # Simulate legacy rows from migration 015: non-CrossFit with builtin=1
+            await db.execute(
+                "INSERT INTO exercise_library (category, section, name, metric, builtin) VALUES (?, ?, ?, ?, 1)",
+                ("Gym classics", "Core", "Back Squat", "reps"),
+            )
+            await db.commit()
 
-        # Verify initial state
-        rows_before = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
-        by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_before}
-        assert by_cat_name[("CrossFit", "Thruster")] == 1, "CrossFit row starts at builtin=1"
-        assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row is builtin=1"
+            # Verify initial state
+            rows_before = await db.execute_fetchall(
+                "SELECT category, name, builtin FROM exercise_library ORDER BY name"
+            )
+            by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_before}
+            assert by_cat_name[("CrossFit", "Thruster")] == 1, "CrossFit row starts at builtin=1"
+            assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row is builtin=1"
 
-        # Run 017
-        mod = importlib.import_module("app.migrations.017_crossfit_editable")
-        await mod.up(db)
-        await db.commit()
+            # Run 017
+            mod = importlib.import_module("app.migrations.017_crossfit_editable")
+            await mod.up(db)
+            await db.commit()
 
-        # Verify 017 changed only the CrossFit row
-        rows_after = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
-        by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_after}
-        assert by_cat_name[("CrossFit", "Thruster")] == 0, "CrossFit row flipped to builtin=0"
-        assert by_cat_name[("Gym classics", "Back Squat")] == 1, (
-            "Non-CrossFit row still builtin=1 (catches WHERE-clause typo)"
-        )
+            # Verify 017 changed only the CrossFit row
+            rows_after = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
+            by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_after}
+            assert by_cat_name[("CrossFit", "Thruster")] == 0, "CrossFit row flipped to builtin=0"
+            assert by_cat_name[("Gym classics", "Back Squat")] == 1, (
+                "Non-CrossFit row still builtin=1 (catches WHERE-clause typo)"
+            )
 
-        # Run 017 again and verify idempotency
-        await mod.up(db)
-        await db.commit()
+            # Run 017 again and verify idempotency
+            await mod.up(db)
+            await db.commit()
 
-        rows_final = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
-        by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_final}
-        assert by_cat_name[("CrossFit", "Thruster")] == 0, "Second run unchanged"
-        assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row still protected"
-
-        await db.close()
+            rows_final = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
+            by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_final}
+            assert by_cat_name[("CrossFit", "Thruster")] == 0, "Second run unchanged"
+            assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row still protected"
+        finally:
+            await db.close()
 
     asyncio.run(run())

@@ -56,13 +56,15 @@ async def _db(tmp_path):
 def test_creates_ad_hoc_row_inheriting_section_and_metric(tmp_path):
     async def run():
         db = await _db(tmp_path)
-        ex_id = await resolve_movement(db, "Row")
-        rows = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (ex_id,))
-        assert rows[0]["name"] == "Row"
-        assert rows[0]["section"] == "Cardio"
-        assert rows[0]["metric"] == "time"
-        assert rows[0]["ad_hoc"] == 1
-        await db.close()
+        try:
+            ex_id = await resolve_movement(db, "Row")
+            rows = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (ex_id,))
+            assert rows[0]["name"] == "Row"
+            assert rows[0]["section"] == "Cardio"
+            assert rows[0]["metric"] == "time"
+            assert rows[0]["ad_hoc"] == 1
+        finally:
+            await db.close()
 
     asyncio.run(run())
 
@@ -70,12 +72,14 @@ def test_creates_ad_hoc_row_inheriting_section_and_metric(tmp_path):
 def test_second_use_reuses_the_same_row(tmp_path):
     async def run():
         db = await _db(tmp_path)
-        first = await resolve_movement(db, "Thruster")
-        second = await resolve_movement(db, "Thruster")
-        assert first == second
-        rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises WHERE name = 'Thruster'")
-        assert rows[0]["c"] == 1
-        await db.close()
+        try:
+            first = await resolve_movement(db, "Thruster")
+            second = await resolve_movement(db, "Thruster")
+            assert first == second
+            rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises WHERE name = 'Thruster'")
+            assert rows[0]["c"] == 1
+        finally:
+            await db.close()
 
     asyncio.run(run())
 
@@ -83,16 +87,20 @@ def test_second_use_reuses_the_same_row(tmp_path):
 def test_matches_existing_protocol_exercise_without_creating(tmp_path):
     async def run():
         db = await _db(tmp_path)
-        await db.execute(
-            "INSERT INTO exercise_library (category, section, name, metric, builtin) "
-            "VALUES ('CrossFit', 'Core', 'Goblet Squat', 'reps', 1)"
-        )
-        ex_id = await resolve_movement(db, "goblet squat")
-        rows = await db.execute_fetchall("SELECT ad_hoc FROM training_exercises WHERE id = ?", (ex_id,))
-        assert rows[0]["ad_hoc"] == 0, "an existing protocol exercise must not be re-created as ad hoc"
-        count = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises WHERE name = 'Goblet Squat'")
-        assert count[0]["c"] == 1
-        await db.close()
+        try:
+            await db.execute(
+                "INSERT INTO exercise_library (category, section, name, metric, builtin) "
+                "VALUES ('CrossFit', 'Core', 'Goblet Squat', 'reps', 1)"
+            )
+            ex_id = await resolve_movement(db, "goblet squat")
+            rows = await db.execute_fetchall("SELECT ad_hoc FROM training_exercises WHERE id = ?", (ex_id,))
+            assert rows[0]["ad_hoc"] == 0, "an existing protocol exercise must not be re-created as ad hoc"
+            count = await db.execute_fetchall(
+                "SELECT COUNT(*) as c FROM training_exercises WHERE name = 'Goblet Squat'"
+            )
+            assert count[0]["c"] == 1
+        finally:
+            await db.close()
 
     asyncio.run(run())
 
@@ -100,10 +108,12 @@ def test_matches_existing_protocol_exercise_without_creating(tmp_path):
 def test_unknown_movement_creates_nothing(tmp_path):
     async def run():
         db = await _db(tmp_path)
-        before = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises")
-        assert await resolve_movement(db, "Devil Press") is None
-        after = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises")
-        assert after[0]["c"] == before[0]["c"]
-        await db.close()
+        try:
+            before = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises")
+            assert await resolve_movement(db, "Devil Press") is None
+            after = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises")
+            assert after[0]["c"] == before[0]["c"]
+        finally:
+            await db.close()
 
     asyncio.run(run())

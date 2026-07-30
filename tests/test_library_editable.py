@@ -51,10 +51,39 @@ def test_crossfit_row_can_be_edited(auth_client):
 def test_crossfit_row_can_be_deleted(auth_client):
     row = _row("Single-under")
     token = csrf_token(auth_client, "/settings?tab=configuration")
-    resp = auth_client.post(
-        "/settings/library/delete",
-        data={"entry_id": str(row["id"]), "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
-    assert _row("Single-under") is None, "delete was silently dropped by the builtin guard"
+    try:
+        resp = auth_client.post(
+            "/settings/library/delete",
+            data={"entry_id": str(row["id"]), "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert _row("Single-under") is None, "delete was silently dropped by the builtin guard"
+    finally:
+        # Restore the row for other test files sharing this session-scoped DB —
+        # e.g. tests/test_api_library.py's test_list_returns_crossfit_vocabulary
+        # asserts len(entries) == 31, and file execution order isn't guaranteed
+        # (mirrors the cleanup convention at tests/test_api_library.py:309-318).
+        conn = sqlite3.connect(user_db_path())
+        try:
+            conn.execute(
+                "INSERT INTO exercise_library "
+                "(id, category, section, name, sets, reps, notes, display_order, metric, builtin, archived) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    row["id"],
+                    row["category"],
+                    row["section"],
+                    row["name"],
+                    row["sets"],
+                    row["reps"],
+                    row["notes"],
+                    row["display_order"],
+                    row["metric"],
+                    row["builtin"],
+                    row["archived"],
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()

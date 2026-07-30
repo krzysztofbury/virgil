@@ -2,7 +2,7 @@
 
 import sqlite3
 
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, stat_value_for_label, user_db_path
 
 
 def _query(sql, params=()):
@@ -118,10 +118,17 @@ def test_ad_hoc_movement_is_absent_from_the_protocol_form(auth_client):
 
 
 def test_entries_reach_the_weekly_volume_kpi(auth_client):
+    """Confirmed WOD entries must reach the rendered /training page's Volume
+    (Core) KPI and Personal Bests card — not just a hand-copied aggregate query
+    run directly against sqlite (that exercises SQLite, not training.py, and
+    would stay green even if training.py's own query regressed).
+    """
     from datetime import date, timedelta
 
     monday = (date.today() - timedelta(days=date.today().weekday())).isoformat()
     session_id = _new_session(date_str=monday)
+    baseline_volume = stat_value_for_label(auth_client.get("/training").text, "Volume (Core)")
+
     token = csrf_token(auth_client, "/training")
     auth_client.post(
         "/training/wod/confirm",
@@ -138,26 +145,12 @@ def test_entries_reach_the_weekly_volume_kpi(auth_client):
         },
         follow_redirects=False,
     )
-    rows = _query(
-        """SELECT SUM(CASE WHEN tex.section = 'Core' AND tex.metric = 'reps'
-                           THEN te.reps * COALESCE(te.weight, 0) ELSE 0 END) as v
-           FROM training_entries te
-           JOIN training_sessions ts ON te.session_id = ts.id
-           JOIN training_exercises tex ON te.exercise_id = tex.id
-           WHERE ts.date >= ?""",
-        (monday,),
-    )
-    assert rows[0]["v"] >= 350, "5 reps x 70 kg must land in Core volume"
 
-    pbs = _query(
-        """SELECT tex.name, MAX(te.weight) as max_weight
-           FROM training_entries te
-           JOIN training_sessions ts ON te.session_id = ts.id
-           JOIN training_exercises tex ON te.exercise_id = tex.id
-           WHERE ts.date >= ? AND tex.section = 'Core' AND te.weight > 0
-           GROUP BY tex.id""",
-        (monday,),
+    resp = auth_client.get("/training")
+    new_volume = stat_value_for_label(resp.text, "Volume (Core)")
+    assert new_volume == baseline_volume + 350, (
+        f"5 reps x 70 kg must land in the rendered Core volume KPI; baseline={baseline_volume}, new={new_volume}"
     )
-    assert any(p["name"] == "Back Squat" and p["max_weight"] == 70.0 for p in pbs), (
-        "ad-hoc movements must reach Personal Bests, not just volume"
-    )
+
+    pb_weight = stat_value_for_label(resp.text, "Back Squat")
+    assert pb_weight == 70.0, "ad-hoc movements must reach the rendered Personal Bests card, not just volume"
