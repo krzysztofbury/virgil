@@ -126,3 +126,36 @@ def test_prompt_carries_the_closed_vocabulary(monkeypatch):
     asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "cokolwiek"))
     assert "Back Squat" in seen["system"]
     assert "Row" in seen["system"]
+
+
+def test_set_number_zero_is_clamped_with_warning(monkeypatch, caplog):
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {
+                    "movement": "Back Squat",
+                    "set_number": 0,
+                    "reps": 5,
+                    "weight": 70.0,
+                    "duration": None,
+                    "note": "",
+                }
+            ],
+            "unmatched": [],
+        },
+    )
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "back squat"))
+    assert len(result.entries) == 1
+    assert result.entries[0].set_number == 1
+    assert "clamped set_number" in caplog.text
+
+
+def test_container_type_guard_prevents_string_iteration(monkeypatch):
+    _stub_llm(
+        monkeypatch,
+        {"entries": "nonsense", "unmatched": "abc"},
+    )
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "anything"))
+    assert result.entries == []
+    assert result.unmatched == []

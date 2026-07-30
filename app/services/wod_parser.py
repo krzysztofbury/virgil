@@ -90,10 +90,12 @@ async def parse_wod(db, text: str) -> ParsedWod:
     raw = await call_llm(db, system_prompt, text, json_mode=True, max_tokens=4096)
     payload = parse_andy_response(raw)
 
+    raw_entries = payload.get("entries")
+    raw_unmatched = payload.get("unmatched")
     entries: list[ParsedEntry] = []
-    unmatched: list[str] = [str(u) for u in payload.get("unmatched") or []]
+    unmatched: list[str] = [str(u) for u in raw_unmatched] if isinstance(raw_unmatched, list) else []
 
-    for item in payload.get("entries") or []:
+    for item in raw_entries if isinstance(raw_entries, list) else []:
         if not isinstance(item, dict):
             continue
         name = str(item.get("movement") or "").strip()
@@ -103,9 +105,19 @@ async def parse_wod(db, text: str) -> ParsedWod:
                 unmatched.append(name)
             continue
         try:
+            # Sets are 1-indexed. A missing value means a single set; a parsed
+            # value below 1 is nonsense from the model — clamp it, but say so,
+            # because silently collapsing set 0 and set 1 corrupts the workout
+            # rather than crashing, which is the failure that hides longest.
+            parsed_set = _coerce(item.get("set_number"), int)
+            if parsed_set is None:
+                parsed_set = 1
+            elif parsed_set < 1:
+                logger.warning("WOD parser clamped set_number %r to 1 for %r", parsed_set, canonical)
+                parsed_set = 1
             entry = ParsedEntry(
                 movement=canonical,
-                set_number=_coerce(item.get("set_number"), int) or 1,
+                set_number=parsed_set,
                 reps=_coerce(item.get("reps"), int),
                 weight=_coerce(item.get("weight"), float),
                 duration=_coerce(item.get("duration"), float),
