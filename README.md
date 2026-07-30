@@ -243,7 +243,9 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 - One-tap **Today** quick-log bar; day-grid shows minutes fills plus per-metric markers
 - Full **edit** page (any status — active/completed/abandoned): basics, status, metrics
 - AI-generated weekly summaries (kind-aware)
-- Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`
+- Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`; exercise
+  dictionary CRUD via `get_exercise_library`, `add_exercise`, `update_exercise`, `delete_exercise`
+  → `GET/POST /api/library`, `PATCH/DELETE /api/library/{id}`
 
 ### Settings (`/settings`)
 Six-tab settings page:

@@ -62,6 +62,18 @@ def _post(path: str, payload: dict) -> dict:
     return resp.json()
 
 
+def _patch(path: str, payload: dict) -> dict:
+    resp = httpx.patch(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def _delete(path: str) -> dict:
+    resp = httpx.delete(f"{API_URL}{path}", headers=_headers(), timeout=30.0)
+    resp.raise_for_status()
+    return {"deleted": True}
+
+
 @mcp.tool()
 def get_today_summary() -> dict:
     """Today's snapshot: daily habits + energy, no-porn streak, latest Oura vitals,
@@ -129,6 +141,80 @@ def get_noporn(days: int = 30) -> dict:
     rate, plus relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and
     logged pleasures. Use this to see WHY relapses happened — get_streaks only gives the count."""
     return _get("/api/noporn", params={"range": days})
+
+
+@mcp.tool()
+def get_exercise_library(category: str = "", include_archived: bool = False) -> dict:
+    """The exercise dictionary: every movement the training picker offers and the
+    WOD parser is allowed to recognise. Pass category='CrossFit' for the WOD
+    vocabulary. Entries marked builtin=1 can only be archived, not edited or deleted."""
+    params: dict = {"include_archived": include_archived}
+    if category:
+        params["category"] = category
+    return _get("/api/library", params=params)
+
+
+@mcp.tool()
+def add_exercise(
+    category: str,
+    section: str,
+    name: str,
+    metric: str = "reps",
+    sets: int | None = None,
+    reps: str = "",
+    notes: str = "",
+) -> dict:
+    """Add a movement to the exercise dictionary. `section` is Warmup/Core/Cardio/
+    Stretching — Core+reps feeds weekly volume and personal bests, Cardio does not.
+    `metric` is 'reps' or 'time' (time entries log weight+seconds and are excluded
+    from rep-based aggregates). Adding to category 'CrossFit' also teaches the WOD parser."""
+    return _post(
+        "/api/library",
+        {
+            "category": category,
+            "section": section,
+            "name": name,
+            "metric": metric,
+            "sets": sets,
+            "reps": reps,
+            "notes": notes,
+        },
+    )
+
+
+@mcp.tool()
+def update_exercise(
+    entry_id: int,
+    name: str = "",
+    section: str = "",
+    metric: str = "",
+    reps: str = "",
+    notes: str = "",
+    archived: int | None = None,
+) -> dict:
+    """Edit one dictionary entry — see get_exercise_library for ids. Only the fields
+    you pass change. A builtin entry refuses everything except `archived`."""
+    payload = {
+        k: v
+        for k, v in (
+            ("name", name),
+            ("section", section),
+            ("metric", metric),
+            ("reps", reps),
+            ("notes", notes),
+        )
+        if v
+    }
+    if archived is not None:
+        payload["archived"] = archived
+    return _patch(f"/api/library/{entry_id}", payload)
+
+
+@mcp.tool()
+def delete_exercise(entry_id: int) -> dict:
+    """Remove a dictionary entry permanently. Builtin entries refuse deletion —
+    archive them instead. Deleting does NOT touch logged training history."""
+    return _delete(f"/api/library/{entry_id}")
 
 
 if __name__ == "__main__":

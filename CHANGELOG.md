@@ -15,6 +15,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `training_exercises.ad_hoc` (migration 016): movements created by the WOD parser
   keep their history, volume and PB contribution but stay out of the daily
   protocol form.
+- **Exercise dictionary over REST and MCP** — `GET/POST /api/library`,
+  `PATCH/DELETE /api/library/{id}`, surfaced as `get_exercise_library`,
+  `add_exercise`, `update_exercise` and `delete_exercise`. Builtin entries may be
+  archived but not edited or deleted, matching the Settings UI. The CrossFit
+  vocabulary is no longer builtin (migration 017), so it can be curated —
+  which also changes what the WOD parser is allowed to recognise.
 
 ### Changed
 - **Weekly volume is no longer continuous with pre-CrossFit numbers.** Metcon work
