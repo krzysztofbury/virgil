@@ -81,7 +81,7 @@ def test_seeds_crossfit_movements_with_sections_and_metrics(tmp_path):
         assert by_name["Row"]["metric"] == "time"
         assert by_name["Double-under"]["section"] == "Cardio"
         assert by_name["Double-under"]["metric"] == "reps"
-        assert all(r["builtin"] == 1 for r in rows)
+        assert all(r["builtin"] == 0 for r in rows)
         # Verify the full vocabulary split
         assert Counter((r["section"], r["metric"]) for r in rows) == {
             ("Core", "reps"): 25,

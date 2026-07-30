@@ -32,10 +32,13 @@ async def up(db: aiosqlite.Connection) -> None:
         # time, catching future bugs. This structure prevents silent mis-typing:
         # a movement added without an explicit metric would default to 'reps',
         # recreating the exact defect that motivated the CROSSFIT_MOVEMENTS separation.
+        # builtin = 0 on purpose: settings.py guards update/delete with
+        # `AND builtin = 0`, so a builtin row can only ever be archived.
+        # This vocabulary is the user's to curate — add, rename, delete.
         await db.execute(
             "INSERT OR IGNORE INTO exercise_library "
             "(category, section, name, sets, reps, notes, display_order, metric, builtin) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
             (
                 ex["category"],
                 ex["section"],
