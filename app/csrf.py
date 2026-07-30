@@ -16,17 +16,19 @@ CSRF_COOKIE = "csrf_token"
 CSRF_HEADER = "x-csrf-token"
 CSRF_FIELD = "_csrf_token"
 SAFE_METHODS = frozenset({b"GET", b"HEAD", b"OPTIONS", b"TRACE"})
-CSRF_EXEMPT_PATHS = frozenset({"/api/oura/webhook"})
-# Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.
-CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 # API writes authenticate via the X-API-Key header, never cookies — CSRF does not
 # apply (browsers cannot attach custom headers cross-site without a CORS preflight).
+# Exact paths live here; parametrized ones need PATTERNS below.
+CSRF_EXEMPT_PATHS = frozenset({"/api/oura/webhook", "/api/library"})
+# Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.
+CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 # Anchored, one numeric segment: a broad prefix/suffix match would silently exempt
 # any future session-authenticated /api/experiments/*/entries or /api/library/* route.
+# `\Z` (not `$`) and `[0-9]` (not `\d`, Unicode-aware) keep the match to exactly
+# one ASCII-digit segment — see the matching comment in app/auth.py.
 CSRF_EXEMPT_PATTERNS = (
-    re.compile(r"^/api/experiments/\d+/entries$"),
-    re.compile(r"^/api/library$"),
-    re.compile(r"^/api/library/\d+$"),
+    re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
+    re.compile(r"^/api/library/[0-9]+\Z"),
 )
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB

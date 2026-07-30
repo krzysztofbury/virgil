@@ -53,9 +53,15 @@ PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
 # one numeric segment only — a broad prefix/suffix match would silently make
 # any future /api/experiments/*/entries or /api/library/* session route public.
 # The route itself still enforces X-API-Key auth.
+# `\Z` (not `$`, which also matches just before a trailing "\n") and `[0-9]`
+# (not `\d`, which is Unicode-aware and matches non-ASCII digits) so a path
+# like "/api/library/1%0A" or "/api/library/١٢٣" can't sneak
+# past the intended one-numeric-segment shape. Neither alias is exploitable
+# here (the route still enforces X-API-Key auth either way), but the pattern
+# is kept tight rather than half-hardened.
 PUBLIC_PATTERNS = (
-    re.compile(r"^/api/experiments/\d+/entries$"),
-    re.compile(r"^/api/library/\d+$"),
+    re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
+    re.compile(r"^/api/library/[0-9]+\Z"),
 )
 
 BCRYPT_ROUNDS = 12

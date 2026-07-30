@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
@@ -443,7 +443,35 @@ _LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
 _LIBRARY_METRICS = ("reps", "time")
 
 
+def _check_section(section: str) -> None:
+    if section not in _LIBRARY_SECTIONS:
+        raise HTTPException(
+            status_code=422, detail=f"section must be one of {'/'.join(_LIBRARY_SECTIONS)}, got {section!r}"
+        )
+
+
+def _check_metric(metric: str) -> None:
+    if metric not in _LIBRARY_METRICS:
+        raise HTTPException(
+            status_code=422, detail=f"metric must be one of {'/'.join(_LIBRARY_METRICS)}, got {metric!r}"
+        )
+
+
+def _clamp_sets(sets: int | None) -> int | None:
+    """Mirrors settings.py's form handlers: sets is a small human rep count, not
+    a free integer — 20 sets in one exercise is already an outlier."""
+    return max(1, min(20, sets)) if sets is not None else None
+
+
+# extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
+# sending `category` back on a PATCH, since every GET response includes it)
+# into a loud 422 instead of a silently-ignored no-op, and it guarantees
+# `LibraryPatch.model_dump()` can only ever contain the fields declared below —
+# which is what keeps the dynamic `SET {k} = ?` construction in api_library_patch
+# structurally safe rather than merely safe-by-current-convention.
 class LibraryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     category: str
     section: str
     name: str
@@ -454,6 +482,8 @@ class LibraryCreate(BaseModel):
 
 
 class LibraryPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     name: str | None = None
     section: str | None = None
     sets: int | None = None
@@ -484,16 +514,16 @@ async def api_library_list(
 
 @router.post("/library", status_code=201)
 async def api_library_create(db: ApiDb, payload: LibraryCreate):
-    if payload.section not in _LIBRARY_SECTIONS:
-        raise HTTPException(
-            status_code=422, detail=f"section must be one of {'/'.join(_LIBRARY_SECTIONS)}, got {payload.section!r}"
-        )
-    if payload.metric not in _LIBRARY_METRICS:
-        raise HTTPException(
-            status_code=422, detail=f"metric must be one of {'/'.join(_LIBRARY_METRICS)}, got {payload.metric!r}"
-        )
-    category = truncate(payload.category, 60)
-    name = truncate(payload.name, 100)
+    _check_section(payload.section)
+    _check_metric(payload.metric)
+    # Strip before truncating/deduping: settings.py's form handler does the same
+    # (library_add) — untrimmed whitespace would create a visually-identical
+    # second "Thruster " that both the picker and the WOD parser's closed
+    # vocabulary would treat as a distinct movement.
+    category = truncate(payload.category.strip(), 100)
+    name = truncate(payload.name.strip(), 100)
+    if not category or not name:
+        raise HTTPException(status_code=422, detail="category and name are required")
     existing = await db.execute_fetchall(
         "SELECT id FROM exercise_library WHERE category = ? AND name = ?", (category, name)
     )
@@ -507,7 +537,7 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
             category,
             payload.section,
             name,
-            payload.sets,
+            _clamp_sets(payload.sets),
             truncate(payload.reps, 100),
             truncate(payload.notes, 300),
             (order_row[0]["m"] if order_row else 0) + 1,
@@ -531,17 +561,23 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
         raise HTTPException(status_code=409, detail=f"library entry {entry_id} is builtin — only 'archived' can change")
     if not fields:
         return {"id": entry_id, "updated": []}
-    if "section" in fields and fields["section"] not in _LIBRARY_SECTIONS:
-        raise HTTPException(
-            status_code=422,
-            detail=f"section must be one of {'/'.join(_LIBRARY_SECTIONS)}, got {fields['section']!r}",
-        )
-    if "metric" in fields and fields["metric"] not in _LIBRARY_METRICS:
-        raise HTTPException(
-            status_code=422, detail=f"metric must be one of {'/'.join(_LIBRARY_METRICS)}, got {fields['metric']!r}"
-        )
+    if "archived" in fields:
+        # Mirrors settings.py's library_archive: coerce to 0/1. `archived` is the
+        # one field a builtin row's guard above lets through, so left uncoerced
+        # it is the one way to park an out-of-domain value (e.g. 99) on a
+        # protected row — invisible to `archived = 0` filters, never matched by
+        # `archived = 1` ones either.
+        fields["archived"] = 1 if fields["archived"] else 0
+    if "section" in fields:
+        _check_section(fields["section"])
+    if "metric" in fields:
+        _check_metric(fields["metric"])
+    if "sets" in fields:
+        fields["sets"] = _clamp_sets(fields["sets"])
     if "name" in fields:
-        fields["name"] = truncate(fields["name"], 100)
+        fields["name"] = truncate(fields["name"].strip(), 100)
+        if not fields["name"]:
+            raise HTTPException(status_code=422, detail="name cannot be blank")
         clash = await db.execute_fetchall(
             "SELECT id FROM exercise_library WHERE category = ? AND name = ? AND id != ?",
             (row["category"], fields["name"], entry_id),
@@ -557,7 +593,8 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
 
     assignments = ", ".join(f"{k} = ?" for k in fields)
     await db.execute(
-        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are model fields, not input
+        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are LibraryPatch's own
+        # fields (extra="forbid" above), never attacker-controlled column names.
         [*fields.values(), entry_id],
     )
     await db.commit()
