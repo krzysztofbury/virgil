@@ -18,9 +18,13 @@ def test_add_exercise_form_present_per_section(auth_client):
 
 
 def test_exercise_library_picker_present(auth_client):
+    """Migration 019 removed `category` — the picker no longer groups by it
+    (Task 2 falls back to a flat alphabetical list), so this now asserts on an
+    actual exercise NAME rather than the category label the picker used to
+    render as an <optgroup>."""
     resp = auth_client.get("/training")
     assert "From library" in resp.text
-    assert "Workout A (KB full-body)" in resp.text
+    assert "Goblet Squat" in resp.text
 
 
 def test_exercise_library_picker_carries_metric_to_the_hidden_field(auth_client):
@@ -37,7 +41,7 @@ def test_exercise_library_picker_carries_metric_to_the_hidden_field(auth_client)
     assert 'name="metric"' in resp.text, (
         "the add-exercise form needs a hidden `metric` field for the picker's onchange JS to fill"
     )
-    # "Row" (migration 016/017, category='CrossFit', section='Cardio') is
+    # "Row" (migration 016/017, tagged 'crossfit', section='Cardio') is
     # seeded with metric='time' — its picker <option> JSON must carry that
     # through as "t": "time", not omit the key.
     assert '"t": "time"' in resp.text, "the picker option JSON must carry the library row's real metric"

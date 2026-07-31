@@ -438,24 +438,23 @@ async def api_noporn(
 # re-implement any of section/metric/duplicate/rename/builtin checks here —
 # that duplication is exactly how the two surfaces drifted apart before.
 #
-# CrossFit rows (category = 'CrossFit') are also the WOD parser's closed
-# prompt vocabulary (app/services/wod_parser.py:canonical_movements) — editing
-# section/metric or deleting one of those rows changes what movements the
-# parser is allowed to recognise in a future WOD note. Renaming does NOT
+# CrossFit rows (tagged 'crossfit', migration 019) are also the WOD parser's
+# closed prompt vocabulary (app/services/wod_parser.py:canonical_movements) —
+# editing section/metric or deleting one of those rows changes what movements
+# the parser is allowed to recognise in a future WOD note. Renaming does NOT
 # narrow that vocabulary (the parser reads whatever name is current) and may
 # now be refused outright — see validate_library_write's I2 rename guard.
 
 
 # extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
-# sending `category` back on a PATCH, since every GET response includes it)
-# into a loud 422 instead of a silently-ignored no-op, and it guarantees
+# sending the retired `category` field back on a PATCH) into a loud 422
+# instead of a silently-ignored no-op, and it guarantees
 # `LibraryPatch.model_dump()` can only ever contain the fields declared below —
 # which is what keeps the dynamic `SET {k} = ?` construction in api_library_patch
 # structurally safe rather than merely safe-by-current-convention.
 class LibraryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    category: str
     section: str
     name: str
     sets: int | None = None
@@ -479,15 +478,11 @@ class LibraryPatch(BaseModel):
 @router.get("/library")
 async def api_library_list(
     db: ApiDb,
-    category: str | None = Query(None),
     include_archived: bool = Query(False),
 ):
     """The exercise library — the dictionary the WOD parser and the picker draw from."""
     sql = "SELECT * FROM exercise_library WHERE 1 = 1"
     params: list = []
-    if category:
-        sql += " AND category = ?"
-        params.append(category)
     if not include_archived:
         sql += " AND archived = 0"
     sql += " ORDER BY display_order, name"
@@ -501,7 +496,6 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
         row = await validate_library_write(
             db,
             op="create",
-            category=payload.category,
             fields={
                 "name": payload.name,
                 "section": payload.section,
@@ -516,10 +510,9 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
 
     order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) AS m FROM exercise_library")
     cursor = await db.execute(
-        "INSERT INTO exercise_library (category, section, name, sets, reps, notes, display_order, metric, builtin) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        "INSERT INTO exercise_library (section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
         (
-            row["category"],
             row["section"],
             row["name"],
             row["sets"],

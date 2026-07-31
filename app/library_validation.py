@@ -31,11 +31,20 @@ from app.validation import truncate
 LIBRARY_METRICS = ("reps", "time")
 LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
 
+MAX_TAG_LEN = 40
+
+# Free-form tags with normalisation on write. The category field this replaces
+# was raw free text with a datalist, which is how a program label ("Workout A
+# (KB full-body)") became a category. Normalising here means "Kettlebell",
+# "KETTLEBELL" and "Kettle Bell " are one tag rather than three.
+_TAG_INVALID_CHARS = re.compile(r"[^a-z0-9-]+")
+_TAG_DASHES = re.compile(r"-{2,}")
+
 
 def normalize_library_text(value: str, max_len: int) -> str:
     """Strip surrounding whitespace, then clamp to max_len.
 
-    Both routers must apply this identically to name/category/reps/notes —
+    Both routers must apply this identically to name/reps/notes —
     api.py previously truncated `reps`/`notes` without stripping first, which
     diverged from settings.py's form handlers.
     """
@@ -69,20 +78,58 @@ class LibraryWriteError(Exception):
         super().__init__(message)
 
 
+def normalize_tag(raw: str) -> str:
+    """Lowercase, whitespace-to-dash, alphanumerics and dashes only.
+
+    Raises LibraryWriteError(422) when nothing survives — a tag that
+    normalises to the empty string is a typo, not an unnamed tag.
+    """
+    text = (raw or "").strip().lower()
+    text = re.sub(r"\s+", "-", text)
+    text = _TAG_INVALID_CHARS.sub("", text)
+    text = _TAG_DASHES.sub("-", text).strip("-")
+    if not text:
+        raise LibraryWriteError(422, f"tag {raw!r} normalises to nothing")
+    if len(text) > MAX_TAG_LEN:
+        raise LibraryWriteError(422, f"tag {text!r} exceeds {MAX_TAG_LEN} characters")
+    return text
+
+
+def normalize_tags(raw: list[str] | str | None) -> list[str]:
+    """Normalise a list (or comma-separated string) of tags.
+
+    Blank items are dropped silently — a trailing comma in a form field is not
+    a user error. A non-blank item that normalises to nothing still raises.
+    """
+    if raw is None:
+        return []
+    items = raw.split(",") if isinstance(raw, str) else list(raw)
+    # Use dict instead of set to preserve insertion order (Python 3.7+) and
+    # deduplicate by key. This makes sorted() essential — without it, the
+    # output order becomes dependent on input order rather than alphabetical,
+    # which tests can then verify deterministically. A set would leave the
+    # mutation `sorted(out)` → `list(out)` undetectable on some random seeds.
+    out: dict[str, None] = {}
+    for item in items:
+        if not str(item).strip():
+            continue
+        out[normalize_tag(str(item))] = None
+    return sorted(out)
+
+
 async def validate_library_write(
     db,
     *,
     op: str,
     entry_id: int | None = None,
     existing: dict | None = None,
-    category: str | None = None,
     fields: dict | None = None,
 ) -> dict | None:
     """The one write policy both surfaces share.
 
-    op="create": `category` and `fields["name"]` are required. `fields` may
-    omit section/sets/reps/notes/metric, which then take the same defaults
-    both surfaces have always used (section='Core', metric='reps', sets=None,
+    op="create": `fields["name"]` is required. `fields` may omit
+    section/sets/reps/notes/metric, which then take the same defaults both
+    surfaces have always used (section='Core', metric='reps', sets=None,
     reps/notes=''). Returns the full row to INSERT.
 
     op="update": `existing` is the current DB row (a dict, e.g. from
@@ -96,10 +143,9 @@ async def validate_library_write(
     op="delete": `existing` is the current DB row. Returns None.
 
     Raises LibraryWriteError for anything that must be refused outright: an
-    invalid section/metric, a blank required name, a duplicate
-    (category, name), a rename that collides with another row or with
-    training_exercises history (I2), or any edit/delete of a builtin row
-    other than `archived`.
+    invalid section/metric, a blank required name, a duplicate name, a rename
+    that collides with another row or with training_exercises history (I2),
+    or any edit/delete of a builtin row other than `archived`.
 
     Callers are responsible for the 404 case (fetch the row first; if it
     doesn't exist, respond before calling this at all) — this function only
@@ -114,10 +160,9 @@ async def validate_library_write(
         return None
 
     if op == "create":
-        norm_category = normalize_library_text(category or "", 100)
         name = normalize_library_text(fields.get("name", ""), 100)
-        if not norm_category or not name:
-            raise LibraryWriteError(422, "category and name are required")
+        if not name:
+            raise LibraryWriteError(422, "name is required")
 
         section = fields.get("section", "Core")
         if section not in LIBRARY_SECTIONS:
@@ -127,14 +172,11 @@ async def validate_library_write(
         if not valid_library_metric(metric):
             raise LibraryWriteError(422, f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}")
 
-        dup = await db.execute_fetchall(
-            "SELECT id FROM exercise_library WHERE category = ? AND name = ?", (norm_category, name)
-        )
+        dup = await db.execute_fetchall("SELECT id FROM exercise_library WHERE name = ?", (name,))
         if dup:
-            raise LibraryWriteError(409, f"{name!r} already exists in category {norm_category!r}")
+            raise LibraryWriteError(409, f"{name!r} already exists")
 
         return {
-            "category": norm_category,
             "section": section,
             "name": name,
             "sets": clamp_library_sets(fields.get("sets")),
@@ -156,11 +198,11 @@ async def validate_library_write(
                 raise LibraryWriteError(422, "name cannot be blank")
             if name.lower() != existing["name"].lower():
                 clash = await db.execute_fetchall(
-                    "SELECT id FROM exercise_library WHERE category = ? AND name = ? AND id != ?",
-                    (existing["category"], name, entry_id),
+                    "SELECT id FROM exercise_library WHERE name = ? AND id != ?",
+                    (name, entry_id),
                 )
                 if clash:
-                    raise LibraryWriteError(409, f"{name!r} already exists in category {existing['category']!r}")
+                    raise LibraryWriteError(409, f"{name!r} already exists")
                 # I2: a rename must not orphan training_exercises rows still
                 # holding history under the OLD name — resolve_movement()
                 # matches training_exercises by name, so the next WOD
@@ -205,52 +247,3 @@ async def validate_library_write(
         return result
 
     raise ValueError(f"unknown op {op!r}")
-
-
-MAX_TAG_LEN = 40
-
-# Free-form tags with normalisation on write. The category field this replaces
-# was raw free text with a datalist, which is how a program label ("Workout A
-# (KB full-body)") became a category. Normalising here means "Kettlebell",
-# "KETTLEBELL" and "Kettle Bell " are one tag rather than three.
-_TAG_INVALID_CHARS = re.compile(r"[^a-z0-9-]+")
-_TAG_DASHES = re.compile(r"-{2,}")
-
-
-def normalize_tag(raw: str) -> str:
-    """Lowercase, whitespace-to-dash, alphanumerics and dashes only.
-
-    Raises LibraryWriteError(422) when nothing survives — a tag that
-    normalises to the empty string is a typo, not an unnamed tag.
-    """
-    text = (raw or "").strip().lower()
-    text = re.sub(r"\s+", "-", text)
-    text = _TAG_INVALID_CHARS.sub("", text)
-    text = _TAG_DASHES.sub("-", text).strip("-")
-    if not text:
-        raise LibraryWriteError(422, f"tag {raw!r} normalises to nothing")
-    if len(text) > MAX_TAG_LEN:
-        raise LibraryWriteError(422, f"tag {text!r} exceeds {MAX_TAG_LEN} characters")
-    return text
-
-
-def normalize_tags(raw: list[str] | str | None) -> list[str]:
-    """Normalise a list (or comma-separated string) of tags.
-
-    Blank items are dropped silently — a trailing comma in a form field is not
-    a user error. A non-blank item that normalises to nothing still raises.
-    """
-    if raw is None:
-        return []
-    items = raw.split(",") if isinstance(raw, str) else list(raw)
-    # Use dict instead of set to preserve insertion order (Python 3.7+) and
-    # deduplicate by key. This makes sorted() essential — without it, the
-    # output order becomes dependent on input order rather than alphabetical,
-    # which tests can then verify deterministically. A set would leave the
-    # mutation `sorted(out)` → `list(out)` undetectable on some random seeds.
-    out: dict[str, None] = {}
-    for item in items:
-        if not str(item).strip():
-            continue
-        out[normalize_tag(str(item))] = None
-    return sorted(out)

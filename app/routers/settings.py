@@ -72,12 +72,13 @@ async def settings_page(request: Request, tab: str = Query("general")):
     elif tab == "configuration":
         from app.routers.training import SECTION_ORDER
 
-        lib_rows = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY category, display_order, name")
-        library_by_category: dict[str, list[dict]] = {}
+        # Grouped by section (not category, which migration 019 removed) —
+        # a flat stand-in until Task 4 adds tag-based grouping/filtering.
+        lib_rows = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY section, display_order, name")
+        library_by_section: dict[str, list[dict]] = {s: [] for s in SECTION_ORDER}
         for r in lib_rows:
-            library_by_category.setdefault(r["category"], []).append(dict(r))
-        context["library_by_category"] = library_by_category
-        context["library_categories"] = sorted(library_by_category.keys())
+            library_by_section.setdefault(r["section"], []).append(dict(r))
+        context["library_by_section"] = library_by_section
         context["section_order"] = SECTION_ORDER
 
     elif tab == "integrations":
@@ -132,7 +133,6 @@ async def settings_page(request: Request, tab: str = Query("general")):
 async def library_add(
     request: Request,
     name: str = Form(...),
-    category: str = Form(...),
     section: str = Form("Core"),
     sets: str = Form(""),
     reps: str = Form(""),
@@ -151,7 +151,6 @@ async def library_add(
         row = await validate_library_write(
             db,
             op="create",
-            category=category,
             fields={"name": name, "section": section, "sets": sets_val, "reps": reps, "notes": notes, "metric": metric},
         )
     except LibraryWriteError as exc:
@@ -159,9 +158,9 @@ async def library_add(
 
     await db.execute(
         "INSERT INTO exercise_library "
-        "(category, section, name, sets, reps, notes, display_order, metric, builtin) "
-        "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), ?, 0)",
-        (row["category"], row["section"], row["name"], row["sets"], row["reps"], row["notes"], row["metric"]),
+        "(section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), ?, 0)",
+        (row["section"], row["name"], row["sets"], row["reps"], row["notes"], row["metric"]),
     )
     await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)

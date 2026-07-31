@@ -189,9 +189,11 @@ async def training_page(request: Request):
     personal_bests = [dict(r) for r in pb_rows]
 
     # Exercise picker dictionary — DB-backed, managed in Settings → App Config.
-    # Archived rows stay in the DB (history) but leave the picker.
+    # Archived rows stay in the DB (history) but leave the picker. `category`
+    # is gone (migration 019); the picker groups by section only until Task 5
+    # adds tag filter chips.
     lib_rows = await db.execute_fetchall(
-        "SELECT category, section, name, sets, reps, notes, metric FROM exercise_library "
+        "SELECT section, name, sets, reps, notes, metric FROM exercise_library "
         "WHERE archived = 0 ORDER BY display_order, name"
     )
     exercise_library = [dict(r) for r in lib_rows]

@@ -27,7 +27,6 @@ async def _db(tmp_path):
     await db.execute(
         """CREATE TABLE exercise_library (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT NOT NULL,
             section TEXT NOT NULL,
             name TEXT NOT NULL,
             sets INTEGER,
@@ -37,16 +36,14 @@ async def _db(tmp_path):
             metric TEXT NOT NULL DEFAULT 'reps',
             builtin INTEGER NOT NULL DEFAULT 0,
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(category, name)
+            UNIQUE(name)
         )"""
     )
     await db.execute(
-        "INSERT INTO exercise_library (category, section, name, metric, builtin) "
-        "VALUES ('CrossFit', 'Core', 'Thruster', 'reps', 1)"
+        "INSERT INTO exercise_library (section, name, metric, builtin) VALUES ('Core', 'Thruster', 'reps', 1)"
     )
     await db.execute(
-        "INSERT INTO exercise_library (category, section, name, metric, builtin) "
-        "VALUES ('CrossFit', 'Cardio', 'Row', 'time', 1)"
+        "INSERT INTO exercise_library (section, name, metric, builtin) VALUES ('Cardio', 'Row', 'time', 1)"
     )
     await db.execute("INSERT INTO training_exercises (name, section) VALUES ('Goblet Squat', 'Core')")
     await db.commit()
@@ -89,8 +86,7 @@ def test_matches_existing_protocol_exercise_without_creating(tmp_path):
         db = await _db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, metric, builtin) "
-                "VALUES ('CrossFit', 'Core', 'Goblet Squat', 'reps', 1)"
+                "INSERT INTO exercise_library (section, name, metric, builtin) VALUES ('Core', 'Goblet Squat', 'reps', 1)"
             )
             ex_id = await resolve_movement(db, "goblet squat")
             rows = await db.execute_fetchall("SELECT ad_hoc FROM training_exercises WHERE id = ?", (ex_id,))
@@ -182,14 +178,15 @@ def test_non_crossfit_library_row_is_resolvable(tmp_path):
     canonical_movements()'s vocabulary — a Warmup/Stretching/Gym-classics/
     Kettlebell row could never be created via a WOD even once the parser was
     allowed to name it. Both must agree, or the parser proposes a movement
-    that then silently fails to resolve."""
+    that then silently fails to resolve. (`category` itself is gone since
+    migration 019 — this now exercises an untagged Warmup row instead.)"""
 
     async def run():
         db = await _db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, metric, builtin) "
-                "VALUES ('Warmup', 'Warmup', 'Band Pull-apart', 'reps', 0)"
+                "INSERT INTO exercise_library (section, name, metric, builtin) "
+                "VALUES ('Warmup', 'Band Pull-apart', 'reps', 0)"
             )
             await db.commit()
             ex_id = await resolve_movement(db, "Band Pull-apart")
@@ -204,65 +201,38 @@ def test_non_crossfit_library_row_is_resolvable(tmp_path):
     asyncio.run(run())
 
 
-async def _db_with_duplicate_names(tmp_path):
-    """Same schema as _db(), but seeded with a name duplicated across two
-    categories instead of the single-category CrossFit rows _db() uses."""
-    db = await aiosqlite.connect(tmp_path / "dup.db")
-    db.row_factory = aiosqlite.Row
-    await db.execute(
-        """CREATE TABLE training_exercises (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            section TEXT NOT NULL,
-            target_sets INTEGER,
-            target_reps TEXT,
-            notes TEXT DEFAULT '',
-            display_order INTEGER DEFAULT 0,
-            metric TEXT NOT NULL DEFAULT 'reps',
-            archived INTEGER NOT NULL DEFAULT 0,
-            ad_hoc INTEGER NOT NULL DEFAULT 0
-        )"""
-    )
-    await db.execute(
-        """CREATE TABLE exercise_library (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT NOT NULL,
-            section TEXT NOT NULL,
-            name TEXT NOT NULL,
-            sets INTEGER,
-            reps TEXT DEFAULT '',
-            notes TEXT DEFAULT '',
-            display_order INTEGER DEFAULT 0,
-            metric TEXT NOT NULL DEFAULT 'reps',
-            builtin INTEGER NOT NULL DEFAULT 0,
-            archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(category, name)
-        )"""
-    )
-    # Gym classics carries the lower display_order but a different
-    # section/metric than CrossFit — a wrong tie-break would resolve the
-    # movement to the wrong section/metric, exactly the class of defect
-    # already fixed in training.py's picker path (B3).
-    await db.execute(
-        "INSERT INTO exercise_library (category, section, name, display_order, metric, builtin) "
-        "VALUES ('Gym classics', 'Warmup', 'Back Squat', 1, 'time', 0)"
-    )
-    await db.execute(
-        "INSERT INTO exercise_library (category, section, name, display_order, metric, builtin) "
-        "VALUES ('CrossFit', 'Core', 'Back Squat', 50, 'reps', 0)"
-    )
-    await db.commit()
-    return db
+def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
+    """Before migration 019, exercise_library was UNIQUE(category, name), so
+    'Back Squat' could exist twice (Gym classics + CrossFit) and
+    resolve_movement() needed an explicit CrossFit-preferring tie-break to
+    avoid resolving to the wrong section/metric — exactly the class of defect
+    already fixed in training.py's picker path (B3). UNIQUE is now (name)
+    alone, so the duplicate itself can no longer be written; this proves the
+    constraint holds, and that a movement seeded before the (rejected) second
+    insert still resolves to its own section/metric untouched."""
 
-
-def test_duplicate_name_resolves_to_the_crossfit_rows_section_and_metric(tmp_path):
     async def run():
-        db = await _db_with_duplicate_names(tmp_path)
+        db = await _db(tmp_path)
         try:
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, display_order, metric, builtin) "
+                "VALUES ('Warmup', 'Back Squat', 1, 'time', 0)"
+            )
+            await db.commit()
+            try:
+                await db.execute(
+                    "INSERT INTO exercise_library (section, name, display_order, metric, builtin) "
+                    "VALUES ('Core', 'Back Squat', 50, 'reps', 0)"
+                )
+                raised = False
+            except aiosqlite.IntegrityError:
+                raised = True
+            assert raised, "a second row with the same name must be rejected by UNIQUE(name)"
+
             ex_id = await resolve_movement(db, "Back Squat")
             rows = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (ex_id,))
-            assert rows[0]["section"] == "Core", "must take the CrossFit row's section, not Gym classics'"
-            assert rows[0]["metric"] == "reps", "must take the CrossFit row's metric, not Gym classics'"
+            assert rows[0]["section"] == "Warmup"
+            assert rows[0]["metric"] == "time"
         finally:
             await db.close()
 

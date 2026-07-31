@@ -37,7 +37,6 @@ def test_add_edit_delete_user_row(auth_client):
         "/settings/library/add",
         data={
             "name": "Nordic Curl",
-            "category": "Home gym",
             "section": "Core",
             "sets": "3",
             "reps": "5-8",
@@ -120,7 +119,6 @@ def test_add_with_metric_time_is_persisted(auth_client):
         "/settings/library/add",
         data={
             "name": "Echo Bike",
-            "category": "Cardio",
             "section": "Cardio",
             "sets": "",
             "reps": "",
@@ -142,7 +140,6 @@ def test_update_changes_metric(auth_client):
         "/settings/library/add",
         data={
             "name": "Ski Erg Intervals",
-            "category": "Cardio",
             "section": "Cardio",
             "sets": "",
             "reps": "",
@@ -185,7 +182,6 @@ def test_add_rejects_invalid_metric(auth_client):
         "/settings/library/add",
         data={
             "name": "Bogus Metric Move",
-            "category": "Cardio",
             "section": "Cardio",
             "sets": "",
             "reps": "",

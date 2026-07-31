@@ -10,6 +10,13 @@ from collections import Counter
 
 
 async def _legacy_db(tmp_path):
+    """Named `_legacy_db` for continuity with the rest of this file, but this is
+    actually the POST-019 shape (no `category`, UNIQUE(name)) — migration 009
+    now creates exercise_library in that shape from the start (see its
+    docstring), so by the time 016 runs, on any real chain, `category` is
+    already gone. exercise_library_tags exists for the same reason: 016 seeds
+    the 'crossfit' tag into it.
+    """
     import aiosqlite
 
     db = await aiosqlite.connect(tmp_path / "legacy.db")
@@ -30,7 +37,6 @@ async def _legacy_db(tmp_path):
     await db.execute(
         """CREATE TABLE exercise_library (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT NOT NULL,
             section TEXT NOT NULL,
             name TEXT NOT NULL,
             sets INTEGER,
@@ -40,7 +46,14 @@ async def _legacy_db(tmp_path):
             metric TEXT NOT NULL DEFAULT 'reps',
             builtin INTEGER NOT NULL DEFAULT 0,
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(category, name)
+            UNIQUE(name)
+        )"""
+    )
+    await db.execute(
+        """CREATE TABLE exercise_library_tags (
+            library_id INTEGER NOT NULL REFERENCES exercise_library(id) ON DELETE CASCADE,
+            tag TEXT NOT NULL,
+            PRIMARY KEY (library_id, tag)
         )"""
     )
     await db.execute("INSERT INTO training_exercises (name, section) VALUES ('Goblet Squat', 'Core')")
@@ -74,7 +87,8 @@ def test_seeds_crossfit_movements_with_sections_and_metrics(tmp_path):
             await mod.up(db)
             await db.commit()
             rows = await db.execute_fetchall(
-                "SELECT name, section, metric, builtin FROM exercise_library WHERE category = 'CrossFit'"
+                "SELECT l.name, l.section, l.metric, l.builtin FROM exercise_library l "
+                "JOIN exercise_library_tags t ON t.library_id = l.id WHERE t.tag = 'crossfit'"
             )
             by_name = {r["name"]: r for r in rows}
             assert len(rows) == 31, f"expected 31 CrossFit movements, got {len(rows)}"
@@ -105,7 +119,10 @@ def test_is_idempotent(tmp_path):
             await mod.up(db)
             await mod.up(db)
             await db.commit()
-            rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM exercise_library WHERE category = 'CrossFit'")
+            rows = await db.execute_fetchall(
+                "SELECT COUNT(*) as c FROM exercise_library l "
+                "JOIN exercise_library_tags t ON t.library_id = l.id WHERE t.tag = 'crossfit'"
+            )
             assert rows[0]["c"] == 31
         finally:
             await db.close()
@@ -115,20 +132,21 @@ def test_is_idempotent(tmp_path):
 
 def test_crossfit_movements_stay_out_of_the_009_seed_list():
     """Migration 009 seeds EXERCISE_LIBRARY before the metric column exists, so a
-    CrossFit-category row in that list would be mis-typed as metric='reps' forever.
+    'crossfit'-tagged row in that list would be mis-typed as metric='reps' forever.
 
-    The invariant is on CATEGORY, not name. Name overlap is expected and harmless:
-    exercise_library is UNIQUE(category, name), and 'Back Squat', 'Deadlift',
-    'Bench Press' and 'Pull-up' already exist under 'Gym classics' / 'Workout B'.
-    It is also desirable — a movement the user already trains must resolve to their
+    The invariant is on the 'crossfit' TAG, not name. Name overlap is expected
+    and harmless: exercise_library is UNIQUE(name) (migration 019 merges
+    same-name rows), and 'Back Squat', 'Deadlift', 'Bench Press' and 'Pull-up'
+    already exist tagged 'gym-classic' or untagged (Workout B). It is also
+    desirable — a movement the user already trains must resolve to their
     existing exercise row rather than a duplicate (see Task 3,
     test_matches_existing_protocol_exercise_without_creating).
     """
     from app.exercise_library import CROSSFIT_MOVEMENTS, EXERCISE_LIBRARY
 
-    assert not [e for e in EXERCISE_LIBRARY if e["category"] == "CrossFit"]
+    assert not any("crossfit" in e["tags"] for e in EXERCISE_LIBRARY)
     assert len(CROSSFIT_MOVEMENTS) == 31
-    assert all(m["category"] == "CrossFit" for m in CROSSFIT_MOVEMENTS)
+    assert all("crossfit" in m["tags"] for m in CROSSFIT_MOVEMENTS)
 
 
 def test_017_flips_crossfit_rows_to_user_editable(tmp_path):

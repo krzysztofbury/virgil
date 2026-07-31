@@ -207,18 +207,19 @@ def test_vocabulary_at_the_bound_is_accepted(monkeypatch):
 
 
 async def _real_library_db(tmp_path):
+    """Post-019 shape: no `category`, UNIQUE(name) — see migration 009's
+    docstring (it creates exercise_library in this shape from the start)."""
     db = await aiosqlite.connect(tmp_path / "lib.db")
     db.row_factory = aiosqlite.Row
     await db.execute(
         """CREATE TABLE exercise_library (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT NOT NULL,
             section TEXT NOT NULL,
             name TEXT NOT NULL,
             display_order INTEGER DEFAULT 0,
             metric TEXT NOT NULL DEFAULT 'reps',
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(category, name)
+            UNIQUE(name)
         )"""
     )
     return db
@@ -228,14 +229,14 @@ def test_warmup_section_movement_is_in_the_vocabulary(tmp_path):
     """The reported bug: a Warmup/Stretching row was invisible to the parser
     because canonical_movements() filtered category = 'CrossFit'. A session's
     warm-up and stretching are real movements the user already has in the
-    library under other categories, and must now be recognised too."""
+    library under other tags (or none), and must now be recognised too."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Warmup', 'Warmup', 'Band Pull-apart', 1, 'reps')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Warmup', 'Band Pull-apart', 1, 'reps')"
             )
             await db.commit()
             movements = await wod_parser.canonical_movements(db)
@@ -246,57 +247,64 @@ def test_warmup_section_movement_is_in_the_vocabulary(tmp_path):
     asyncio.run(run())
 
 
-def test_duplicate_name_prefers_the_crossfit_row(tmp_path):
-    """UNIQUE is (category, name), not (name) — 'Back Squat' exists under both
-    Gym classics and CrossFit. The Gym classics row here is given the lower
-    display_order AND a different section/metric than CrossFit's, so a wrong
-    tie-break (first row, last row, lowest display_order regardless of
-    category) would be caught by asserting on which section/metric wins."""
+def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
+    """Before migration 019, UNIQUE was (category, name), so 'Back Squat' could
+    exist under both Gym classics and CrossFit — canonical_movements() then
+    needed an explicit CrossFit-preferring tie-break to avoid silently
+    mis-typing the duplicate. UNIQUE is now (name) alone, so that scenario is
+    no longer a tie-break case to get right; it is a write the database itself
+    refuses. This proves the constraint is actually in place, not just
+    documented."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Gym classics', 'Warmup', 'Back Squat', 1, 'time')"
-            )
-            await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('CrossFit', 'Core', 'Back Squat', 50, 'reps')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Warmup', 'Back Squat', 1, 'time')"
             )
             await db.commit()
+            try:
+                await db.execute(
+                    "INSERT INTO exercise_library (section, name, display_order, metric) "
+                    "VALUES ('Core', 'Back Squat', 50, 'reps')"
+                )
+                raised = False
+            except aiosqlite.IntegrityError:
+                raised = True
+            assert raised, "a second row with the same name must be rejected by UNIQUE(name)"
             movements = await wod_parser.canonical_movements(db)
             matches = [m for m in movements if m["name"] == "Back Squat"]
-            assert len(matches) == 1, "a duplicate name must appear exactly once, not twice"
-            assert matches[0]["section"] == "Core", "the CrossFit row's section must win"
-            assert matches[0]["metric"] == "reps", "the CrossFit row's metric must win"
+            assert len(matches) == 1, "only the original row must exist"
+            assert matches[0]["section"] == "Warmup"
+            assert matches[0]["metric"] == "time"
         finally:
             await db.close()
 
     asyncio.run(run())
 
 
-def test_duplicate_name_without_crossfit_prefers_lowest_display_order(tmp_path):
-    """When neither duplicate is CrossFit, the tie-break falls back to lowest
-    display_order — asserted here via section/metric so a reversed comparison
-    (highest wins) or "last row wins" would fail this."""
+def test_canonical_movements_orders_by_display_order(tmp_path):
+    """The dedupe-by-first-seen-name loop in canonical_movements() only does
+    something observable if the query itself returns rows in display_order —
+    this pins that ordering directly, independent of the (now impossible)
+    duplicate-name scenario the old CrossFit tie-break test covered."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Cardio', 'Cardio', 'Row', 1, 'time')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Cardio', 'Row', 1, 'time')"
             )
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Gym classics', 'Core', 'Row', 30, 'reps')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Core', 'Back Squat', 30, 'reps')"
             )
             await db.commit()
             movements = await wod_parser.canonical_movements(db)
-            matches = [m for m in movements if m["name"] == "Row"]
-            assert len(matches) == 1
-            assert matches[0]["metric"] == "time", "the lower display_order (Cardio) row must win"
+            names = [m["name"] for m in movements]
+            assert names == ["Row", "Back Squat"], "movements must come back in display_order"
         finally:
             await db.close()
 

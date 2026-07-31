@@ -11,10 +11,12 @@ from conftest import csrf_token, user_db_path
 
 
 def _row(name: str) -> dict | None:
+    # `category` is gone (migration 019); exercise_library.name is now unique
+    # library-wide, so a bare name lookup is both sufficient and correct.
     conn = sqlite3.connect(user_db_path())
     try:
         conn.row_factory = sqlite3.Row
-        r = conn.execute("SELECT * FROM exercise_library WHERE category = 'CrossFit' AND name = ?", (name,)).fetchone()
+        r = conn.execute("SELECT * FROM exercise_library WHERE name = ?", (name,)).fetchone()
         return dict(r) if r else None
     finally:
         conn.close()
@@ -68,11 +70,10 @@ def test_crossfit_row_can_be_deleted(auth_client):
         try:
             conn.execute(
                 "INSERT INTO exercise_library "
-                "(id, category, section, name, sets, reps, notes, display_order, metric, builtin, archived) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "(id, section, name, sets, reps, notes, display_order, metric, builtin, archived) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
                     row["id"],
-                    row["category"],
                     row["section"],
                     row["name"],
                     row["sets"],

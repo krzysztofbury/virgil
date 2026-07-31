@@ -74,35 +74,24 @@ class ParsedWod:
 async def canonical_movements(db) -> list[dict]:
     """The closed vocabulary: every active exercise_library row, deduped by name.
 
-    Category organises the Settings picker; it does not gate what the parser
-    may recognise. exercise_library as a whole — Warmup, Stretching, Gym
+    Tags organise the Settings picker; they do not gate what the parser may
+    recognise. exercise_library as a whole — Warmup, Stretching, Gym
     classics, Kettlebell, ... not just CrossFit — is the user's curated
     dictionary, and a warm-up or a barbell lift the user actually logs
     deserves the same closed-vocabulary treatment a CrossFit movement gets.
 
-    UNIQUE on exercise_library is (category, name), not (name) — a name can
-    exist under two categories. Four do today: Back Squat, Bench Press,
-    Deadlift (Gym classics + CrossFit) and Pull-up (Workout B + CrossFit).
-    Both rows happen to be (section, metric)-identical today, but the
-    vocabulary must not depend on that being true forever, so a duplicate is
-    resolved by an explicit, deterministic rule rather than "whichever the
-    query happened to return first": prefer the CrossFit row; otherwise the
-    lowest display_order. CrossFit rows carry a `metric` seeded explicitly
-    (migration 016); older rows had theirs derived by migration 011 from the
-    rep-spec string — if a future duplicate ever disagrees (say a `Row`
-    seeded metric='time' under CrossFit and another `Row` derived as 'reps'
-    elsewhere), picking arbitrarily would silently mis-type the movement and
-    feed erg strokes into the weekly rep count. The ORDER BY below sorts a
-    duplicate's CrossFit row first and breaks remaining ties by
-    display_order, so keeping only the first row seen per lower(name)
-    implements the tie-break. resolve_movement() in wod_movements.py uses the
-    identical ORDER BY — both must agree, or a movement resolves to a
+    exercise_library is UNIQUE(name) (migration 019) — a name can no longer
+    exist twice (it used to, under two categories: Back Squat, Bench Press,
+    Deadlift and Pull-up all did, briefly, before that migration merged
+    them). The dedupe-by-first-seen-name below is therefore defensive rather
+    than load-bearing: display_order alone is now the only tie-break, should
+    a duplicate ever reappear (e.g. a bug in a future migration). This must
+    stay consistent with resolve_movement() in wod_movements.py, which uses
+    the identical ORDER BY — otherwise a movement could resolve to a
     different section/metric depending on which one is asked.
     """
     rows = await db.execute_fetchall(
-        "SELECT name, section, metric FROM exercise_library "
-        "WHERE archived = 0 "
-        "ORDER BY (category != 'CrossFit'), display_order"
+        "SELECT name, section, metric FROM exercise_library WHERE archived = 0 ORDER BY display_order"
     )
     seen: set[str] = set()
     movements: list[dict] = []

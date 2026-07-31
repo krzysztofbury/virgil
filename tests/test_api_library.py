@@ -35,18 +35,25 @@ def test_library_requires_key():
 
 
 def test_list_returns_crossfit_vocabulary(auth_client):
-    body = auth_client.get("/api/library", headers=KEY, params={"category": "CrossFit"}).json()
+    """`?category=` is gone (migration 019 dropped the column); GET /api/library
+    now always returns the whole library. This also doubles as the "full chain
+    completes with the right merge count" regression the migration brief calls
+    for: 46 EXERCISE_LIBRARY + 31 CROSSFIT_MOVEMENTS - 4 merged duplicate names
+    (Back Squat, Deadlift, Bench Press, Pull-up) = 73."""
+    from app.exercise_library import CROSSFIT_MOVEMENTS
+
+    body = auth_client.get("/api/library", headers=KEY).json()
     names = {e["name"] for e in body["entries"]}
     assert "Thruster" in names
-    assert len(body["entries"]) == 31
-    assert all(e["category"] == "CrossFit" for e in body["entries"])
+    assert {m["name"] for m in CROSSFIT_MOVEMENTS} <= names, "every CrossFit movement must still be listed"
+    assert len(body["entries"]) == 73
 
 
 def test_create_then_read_back(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Devil Press", "metric": "reps"},
+        json={"section": "Core", "name": "Devil Press", "metric": "reps"},
     )
     assert resp.status_code == 201
     row = _get("Devil Press")
@@ -55,11 +62,11 @@ def test_create_then_read_back(auth_client):
     assert row["builtin"] == 0
 
 
-def test_duplicate_name_in_category_is_409(auth_client):
+def test_duplicate_name_is_409(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Thruster", "metric": "reps"},
+        json={"section": "Core", "name": "Thruster", "metric": "reps"},
     )
     assert resp.status_code == 409
 
@@ -71,14 +78,14 @@ def test_create_strips_name_and_rejects_blank(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Thruster ", "metric": "reps"},
+        json={"section": "Core", "name": "Thruster ", "metric": "reps"},
     )
     assert resp.status_code == 409, "a stripped name must still collide with the existing 'Thruster'"
 
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "  ", "section": "Core", "name": "   ", "metric": "reps"},
+        json={"section": "Core", "name": "   ", "metric": "reps"},
     )
     assert resp.status_code == 422
 
@@ -87,7 +94,7 @@ def test_create_clamps_sets(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Clamp Sets Create", "metric": "reps", "sets": 999},
+        json={"section": "Core", "name": "Clamp Sets Create", "metric": "reps", "sets": 999},
     )
     assert resp.status_code == 201
     entry_id = resp.json()["id"]
@@ -97,19 +104,22 @@ def test_create_clamps_sets(auth_client):
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
 
-def test_create_category_truncated_to_100_not_60(auth_client):
-    """A category created through the settings form (100-char cap) must stay
-    matchable through this API — truncating here at 60 would silently corrupt it."""
-    long_category = "X" * 80
+def test_create_name_truncated_to_100_not_60(auth_client):
+    """A name created through the settings form (100-char cap) must stay
+    matchable through this API — truncating here at 60 would silently corrupt
+    it. (Formerly this pinned `category`'s truncation cap; that field is gone
+    since migration 019, so this now pins the same parity concern on `name`,
+    the field that carries it now.)"""
+    long_name = "X" * 80
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": long_category, "section": "Core", "name": "Long Category Move", "metric": "reps"},
+        json={"section": "Core", "name": long_name, "metric": "reps"},
     )
     assert resp.status_code == 201
     entry_id = resp.json()["id"]
     try:
-        assert _get("Long Category Move")["category"] == long_category
+        assert _get(long_name)["name"] == long_name
     finally:
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
@@ -118,7 +128,7 @@ def test_create_invalid_section_and_metric_422(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "NotASection", "name": "Bad Section Move", "metric": "reps"},
+        json={"section": "NotASection", "name": "Bad Section Move", "metric": "reps"},
     )
     assert resp.status_code == 422
     assert _get("Bad Section Move") is None
@@ -126,7 +136,7 @@ def test_create_invalid_section_and_metric_422(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Bad Metric Move", "metric": "nope"},
+        json={"section": "Core", "name": "Bad Metric Move", "metric": "nope"},
     )
     assert resp.status_code == 422
     assert _get("Bad Metric Move") is None
@@ -137,7 +147,6 @@ def test_create_rejects_unknown_field(auth_client):
         "/api/library",
         headers=KEY,
         json={
-            "category": "CrossFit",
             "section": "Core",
             "name": "Unknown Field Move",
             "metric": "reps",
@@ -159,7 +168,7 @@ def test_patch_strips_and_rejects_blank_name(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Strip Patch Target", "metric": "reps"},
+        json={"section": "Core", "name": "Strip Patch Target", "metric": "reps"},
     )
     entry_id = resp.json()["id"]
     try:
@@ -178,7 +187,7 @@ def test_patch_clamps_sets(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Clamp Sets Patch", "metric": "reps"},
+        json={"section": "Core", "name": "Clamp Sets Patch", "metric": "reps"},
     )
     entry_id = resp.json()["id"]
     try:
@@ -193,7 +202,7 @@ def test_patch_invalid_section_and_metric_422(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Patch Validation Target", "metric": "reps"},
+        json={"section": "Core", "name": "Patch Validation Target", "metric": "reps"},
     )
     entry_id = resp.json()["id"]
     try:
@@ -212,7 +221,7 @@ def test_patch_rename_collision_409(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Rename Collision Target", "metric": "reps"},
+        json={"section": "Core", "name": "Rename Collision Target", "metric": "reps"},
     )
     entry_id = resp.json()["id"]
     try:
@@ -227,16 +236,18 @@ def test_patch_rejects_unknown_field(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "CrossFit", "section": "Core", "name": "Unknown Patch Target", "metric": "reps"},
+        json={"section": "Core", "name": "Unknown Patch Target", "metric": "reps"},
     )
     entry_id = resp.json()["id"]
     try:
-        # `category` appears in every GET /api/library response — an MCP client
-        # that echoes a row straight back into a PATCH body must fail loudly,
-        # not silently no-op (extra="forbid" turns this into a 422).
+        # `category` used to appear in every GET /api/library response, so an
+        # MCP client that echoed a row straight back into a PATCH body would
+        # send it — migration 019 removed the column, but the field name is
+        # still a plausible stale value a client might send, and it must
+        # still fail loudly, not silently no-op (extra="forbid" -> 422).
         resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"category": "Hack"})
         assert resp.status_code == 422
-        assert _get("Unknown Patch Target")["category"] == "CrossFit"
+        assert _get("Unknown Patch Target")["notes"] == "", "a rejected PATCH must not partially apply"
     finally:
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 

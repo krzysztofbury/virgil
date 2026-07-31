@@ -60,12 +60,13 @@ def _delete_training_exercise(name: str) -> None:
 
 
 def _any_builtin_non_crossfit() -> dict:
+    """No `category != 'CrossFit'` filter needed any more: CrossFit rows are
+    always seeded builtin=0 (migration 016/017), so any builtin=1 row is
+    necessarily non-CrossFit already."""
     conn = sqlite3.connect(user_db_path())
     conn.row_factory = sqlite3.Row
     try:
-        r = conn.execute(
-            "SELECT * FROM exercise_library WHERE builtin = 1 AND category != 'CrossFit' LIMIT 1"
-        ).fetchone()
+        r = conn.execute("SELECT * FROM exercise_library WHERE builtin = 1 LIMIT 1").fetchone()
         return dict(r)
     finally:
         conn.close()
@@ -77,7 +78,6 @@ def test_invalid_section_rejected_by_both_surfaces(auth_client):
         "/settings/library/add",
         data={
             "name": "Parity Bad Section",
-            "category": "Parity Test",
             "section": "NotASection",
             "sets": "",
             "reps": "",
@@ -93,7 +93,7 @@ def test_invalid_section_rejected_by_both_surfaces(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "Parity Test", "section": "NotASection", "name": "Parity Bad Section", "metric": "reps"},
+        json={"section": "NotASection", "name": "Parity Bad Section", "metric": "reps"},
     )
     assert resp.status_code == 422
     assert _row("Parity Bad Section") is None
@@ -105,7 +105,6 @@ def test_invalid_metric_rejected_by_both_surfaces(auth_client):
         "/settings/library/add",
         data={
             "name": "Parity Bad Metric",
-            "category": "Parity Test",
             "section": "Core",
             "sets": "",
             "reps": "",
@@ -130,7 +129,7 @@ def test_invalid_metric_rejected_by_both_surfaces(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "Parity Test", "section": "Core", "name": "Parity Bad Metric", "metric": "bogus"},
+        json={"section": "Core", "name": "Parity Bad Metric", "metric": "bogus"},
     )
     assert resp.status_code == 422
     assert "metric must be one of" in resp.json()["detail"], (
@@ -146,7 +145,6 @@ def test_duplicate_name_rejected_by_both_surfaces(auth_client):
             "/settings/library/add",
             data={
                 "name": "Parity Dup",
-                "category": "Parity Test",
                 "section": "Core",
                 "sets": "",
                 "reps": "",
@@ -165,7 +163,6 @@ def test_duplicate_name_rejected_by_both_surfaces(auth_client):
             "/settings/library/add",
             data={
                 "name": "Parity Dup",
-                "category": "Parity Test",
                 "section": "Core",
                 "sets": "",
                 "reps": "",
@@ -175,12 +172,12 @@ def test_duplicate_name_rejected_by_both_surfaces(auth_client):
             },
             follow_redirects=False,
         )
-        assert "err=" in resp.headers["location"], "a duplicate (category, name) must be refused loudly"
+        assert "err=" in resp.headers["location"], "a duplicate name must be refused loudly"
 
         resp = auth_client.post(
             "/api/library",
             headers=KEY,
-            json={"category": "Parity Test", "section": "Core", "name": "Parity Dup", "metric": "reps"},
+            json={"section": "Core", "name": "Parity Dup", "metric": "reps"},
         )
         assert resp.status_code == 409
     finally:
@@ -242,7 +239,6 @@ def test_update_omitting_metric_leaves_it_unchanged_not_reset(auth_client):
         "/settings/library/add",
         data={
             "name": "Parity Stale Form",
-            "category": "Parity Test",
             "section": "Cardio",
             "sets": "",
             "reps": "",
@@ -282,7 +278,6 @@ def test_rename_refused_when_training_history_exists_settings(auth_client):
         "/settings/library/add",
         data={
             "name": "Parity Muscle-up",
-            "category": "Parity Test",
             "section": "Core",
             "sets": "",
             "reps": "",
@@ -322,7 +317,7 @@ def test_rename_refused_when_training_history_exists_api(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"category": "Parity Test", "section": "Core", "name": "Parity Snatch", "metric": "reps"},
+        json={"section": "Core", "name": "Parity Snatch", "metric": "reps"},
     )
     entry_id = resp.json()["id"]
     _insert_training_exercise("Parity Snatch")
@@ -346,7 +341,6 @@ def test_rename_allowed_when_no_training_history_exists(auth_client):
         "/settings/library/add",
         data={
             "name": "Parity No History",
-            "category": "Parity Test",
             "section": "Core",
             "sets": "",
             "reps": "",
