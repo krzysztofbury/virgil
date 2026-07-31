@@ -376,10 +376,24 @@ def test_confirm_page_renders_the_add_set_control_and_alpine_wiring(auth_client)
     control: an Alpine component that can append a new row at the end of the
     table, and a hidden entry_count bound to the LIVE row count (base +
     however many extra rows got added) rather than the server-rendered
-    constant baked in as a plain value. A server-side test cannot click the
-    button — this only proves the wiring is present in the rendered HTML, not
-    that clicking it behaves correctly in a browser; that half is unverified
-    here."""
+    constant baked in as a plain value.
+
+    entry_count is submitted via belt-and-braces: an Alpine `:value` binding
+    (the reactive path) AND an explicit `@submit` handler that re-asserts the
+    same value on the ref'd input at the moment of submit (the fallback, in
+    case the binding itself doesn't do what's expected — its failure mode is
+    silent: a stale count makes confirm_wod's `for i in range(entry_count)`
+    quietly drop the rows the user just added). Both halves must be present,
+    or a future edit could silently delete the fallback as "redundant".
+
+    A server-side test cannot click the button — this only proves the wiring
+    is present in the rendered HTML, not that clicking it, or the @submit
+    handler, actually fires correctly in a browser; that half is unverified
+    here. The belt-and-braces (not a browser run) is what makes that
+    acceptable: even if the reactive :value binding silently misbehaves in
+    some browser, the explicit @submit assignment is a second, independent
+    path to the same correct value.
+    """
     session_id = _new_session(
         wod_parsed=json.dumps(
             {
@@ -399,6 +413,13 @@ def test_confirm_page_renders_the_add_set_control_and_alpine_wiring(auth_client)
     assert 'x-for="row in extraRows"' in html, "appended rows must be driven by an Alpine x-for template"
     assert ':value="base + extraRows.length"' in html, (
         "entry_count must be bound to the live row count, not a server-rendered constant"
+    )
+    assert 'x-ref="entryCount"' in html, (
+        "the hidden entry_count input must be ref'd so the @submit fallback can reach it"
+    )
+    assert '@submit="$refs.entryCount.value = base + extraRows.length"' in html, (
+        "the :value binding must be backed by an explicit @submit assignment — its failure mode is silent "
+        "data loss (confirm_wod would drop the rows the user just added), so this belt-and-braces must stay"
     )
 
 

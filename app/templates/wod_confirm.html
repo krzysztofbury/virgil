@@ -26,7 +26,16 @@
 
     {% set total_rows = entries|length + unmatched|length %}
     {% if total_rows > 0 %}
-    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ total_rows }})">
+    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ total_rows }})"
+          @submit="$refs.entryCount.value = base + extraRows.length">
+      <!-- Deliberate redundancy, not an oversight: the :value binding below is
+           the first `:value` on an input anywhere in this repo (no other
+           precedent), and its failure mode is silent — a stale entry_count
+           makes confirm_wod's `for i in range(entry_count)` quietly drop the
+           rows the user just added. This handler re-asserts the count
+           explicitly at the moment of submit; a no-op if the binding already
+           worked, a save if it didn't. Do not remove either half. -->
+
       <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="session_id" value="{{ session_id }}">
       <div class="overflow-x">
@@ -90,7 +99,7 @@
         </tbody>
       </table>
       </div>
-      <input type="hidden" name="entry_count" :value="base + extraRows.length">
+      <input type="hidden" name="entry_count" x-ref="entryCount" :value="base + extraRows.length">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
     </form>
     {% else %}
