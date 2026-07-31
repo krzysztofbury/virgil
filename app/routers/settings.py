@@ -137,26 +137,31 @@ async def library_add(
     sets: str = Form(""),
     reps: str = Form(""),
     notes: str = Form(""),
+    metric: str = Form("reps"),
 ):
-    from app.routers.training import SECTION_ORDER
-    from app.validation import truncate
+    from app.library_validation import LibraryWriteError, validate_library_write
 
-    if section not in SECTION_ORDER:
-        section = "Core"
-    name = truncate(name.strip(), 100)
-    category = truncate(category.strip(), 100)
-    if not name or not category:
-        return RedirectResponse("/settings?tab=configuration", status_code=303)
     try:
-        sets_val = max(1, min(20, int(sets))) if sets.strip() else None
+        sets_val = int(sets) if sets.strip() else None
     except ValueError:
         sets_val = None
 
     db = get_user_db_from_request(request)
+    try:
+        row = await validate_library_write(
+            db,
+            op="create",
+            category=category,
+            fields={"name": name, "section": section, "sets": sets_val, "reps": reps, "notes": notes, "metric": metric},
+        )
+    except LibraryWriteError as exc:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+
     await db.execute(
-        "INSERT OR IGNORE INTO exercise_library (category, section, name, sets, reps, notes, display_order, builtin) "
-        "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), 0)",
-        (category, section, name, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300)),
+        "INSERT INTO exercise_library "
+        "(category, section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), ?, 0)",
+        (row["category"], row["section"], row["name"], row["sets"], row["reps"], row["notes"], row["metric"]),
     )
     await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
@@ -167,40 +172,73 @@ async def library_update(
     request: Request,
     entry_id: int = Form(...),
     name: str = Form(...),
-    section: str = Form("Core"),
-    sets: str = Form(""),
-    reps: str = Form(""),
-    notes: str = Form(""),
+    # None (absent from the POST body) means "leave this column unchanged" —
+    # NOT "reset to a default". A stale settings page cached from before this
+    # branch added the metric <select> would omit `metric` entirely on
+    # submit; with a string default here that silently downgraded a 'time'
+    # movement to 'reps' on every such save (I1). Form(None) lets FastAPI
+    # tell "field absent" (None) apart from "field present but blank" ('') —
+    # the latter still means "clear it", same as api.py's PATCH.
+    section: str | None = Form(None),
+    sets: str | None = Form(None),
+    reps: str | None = Form(None),
+    notes: str | None = Form(None),
+    metric: str | None = Form(None),
 ):
-    from app.routers.training import SECTION_ORDER
-    from app.validation import truncate
-
-    if section not in SECTION_ORDER:
-        section = "Core"
-    name = truncate(name.strip(), 100)
-    if not name:
-        return RedirectResponse("/settings?tab=configuration", status_code=303)
-    try:
-        sets_val = max(1, min(20, int(sets))) if sets.strip() else None
-    except ValueError:
-        sets_val = None
+    from app.library_validation import LibraryWriteError, validate_library_write
 
     db = get_user_db_from_request(request)
-    # OR IGNORE mirrors library_add: a rename colliding with UNIQUE(category, name)
-    # must no-op instead of raising a 500.
-    await db.execute(
-        "UPDATE OR IGNORE exercise_library SET name = ?, section = ?, sets = ?, reps = ?, notes = ? "
-        "WHERE id = ? AND builtin = 0",
-        (name, section, sets_val, truncate(reps.strip(), 100), truncate(notes.strip(), 300), entry_id),
-    )
-    await db.commit()
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
+    existing = dict(rows[0])
+
+    fields: dict = {"name": name}
+    if section is not None:
+        fields["section"] = section
+    if sets is not None:
+        try:
+            fields["sets"] = int(sets) if sets.strip() else None
+        except ValueError:
+            fields["sets"] = None
+    if reps is not None:
+        fields["reps"] = reps
+    if notes is not None:
+        fields["notes"] = notes
+    if metric is not None:
+        fields["metric"] = metric
+
+    try:
+        result = await validate_library_write(db, op="update", entry_id=entry_id, existing=existing, fields=fields)
+    except LibraryWriteError as exc:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+
+    if result:
+        assignments = ", ".join(f"{k} = ?" for k in result)
+        await db.execute(
+            f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are this
+            # module's own known column names (validate_library_write's fixed key set), never
+            # attacker-controlled.
+            [*result.values(), entry_id],
+        )
+        await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
 
 
 @router.post("/settings/library/delete")
 async def library_delete(request: Request, entry_id: int = Form(...)):
+    from app.library_validation import LibraryWriteError, validate_library_write
+
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM exercise_library WHERE id = ? AND builtin = 0", (entry_id,))
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
+    try:
+        await validate_library_write(db, op="delete", entry_id=entry_id, existing=dict(rows[0]))
+    except LibraryWriteError as exc:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+
+    await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
     await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
 

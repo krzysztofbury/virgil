@@ -46,6 +46,50 @@ per-commit `sha-*` tags. The alternative — a QNAP pull-and-verify script that
 pins a digest, waits for `/healthz` and keeps the previous image reference — is
 parked; revisit if a bad deploy actually bites.
 
+## CrossFit WOD tracking — 2026-07-30 (branch `feat/crossfit-wod-tracking`, PR #6)
+
+Shipped: free-text WOD capture (note persisted before the LLM runs), parsing
+confined to a closed movement vocabulary, editable confirmation screen, `ad_hoc`
+movements, a user-curatable dictionary over the Settings form / REST / MCP, and a
+single shared write contract for that dictionary. Migrations 016–018.
+
+Deferred deliberately — each was raised by a review, ruled non-blocking, and is
+recorded here so it isn't rediscovered from scratch:
+
+- [ ] `/settings/library/archive` is the one library write surface still outside
+      `validate_library_write` — no existence check, so an unknown id silently
+      no-ops where `PATCH /api/library/{id}` returns 404. Policy is otherwise
+      identical.
+- [ ] A parse yielding more than 200 entries produces a confirmation screen that
+      rejects on every submit, with no user-adjustable input. Not a regression
+      (the previous behaviour discarded them silently) but it is an
+      unrecoverable loop. Either cap the parse or let the screen paginate.
+- [ ] `training_exercises` has no `UNIQUE(name)`; `resolve_movement` is
+      SELECT-then-INSERT, so concurrent requests could race into duplicate
+      ad-hoc rows. Single-user deployment makes this theoretical today.
+- [ ] `app/routers/admin.py:18` holds a duplicate `_UUID_RE` ending in `$`, and
+      that one *is* path-matching (`POST /admin/users/{id}/disable|enable|delete`).
+      Starlette's `str` converter is `[^/]+`, so `<uuid>\n` satisfies it. Impact
+      is nil (parameterised SQL, admin-only) but the equivalent patterns in
+      `auth.py`/`csrf.py` were hardened to `[0-9]`/`\Z` and this was missed.
+- [ ] `app/rate_limit.py` keys the LLM cost-control bucket on `cf-connecting-ip`,
+      a client-supplied header. Fine while the Cloudflare tunnel is the only
+      ingress — the assumption is now written down in a comment there, but any
+      second ingress (LAN, direct port-forward) invalidates it.
+- [ ] `tests/conftest.py` returns the same session-scoped object for `client` and
+      `auth_client`. This produced one of the vacuous tests found on this branch
+      (an auth test that ran with a session cookie already set). Worked around
+      locally in `tests/test_api_library.py`; the fixture itself is still a trap.
+
+**Note on test quality.** Twelve vacuous tests were caught and fixed during this
+work — tests that passed under every mutation of the code they claimed to cover.
+Recurring shapes: asserting on a field name built at runtime by Alpine.js and
+never present in server-rendered HTML; asserting on a substring the template
+emits regardless (a movement name rendered as an `<option>` in every row); and
+the shared-fixture problem above. The countermeasure that worked was requiring
+mutation evidence from someone other than the test's author — worth keeping for
+future work in this repo.
+
 ## Backlog — 2026-07 Functionality Review
 
 Status of the 2026-07 review (branch `fix/review-findings-2026-07`).

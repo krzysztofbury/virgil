@@ -54,6 +54,25 @@ def user_db_path() -> Path:
     return db_files[0]
 
 
+def stat_value_for_label(html: str, label: str) -> float:
+    """Numeric value of the "kg" stat-card whose stat-label matches `label`.
+
+    Anchors on the exact structure training.html renders (stat-value, then a
+    "kg" <small>, then the stat-label div), so an assertion built on this reads
+    the real rendered KPI/PB — not a hand-copied aggregate query run directly
+    against sqlite (see tests/test_ad_hoc_visibility.py and
+    tests/test_wod_confirm.py for why that distinction matters).
+    """
+    pattern = re.compile(
+        r'stat-value">([\d,]+(?:\.\d+)?)\s*<small[^>]*>kg</small></div>\s*<div class="stat-label">'
+        + re.escape(label)
+        + r"</div>"
+    )
+    match = pattern.search(html)
+    assert match, f"no stat-card found for label {label!r}"
+    return float(match.group(1).replace(",", ""))
+
+
 def _complete_onboarding() -> None:
     """Mark onboarding as done directly in the (single) user DB file."""
     conn = sqlite3.connect(user_db_path())

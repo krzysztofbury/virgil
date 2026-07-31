@@ -85,8 +85,10 @@ def test_new_api_routes_reachable_with_key_only():
     from app.main import app
 
     c = TestClient(app)
-    for path in ("/api/noporn", "/api/training/detail"):
+    for path in ("/api/noporn", "/api/training/detail", "/api/library"):
         assert c.get(path, follow_redirects=False).status_code == 401, path
+    for method in ("PATCH", "DELETE"):
+        assert c.request(method, "/api/library/1", follow_redirects=False).status_code == 401, method
 
 
 def test_training_detail_empty(auth_client):

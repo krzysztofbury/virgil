@@ -1,10 +1,16 @@
+import json
 import logging
+from dataclasses import asdict
 from datetime import date, timedelta
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app.library_validation import valid_library_metric
 from app.main import templates
+from app.services.wod_movements import resolve_movement
+from app.services.wod_parser import canonical_movements, parse_wod
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
@@ -44,13 +50,62 @@ def _parse_float_in_range(raw, minimum: float, maximum: float) -> float | None:
     return value
 
 
+class _ConfirmRejected(Exception):
+    """A /training/wod/confirm field was present but failed validation.
+
+    Distinct from "absent/blank", which is a normal unset value (e.g. no
+    weight for a bodyweight movement). Silently coercing an out-of-range
+    value to None or a clamped default is the exact shape this branch keeps
+    reproducing (set_number ... or 1, an MCP `if v` filter, a settings no-op)
+    — it lets the user's already-reviewed workout vanish or collide without a
+    trace. Raising here aborts the whole submission instead, loudly, before
+    anything is written.
+    """
+
+
+def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int | None:
+    """Strict per-row integer parse for the confirm screen.
+
+    Blank/absent -> None (nothing was entered, that's fine). Present but not
+    an integer, or outside [minimum, maximum] -> raises _ConfirmRejected
+    naming the row and field, so B2 (out-of-range values silently discarded)
+    cannot recur here.
+    """
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise _ConfirmRejected(f"wpis {row + 1}: {field} „{raw}” nie jest liczbą całkowitą") from None
+    if value < minimum or value > maximum:
+        raise _ConfirmRejected(f"wpis {row + 1}: {field}={value} poza zakresem [{minimum}, {maximum}]")
+    return value
+
+
+def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) -> float | None:
+    """Strict per-row float parse for the confirm screen. See `_confirm_int`."""
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise _ConfirmRejected(f"wpis {row + 1}: {field} „{raw}” nie jest liczbą") from None
+    if value < minimum or value > maximum:
+        raise _ConfirmRejected(f"wpis {row + 1}: {field}={value} poza zakresem [{minimum}, {maximum}]")
+    return value
+
+
 @router.get("/training", response_class=HTMLResponse)
 async def training_page(request: Request):
     db = get_user_db_from_request(request)
 
     # Archived exercises stay out of the protocol/log forms but keep their
     # historical entries (session history and PBs join by id regardless).
-    exercises = await db.execute_fetchall("SELECT * FROM training_exercises WHERE archived = 0 ORDER BY display_order")
+    # ad_hoc rows are parser-created WOD movements: they keep their history,
+    # volume and PB contribution but must not accumulate in the daily protocol.
+    exercises = await db.execute_fetchall(
+        "SELECT * FROM training_exercises WHERE archived = 0 AND ad_hoc = 0 ORDER BY display_order"
+    )
     exercises = [dict(e) for e in exercises]
 
     # Group exercises by section, maintaining SECTION_ORDER
@@ -136,7 +191,7 @@ async def training_page(request: Request):
     # Exercise picker dictionary — DB-backed, managed in Settings → App Config.
     # Archived rows stay in the DB (history) but leave the picker.
     lib_rows = await db.execute_fetchall(
-        "SELECT category, section, name, sets, reps, notes FROM exercise_library "
+        "SELECT category, section, name, sets, reps, notes, metric FROM exercise_library "
         "WHERE archived = 0 ORDER BY display_order, name"
     )
     exercise_library = [dict(r) for r in lib_rows]
@@ -252,6 +307,213 @@ async def save_session(request: Request):
     return RedirectResponse("/training", status_code=303)
 
 
+@router.post("/training/wod")
+async def capture_wod(request: Request):
+    """Capture a free-text WOD note, parse it, and redirect to the confirm screen.
+
+    Post/Redirect/Get: the parse result is persisted (training_sessions.wod_parsed)
+    so GET /training/wod/confirm/{session_id} can render it without re-invoking the
+    LLM. This is what stops a double-submit or an F5 from creating a second session
+    and firing a second paid parse call — before this, replaying the POST created
+    session #2, the confirm form silently rebound to it, and session #1 survived
+    entry-less while still counting toward the weekly kpi_sessions KPI.
+
+    The session row and the user's own words are still committed BEFORE the LLM is
+    called, so a parser failure costs structure, never the record.
+    """
+    db = get_user_db_from_request(request)
+    form = await request.form()
+
+    session_date = form.get("date", date.today().isoformat())
+    if not valid_date(session_date):
+        return RedirectResponse("/training", status_code=303)
+
+    wod_text = truncate(form.get("wod_text", "").strip(), 4000)
+    if not wod_text:
+        return RedirectResponse("/training", status_code=303)
+
+    duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
+
+    cursor = await db.execute(
+        "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, ?, ?)",
+        (session_date, duration_int, wod_text),
+    )
+    session_id = cursor.lastrowid
+    await db.commit()
+
+    entries: list = []
+    unmatched: list[str] = []
+    parse_error = ""
+    try:
+        parsed = await parse_wod(db, wod_text)
+        entries, unmatched = parsed.entries, parsed.unmatched
+    except Exception as exc:
+        # Broadened from `except ValueError`: parse_wod's own call chain raises
+        # more than ValueError — app/services/llm.py has bare asserts (missing
+        # content, max_tokens bounds), transport errors that aren't
+        # litellm.APIError subclasses, and canonical_movements() below now
+        # asserts a vocabulary bound (I5) that can also fire mid-parse. Any of
+        # those left this session's wod_parsed NULL forever: the GET confirm
+        # page 303s away (:377) and /training/session always INSERTs a new
+        # session, so there was no way to ever attach entries to this one
+        # again. The INSERT+commit above already happened, so catching wider
+        # here weakens no ordering guarantee — it only stops a crash from
+        # stranding an otherwise-saved note.
+        parse_error = str(exc)
+        logger.warning("WOD parse failed for session %s: %s", session_id, exc)
+
+    wod_parsed = json.dumps(
+        {
+            "entries": [asdict(e) for e in entries],
+            "unmatched": unmatched,
+            "parse_error": parse_error,
+        }
+    )
+    await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (wod_parsed, session_id))
+    await db.commit()
+
+    return RedirectResponse(f"/training/wod/confirm/{session_id}", status_code=303)
+
+
+@router.get("/training/wod/confirm/{session_id}", response_class=HTMLResponse)
+async def wod_confirm_page(request: Request, session_id: int):
+    """Render the WOD confirmation screen from the STORED parse result.
+
+    Never re-parses: a GET (including a plain browser refresh) must never
+    invoke the LLM again — that's the whole point of persisting the result in
+    capture_wod rather than rendering it directly there.
+    """
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT id, date, wod_parsed FROM training_sessions WHERE id = ?", (session_id,))
+    if not rows or not rows[0]["wod_parsed"]:
+        # Unknown session, or one not created by the WOD capture flow (no
+        # stored parse result to show) — nothing to confirm here.
+        return RedirectResponse("/training", status_code=303)
+
+    session = rows[0]
+    try:
+        parsed = json.loads(session["wod_parsed"])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        # A corrupt stored value must not 500 this GET forever (M3, rides
+        # along with I3) — fall back to the same "nothing to confirm" redirect
+        # used above when there is no stored result at all.
+        logger.warning("Corrupt wod_parsed for session %s — nothing to confirm", session_id)
+        return RedirectResponse("/training", status_code=303)
+
+    try:
+        movements = await canonical_movements(db)
+        library_error = ""
+    except AssertionError as exc:
+        # I5 bounds the CrossFit vocabulary with an assert in canonical_movements().
+        # POST /api/library is MCP-callable, so the library can grow past that
+        # bound between capture (where I3's broadened `except Exception` already
+        # absorbs this) and the user opening this GET — which had no guard at
+        # all. Left unguarded, that reopens exactly the failure class I3 was
+        # written to eliminate: a permanent 500 on a session whose note and
+        # wod_parsed are already safely stored. Degrade instead — empty picker,
+        # error surfaced, same shape as the M3 guard on json.loads above.
+        logger.warning("WOD confirm movements list unavailable for session %s: %s", session_id, exc)
+        movements = []
+        library_error = str(exc)
+
+    return templates.TemplateResponse(
+        "wod_confirm.html",
+        {
+            "request": request,
+            "session_id": session_id,
+            "session_date": session["date"],
+            "entries": parsed.get("entries", []),
+            "unmatched": parsed.get("unmatched", []),
+            "parse_error": parsed.get("parse_error", ""),
+            "movements": movements,
+            "library_error": library_error,
+        },
+    )
+
+
+@router.post("/training/wod/confirm")
+async def confirm_wod(request: Request):
+    """Persist the user-reviewed WOD entries against an existing session.
+
+    Two safety properties, both from the 2026-07-30 review:
+
+    B1 — replay safety. The write only proceeds if it can atomically flip
+    `wod_parsed` from "set" to NULL for this session (`rowcount == 1`). A
+    replayed POST (double submit, or Back-then-resubmit on the now-permanent
+    GET /training/wod/confirm/{id} URL) finds `wod_parsed` already NULL and
+    is redirected without writing anything — never a second set of entries.
+    This makes the write at least as guarded as the GET, which already
+    requires `wod_parsed IS NOT NULL` to render anything.
+
+    B2 — no silent discard. Every field is parsed with `_confirm_int`/
+    `_confirm_float`, which raise `_ConfirmRejected` for a value that is
+    present but out of range (never silently None/clamped-to-1). Validation
+    runs BEFORE the B1 consume step, so a rejected submission leaves
+    `wod_parsed` untouched — the confirm screen is still there to retry
+    against, not consumed by the very request that failed to write anything.
+    """
+    db = get_user_db_from_request(request)
+    form = await request.form()
+
+    session_id = _parse_int_in_range(form.get("session_id"), 1, 2**31 - 1)
+    if session_id is None:
+        return RedirectResponse("/training", status_code=303)
+
+    entry_count_raw = form.get("entry_count")
+    entry_count = _parse_int_in_range(entry_count_raw, 0, 200)
+    if entry_count is None:
+        logger.warning(
+            "WOD confirm rejected for session %s: entry_count=%r out of [0, 200]", session_id, entry_count_raw
+        )
+        return RedirectResponse(
+            f"/training/wod/confirm/{session_id}?err={quote('Zbyt dużo wpisów naraz — spróbuj ponownie.')}",
+            status_code=303,
+        )
+
+    parsed_rows: list[tuple[str, int, int | None, float | None, float | None, str]] = []
+    try:
+        for i in range(entry_count):
+            movement = (form.get(f"entry_{i}_movement") or "").strip()
+            set_number = _confirm_int(form.get(f"entry_{i}_set_number"), 1, 100, "seria", i)
+            reps = _confirm_int(form.get(f"entry_{i}_reps"), 0, REPS_MAX, "powtórzenia", i)
+            weight = _confirm_float(form.get(f"entry_{i}_weight"), 0, WEIGHT_KG_MAX, "ciężar", i)
+            duration = _confirm_float(form.get(f"entry_{i}_duration"), 0, DURATION_SECONDS_MAX, "czas", i)
+            note = truncate(form.get(f"entry_{i}_note", ""), 200)
+            parsed_rows.append((movement, set_number if set_number is not None else 1, reps, weight, duration, note))
+    except _ConfirmRejected as exc:
+        logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
+        return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
+
+    # B1: atomically consume the pending parse result. rowcount != 1 means
+    # "unknown session" or "already confirmed" (replay) — either way, redirect
+    # without writing rather than risk a second set of entries.
+    cursor = await db.execute(
+        "UPDATE training_sessions SET wod_parsed = NULL WHERE id = ? AND wod_parsed IS NOT NULL",
+        (session_id,),
+    )
+    if cursor.rowcount != 1:
+        await db.commit()
+        return RedirectResponse("/training", status_code=303)
+
+    rows: list[tuple] = []
+    for movement, set_number, reps, weight, duration, note in parsed_rows:
+        exercise_id = await resolve_movement(db, movement)
+        if exercise_id is None:
+            # Blank movement ("— pomiń", I4) or one that no longer resolves —
+            # not an error, just nothing to write for this row.
+            continue
+        rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
+
+    if rows:
+        await db.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+    await db.commit()
+    return RedirectResponse("/training", status_code=303)
+
+
 @router.post("/training/session/{session_id}/delete")
 async def delete_session(request: Request, session_id: int):
     db = get_user_db_from_request(request)
@@ -278,6 +540,13 @@ async def add_exercise(request: Request):
         target_sets = 3
     target_reps = truncate(form.get("target_reps", "").strip(), 50)
     notes = truncate(form.get("notes", "").strip(), 200)
+    # The library picker's onchange fills a hidden `metric` field from the
+    # picked row (see training.html) so a library-backed pick (e.g. "Row",
+    # metric='time') carries its real metric through instead of silently
+    # taking the column default 'reps' — see B3 in the 2026-07-30 review.
+    metric = form.get("metric", "reps")
+    if not valid_library_metric(metric):
+        metric = "reps"
 
     if not name:
         return RedirectResponse("/training", status_code=303)
@@ -287,9 +556,9 @@ async def add_exercise(request: Request):
     next_order = row[0]["mx"] + 1
 
     await db.execute(
-        "INSERT INTO training_exercises (name, section, target_sets, target_reps, notes, display_order) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (name, section, target_sets, target_reps, notes, next_order),
+        "INSERT INTO training_exercises (name, section, target_sets, target_reps, notes, display_order, metric) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (name, section, target_sets, target_reps, notes, next_order, metric),
     )
     await db.commit()
     return RedirectResponse("/training", status_code=303)

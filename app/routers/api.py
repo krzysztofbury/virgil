@@ -3,8 +3,9 @@
 Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
-GET endpoints are read-only. The single write is
-POST /api/experiments/{id}/entries — experiment logging for MCP clients.
+Most GET endpoints are read-only. Writes: POST /api/experiments/{id}/entries
+(experiment logging) and full CRUD on /api/library — the exercise dictionary
+the training picker and the WOD parser (app/services/wod_parser.py) both draw from.
 """
 
 import hmac
@@ -14,10 +15,11 @@ from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
+from app.library_validation import LibraryWriteError, validate_library_write
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
@@ -425,3 +427,147 @@ async def api_noporn(
         "journal": [dict(r) for r in journal],
         "pleasures": [dict(r) for r in pleasures],
     }
+
+
+# --- Exercise library: dictionary CRUD ---
+# Every write below routes through app/library_validation.py's
+# validate_library_write — the ONE place that decides accept/reject for this
+# table (I1, 2026-07-30 review). This router's only job is to translate a
+# LibraryWriteError into an HTTPException(exc.status, exc.message); settings.py
+# renders the identical decision as a `?err=` redirect instead. Do not
+# re-implement any of section/metric/duplicate/rename/builtin checks here —
+# that duplication is exactly how the two surfaces drifted apart before.
+#
+# CrossFit rows (category = 'CrossFit') are also the WOD parser's closed
+# prompt vocabulary (app/services/wod_parser.py:canonical_movements) — editing
+# section/metric or deleting one of those rows changes what movements the
+# parser is allowed to recognise in a future WOD note. Renaming does NOT
+# narrow that vocabulary (the parser reads whatever name is current) and may
+# now be refused outright — see validate_library_write's I2 rename guard.
+
+
+# extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
+# sending `category` back on a PATCH, since every GET response includes it)
+# into a loud 422 instead of a silently-ignored no-op, and it guarantees
+# `LibraryPatch.model_dump()` can only ever contain the fields declared below —
+# which is what keeps the dynamic `SET {k} = ?` construction in api_library_patch
+# structurally safe rather than merely safe-by-current-convention.
+class LibraryCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    category: str
+    section: str
+    name: str
+    sets: int | None = None
+    reps: str = ""
+    notes: str = ""
+    metric: str = "reps"
+
+
+class LibraryPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    section: str | None = None
+    sets: int | None = None
+    reps: str | None = None
+    notes: str | None = None
+    metric: str | None = None
+    archived: int | None = None
+
+
+@router.get("/library")
+async def api_library_list(
+    db: ApiDb,
+    category: str | None = Query(None),
+    include_archived: bool = Query(False),
+):
+    """The exercise library — the dictionary the WOD parser and the picker draw from."""
+    sql = "SELECT * FROM exercise_library WHERE 1 = 1"
+    params: list = []
+    if category:
+        sql += " AND category = ?"
+        params.append(category)
+    if not include_archived:
+        sql += " AND archived = 0"
+    sql += " ORDER BY display_order, name"
+    rows = await db.execute_fetchall(sql, params)
+    return {"entries": [dict(r) for r in rows]}
+
+
+@router.post("/library", status_code=201)
+async def api_library_create(db: ApiDb, payload: LibraryCreate):
+    try:
+        row = await validate_library_write(
+            db,
+            op="create",
+            category=payload.category,
+            fields={
+                "name": payload.name,
+                "section": payload.section,
+                "sets": payload.sets,
+                "reps": payload.reps,
+                "notes": payload.notes,
+                "metric": payload.metric,
+            },
+        )
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
+    order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) AS m FROM exercise_library")
+    cursor = await db.execute(
+        "INSERT INTO exercise_library (category, section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        (
+            row["category"],
+            row["section"],
+            row["name"],
+            row["sets"],
+            row["reps"],
+            row["notes"],
+            (order_row[0]["m"] if order_row else 0) + 1,
+            row["metric"],
+        ),
+    )
+    await db.commit()
+    return {"id": cursor.lastrowid}
+
+
+@router.patch("/library/{entry_id}")
+async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"library entry {entry_id} not found")
+    existing = dict(rows[0])
+
+    fields = payload.model_dump(exclude_none=True)
+    if not fields:
+        return {"id": entry_id, "updated": []}
+
+    try:
+        result = await validate_library_write(db, op="update", entry_id=entry_id, existing=existing, fields=fields)
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
+    assignments = ", ".join(f"{k} = ?" for k in result)
+    await db.execute(
+        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys come from
+        # validate_library_write's fixed key set (itself built from LibraryPatch's extra="forbid"
+        # fields above), never attacker-controlled column names.
+        [*result.values(), entry_id],
+    )
+    await db.commit()
+    return {"id": entry_id, "updated": sorted(result)}
+
+
+@router.delete("/library/{entry_id}", status_code=204)
+async def api_library_delete(db: ApiDb, entry_id: int):
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail=f"library entry {entry_id} not found")
+    try:
+        await validate_library_write(db, op="delete", entry_id=entry_id, existing=dict(rows[0]))
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+    await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
+    await db.commit()

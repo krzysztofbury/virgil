@@ -199,6 +199,38 @@ Overview with weekly completion stats, life score radar chart, Oura vitals, 7-da
 - Session history with expandable details (including duration column)
 - Rest timer with presets (fixed-position bar above mobile nav)
 
+#### WOD capture — logging a CrossFit workout from one note
+
+A class-based workout has different movements every session, so the fixed
+protocol above does not fit it. Instead, write one free-text note from memory
+after training and let it be parsed:
+
+- **The note is saved before the LLM is called.** Parsing is derived and
+  correctable; your own words are the source of truth. A parser failure — no
+  provider configured, a timeout, a garbled reply, even a crash — costs you the
+  structure, never the record.
+- **The parser is confined to a closed movement vocabulary** (`exercise_library`,
+  category `CrossFit`). A movement outside it is reported as unrecognised, never
+  invented — this is what stops the catalogue filling with `Thruster`,
+  `thrusters` and `Thruster 43kg` as three separate exercises.
+- **Nothing is written until you confirm.** The confirmation screen is editable:
+  fix a misread weight, skip an entry you did not mean to log, or assign an
+  unrecognised movement from a dropdown. Refreshing it never re-invokes the LLM
+  (the parse result is cached in `training_sessions.wod_parsed`), and
+  re-submitting a confirmed session cannot double-count it.
+- **Movements you don't already train** are created with `ad_hoc = 1`: they count
+  toward session history, weekly volume and Personal Bests, but stay out of the
+  daily protocol form so it doesn't fill up with one-off movements.
+
+The vocabulary is yours to curate — add, rename, delete it in
+**Settings → App Config**, or over the REST API and MCP (see below). Renaming a
+movement that already has logged history is refused, since it would split that
+history across two exercises and halve your Personal Bests.
+
+> Weekly volume is not comparable with pre-CrossFit numbers: metcon work counts
+> as real Core volume, and a single 21-15-9 thruster couplet at 43 kg is ~1935 kg.
+> That is intentional — see CHANGELOG.
+
 ### No Porn (`/feniks`)
 Recovery tracker (hidden by default — enable in Settings > General > Modules):
 - **Streak hero** — days clean counter with progress bar
@@ -243,7 +275,9 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 - One-tap **Today** quick-log bar; day-grid shows minutes fills plus per-metric markers
 - Full **edit** page (any status — active/completed/abandoned): basics, status, metrics
 - AI-generated weekly summaries (kind-aware)
-- Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`
+- Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`; exercise
+  dictionary CRUD via `get_exercise_library`, `add_exercise`, `update_exercise`, `delete_exercise`
+  → `GET/POST /api/library`, `PATCH/DELETE /api/library/{id}`
 
 ### Settings (`/settings`)
 Six-tab settings page:
@@ -337,6 +371,9 @@ Current migrations:
 | 013 | `training_exercise_archive` | Adds `training_exercises.archived` — deleting an exercise keeps history |
 | 014 | `backup_default_on` | Flips `backup_enabled` to `1` on existing installs (backups become opt-out) |
 | 015 | `general_experiments` | Metric kinds (duration/count/boolean/scale) + per-metric targets; `experiment_entries.value` replaces `duration_minutes`; `exercise_library.builtin`/`archived` flags |
+| 016 | `crossfit_movements` | Adds `training_exercises.ad_hoc` to mark parser-created movements; seeds 31 CrossFit movements (vocabulary for WOD parser) |
+| 017 | `crossfit_editable` | Makes the seeded CrossFit movements user-editable (`builtin = 0`) so they can be renamed/deleted, not just archived |
+| 018 | `wod_parsed_cache` | Adds `training_sessions.wod_parsed` — caches the WOD parser result so Post/Redirect/Get never re-invokes the LLM on a refresh |
 
 ## Data Model
 

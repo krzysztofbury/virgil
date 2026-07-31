@@ -166,6 +166,10 @@
         </select>
         <input type="number" name="sets" placeholder="Sets" min="1" max="20" style="width: 4.5rem; margin: 0;">
         <input type="text" name="reps" placeholder="Reps (e.g. 10-12)" style="width: 8rem; margin: 0;">
+        <select name="metric" style="width: auto; margin: 0;">
+            <option value="reps" selected>Reps</option>
+            <option value="time">Time</option>
+        </select>
         <input type="text" name="notes" placeholder="Cue / notes" style="flex: 1; min-width: 10rem; margin: 0;">
         <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
     </form>
@@ -177,7 +181,7 @@
         </summary>
         <div class="overflow-x">
         <table class="exp-metric-table" style="width: 100%;">
-            <thead><tr><th>Name</th><th>Section</th><th>Sets</th><th>Reps</th><th>Notes</th><th></th></tr></thead>
+            <thead><tr><th>Name</th><th>Section</th><th>Sets</th><th>Reps</th><th>Metric</th><th>Notes</th><th></th></tr></thead>
             <tbody>
                 {% for ex in library_by_category[category] %}
                 <tr {% if ex.archived %}style="opacity: 0.45;"{% endif %}>
@@ -186,6 +190,7 @@
                     <td>{{ ex.section }}</td>
                     <td>{{ ex.sets if ex.sets is not none else '' }}</td>
                     <td>{{ ex.reps }}</td>
+                    <td>{{ ex.metric }}</td>
                     <td class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
                     <td style="white-space: nowrap;">
                         <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
@@ -195,7 +200,7 @@
                         </form>
                     </td>
                     {% else %}
-                    <td colspan="5" style="padding: 0.2rem 0;">
+                    <td colspan="6" style="padding: 0.2rem 0;">
                         <form action="/settings/library/update" method="post"
                               style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
@@ -205,6 +210,10 @@
                             </select>
                             <input type="number" name="sets" value="{{ ex.sets if ex.sets is not none else '' }}" min="1" max="20" style="width: 4rem; margin: 0; font-size: var(--text-xs);">
                             <input type="text" name="reps" value="{{ ex.reps }}" style="width: 6rem; margin: 0; font-size: var(--text-xs);">
+                            <select name="metric" style="width: auto; margin: 0; font-size: var(--text-xs);">
+                                <option value="reps" {{ 'selected' if ex.metric == 'reps' else '' }}>Reps</option>
+                                <option value="time" {{ 'selected' if ex.metric == 'time' else '' }}>Time</option>
+                            </select>
                             <input type="text" name="notes" value="{{ ex.notes }}" style="flex: 1; min-width: 8rem; margin: 0; font-size: var(--text-xs);">
                             <button type="submit" class="btn btn-secondary btn-sm">Save</button>
                         </form>

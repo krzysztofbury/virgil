@@ -78,16 +78,17 @@
             <button type="button" class="btn btn-sm btn-outline" @click="adding = !adding" x-show="!adding" style="font-size:0.7rem;">+ Add exercise</button>
             <form method="POST" action="/training/exercise" x-show="adding" x-cloak class="ex-form">
                 <input type="hidden" name="section" value="{{ section_name }}">
+                <input type="hidden" name="metric" value="reps">
                 {% set lib = exercise_library | selectattr("section", "equalto", section_name) | list %}
                 {% if lib %}
                 <label class="ex-field">
                     <span>From library</span>
-                    <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';}">
+                    <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';f.metric.value=d.t||'reps';}">
                         <option value="">Pick an exercise — fills the fields below</option>
                         {% for category, items in lib | groupby("category") %}
                         <optgroup label="{{ category }}">
                             {% for it in items %}
-                            <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes} | tojson }}'>{{ it.name }}</option>
+                            <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes, "t": it.metric} | tojson }}'>{{ it.name }}</option>
                             {% endfor %}
                         </optgroup>
                         {% endfor %}
@@ -155,6 +156,31 @@
     </div>
 </div>
 {% endif %}
+
+<!-- 3b. WOD Capture -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Zapisz WOD</h3></div>
+    <div class="card-body">
+        <form method="post" action="/training/wod">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <div class="grid" style="margin-bottom: 0.75rem;">
+                <div>
+                    <label>Date
+                        <input type="date" name="date" value="{{ today }}" required>
+                    </label>
+                </div>
+                <div>
+                    <label>Duration (min)
+                        <input type="number" name="duration_minutes" placeholder="minuty" min="1">
+                    </label>
+                </div>
+            </div>
+            <textarea name="wod_text" rows="4" maxlength="4000"
+                placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42"></textarea>
+            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Sparsuj WOD</button>
+        </form>
+    </div>
+</div>
 
 <!-- 4. Log Workout -->
 <div class="card" style="margin-bottom: 1rem;">

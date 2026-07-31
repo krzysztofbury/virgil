@@ -5,12 +5,18 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 # Sliding window rate limiter: per-IP, in-memory
-# General endpoints: 120 req/min, auth endpoints: 10 req/min
+# General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min
 GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
 AUTH_WINDOW_SECONDS = 60
 AUTH_PATHS = frozenset({"/login", "/signup", "/setup", "/mfa/verify"})
+
+# LLM-backed endpoints cost money per call — a far tighter bucket than GENERAL.
+LLM_LIMIT = 10
+LLM_WINDOW_SECONDS = 60
+LLM_PATHS = frozenset({"/training/wod"})
+
 MAX_BUCKETS = 10_000
 
 # {ip: [(timestamp, ...), ...]}
@@ -33,14 +39,24 @@ class RateLimitMiddleware:
 
         request = Request(scope)
         # Use CF-Connecting-IP when behind Cloudflare Tunnel, fall back to peer IP.
+        # ASSUMPTION (M2, 2026-07-30 review): cf-connecting-ip is a client-supplied
+        # header, spoofable by anyone who can reach this process directly. Trusting
+        # it here — and, since this branch, using the `:llm` bucket built from it as
+        # the only cost control in front of the paid /training/wod parse call — is
+        # only sound if the Cloudflare Tunnel is the sole ingress path to this app.
+        # If a raw origin route, a second reverse proxy that doesn't strip
+        # client-set headers, or any other direct path ever opens up, a caller can
+        # pick their own IP and bypass both this bucket and the LLM one.
         ip = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
         path = scope.get("path", "")
         now = time.monotonic()
 
-        is_auth = path in AUTH_PATHS
-        limit = AUTH_LIMIT if is_auth else GENERAL_LIMIT
-        window = AUTH_WINDOW_SECONDS if is_auth else GENERAL_WINDOW_SECONDS
-        key = f"{ip}:auth" if is_auth else ip
+        if path in AUTH_PATHS:
+            limit, window, key = AUTH_LIMIT, AUTH_WINDOW_SECONDS, f"{ip}:auth"
+        elif path in LLM_PATHS:
+            limit, window, key = LLM_LIMIT, LLM_WINDOW_SECONDS, f"{ip}:llm"
+        else:
+            limit, window, key = GENERAL_LIMIT, GENERAL_WINDOW_SECONDS, ip
 
         bucket = _clean_bucket(_buckets.get(key, []), window, now)
 

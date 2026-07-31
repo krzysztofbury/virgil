@@ -40,6 +40,10 @@ PUBLIC_PATHS = frozenset(
         "/api/training",
         "/api/training/detail",
         "/api/noporn",
+        "/api/library",
+        # Inventory entry only (tests assert every API route is enumerated here);
+        # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
+        "/api/library/{entry_id}",
     }
 )
 # /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
@@ -47,9 +51,18 @@ PUBLIC_PATHS = frozenset(
 PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
 # Parametrized API routes can't exact-match a request path. Anchored regexes,
 # one numeric segment only — a broad prefix/suffix match would silently make
-# any future /api/experiments/*/entries session route public. The route itself
-# still enforces X-API-Key auth.
-PUBLIC_PATTERNS = (re.compile(r"^/api/experiments/\d+/entries$"),)
+# any future /api/experiments/*/entries or /api/library/* session route public.
+# The route itself still enforces X-API-Key auth.
+# `\Z` (not `$`, which also matches just before a trailing "\n") and `[0-9]`
+# (not `\d`, which is Unicode-aware and matches non-ASCII digits) so a path
+# like "/api/library/1%0A" or "/api/library/١٢٣" can't sneak
+# past the intended one-numeric-segment shape. Neither alias is exploitable
+# here (the route still enforces X-API-Key auth either way), but the pattern
+# is kept tight rather than half-hardened.
+PUBLIC_PATTERNS = (
+    re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
+    re.compile(r"^/api/library/[0-9]+\Z"),
+)
 
 BCRYPT_ROUNDS = 12
 

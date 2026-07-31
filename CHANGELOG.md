@@ -5,6 +5,66 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0] - 2026-07-31
+
+### Added
+- **CrossFit WOD tracking.** A free-text note written after training is parsed by
+  an LLM into training entries, constrained to a seeded CrossFit movement
+  vocabulary. The raw note is saved before parsing and stays the source of truth;
+  entries are written only after an on-screen confirmation.
+- `training_exercises.ad_hoc` (migration 016): movements created by the WOD parser
+  keep their history, volume and PB contribution but stay out of the daily
+  protocol form.
+- **Exercise dictionary over REST and MCP** — `GET/POST /api/library`,
+  `PATCH/DELETE /api/library/{id}`, surfaced as `get_exercise_library`,
+  `add_exercise`, `update_exercise` and `delete_exercise`. Builtin entries may be
+  archived but not edited or deleted, matching the Settings UI. The CrossFit
+  vocabulary is no longer builtin (migration 017), so it can be curated —
+  which also changes what the WOD parser is allowed to recognise.
+- **Post/Redirect/Get on WOD capture** (migration 018, `training_sessions.wod_parsed`).
+  Refreshing the confirmation screen used to create a second session *and* a
+  second paid LLM call; the parse result is now cached and the redirect replays
+  it for free.
+- **`metric` is editable in Settings → App Config.** The form previously had no
+  control for it, so a movement added through the UI silently defaulted to
+  `reps` — including erg work that should be `time`, which then polluted the
+  weekly rep count.
+- **A single write contract for the exercise library** (`app/library_validation.py`),
+  shared by the Settings form and the REST API. The two previously disagreed on
+  every failure: the form silently coerced an invalid `section`/`metric`, ignored
+  duplicates and no-op'd edits to protected rows, while the API returned 422/409.
+
+### Fixed
+- Confirming a WOD twice no longer writes the entries twice. The confirmation
+  consumes its cached parse, so a browser Back-and-resubmit cannot double weekly
+  volume.
+- Out-of-range values submitted from the confirmation screen are rejected loudly
+  instead of being silently dropped. Previously an over-large `entry_count`
+  discarded the entire reviewed submission and still redirected as if it had
+  saved.
+- A movement added from the picker now inherits its real `metric` from the
+  library. Previously the picker path dropped it, so the same movement behaved
+  differently depending on which route created it — and, because a WOD reuses an
+  existing row by name, whichever route ran first won permanently.
+- A parse failure that is not a `ValueError` no longer strands the session. The
+  note is still saved, the confirmation screen still renders, and corrupt cached
+  parse data no longer makes that page fail permanently.
+- Wrongly parsed entries can be dropped on the confirmation screen; previously
+  only unrecognised movements could be skipped.
+- A WOD naming an archived movement reactivates it instead of quietly feeding
+  volume and Personal Bests from a retired exercise.
+- The CrossFit vocabulary is bounded, so an automated client looping on
+  `add_exercise` cannot grow the parser prompt until every parse fails.
+
+### Changed
+- **Weekly volume is no longer continuous with pre-CrossFit numbers.** Metcon work
+  counts as real Core volume — a single 21-15-9 thruster couplet at 43 kg is
+  ~1935 kg, against 2880 kg for all of July 2026. This is intentional: it is
+  genuine barbell volume, and excluding it to keep the chart comparable would
+  invert the purpose of the metric.
+- `docs/superpowers/` (design specs and implementation plans) is no longer
+  tracked; it is working material, not something the repository needs to carry.
+
 ## [0.4.0] - 2026-07-19
 
 ### Added

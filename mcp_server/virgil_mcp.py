@@ -50,16 +50,39 @@ def _headers() -> dict:
     return headers
 
 
+def _check(resp: httpx.Response) -> None:
+    """Surface the API's `detail` — a bare '409 Conflict' cannot tell a builtin
+    refusal from a name collision, which is the whole point of the API refusing loudly."""
+    if resp.is_error:
+        try:
+            detail = resp.json().get("detail")
+        except Exception:
+            detail = None
+        raise RuntimeError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
+
+
 def _get(path: str, params: dict | None = None) -> dict:
     resp = httpx.get(f"{API_URL}{path}", params=params, headers=_headers(), timeout=30.0)
-    resp.raise_for_status()
+    _check(resp)
     return resp.json()
 
 
 def _post(path: str, payload: dict) -> dict:
     resp = httpx.post(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
-    resp.raise_for_status()
+    _check(resp)
     return resp.json()
+
+
+def _patch(path: str, payload: dict) -> dict:
+    resp = httpx.patch(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
+    _check(resp)
+    return resp.json()
+
+
+def _delete(path: str) -> dict:
+    resp = httpx.delete(f"{API_URL}{path}", headers=_headers(), timeout=30.0)
+    _check(resp)
+    return {"deleted": True}
 
 
 @mcp.tool()
@@ -129,6 +152,91 @@ def get_noporn(days: int = 30) -> dict:
     rate, plus relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and
     logged pleasures. Use this to see WHY relapses happened — get_streaks only gives the count."""
     return _get("/api/noporn", params={"range": days})
+
+
+@mcp.tool()
+def get_exercise_library(category: str = "", include_archived: bool = False) -> dict:
+    """The exercise dictionary: every movement the training picker offers and the
+    WOD parser is allowed to recognise. Pass category='CrossFit' for the WOD
+    vocabulary. Entries marked builtin=1 can only be archived, not edited or deleted."""
+    params: dict = {"include_archived": include_archived}
+    if category:
+        params["category"] = category
+    return _get("/api/library", params=params)
+
+
+@mcp.tool()
+def add_exercise(
+    category: str,
+    section: str,
+    name: str,
+    metric: str = "reps",
+    sets: int | None = None,
+    reps: str = "",
+    notes: str = "",
+) -> dict:
+    """Add a movement to the exercise dictionary. `section` is Warmup/Core/Cardio/
+    Stretching — Core+reps feeds weekly volume; PBs include weighted Core entries
+    regardless of metric. Cardio always logs rounds+duration and does not feed volume.
+    For Core entries, `metric` 'reps' logs weight+reps (feeds volume/aggregate), while
+    'time' logs weight+seconds (excluded from rep aggregates). Adding to category
+    'CrossFit' also teaches the WOD parser what movements it can recognise."""
+    return _post(
+        "/api/library",
+        {
+            "category": category,
+            "section": section,
+            "name": name,
+            "metric": metric,
+            "sets": sets,
+            "reps": reps,
+            "notes": notes,
+        },
+    )
+
+
+@mcp.tool()
+def update_exercise(
+    entry_id: int,
+    name: str | None = None,
+    section: str | None = None,
+    metric: str | None = None,
+    reps: str | None = None,
+    notes: str | None = None,
+    sets: int | None = None,
+    archived: int | None = None,
+) -> dict:
+    """Edit one dictionary entry — see get_exercise_library for ids. Only the fields
+    you pass change. A builtin entry refuses everything except `archived`. Changing
+    `section`/`metric` on a category='CrossFit' entry narrows what the WOD parser is
+    allowed to recognise. Renaming (`name`) does NOT narrow that vocabulary — the
+    parser just reads whatever name is current — but is refused with a 409 if any
+    training history already exists under the old name (archive the entry and add a
+    new one instead of renaming through history)."""
+    payload = {
+        k: v
+        for k, v in (
+            ("name", name),
+            ("section", section),
+            ("metric", metric),
+            ("reps", reps),
+            ("notes", notes),
+            ("sets", sets),
+            ("archived", archived),
+        )
+        if v is not None
+    }
+    if not payload:
+        raise ValueError("update_exercise needs at least one field to change")
+    return _patch(f"/api/library/{entry_id}", payload)
+
+
+@mcp.tool()
+def delete_exercise(entry_id: int) -> dict:
+    """Remove a dictionary entry permanently. Builtin entries refuse deletion —
+    archive them instead. Deleting a category='CrossFit' entry narrows what the WOD
+    parser is allowed to recognise. Deleting does NOT touch logged training history."""
+    return _delete(f"/api/library/{entry_id}")
 
 
 if __name__ == "__main__":
