@@ -283,6 +283,115 @@ def test_unmatched_row_skipped_on_confirm_creates_no_entry(auth_client, monkeypa
     assert count == 0, "skipping the unmatched row must create no training_entries row"
 
 
+def test_parsed_entry_select_offers_a_skip_option(auth_client, monkeypatch):
+    """I4 reproduction: the parsed-entry <select> (unlike the unmatched-row
+    select, which already had one) had no empty option. If the model emitted
+    a bogus entry — e.g. three 'Burpee' rows from a warm-up the user didn't
+    mean to log — the only ways forward were to retype it as some other real
+    movement or accept it; abandoning the screen would have discarded the
+    correct entries too.
+    """
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {"movement": "Thruster", "set_number": 1, "reps": 21, "weight": 43.0, "duration": None, "note": ""},
+            ],
+            "unmatched": [],
+        },
+    )
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "60",
+            "wod_text": "thruster 21 43kg",
+            "_csrf_token": token,
+        },
+    )
+    assert resp.status_code == 200
+    assert 'name="entry_0_movement"' in resp.text
+    # Scoped to entry_0's own <select> — the unmatched-row select already had
+    # an empty option before this fix, so a page-wide substring check would
+    # have passed even without it on the parsed-entry select.
+    select_start = resp.text.index('name="entry_0_movement"')
+    select_html = resp.text[select_start : resp.text.index("</select>", select_start)]
+    assert '<option value="">' in select_html, "the parsed-entry select must offer an empty (skip) option"
+
+
+def test_skipping_a_parsed_entry_drops_only_that_row(auth_client, monkeypatch):
+    """I4: setting a parsed entry's movement to the skip option must write no
+    row for it while a sibling entry in the same submission still writes."""
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {
+                    "movement": "Burpee",
+                    "set_number": 1,
+                    "reps": 10,
+                    "weight": None,
+                    "duration": None,
+                    "note": "warm-up",
+                },
+                {"movement": "Thruster", "set_number": 1, "reps": 21, "weight": 43.0, "duration": None, "note": ""},
+            ],
+            "unmatched": [],
+        },
+    )
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "60",
+            "wod_text": "burpee warm-up, thruster 21 43kg",
+            "_csrf_token": token,
+        },
+    )
+    session_id = _sessions()[0]["id"]
+
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "2",
+            "entry_0_movement": "",  # user picked "— pomiń" for the unwanted Burpee row
+            "entry_0_set_number": "1",
+            "entry_0_reps": "",
+            "entry_0_weight": "",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+            "entry_1_movement": "Thruster",
+            "entry_1_set_number": "1",
+            "entry_1_reps": "21",
+            "entry_1_weight": "43",
+            "entry_1_duration": "",
+            "entry_1_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.row_factory = sqlite3.Row
+        entries = [
+            dict(r)
+            for r in conn.execute(
+                "SELECT te.*, tex.name AS exercise_name FROM training_entries te "
+                "JOIN training_exercises tex ON te.exercise_id = tex.id WHERE te.session_id = ?",
+                (session_id,),
+            )
+        ]
+    finally:
+        conn.close()
+    assert len(entries) == 1, "only the non-skipped sibling entry must be written"
+    assert entries[0]["exercise_name"] == "Thruster"
+
+
 def test_wod_redirects_to_confirm_and_get_does_not_reparse(auth_client, monkeypatch):
     """POST /training/wod is Post/Redirect/Get: it must 303 to a confirm URL
     instead of rendering HTML directly — a raw 200 means replaying the POST

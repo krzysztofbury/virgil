@@ -32,6 +32,7 @@
           <tr>
             <td>
               <select name="entry_{{ loop.index0 }}_movement">
+                <option value="">— pomiń</option>
                 {% for m in movements %}
                   <option value="{{ m.name }}" {% if m.name == e.movement %}selected{% endif %}>{{ m.name }}</option>
                 {% endfor %}
