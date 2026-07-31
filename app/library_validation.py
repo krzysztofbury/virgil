@@ -24,6 +24,8 @@ refuses a name change when training_exercises has a matching row under the old
 name, for both surfaces.
 """
 
+import re
+
 from app.validation import truncate
 
 LIBRARY_METRICS = ("reps", "time")
@@ -203,3 +205,52 @@ async def validate_library_write(
         return result
 
     raise ValueError(f"unknown op {op!r}")
+
+
+MAX_TAG_LEN = 40
+
+# Free-form tags with normalisation on write. The category field this replaces
+# was raw free text with a datalist, which is how a program label ("Workout A
+# (KB full-body)") became a category. Normalising here means "Kettlebell",
+# "KETTLEBELL" and "Kettle Bell " are one tag rather than three.
+_TAG_INVALID_CHARS = re.compile(r"[^a-z0-9-]+")
+_TAG_DASHES = re.compile(r"-{2,}")
+
+
+def normalize_tag(raw: str) -> str:
+    """Lowercase, whitespace-to-dash, alphanumerics and dashes only.
+
+    Raises LibraryWriteError(422) when nothing survives — a tag that
+    normalises to the empty string is a typo, not an unnamed tag.
+    """
+    text = (raw or "").strip().lower()
+    text = re.sub(r"\s+", "-", text)
+    text = _TAG_INVALID_CHARS.sub("", text)
+    text = _TAG_DASHES.sub("-", text).strip("-")
+    if not text:
+        raise LibraryWriteError(422, f"tag {raw!r} normalises to nothing")
+    if len(text) > MAX_TAG_LEN:
+        raise LibraryWriteError(422, f"tag {text!r} exceeds {MAX_TAG_LEN} characters")
+    return text
+
+
+def normalize_tags(raw: list[str] | str | None) -> list[str]:
+    """Normalise a list (or comma-separated string) of tags.
+
+    Blank items are dropped silently — a trailing comma in a form field is not
+    a user error. A non-blank item that normalises to nothing still raises.
+    """
+    if raw is None:
+        return []
+    items = raw.split(",") if isinstance(raw, str) else list(raw)
+    # Use dict instead of set to preserve insertion order (Python 3.7+) and
+    # deduplicate by key. This makes sorted() essential — without it, the
+    # output order becomes dependent on input order rather than alphabetical,
+    # which tests can then verify deterministically. A set would leave the
+    # mutation `sorted(out)` → `list(out)` undetectable on some random seeds.
+    out: dict[str, None] = {}
+    for item in items:
+        if not str(item).strip():
+            continue
+        out[normalize_tag(str(item))] = None
+    return sorted(out)
