@@ -394,3 +394,51 @@ def test_wod_entries_surface_in_training_reads(auth_client):
         conn.execute("DELETE FROM training_exercises WHERE id = ?", (ex_id,))
         conn.commit()
         conn.close()
+
+
+def test_create_with_tags_and_read_back(auth_client):
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Sled Push", "metric": "reps", "tags": ["HYROX", "conditioning"]},
+    )
+    assert resp.status_code == 201
+    body = auth_client.get("/api/library", headers=KEY, params={"tag": "hyrox"}).json()
+    names = {e["name"] for e in body["entries"]}
+    assert "Sled Push" in names
+    entry = next(e for e in body["entries"] if e["name"] == "Sled Push")
+    assert entry["tags"] == ["conditioning", "hyrox"], "tags come back normalised and sorted"
+
+
+def test_category_is_rejected_now_that_it_is_gone(auth_client):
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Ghost Move", "category": "CrossFit", "metric": "reps"},
+    )
+    assert resp.status_code == 422, "extra='forbid' must reject the retired field"
+
+
+def test_patch_replaces_tags(auth_client):
+    entry_id = _get("Sled Push")["id"]
+    assert auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"tags": ["hyrox"]}).status_code == 200
+    body = auth_client.get("/api/library", headers=KEY, params={"tag": "conditioning"}).json()
+    assert "Sled Push" not in {e["name"] for e in body["entries"]}
+
+
+def test_builtin_row_can_be_tagged(auth_client):
+    """builtin protects name/section/metric, never tags."""
+    row = _get("Goblet Squat")
+    assert row["builtin"] == 1, "fixture assumption"
+    assert auth_client.patch(f"/api/library/{row['id']}", headers=KEY, json={"tags": ["kettlebell"]}).status_code == 200
+    body = auth_client.get("/api/library", headers=KEY, params={"tag": "kettlebell"}).json()
+    assert "Goblet Squat" in {e["name"] for e in body["entries"]}
+
+
+def test_duplicate_name_is_409_regardless_of_tags(auth_client):
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Thruster", "metric": "reps", "tags": ["whatever"]},
+    )
+    assert resp.status_code == 409, "names are unique library-wide now"
