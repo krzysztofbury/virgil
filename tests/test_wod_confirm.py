@@ -288,3 +288,44 @@ def test_out_of_range_set_number_rejects_the_whole_submission(auth_client):
     assert resp.status_code == 303
     assert "err=" in resp.headers["location"]
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
+
+
+def test_out_of_range_weight_rejects_the_whole_submission(auth_client):
+    """B2 reproduction, float path: only the integer fields (reps, set_number)
+    had coverage proving out-of-range values are rejected loudly rather than
+    silently nulled — the float fields (weight, duration) shared the same
+    `_confirm_float` helper but had no test. weight=1500 (over
+    WEIGHT_KG_MAX=1000) used to parse to None and get stored as a null-weight
+    row, exactly the B2 defect this branch already fixed for reps. It must
+    reject the whole submission instead."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_weight="1500")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "err=" in resp.headers["location"]
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
+    row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
+    assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
+
+
+def test_out_of_range_duration_rejects_the_whole_submission(auth_client):
+    """B2 reproduction, float path: duration=100000 (over
+    DURATION_SECONDS_MAX=86400) must reject the whole submission instead of
+    storing a null-duration row — the other half of the float coverage gap
+    alongside weight above."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_duration="100000")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "err=" in resp.headers["location"]
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
+    row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
+    assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"

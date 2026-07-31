@@ -15,6 +15,11 @@
       usuń tę sesję i zaloguj trening ręcznie, jeśli chcesz zapisać serie.</p>
     {% endif %}
 
+    {% if library_error %}
+      <p class="text-muted">Lista ruchów CrossFit jest chwilowo niedostępna ({{ library_error }}).
+      Notatka jest zapisana i widoczna w historii treningów na stronie /training.</p>
+    {% endif %}
+
     {% if unmatched %}
       <p class="text-muted">Nierozpoznane ruchy — wybierz odpowiednik albo pomiń:</p>
     {% endif %}

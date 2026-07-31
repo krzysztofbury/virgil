@@ -1,8 +1,11 @@
 """POST /training/wod — the note is persisted before the LLM is ever called."""
 
+import asyncio
+import concurrent.futures
 import json
 import sqlite3
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -156,6 +159,68 @@ def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
     latest = _sessions()[0]
     assert latest["notes"] == "5 rund: 10 burpee, 15 wall ball"
     assert latest["wod_parsed"], "wod_parsed must be set even on a non-ValueError crash, or the confirm GET 303s away"
+
+
+def test_insert_precedes_parse_a_baseexception_still_cannot_erase_the_note(auth_client, monkeypatch):
+    """The branch's headline invariant: the training_sessions INSERT+commit must
+    precede parse_wod, not just for the ValueError/Exception paths (I3's
+    broadened `except Exception` absorbs those, so they no longer prove
+    anything escapes) but for BaseException and process death, which
+    `except Exception` cannot catch either.
+
+    `pytest.raises(RuntimeError)` used to be the sole oracle for this ordering,
+    by way of an escaping exception. I3 broadened the handler so nothing
+    escapes anymore, and nothing replaced the oracle — this invariant has lost
+    its coverage three times on this branch. asyncio.CancelledError inherits
+    from BaseException (Python 3.8+), so stubbing call_llm to raise it
+    reproduces exactly the case `except Exception` cannot absorb: the
+    exception must escape capture_wod entirely, all the way through the test
+    client, and the session row must already exist despite that.
+
+    (TestClient runs the ASGI app on a background event loop and bridges it to
+    this thread via a concurrent.futures.Future; a BaseException raised inside
+    the coroutine marks that asyncio Task cancelled, so what actually surfaces
+    here is concurrent.futures.CancelledError, not the original
+    asyncio.CancelledError instance — that's a property of the thread bridge,
+    not of capture_wod. Either way, SOME exception escaping is the proof that
+    `except Exception` did not swallow it; a 200 response would mean it did.)
+
+    If the INSERT+commit is ever moved to after the try/except (so parse_wod
+    runs first), this crash pre-empts the INSERT and no session row is ever
+    created — this test must then fail even though every other WOD capture
+    test stays green.
+    """
+    import app.services.wod_parser as wp
+
+    async def boom(db, system_prompt, user_prompt, **kwargs):
+        raise asyncio.CancelledError("simulated task cancellation mid-parse")
+
+    monkeypatch.setattr(wp, "call_llm", boom)
+    token = csrf_token(auth_client, "/training")
+    before = len(_sessions())
+    wod_text = "cancelled-error ordering repro: 5 rund 10 burpee"
+
+    with pytest.raises((asyncio.CancelledError, concurrent.futures.CancelledError)):
+        auth_client.post(
+            "/training/wod",
+            data={
+                "date": "2026-07-30",
+                "duration_minutes": "50",
+                "wod_text": wod_text,
+                "_csrf_token": token,
+            },
+        )
+
+    sessions = _sessions()
+    assert len(sessions) == before + 1, (
+        "the training_sessions row must be committed BEFORE parse_wod runs, "
+        "so it survives even a BaseException that escapes capture_wod entirely"
+    )
+    assert sessions[0]["notes"] == wod_text
+    assert sessions[0]["wod_parsed"] is None, (
+        "wod_parsed is only written after the try/except returns; a crash that "
+        "escapes must leave it NULL, not fabricate a parse result"
+    )
 
 
 def test_capture_form_renders_on_training_page(auth_client):
@@ -456,6 +521,47 @@ def test_confirm_get_unknown_session_redirects_to_training(auth_client):
     resp = auth_client.get("/training/wod/confirm/999999", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/training"
+
+
+def test_confirm_get_with_library_over_bound_renders_instead_of_500ing(auth_client):
+    """Merge-blocker: canonical_movements() (app/services/wod_parser.py) asserts
+    the CrossFit vocabulary stays within MAX_LIBRARY_MOVEMENTS (I5) — but
+    POST /api/library is MCP-callable, so the library can grow past that bound
+    AFTER a session is captured and BEFORE the user opens the confirm screen.
+    capture_wod's broadened `except Exception` (I3) absorbs the AssertionError
+    during parsing, so the note and wod_parsed are saved fine; but
+    wod_confirm_page called canonical_movements() again, unguarded, to build
+    the picker — reopening a permanent 500 on the very GET that I3 was written
+    to keep reachable. This must now degrade instead: 200, not 500, with the
+    note still intact and a message telling the user it's safe.
+    """
+    conn = sqlite3.connect(user_db_path())
+    session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, wod_parsed) VALUES (?, 60, ?, ?)",
+            ("2026-07-30", "over-bound repro note", '{"entries": [], "unmatched": [], "parse_error": ""}'),
+        )
+        conn.commit()
+        session_id = cur.lastrowid
+
+        max_order = conn.execute("SELECT COALESCE(MAX(display_order), 0) FROM exercise_library").fetchone()[0]
+        conn.executemany(
+            "INSERT INTO exercise_library (category, section, name, display_order, metric, builtin) "
+            "VALUES ('CrossFit', 'Core', ?, ?, 'reps', 0)",
+            [(f"Over Bound Movement {i}", max_order + i + 1) for i in range(500)],
+        )
+        conn.commit()
+
+        resp = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
+        assert resp.status_code == 200, "an oversized library must not 500 the confirm GET — the note is already safe"
+        assert "zapisana" in resp.text, "the degraded confirm screen must reassure the user the note is safe"
+    finally:
+        conn.execute("DELETE FROM exercise_library WHERE name LIKE 'Over Bound Movement %'")
+        if session_id is not None:
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        conn.commit()
+        conn.close()
 
 
 def test_confirm_get_corrupt_wod_parsed_redirects_instead_of_500ing(auth_client):

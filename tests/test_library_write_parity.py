@@ -15,6 +15,7 @@ movement's PBs/volume in two.
 """
 
 import sqlite3
+from urllib.parse import unquote
 
 from conftest import csrf_token, user_db_path
 
@@ -114,7 +115,16 @@ def test_invalid_metric_rejected_by_both_surfaces(auth_client):
         },
         follow_redirects=False,
     )
-    assert "err=" in resp.headers["location"], "settings must reject an invalid metric, not coerce to reps"
+    location = resp.headers["location"]
+    assert "err=" in location, "settings must reject an invalid metric, not coerce to reps"
+    # I1's design is that BOTH surfaces reach validate_library_write and carry
+    # its message through — not just that both happen to reject. Asserting
+    # only "err=" / only the status code (as this test used to) is satisfied
+    # by any rejection reason at all, including an unrelated one substituted
+    # in by mistake; pin the actual, stable reason text on both surfaces.
+    assert "metric must be one of" in unquote(location), (
+        "settings must surface the SAME rejection reason validate_library_write raised, not just any err="
+    )
     assert _row("Parity Bad Metric") is None
 
     resp = auth_client.post(
@@ -123,6 +133,9 @@ def test_invalid_metric_rejected_by_both_surfaces(auth_client):
         json={"category": "Parity Test", "section": "Core", "name": "Parity Bad Metric", "metric": "bogus"},
     )
     assert resp.status_code == 422
+    assert "metric must be one of" in resp.json()["detail"], (
+        "the API must surface the SAME rejection reason as settings, not just the same status code"
+    )
     assert _row("Parity Bad Metric") is None
 
 

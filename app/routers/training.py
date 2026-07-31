@@ -400,6 +400,22 @@ async def wod_confirm_page(request: Request, session_id: int):
         logger.warning("Corrupt wod_parsed for session %s — nothing to confirm", session_id)
         return RedirectResponse("/training", status_code=303)
 
+    try:
+        movements = await canonical_movements(db)
+        library_error = ""
+    except AssertionError as exc:
+        # I5 bounds the CrossFit vocabulary with an assert in canonical_movements().
+        # POST /api/library is MCP-callable, so the library can grow past that
+        # bound between capture (where I3's broadened `except Exception` already
+        # absorbs this) and the user opening this GET — which had no guard at
+        # all. Left unguarded, that reopens exactly the failure class I3 was
+        # written to eliminate: a permanent 500 on a session whose note and
+        # wod_parsed are already safely stored. Degrade instead — empty picker,
+        # error surfaced, same shape as the M3 guard on json.loads above.
+        logger.warning("WOD confirm movements list unavailable for session %s: %s", session_id, exc)
+        movements = []
+        library_error = str(exc)
+
     return templates.TemplateResponse(
         "wod_confirm.html",
         {
@@ -409,7 +425,8 @@ async def wod_confirm_page(request: Request, session_id: int):
             "entries": parsed.get("entries", []),
             "unmatched": parsed.get("unmatched", []),
             "parse_error": parsed.get("parse_error", ""),
-            "movements": await canonical_movements(db),
+            "movements": movements,
+            "library_error": library_error,
         },
     )
 

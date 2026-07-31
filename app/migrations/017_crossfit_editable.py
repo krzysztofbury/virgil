@@ -1,10 +1,11 @@
 """Make the seeded CrossFit movements user-editable.
 
-016 seeded them with builtin = 1, which settings.py treats as "protected":
-update and delete both carry `AND builtin = 0`, so the row could only be
-archived. The CrossFit vocabulary is the user's to curate, and it also drives
-the WOD parser's closed prompt — a movement they cannot remove is a movement
-the parser will keep proposing.
+016 seeded them with builtin = 1, which app/library_validation.py's
+validate_library_write treats as "protected": update and delete both refuse
+anything but 'archived', so the row could only be archived. The CrossFit
+vocabulary is the user's to curate, and it also drives the WOD parser's
+closed prompt — a movement they cannot remove is a movement the parser will
+keep proposing.
 
 016 was fixed too, for fresh installs; this migration exists because 016 is
 already recorded in schema_migrations on databases that ran it.
