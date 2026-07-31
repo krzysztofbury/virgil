@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **WOD confirmation screen can no longer strand extra sets.** The screen only
+  ever let you submit exactly the rows the server rendered — an unrecognised
+  movement was synthesised as exactly one row, and the same limit applied
+  whenever the parser under-counted sets, with nowhere to add what was
+  missing. Each row now has a "+ dodaj serię" (add a set) control that appends
+  an editable row at the end of the table (pre-selecting the source row's
+  movement, `set_number` + 1), and the hidden `entry_count` submitted with the
+  form now reflects the live row count instead of the server-rendered
+  constant — `confirm_wod` loops `for i in range(entry_count)`, so a stale
+  count used to silently drop any row added this way.
+
 ## [0.5.0] - 2026-07-31
 
 ### Added

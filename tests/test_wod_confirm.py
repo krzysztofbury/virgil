@@ -1,5 +1,6 @@
 """POST /training/wod/confirm — writes entries and feeds volume/PBs."""
 
+import json
 import sqlite3
 
 from conftest import csrf_token, stat_value_for_label, user_db_path
@@ -310,6 +311,95 @@ def test_out_of_range_weight_rejects_the_whole_submission(auth_client):
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
     assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
+
+
+# --- "add a set" (usability defect): the client must be able to submit MORE
+# rows than the confirm GET originally rendered. ---
+
+
+def test_added_rows_beyond_server_rendered_count_are_written(auth_client):
+    """Server contract behind the 'add a set' control: entry_count can
+    legitimately exceed the number of rows the confirm GET originally
+    rendered, as long as it reflects the true submitted row count and every
+    entry_N_* field for i in range(entry_count) is present. This is exactly
+    what Alpine's client-side "+ dodaj serię" button appends (see
+    wod_confirm.html) — no server route change was needed for it, but nothing
+    previously exercised a submission wider than what the GET rendered, so
+    this is the regression guard for the reported defect: "only ever N rows,
+    where N is server-rendered, could ever be submitted"."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "3",
+            "entry_0_movement": "Thruster",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "21",
+            "entry_0_weight": "43",
+            "entry_0_duration": "",
+            "entry_0_note": "21-15-9",
+            # Appended client-side off row 0: same movement, set_number + 1 —
+            # exactly what clicking "+ dodaj serię" on row 0 produces.
+            "entry_1_movement": "Thruster",
+            "entry_1_set_number": "2",
+            "entry_1_reps": "15",
+            "entry_1_weight": "43",
+            "entry_1_duration": "",
+            "entry_1_note": "",
+            # Appended but left on "— pomiń" (blank movement) — must be
+            # skipped, exactly like an unmatched row nobody picked one for.
+            "entry_2_movement": "",
+            "entry_2_set_number": "3",
+            "entry_2_reps": "",
+            "entry_2_weight": "",
+            "entry_2_duration": "",
+            "entry_2_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    entries = _query(
+        "SELECT set_number, reps, weight FROM training_entries WHERE session_id = ? ORDER BY set_number",
+        (session_id,),
+    )
+    assert len(entries) == 2, f"expected the two filled-in rows written and the blank one skipped, got {entries}"
+    assert [e["set_number"] for e in entries] == [1, 2]
+    assert entries[0]["reps"] == 21 and entries[1]["reps"] == 15
+    assert all(e["weight"] == 43.0 for e in entries)
+
+
+def test_confirm_page_renders_the_add_set_control_and_alpine_wiring(auth_client):
+    """GET /training/wod/confirm/{id} must ship the client-side "add a set"
+    control: an Alpine component that can append a new row at the end of the
+    table, and a hidden entry_count bound to the LIVE row count (base +
+    however many extra rows got added) rather than the server-rendered
+    constant baked in as a plain value. A server-side test cannot click the
+    button — this only proves the wiring is present in the rendered HTML, not
+    that clicking it behaves correctly in a browser; that half is unverified
+    here."""
+    session_id = _new_session(
+        wod_parsed=json.dumps(
+            {
+                "entries": [
+                    {"movement": "Thruster", "set_number": 1, "reps": 21, "weight": 43, "duration": None, "note": ""}
+                ],
+                "unmatched": [],
+                "parse_error": "",
+            }
+        )
+    )
+    resp = auth_client.get(f"/training/wod/confirm/{session_id}")
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'x-data="wodConfirmForm(1)"' in html, "the Alpine component must be wired with the server-rendered count"
+    assert "addSet($el)" in html, "each row must carry the add-a-set click handler"
+    assert 'x-for="row in extraRows"' in html, "appended rows must be driven by an Alpine x-for template"
+    assert ':value="base + extraRows.length"' in html, (
+        "entry_count must be bound to the live row count, not a server-rendered constant"
+    )
 
 
 def test_out_of_range_duration_rejects_the_whole_submission(auth_client):
