@@ -12,14 +12,10 @@
 
     {% if unmatched %}
       <p class="text-muted">Nierozpoznane ruchy — wybierz odpowiednik albo pomiń:</p>
-      <ul>
-        {% for name in unmatched %}
-          <li>{{ name }}</li>
-        {% endfor %}
-      </ul>
     {% endif %}
 
-    {% if entries %}
+    {% set total_rows = entries|length + unmatched|length %}
+    {% if total_rows > 0 %}
     <form method="post" action="/training/wod/confirm">
       <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="session_id" value="{{ session_id }}">
@@ -43,10 +39,27 @@
             <td><input type="text" name="entry_{{ loop.index0 }}_note" value="{{ e.note }}" maxlength="200"></td>
           </tr>
         {% endfor %}
+        {% for name in unmatched %}
+          <tr>
+            <td>
+              <select name="entry_{{ entries|length + loop.index0 }}_movement">
+                <option value="">{{ name }} — pomiń</option>
+                {% for m in movements %}
+                  <option value="{{ m.name }}">{{ m.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="number" name="entry_{{ entries|length + loop.index0 }}_set_number" value="1" min="1"></td>
+            <td><input type="number" name="entry_{{ entries|length + loop.index0 }}_reps" value="" min="0"></td>
+            <td><input type="number" step="0.5" name="entry_{{ entries|length + loop.index0 }}_weight" value="" min="0"></td>
+            <td><input type="number" step="1" name="entry_{{ entries|length + loop.index0 }}_duration" value="" min="0"></td>
+            <td><input type="text" name="entry_{{ entries|length + loop.index0 }}_note" value="" maxlength="200"></td>
+          </tr>
+        {% endfor %}
         </tbody>
       </table>
       </div>
-      <input type="hidden" name="entry_count" value="{{ entries|length }}">
+      <input type="hidden" name="entry_count" value="{{ total_rows }}">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
     </form>
     {% else %}

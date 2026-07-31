@@ -194,6 +194,77 @@ def test_unmatched_movements_are_surfaced(auth_client, monkeypatch):
     assert "Devil Press" in resp.text
 
 
+def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_client, monkeypatch):
+    """entries == [] with unmatched != [] is the 'nothing recognised' case. The
+    confirm form must still render — with a select (defaulting to a skip
+    option) and blank reps/weight/duration inputs for the unmatched movement —
+    instead of falling through to the dead-end 'nic nie udało się' message
+    that the old {% if entries %} guard produced.
+    """
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "60",
+            "wod_text": "devil press 10",
+            "_csrf_token": token,
+        },
+    )
+    assert resp.status_code == 200
+    assert "Devil Press" in resp.text
+    assert 'name="entry_0_movement"' in resp.text, "the unmatched movement must render as an editable row"
+    assert 'option value=""' in resp.text, "the row's select must offer an empty (skip) option"
+    assert "Zapisz wpisy" in resp.text, "the confirm form must render, not the dead-end fallback"
+    assert "Nic nie udało się sparsować" not in resp.text
+
+
+def test_unmatched_row_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
+    """Submitting the confirm form with the unmatched row left on '— pomiń —'
+    (empty movement value) must create no training_entries row for it."""
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "60",
+            "wod_text": "devil press 10",
+            "_csrf_token": token,
+        },
+    )
+    session_id = _sessions()[0]["id"]
+
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "entry_0_movement": "",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "",
+            "entry_0_weight": "",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    import sqlite3
+
+    from conftest import user_db_path
+
+    conn = sqlite3.connect(user_db_path())
+    try:
+        count = conn.execute("SELECT COUNT(*) FROM training_entries WHERE session_id = ?", (session_id,)).fetchone()[0]
+    finally:
+        conn.close()
+    assert count == 0, "skipping the unmatched row must create no training_entries row"
+
+
 def test_wod_redirects_to_confirm_and_get_does_not_reparse(auth_client, monkeypatch):
     """POST /training/wod is Post/Redirect/Get: it must 303 to a confirm URL
     instead of rendering HTML directly — a raw 200 means replaying the POST
