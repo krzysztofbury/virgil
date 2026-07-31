@@ -7,6 +7,11 @@ duplicate name or rename collision silently no-op'd through settings.py and
 settings.py and 409'd through api.py. Both surfaces now route through
 app/library_validation.py's validate_library_write, so this file feeds the
 identical input to both and asserts they agree.
+
+I2 (same review): a rename must be refused, on both surfaces, when a
+training_exercises row still holds history under the old name — otherwise the
+next WOD mentioning the new name creates a second row and splits the
+movement's PBs/volume in two.
 """
 
 import sqlite3
@@ -30,6 +35,24 @@ def _delete_row(name: str) -> None:
     conn = sqlite3.connect(user_db_path())
     try:
         conn.execute("DELETE FROM exercise_library WHERE name = ?", (name,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _insert_training_exercise(name: str) -> None:
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute("INSERT INTO training_exercises (name, section) VALUES (?, 'Core')", (name,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _delete_training_exercise(name: str) -> None:
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute("DELETE FROM training_exercises WHERE name = ?", (name,))
         conn.commit()
     finally:
         conn.close()
@@ -238,3 +261,107 @@ def test_update_omitting_metric_leaves_it_unchanged_not_reset(auth_client):
         assert row["notes"] == "edited without touching metric", "other, present fields must still save"
     finally:
         _delete_row("Parity Stale Form")
+
+
+def test_rename_refused_when_training_history_exists_settings(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "Parity Muscle-up",
+            "category": "Parity Test",
+            "section": "Core",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "reps",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    entry_id = _row("Parity Muscle-up")["id"]
+    _insert_training_exercise("Parity Muscle-up")
+
+    try:
+        resp = auth_client.post(
+            "/settings/library/update",
+            data={
+                "entry_id": str(entry_id),
+                "name": "Parity Bar Muscle-up",
+                "section": "Core",
+                "sets": "",
+                "reps": "",
+                "notes": "",
+                "metric": "reps",
+                "_csrf_token": token,
+            },
+            follow_redirects=False,
+        )
+        assert "err=" in resp.headers["location"], "a rename must be refused while training history exists"
+        assert _row("Parity Muscle-up") is not None, "the old library name must survive the refused rename"
+        assert _row("Parity Bar Muscle-up") is None
+    finally:
+        _delete_row("Parity Muscle-up")
+        _delete_training_exercise("Parity Muscle-up")
+
+
+def test_rename_refused_when_training_history_exists_api(auth_client):
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"category": "Parity Test", "section": "Core", "name": "Parity Snatch", "metric": "reps"},
+    )
+    entry_id = resp.json()["id"]
+    _insert_training_exercise("Parity Snatch")
+
+    try:
+        resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"name": "Parity Power Snatch"})
+        assert resp.status_code == 409, "a rename must be refused while training history exists"
+        assert _row("Parity Snatch") is not None
+        assert _row("Parity Power Snatch") is None
+    finally:
+        _delete_row("Parity Snatch")
+        _delete_training_exercise("Parity Snatch")
+
+
+def test_rename_allowed_when_no_training_history_exists(auth_client):
+    """Control: the I2 guard must only fire when training_exercises actually
+    holds a matching row — a plain rename with no history must still work on
+    both surfaces."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "Parity No History",
+            "category": "Parity Test",
+            "section": "Core",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "reps",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    entry_id = _row("Parity No History")["id"]
+    try:
+        resp = auth_client.post(
+            "/settings/library/update",
+            data={
+                "entry_id": str(entry_id),
+                "name": "Parity Renamed Fine",
+                "section": "Core",
+                "sets": "",
+                "reps": "",
+                "notes": "",
+                "metric": "reps",
+                "_csrf_token": token,
+            },
+            follow_redirects=False,
+        )
+        assert "err=" not in resp.headers["location"]
+        assert _row("Parity No History") is None
+        assert _row("Parity Renamed Fine") is not None
+    finally:
+        _delete_row("Parity No History")
+        _delete_row("Parity Renamed Fine")

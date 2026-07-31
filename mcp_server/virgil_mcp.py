@@ -207,8 +207,12 @@ def update_exercise(
     archived: int | None = None,
 ) -> dict:
     """Edit one dictionary entry — see get_exercise_library for ids. Only the fields
-    you pass change. A builtin entry refuses everything except `archived`. Editing
-    a category='CrossFit' entry narrows what the WOD parser is allowed to recognise."""
+    you pass change. A builtin entry refuses everything except `archived`. Changing
+    `section`/`metric` on a category='CrossFit' entry narrows what the WOD parser is
+    allowed to recognise. Renaming (`name`) does NOT narrow that vocabulary — the
+    parser just reads whatever name is current — but is refused with a 409 if any
+    training history already exists under the old name (archive the entry and add a
+    new one instead of renaming through history)."""
     payload = {
         k: v
         for k, v in (

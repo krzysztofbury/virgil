@@ -39,6 +39,14 @@ class RateLimitMiddleware:
 
         request = Request(scope)
         # Use CF-Connecting-IP when behind Cloudflare Tunnel, fall back to peer IP.
+        # ASSUMPTION (M2, 2026-07-30 review): cf-connecting-ip is a client-supplied
+        # header, spoofable by anyone who can reach this process directly. Trusting
+        # it here — and, since this branch, using the `:llm` bucket built from it as
+        # the only cost control in front of the paid /training/wod parse call — is
+        # only sound if the Cloudflare Tunnel is the sole ingress path to this app.
+        # If a raw origin route, a second reverse proxy that doesn't strip
+        # client-set headers, or any other direct path ever opens up, a caller can
+        # pick their own IP and bypass both this bucket and the LLM one.
         ip = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
         path = scope.get("path", "")
         now = time.monotonic()

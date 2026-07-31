@@ -7,6 +7,15 @@ volume and PB contribution, but never shows up in the daily protocol form.
 A name absent from the CrossFit library resolves to None and creates nothing —
 that is the guard that stops the exercise catalogue from filling with the
 model's spelling variants.
+
+M1 (2026-07-30 review): an existing training_exercises row that happens to be
+archived is still matched and reused, not skipped — and is un-archived in the
+process. The user just logged a workout containing this movement, so "retired"
+is no longer an accurate description of it; leaving it archived while a fresh
+WOD keeps feeding its Volume/PB aggregates (neither of which filter on
+`archived`) is the incoherent state the review flagged. Reusing the row
+without un-archiving it would silently reattach history to a row the protocol
+form still hides, with no way for the user to notice.
 """
 
 import logging
@@ -21,10 +30,16 @@ async def resolve_movement(db, name: str) -> int | None:
         return None
 
     existing = await db.execute_fetchall(
-        "SELECT id FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1", (clean,)
+        "SELECT id, archived FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1", (clean,)
     )
     if existing:
-        return existing[0]["id"]
+        ex_id = existing[0]["id"]
+        if existing[0]["archived"]:
+            await db.execute("UPDATE training_exercises SET archived = 0 WHERE id = ?", (ex_id,))
+            logger.info(
+                "WOD movement %r matched an archived training_exercises row (id=%s) — reactivating it", clean, ex_id
+            )
+        return ex_id
 
     lib = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library "

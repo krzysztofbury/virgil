@@ -105,6 +105,64 @@ def test_matches_existing_protocol_exercise_without_creating(tmp_path):
     asyncio.run(run())
 
 
+def test_archived_training_exercise_is_reactivated_by_a_new_wod(tmp_path, caplog):
+    """M1 (2026-07-30 review): the training_exercises lookup used to match
+    regardless of `archived`, silently reattaching new WOD entries to a
+    retired row that still feeds Volume/PBs (neither query filters
+    `archived`) while staying hidden from the protocol form. Reusing it is
+    correct — a fresh WOD means it's not retired anymore — but leaving it
+    archived while it accumulates history is the incoherent half of the old
+    behaviour; the fix un-archives the row it reuses, with a log line."""
+
+    async def run():
+        db = await _db(tmp_path)
+        try:
+            cur = await db.execute(
+                "INSERT INTO training_exercises (name, section, archived) VALUES ('Wall Ball', 'Core', 1)"
+            )
+            await db.commit()
+            archived_id = cur.lastrowid
+
+            with caplog.at_level("INFO"):
+                ex_id = await resolve_movement(db, "wall ball")
+
+            assert ex_id == archived_id, "must reuse the existing row, not create a second one"
+            rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises WHERE name = 'Wall Ball'")
+            assert rows[0]["c"] == 1, "must not create a duplicate row alongside the archived one"
+            row = await db.execute_fetchall("SELECT archived FROM training_exercises WHERE id = ?", (archived_id,))
+            assert row[0]["archived"] == 0, "a WOD naming a retired movement must reactivate it"
+            assert any("wall ball" in r.message.lower() and "reactivat" in r.message.lower() for r in caplog.records), (
+                "reactivation must be logged"
+            )
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
+def test_non_archived_training_exercise_is_reused_without_extra_writes(tmp_path, caplog):
+    """Control for M1: a normal (non-archived) existing row must still be
+    matched and returned untouched — the reactivation UPDATE/log must only
+    fire when `archived` was actually set, not unconditionally on every
+    match (checking the end state alone can't tell "stayed 0" apart from
+    "was flipped 0 -> 0 anyway", so this also asserts on the log)."""
+
+    async def run():
+        db = await _db(tmp_path)
+        try:
+            with caplog.at_level("INFO"):
+                ex_id = await resolve_movement(db, "goblet squat")
+            row = await db.execute_fetchall("SELECT archived FROM training_exercises WHERE id = ?", (ex_id,))
+            assert row[0]["archived"] == 0
+            assert not any("reactivat" in r.message.lower() for r in caplog.records), (
+                "a non-archived row must not trigger the reactivation path at all"
+            )
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
 def test_unknown_movement_creates_nothing(tmp_path):
     async def run():
         db = await _db(tmp_path)

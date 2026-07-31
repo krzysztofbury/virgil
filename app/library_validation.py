@@ -13,6 +13,15 @@ identical input is the defect (not which decision "feels" nicer), so
 Both routers call it and differ only in how they render a rejection:
 settings.py redirects with `?err=`, api.py raises
 HTTPException(exc.status, exc.message).
+
+I2 (2026-07-30 review): renaming a library row while `training_exercises`
+still holds entries under the old name would silently split that movement's
+history in two — app/services/wod_movements.py's resolve_movement() matches
+training_exercises by name, so the next WOD mentioning the new name creates a
+SECOND row instead of reusing the old one, and Personal Bests (which groups by
+tex.id) ends up showing half the progression on each. `validate_library_write`
+refuses a name change when training_exercises has a matching row under the old
+name, for both surfaces.
 """
 
 from app.validation import truncate
@@ -86,8 +95,9 @@ async def validate_library_write(
 
     Raises LibraryWriteError for anything that must be refused outright: an
     invalid section/metric, a blank required name, a duplicate
-    (category, name), a rename that collides with another row, or any
-    edit/delete of a builtin row other than `archived`.
+    (category, name), a rename that collides with another row or with
+    training_exercises history (I2), or any edit/delete of a builtin row
+    other than `archived`.
 
     Callers are responsible for the 404 case (fetch the row first; if it
     doesn't exist, respond before calling this at all) — this function only
@@ -149,6 +159,21 @@ async def validate_library_write(
                 )
                 if clash:
                     raise LibraryWriteError(409, f"{name!r} already exists in category {existing['category']!r}")
+                # I2: a rename must not orphan training_exercises rows still
+                # holding history under the OLD name — resolve_movement()
+                # matches training_exercises by name, so the next WOD
+                # mentioning the new name would create a SECOND row and
+                # split the movement's Personal Best/volume history in two.
+                trained = await db.execute_fetchall(
+                    "SELECT id FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1",
+                    (existing["name"],),
+                )
+                if trained:
+                    raise LibraryWriteError(
+                        409,
+                        f"cannot rename {existing['name']!r} — training history exists under "
+                        "that name; archive this entry and create a new one instead",
+                    )
             result["name"] = name
 
         if "section" in fields:
