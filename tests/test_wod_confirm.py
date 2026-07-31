@@ -14,11 +14,20 @@ def _query(sql, params=()):
         conn.close()
 
 
-def _new_session(date_str="2026-07-30", notes="raw wod"):
+def _new_session(
+    date_str="2026-07-30", notes="raw wod", wod_parsed='{"entries": [], "unmatched": [], "parse_error": ""}'
+):
+    """A session as POST /training/wod leaves it: wod_parsed set (non-NULL)
+    marks it as having a pending confirm. confirm_wod (B1) now requires this
+    to be non-NULL before it will write anything — a bare INSERT without it
+    would look like an already-confirmed/replayed session and get silently
+    redirected without writing.
+    """
     conn = sqlite3.connect(user_db_path())
     try:
         cur = conn.execute(
-            "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, 60, ?)", (date_str, notes)
+            "INSERT INTO training_sessions (date, duration_minutes, notes, wod_parsed) VALUES (?, 60, ?, ?)",
+            (date_str, notes, wod_parsed),
         )
         conn.commit()
         return cur.lastrowid
@@ -154,3 +163,128 @@ def test_entries_reach_the_weekly_volume_kpi(auth_client):
 
     pb_weight = stat_value_for_label(resp.text, "Back Squat")
     assert pb_weight == 70.0, "ad-hoc movements must reach the rendered Personal Bests card, not just volume"
+
+
+# --- B1: replay safety ---
+
+
+def _confirm_thruster_payload(session_id, **overrides):
+    data = {
+        "session_id": str(session_id),
+        "entry_count": "1",
+        "entry_0_movement": "Thruster",
+        "entry_0_set_number": "1",
+        "entry_0_reps": "21",
+        "entry_0_weight": "43",
+        "entry_0_duration": "",
+        "entry_0_note": "21-15-9",
+    }
+    data.update(overrides)
+    return data
+
+
+def test_confirm_consumes_wod_parsed_on_success(auth_client):
+    """B1 happy path: a successful confirm must flip wod_parsed to NULL so a
+    replay can be told apart from a first, legitimate write."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(session_id)},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
+    assert row["wod_parsed"] is None, "a confirmed session's wod_parsed must be cleared"
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 1
+
+
+def test_replaying_confirm_post_does_not_duplicate_entries(auth_client):
+    """B1 reproduction: two identical POSTs to /training/wod/confirm (double
+    submit, or Back-then-resubmit on the now-permanent confirm URL) must
+    write ONE set of entries, not two. Before the fix, the write checked only
+    that the session existed — nothing marked it confirmed — so 21 reps x
+    43 kg landed twice: 1806 kg of volume instead of 903."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    payload = {"_csrf_token": token, **_confirm_thruster_payload(session_id)}
+
+    first = auth_client.post("/training/wod/confirm", data=payload, follow_redirects=False)
+    assert first.status_code == 303
+    second = auth_client.post("/training/wod/confirm", data=payload, follow_redirects=False)
+    assert second.status_code == 303, "a replay must still redirect cleanly, just without writing"
+
+    entries = _query("SELECT * FROM training_entries WHERE session_id = ?", (session_id,))
+    assert len(entries) == 1, f"replay must not duplicate entries; got {len(entries)}"
+
+
+def test_confirm_on_unknown_session_is_a_noop(auth_client):
+    """A session_id with no matching row (or one belonging to nothing, e.g. a
+    tampered id) must be indistinguishable from a replay: redirect, no write."""
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(999999)},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (999999,))[0]["c"] == 0
+
+
+# --- B2: out-of-range values must be rejected loudly, not silently dropped ---
+
+
+def test_entry_count_out_of_range_is_rejected_not_silently_zeroed(auth_client):
+    """B2 reproduction: entry_count=201 (over the [0,200] bound) used to
+    become `or 0` — a 303 with zero entries written and no log line, even
+    though the user's reviewed rows were all well-formed. It must now be
+    rejected loudly instead, and the session's wod_parsed must survive so the
+    confirm screen is still there to retry against."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_count="201")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    location = resp.headers["location"]
+    assert location.startswith(f"/training/wod/confirm/{session_id}")
+    assert "err=" in location, "the rejection must be surfaced (?err=), not a silent redirect"
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
+    row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
+    assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
+
+
+def test_out_of_range_reps_rejects_the_whole_submission(auth_client):
+    """B2 reproduction: reps=1500 (over REPS_MAX=1000) used to parse to None
+    and get stored as `reps IS NULL` — silently contributing nothing to
+    Volume or Total Reps despite looking like a normal saved entry. It must
+    now reject the whole submission instead of storing a null-reps row."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_reps="1500")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "err=" in resp.headers["location"]
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
+    row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
+    assert row["wod_parsed"] is not None
+
+
+def test_out_of_range_set_number_rejects_the_whole_submission(auth_client):
+    """B2 reproduction: set_number=150 used to clamp to `or 1`, silently
+    colliding with the real set 1 instead of being reported."""
+    session_id = _new_session()
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_set_number="150")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "err=" in resp.headers["location"]
+    assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0

@@ -2,6 +2,7 @@ import json
 import logging
 from dataclasses import asdict
 from datetime import date, timedelta
+from urllib.parse import quote
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -45,6 +46,51 @@ def _parse_float_in_range(raw, minimum: float, maximum: float) -> float | None:
         return None
     if value < minimum or value > maximum:
         return None
+    return value
+
+
+class _ConfirmRejected(Exception):
+    """A /training/wod/confirm field was present but failed validation.
+
+    Distinct from "absent/blank", which is a normal unset value (e.g. no
+    weight for a bodyweight movement). Silently coercing an out-of-range
+    value to None or a clamped default is the exact shape this branch keeps
+    reproducing (set_number ... or 1, an MCP `if v` filter, a settings no-op)
+    — it lets the user's already-reviewed workout vanish or collide without a
+    trace. Raising here aborts the whole submission instead, loudly, before
+    anything is written.
+    """
+
+
+def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int | None:
+    """Strict per-row integer parse for the confirm screen.
+
+    Blank/absent -> None (nothing was entered, that's fine). Present but not
+    an integer, or outside [minimum, maximum] -> raises _ConfirmRejected
+    naming the row and field, so B2 (out-of-range values silently discarded)
+    cannot recur here.
+    """
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise _ConfirmRejected(f"wpis {row + 1}: {field} „{raw}” nie jest liczbą całkowitą") from None
+    if value < minimum or value > maximum:
+        raise _ConfirmRejected(f"wpis {row + 1}: {field}={value} poza zakresem [{minimum}, {maximum}]")
+    return value
+
+
+def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) -> float | None:
+    """Strict per-row float parse for the confirm screen. See `_confirm_int`."""
+    if raw is None or str(raw).strip() == "":
+        return None
+    try:
+        value = float(raw)
+    except (TypeError, ValueError):
+        raise _ConfirmRejected(f"wpis {row + 1}: {field} „{raw}” nie jest liczbą") from None
+    if value < minimum or value > maximum:
+        raise _ConfirmRejected(f"wpis {row + 1}: {field}={value} poza zakresem [{minimum}, {maximum}]")
     return value
 
 
@@ -351,30 +397,75 @@ async def wod_confirm_page(request: Request, session_id: int):
 
 @router.post("/training/wod/confirm")
 async def confirm_wod(request: Request):
-    """Persist the user-reviewed WOD entries against an existing session."""
+    """Persist the user-reviewed WOD entries against an existing session.
+
+    Two safety properties, both from the 2026-07-30 review:
+
+    B1 — replay safety. The write only proceeds if it can atomically flip
+    `wod_parsed` from "set" to NULL for this session (`rowcount == 1`). A
+    replayed POST (double submit, or Back-then-resubmit on the now-permanent
+    GET /training/wod/confirm/{id} URL) finds `wod_parsed` already NULL and
+    is redirected without writing anything — never a second set of entries.
+    This makes the write at least as guarded as the GET, which already
+    requires `wod_parsed IS NOT NULL` to render anything.
+
+    B2 — no silent discard. Every field is parsed with `_confirm_int`/
+    `_confirm_float`, which raise `_ConfirmRejected` for a value that is
+    present but out of range (never silently None/clamped-to-1). Validation
+    runs BEFORE the B1 consume step, so a rejected submission leaves
+    `wod_parsed` untouched — the confirm screen is still there to retry
+    against, not consumed by the very request that failed to write anything.
+    """
     db = get_user_db_from_request(request)
     form = await request.form()
 
     session_id = _parse_int_in_range(form.get("session_id"), 1, 2**31 - 1)
     if session_id is None:
         return RedirectResponse("/training", status_code=303)
-    owned = await db.execute_fetchall("SELECT id FROM training_sessions WHERE id = ?", (session_id,))
-    if not owned:
+
+    entry_count_raw = form.get("entry_count")
+    entry_count = _parse_int_in_range(entry_count_raw, 0, 200)
+    if entry_count is None:
+        logger.warning(
+            "WOD confirm rejected for session %s: entry_count=%r out of [0, 200]", session_id, entry_count_raw
+        )
+        return RedirectResponse(
+            f"/training/wod/confirm/{session_id}?err={quote('Zbyt dużo wpisów naraz — spróbuj ponownie.')}",
+            status_code=303,
+        )
+
+    parsed_rows: list[tuple[str, int, int | None, float | None, float | None, str]] = []
+    try:
+        for i in range(entry_count):
+            movement = (form.get(f"entry_{i}_movement") or "").strip()
+            set_number = _confirm_int(form.get(f"entry_{i}_set_number"), 1, 100, "seria", i)
+            reps = _confirm_int(form.get(f"entry_{i}_reps"), 0, REPS_MAX, "powtórzenia", i)
+            weight = _confirm_float(form.get(f"entry_{i}_weight"), 0, WEIGHT_KG_MAX, "ciężar", i)
+            duration = _confirm_float(form.get(f"entry_{i}_duration"), 0, DURATION_SECONDS_MAX, "czas", i)
+            note = truncate(form.get(f"entry_{i}_note", ""), 200)
+            parsed_rows.append((movement, set_number if set_number is not None else 1, reps, weight, duration, note))
+    except _ConfirmRejected as exc:
+        logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
+        return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
+
+    # B1: atomically consume the pending parse result. rowcount != 1 means
+    # "unknown session" or "already confirmed" (replay) — either way, redirect
+    # without writing rather than risk a second set of entries.
+    cursor = await db.execute(
+        "UPDATE training_sessions SET wod_parsed = NULL WHERE id = ? AND wod_parsed IS NOT NULL",
+        (session_id,),
+    )
+    if cursor.rowcount != 1:
+        await db.commit()
         return RedirectResponse("/training", status_code=303)
 
-    entry_count = _parse_int_in_range(form.get("entry_count"), 0, 200) or 0
-
     rows: list[tuple] = []
-    for i in range(entry_count):
-        movement = (form.get(f"entry_{i}_movement") or "").strip()
+    for movement, set_number, reps, weight, duration, note in parsed_rows:
         exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
+            # Blank movement ("— pomiń", I4) or one that no longer resolves —
+            # not an error, just nothing to write for this row.
             continue
-        set_number = _parse_int_in_range(form.get(f"entry_{i}_set_number"), 1, 100) or 1
-        reps = _parse_int_in_range(form.get(f"entry_{i}_reps"), 0, 1000)
-        weight = _parse_float_in_range(form.get(f"entry_{i}_weight"), 0, 1000)
-        duration = _parse_float_in_range(form.get(f"entry_{i}_duration"), 0, 86400)
-        note = truncate(form.get(f"entry_{i}_note", ""), 200)
         rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
 
     if rows:
