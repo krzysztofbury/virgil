@@ -11,7 +11,8 @@
 
     {% if parse_error %}
       <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
-      Notatka jest zapisana przy sesji — możesz wrócić i uzupełnić wpisy ręcznie.</p>
+      Notatka jest zapisana i widoczna w historii treningów na stronie /training —
+      usuń tę sesję i zaloguj trening ręcznie, jeśli chcesz zapisać serie.</p>
     {% endif %}
 
     {% if unmatched %}

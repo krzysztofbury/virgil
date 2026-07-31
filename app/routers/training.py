@@ -347,7 +347,18 @@ async def capture_wod(request: Request):
     try:
         parsed = await parse_wod(db, wod_text)
         entries, unmatched = parsed.entries, parsed.unmatched
-    except ValueError as exc:
+    except Exception as exc:
+        # Broadened from `except ValueError`: parse_wod's own call chain raises
+        # more than ValueError — app/services/llm.py has bare asserts (missing
+        # content, max_tokens bounds), transport errors that aren't
+        # litellm.APIError subclasses, and canonical_movements() below now
+        # asserts a vocabulary bound (I5) that can also fire mid-parse. Any of
+        # those left this session's wod_parsed NULL forever: the GET confirm
+        # page 303s away (:377) and /training/session always INSERTs a new
+        # session, so there was no way to ever attach entries to this one
+        # again. The INSERT+commit above already happened, so catching wider
+        # here weakens no ordering guarantee — it only stops a crash from
+        # stranding an otherwise-saved note.
         parse_error = str(exc)
         logger.warning("WOD parse failed for session %s: %s", session_id, exc)
 
@@ -380,7 +391,14 @@ async def wod_confirm_page(request: Request, session_id: int):
         return RedirectResponse("/training", status_code=303)
 
     session = rows[0]
-    parsed = json.loads(session["wod_parsed"])
+    try:
+        parsed = json.loads(session["wod_parsed"])
+    except (json.JSONDecodeError, TypeError, ValueError):
+        # A corrupt stored value must not 500 this GET forever (M3, rides
+        # along with I3) — fall back to the same "nothing to confirm" redirect
+        # used above when there is no stored result at all.
+        logger.warning("Corrupt wod_parsed for session %s — nothing to confirm", session_id)
+        return RedirectResponse("/training", status_code=303)
 
     return templates.TemplateResponse(
         "wod_confirm.html",

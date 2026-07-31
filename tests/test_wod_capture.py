@@ -3,7 +3,6 @@
 import json
 import sqlite3
 
-import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -84,6 +83,12 @@ def test_note_survives_an_llm_failure(auth_client, monkeypatch):
     latest = _sessions()[0]
     assert latest["notes"] == "5x5 back squat 70, potem metcon", "raw text must be persisted before parsing"
     assert "timed out" in resp.text or "parsowanie" in resp.text.lower()
+    assert "uzupełnić wpisy ręcznie" not in resp.text, (
+        "I3: the old parse_error message claimed a manual-entry path that does not "
+        "exist (/training/session always INSERTs a new session, never attaches to "
+        "this one) — it must describe something real instead"
+    )
+    assert "historii treningów" in resp.text, "the parse_error message must point to where the note actually is"
 
 
 def test_garbled_llm_response_still_saves_the_note(auth_client, monkeypatch):
@@ -109,16 +114,26 @@ def test_garbled_llm_response_still_saves_the_note(auth_client, monkeypatch):
 
 
 def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
-    """The INSERT+commit must precede parse_wod. A ValueError is caught by the
-    route and proves nothing about ordering (the commit already happened either
-    way by the time we inspect the response). An exception the route does NOT
-    catch is the only thing that can tell the two orderings apart: if the insert
-    were moved after the parse call, this crash would take the session with it.
+    """capture_wod catches `Exception`, not just `ValueError`, around parse_wod
+    (review finding I3). Before that fix, a non-ValueError crash — real, not
+    hypothetical: app/services/llm.py has bare asserts (missing content,
+    max_tokens bounds) and transport errors that aren't litellm.APIError
+    subclasses — propagated as a 500. The INSERT+commit had already happened
+    (note intact), but `wod_parsed` stayed NULL, so
+    GET /training/wod/confirm/{id} redirected away forever and
+    /training/session always INSERTs a brand-new session — there was no way
+    back to this one.
 
-    Not hypothetical: call_llm can raise non-ValueError — the bare asserts in
-    app/services/llm.py (max_tokens bounds, missing content), transport errors
-    that aren't litellm.APIError subclasses, and asyncio.CancelledError on
-    client disconnect.
+    This test proves the crash no longer strands the session: the request now
+    completes (the PRG redirect lands on a 200 confirm page, not a 500), the
+    raw note survives, and the confirm screen — reachable, not a dead loop —
+    is what actually renders, carrying the crash message as parse_error.
+
+    (This test previously asserted `pytest.raises(RuntimeError)` to prove
+    ordering by way of an escaping exception. Broadening the except clause
+    means nothing escapes anymore, so that mechanism no longer applies — the
+    ordering guarantee itself is unchanged (INSERT+commit still precedes the
+    try/except), it's just no longer observable through an uncaught crash.)
     """
     import app.services.wod_parser as wp
 
@@ -127,17 +142,20 @@ def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
 
     monkeypatch.setattr(wp, "call_llm", boom)
     token = csrf_token(auth_client, "/training")
-    with pytest.raises(RuntimeError):
-        auth_client.post(
-            "/training/wod",
-            data={
-                "date": "2026-07-30",
-                "duration_minutes": "50",
-                "wod_text": "5 rund: 10 burpee, 15 wall ball",
-                "_csrf_token": token,
-            },
-        )
-    assert _sessions()[0]["notes"] == "5 rund: 10 burpee, 15 wall ball"
+    resp = auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "50",
+            "wod_text": "5 rund: 10 burpee, 15 wall ball",
+            "_csrf_token": token,
+        },
+    )
+    assert resp.status_code == 200, "the crash must not 500 — it must land on the confirm screen via the PRG redirect"
+    assert "connection reset by peer" in resp.text or "parsowanie" in resp.text.lower()
+    latest = _sessions()[0]
+    assert latest["notes"] == "5 rund: 10 burpee, 15 wall ball"
+    assert latest["wod_parsed"], "wod_parsed must be set even on a non-ValueError crash, or the confirm GET 303s away"
 
 
 def test_capture_form_renders_on_training_page(auth_client):
@@ -327,5 +345,27 @@ def test_wod_redirects_to_confirm_and_get_does_not_reparse(auth_client, monkeypa
 
 def test_confirm_get_unknown_session_redirects_to_training(auth_client):
     resp = auth_client.get("/training/wod/confirm/999999", follow_redirects=False)
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/training"
+
+
+def test_confirm_get_corrupt_wod_parsed_redirects_instead_of_500ing(auth_client):
+    """M3 reproduction: json.loads(session['wod_parsed']) was unguarded — a
+    corrupt stored value would 500 GET /training/wod/confirm/{id} forever
+    (there is no way to fix the stored column from the UI). It must instead
+    redirect the same way the 'no stored result at all' case already does.
+    """
+    conn = sqlite3.connect(user_db_path())
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, wod_parsed) VALUES (?, 60, ?, ?)",
+            ("2026-07-30", "corrupt cache repro", "{not valid json"),
+        )
+        conn.commit()
+        session_id = cur.lastrowid
+    finally:
+        conn.close()
+
+    resp = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/training"
