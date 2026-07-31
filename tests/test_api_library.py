@@ -36,17 +36,20 @@ def test_library_requires_key():
 
 def test_list_returns_crossfit_vocabulary(auth_client):
     """`?category=` is gone (migration 019 dropped the column); GET /api/library
-    now always returns the whole library. This also doubles as the "full chain
-    completes with the right merge count" regression the migration brief calls
-    for: 46 EXERCISE_LIBRARY + 31 CROSSFIT_MOVEMENTS - 4 merged duplicate names
-    (Back Squat, Deadlift, Bench Press, Pull-up) = 73."""
+    now always returns the whole library. `auth_client` is the session-scoped
+    fixture shared by the whole suite, so the total is a floor (>=), not an
+    exact match — other test files create/delete their own rows against this
+    same database and file execution order isn't guaranteed. The floor is the
+    post-merge count the migration brief calls for: 46 EXERCISE_LIBRARY + 31
+    CROSSFIT_MOVEMENTS - 4 merged duplicate names (Back Squat, Deadlift, Bench
+    Press, Pull-up) = 73."""
     from app.exercise_library import CROSSFIT_MOVEMENTS
 
     body = auth_client.get("/api/library", headers=KEY).json()
     names = {e["name"] for e in body["entries"]}
     assert "Thruster" in names
     assert {m["name"] for m in CROSSFIT_MOVEMENTS} <= names, "every CrossFit movement must still be listed"
-    assert len(body["entries"]) == 73
+    assert len(body["entries"]) >= 73
 
 
 def test_create_then_read_back(auth_client):
@@ -67,6 +70,21 @@ def test_duplicate_name_is_409(auth_client):
         "/api/library",
         headers=KEY,
         json={"section": "Core", "name": "Thruster", "metric": "reps"},
+    )
+    assert resp.status_code == 409
+
+
+def test_duplicate_name_case_insensitive_is_409(auth_client):
+    """exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019) —
+    validate_library_write's own dup check must be case-insensitive too, or a
+    request differing only by case would reach the DB constraint (a 500, not
+    a clean 409) instead, or — if that constraint were ever weakened — would
+    silently create a second row for the same movement under a different
+    case, splitting the WOD parser's vocabulary."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "thruster", "metric": "reps"},
     )
     assert resp.status_code == 409
 

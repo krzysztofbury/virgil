@@ -18,9 +18,17 @@ seeded by 009 had theirs DERIVED by 011 from the rep-spec string. Preferring
 the lowest display_order instead would systematically pick the derived row
 (009 seeded 0-45, 016 seeded 46-76) and could silently flip a movement's type.
 
-On a fresh install, 009 and 016 already write the post-019 shape from the
-start (no `category` column at all) — the guard below makes this a no-op in
-that case, since there is nothing left to migrate.
+009 and 016 are deliberately left writing the OLD (`category`) shape — this
+migration is the ONE place the category-to-tags conversion happens, on every
+install, fresh or upgraded. Giving 009/016 their own copy of the post-019
+shape briefly seemed appealing (a fresh install would skip the conversion
+entirely) but it means the fresh-install path and the production-upgrade path
+run different code, so the conversion this migration performs — the one that
+actually runs against the user's real database — would be exercised only by
+this file's own unit tests, never by an end-to-end fresh chain. The `category`
+guard below exists only for THIS module's own idempotency (`up()` may be
+called twice on the same connection; see test_is_idempotent), not to skip a
+fresh install.
 """
 
 import aiosqlite
@@ -42,7 +50,7 @@ _EXPLICIT_TAGS = {
 
 
 def _tag_for(category: str) -> str | None:
-    from app.library_validation import LibraryWriteError, normalize_tag
+    from app.library_validation import MAX_TAG_LEN, LibraryWriteError, normalize_tag
 
     if category in _DROPPED_CATEGORIES:
         return None
@@ -50,10 +58,23 @@ def _tag_for(category: str) -> str | None:
         return _EXPLICIT_TAGS[category]
     try:
         return normalize_tag(category)
-    except LibraryWriteError:
-        # A category of pure punctuation carries no information; drop it
-        # rather than aborting the whole migration over one junk row.
-        return None
+    except LibraryWriteError as exc:
+        if "normalises to nothing" in exc.message:
+            # A category of pure punctuation carries no information; drop it
+            # rather than aborting the whole migration over one junk row.
+            return None
+        # Otherwise the normalised tag exceeds MAX_TAG_LEN. Categories were
+        # free text capped at 100 characters on both write surfaces (settings
+        # and the REST API) — well past the 40-char tag limit — so a long
+        # category is real user data, not noise. Truncating the raw input to
+        # MAX_TAG_LEN before normalising guarantees the result fits: every
+        # normalize_tag transform (strip, whitespace-to-dash, invalid-char
+        # removal, dash-collapse) only ever shortens or holds length steady,
+        # never lengthens it.
+        try:
+            return normalize_tag(category[:MAX_TAG_LEN])
+        except LibraryWriteError:
+            return None
 
 
 async def up(db: aiosqlite.Connection) -> None:
@@ -77,6 +98,11 @@ async def up(db: aiosqlite.Connection) -> None:
         explicit = [r for r in group if (r["name"].lower(), r["section"], r["metric"]) in seeded]
         survivor = explicit[0] if explicit else group[0]
         merged = dict(survivor)
+        # Strip the name so it exactly matches `key` (name.strip().lower()) --
+        # the tag-attachment lookup below finds the survivor by
+        # `lower(name) = key`, which would silently miss (and drop the
+        # group's tags) for a legacy row whose name carried whitespace.
+        merged["name"] = survivor["name"].strip()
         merged["builtin"] = 0 if any(not r["builtin"] for r in group) else 1
         merged["archived"] = 0 if any(not r["archived"] for r in group) else 1
         for field in ("sets", "reps", "notes"):
@@ -101,7 +127,7 @@ async def up(db: aiosqlite.Connection) -> None:
             metric TEXT NOT NULL DEFAULT 'reps',
             builtin INTEGER NOT NULL DEFAULT 0,
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(name)
+            UNIQUE(name COLLATE NOCASE)
         )"""
     )
     for s in survivors:

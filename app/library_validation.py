@@ -172,7 +172,13 @@ async def validate_library_write(
         if not valid_library_metric(metric):
             raise LibraryWriteError(422, f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}")
 
-        dup = await db.execute_fetchall("SELECT id FROM exercise_library WHERE name = ?", (name,))
+        # Case-insensitive: exercise_library.name is UNIQUE(name COLLATE
+        # NOCASE) (migration 019) — a plain `name = ?` here would let 'Row'
+        # and 'row' both insert at the application layer only to have the
+        # SECOND one 500 on the DB's own constraint instead of getting this
+        # 409, or (without the DB constraint) silently split the WOD parser's
+        # vocabulary between two case-variant rows for the same movement.
+        dup = await db.execute_fetchall("SELECT id FROM exercise_library WHERE lower(name) = lower(?)", (name,))
         if dup:
             raise LibraryWriteError(409, f"{name!r} already exists")
 
@@ -198,7 +204,7 @@ async def validate_library_write(
                 raise LibraryWriteError(422, "name cannot be blank")
             if name.lower() != existing["name"].lower():
                 clash = await db.execute_fetchall(
-                    "SELECT id FROM exercise_library WHERE name = ? AND id != ?",
+                    "SELECT id FROM exercise_library WHERE lower(name) = lower(?) AND id != ?",
                     (name, entry_id),
                 )
                 if clash:

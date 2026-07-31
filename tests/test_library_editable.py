@@ -64,8 +64,9 @@ def test_crossfit_row_can_be_deleted(auth_client):
     finally:
         # Restore the row for other test files sharing this session-scoped DB —
         # e.g. tests/test_api_library.py's test_list_returns_crossfit_vocabulary
-        # asserts len(entries) == 31, and file execution order isn't guaranteed
-        # (mirrors the cleanup convention at tests/test_api_library.py:309-318).
+        # asserts every CrossFit movement (including Single-under) is still
+        # listed, and file execution order isn't guaranteed (mirrors the
+        # cleanup convention at tests/test_api_library.py:309-318).
         conn = sqlite3.connect(user_db_path())
         try:
             conn.execute(

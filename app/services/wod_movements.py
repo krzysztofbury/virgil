@@ -42,11 +42,14 @@ async def resolve_movement(db, name: str) -> int | None:
         return ex_id
 
     # Same dedupe tie-break as canonical_movements() in wod_parser.py:
-    # exercise_library is UNIQUE(name) (migration 019), so a duplicate can no
-    # longer exist — the lowest-display_order ORDER BY is defensive only.
-    # Both functions must agree, or a movement resolves to a different
-    # section/metric depending on which one is asked; see
-    # canonical_movements()'s docstring for the full rationale.
+    # exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019)
+    # and validate_library_write's dup checks are case-insensitive too, so a
+    # duplicate can no longer be created through the app — the
+    # lowest-display_order ORDER BY is defense in depth only, against a
+    # hand-edited or otherwise malformed database. Both functions must agree,
+    # or a movement resolves to a different section/metric depending on which
+    # one is asked; see canonical_movements()'s docstring for the full
+    # rationale.
     lib = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library "
         "WHERE lower(name) = lower(?) AND archived = 0 "

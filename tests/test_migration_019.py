@@ -11,6 +11,8 @@ import importlib
 
 import aiosqlite
 
+from app.library_validation import MAX_TAG_LEN
+
 
 async def _legacy_db(tmp_path, rows):
     db = await aiosqlite.connect(tmp_path / "legacy.db")
@@ -77,14 +79,16 @@ def test_style_categories_become_tags(tmp_path):
                 {"category": "Bodyweight", "section": "Core", "name": "Air Squat"},
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        assert await _tags_of(db, "Thruster") == ["crossfit"]
-        assert await _tags_of(db, "KB Swing") == ["kettlebell"]
-        assert await _tags_of(db, "Leg Press") == ["gym-classic"]
-        assert await _tags_of(db, "Air Squat") == ["bodyweight"]
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            assert await _tags_of(db, "Thruster") == ["crossfit"]
+            assert await _tags_of(db, "KB Swing") == ["kettlebell"]
+            assert await _tags_of(db, "Leg Press") == ["gym-classic"]
+            assert await _tags_of(db, "Air Squat") == ["bodyweight"]
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -101,14 +105,16 @@ def test_section_echo_and_program_categories_produce_no_tag(tmp_path):
                 {"category": "Workout B (KB full-body)", "section": "Core", "name": "Floor Press"},
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        for name in ("Jumping Jacks", "Couch Stretch", "Jump Rope", "Goblet Squat", "Floor Press"):
-            assert await _tags_of(db, name) == [], name
-        rows = await db.execute_fetchall("SELECT COUNT(*) AS c FROM exercise_library")
-        assert rows[0]["c"] == 5, "rows must survive even though they get no tag"
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            for name in ("Jumping Jacks", "Couch Stretch", "Jump Rope", "Goblet Squat", "Floor Press"):
+                assert await _tags_of(db, name) == [], name
+            rows = await db.execute_fetchall("SELECT COUNT(*) AS c FROM exercise_library")
+            assert rows[0]["c"] == 5, "rows must survive even though they get no tag"
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -121,11 +127,39 @@ def test_unknown_user_category_is_normalised(tmp_path):
                 {"category": "My HYROX prep!!", "section": "Cardio", "name": "Sled Push"},
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        assert await _tags_of(db, "Sled Push") == ["my-hyrox-prep"]
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            assert await _tags_of(db, "Sled Push") == ["my-hyrox-prep"]
+        finally:
+            await db.close()
+
+    _run(lambda: run())
+
+
+def test_long_category_is_truncated_not_dropped(tmp_path):
+    """Categories were free text capped at 100 characters on both write
+    surfaces (settings.py and api.py) -- well past MAX_TAG_LEN (40). A
+    category this long is real user data, not noise, so the tag it produces
+    must be truncated, not silently dropped the way a pure-punctuation
+    category is."""
+
+    async def run():
+        long_category = "Y" * 60
+        db = await _legacy_db(
+            tmp_path,
+            [
+                {"category": long_category, "section": "Cardio", "name": "Sandbag Carry"},
+            ],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            assert await _tags_of(db, "Sandbag Carry") == ["y" * MAX_TAG_LEN]
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -156,15 +190,17 @@ def test_duplicate_names_merge_keeping_the_explicitly_seeded_metric(tmp_path):
                 },
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE name = 'Row'")
-        assert len(rows) == 1
-        assert rows[0]["metric"] == "time", "the explicitly seeded metric must survive the merge"
-        assert rows[0]["builtin"] == 0, "editability must not be taken away by merging"
-        assert await _tags_of(db, "Row") == ["crossfit"]
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE name = 'Row'")
+            assert len(rows) == 1
+            assert rows[0]["metric"] == "time", "the explicitly seeded metric must survive the merge"
+            assert rows[0]["builtin"] == 0, "editability must not be taken away by merging"
+            assert await _tags_of(db, "Row") == ["crossfit"]
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -192,14 +228,16 @@ def test_merge_unions_tags_and_keeps_the_active_state(tmp_path):
                 },
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE name = 'Back Squat'")
-        assert len(rows) == 1
-        assert rows[0]["archived"] == 0, "a movement visible today must not vanish"
-        assert await _tags_of(db, "Back Squat") == ["crossfit", "gym-classic"]
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE name = 'Back Squat'")
+            assert len(rows) == 1
+            assert rows[0]["archived"] == 0, "a movement visible today must not vanish"
+            assert await _tags_of(db, "Back Squat") == ["crossfit", "gym-classic"]
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -220,13 +258,42 @@ def test_user_row_colliding_with_a_seeded_name_merges(tmp_path):
                 },
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE name = 'Burpee'")
-        assert len(rows) == 1
-        assert await _tags_of(db, "Burpee") == ["crossfit", "moje"]
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE name = 'Burpee'")
+            assert len(rows) == 1
+            assert rows[0]["notes"] == "moja wersja", "notes must be backfilled from the sibling that has them"
+            assert await _tags_of(db, "Burpee") == ["crossfit", "moje"]
+        finally:
+            await db.close()
+
+    _run(lambda: run())
+
+
+def test_duplicate_name_with_whitespace_still_gets_tagged(tmp_path):
+    """019 groups rows by `name.strip().lower()` but the survivor's raw name
+    kept its whitespace, so the tag-attachment lookup (by `lower(name)`)
+    would miss the padded row entirely and silently drop its tags."""
+
+    async def run():
+        db = await _legacy_db(
+            tmp_path,
+            [
+                {"category": "CrossFit", "section": "Core", "name": "Thruster "},
+            ],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT * FROM exercise_library")
+            assert len(rows) == 1
+            assert rows[0]["name"] == "Thruster", "the stored name must be stripped"
+            assert await _tags_of(db, "Thruster") == ["crossfit"]
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -239,15 +306,52 @@ def test_category_column_is_gone_and_name_is_unique(tmp_path):
                 {"category": "CrossFit", "section": "Core", "name": "Thruster"},
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        cols = await db.execute_fetchall("PRAGMA table_info(exercise_library)")
-        assert "category" not in {c["name"] for c in cols}
-        idx = await db.execute_fetchall("PRAGMA index_list(exercise_library)")
-        uniques = [i for i in idx if i["unique"]]
-        assert uniques, "UNIQUE(name) must exist"
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            cols = await db.execute_fetchall("PRAGMA table_info(exercise_library)")
+            assert "category" not in {c["name"] for c in cols}
+            idx = await db.execute_fetchall("PRAGMA index_list(exercise_library)")
+            uniques = [i for i in idx if i["unique"]]
+            assert uniques, "UNIQUE(name) must exist"
+            info = await db.execute_fetchall(f"PRAGMA index_info({uniques[0]['name']})")
+            assert [c["name"] for c in info] == ["name"], "the unique index must be exactly on name, nothing else"
+        finally:
+            await db.close()
+
+    _run(lambda: run())
+
+
+def test_case_variant_duplicate_is_rejected_after_migration(tmp_path):
+    """UNIQUE(name) is binary-collated by default -- 'Thruster' and 'thruster'
+    would otherwise both be insertable, silently splitting the WOD parser's
+    vocabulary (which dedupes by lower(name)) between two rows for the same
+    movement. The rebuilt table declares UNIQUE(name COLLATE NOCASE)
+    specifically to close that."""
+
+    async def run():
+        db = await _legacy_db(
+            tmp_path,
+            [
+                {"category": "CrossFit", "section": "Core", "name": "Thruster"},
+            ],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            try:
+                await db.execute(
+                    "INSERT INTO exercise_library (section, name, metric, builtin) "
+                    "VALUES ('Core', 'thruster', 'reps', 0)"
+                )
+                raised = False
+            except aiosqlite.IntegrityError:
+                raised = True
+            assert raised, "a case-variant duplicate name must be rejected by UNIQUE(name COLLATE NOCASE)"
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -260,14 +364,16 @@ def test_is_idempotent(tmp_path):
                 {"category": "CrossFit", "section": "Core", "name": "Thruster"},
             ],
         )
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall("SELECT COUNT(*) AS c FROM exercise_library")
-        assert rows[0]["c"] == 1
-        assert await _tags_of(db, "Thruster") == ["crossfit"]
-        await db.close()
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT COUNT(*) AS c FROM exercise_library")
+            assert rows[0]["c"] == 1
+            assert await _tags_of(db, "Thruster") == ["crossfit"]
+        finally:
+            await db.close()
 
     _run(lambda: run())
 
@@ -280,20 +386,22 @@ def test_training_history_is_untouched(tmp_path):
                 {"category": "CrossFit", "section": "Core", "name": "Thruster"},
             ],
         )
-        await db.execute(
-            """CREATE TABLE training_exercises (
-                id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, section TEXT NOT NULL,
-                metric TEXT NOT NULL DEFAULT 'reps', ad_hoc INTEGER NOT NULL DEFAULT 0)"""
-        )
-        await db.execute(
-            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('Thruster','Core','reps',1)"
-        )
-        await db.commit()
-        mod = importlib.import_module("app.migrations.019_exercise_tags")
-        await mod.up(db)
-        await db.commit()
-        rows = await db.execute_fetchall("SELECT * FROM training_exercises")
-        assert len(rows) == 1 and rows[0]["name"] == "Thruster" and rows[0]["ad_hoc"] == 1
-        await db.close()
+        try:
+            await db.execute(
+                """CREATE TABLE training_exercises (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, section TEXT NOT NULL,
+                    metric TEXT NOT NULL DEFAULT 'reps', ad_hoc INTEGER NOT NULL DEFAULT 0)"""
+            )
+            await db.execute(
+                "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('Thruster','Core','reps',1)"
+            )
+            await db.commit()
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            rows = await db.execute_fetchall("SELECT * FROM training_exercises")
+            assert len(rows) == 1 and rows[0]["name"] == "Thruster" and rows[0]["ad_hoc"] == 1
+        finally:
+            await db.close()
 
     _run(lambda: run())

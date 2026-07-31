@@ -25,9 +25,10 @@ MAX_WOD_CHARS = 4000
 # exactly what an MCP-writable dictionary invites), and every extra row is
 # paid for on every subsequent parse until the prompt breaks the model's
 # context window and the feature degrades to permanent parse_error. The
-# user has 77 non-archived exercise_library rows today, 73 once the 4
-# same-name duplicates across categories collapse; 500 is a generous
-# ceiling that still fails loudly well before that happens.
+# user has 73 non-archived exercise_library rows today (77 before migration
+# 019 merged the 4 same-name duplicates that used to exist across
+# categories); 500 is a generous ceiling that still fails loudly well
+# before that happens.
 MAX_LIBRARY_MOVEMENTS = 500
 
 _SYSTEM_PROMPT = """You extract structured training data from a short, messy \
@@ -80,15 +81,19 @@ async def canonical_movements(db) -> list[dict]:
     dictionary, and a warm-up or a barbell lift the user actually logs
     deserves the same closed-vocabulary treatment a CrossFit movement gets.
 
-    exercise_library is UNIQUE(name) (migration 019) — a name can no longer
-    exist twice (it used to, under two categories: Back Squat, Bench Press,
-    Deadlift and Pull-up all did, briefly, before that migration merged
-    them). The dedupe-by-first-seen-name below is therefore defensive rather
-    than load-bearing: display_order alone is now the only tie-break, should
-    a duplicate ever reappear (e.g. a bug in a future migration). This must
-    stay consistent with resolve_movement() in wod_movements.py, which uses
-    the identical ORDER BY — otherwise a movement could resolve to a
-    different section/metric depending on which one is asked.
+    exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019) —
+    case-insensitively, so 'Row' and 'row' cannot both exist — and
+    validate_library_write's own dup checks are case-insensitive too, so a
+    write through either surface is refused before it ever reaches that
+    constraint. It used to be possible for a name to exist twice under two
+    categories (Back Squat, Bench Press, Deadlift and Pull-up all did,
+    briefly, before migration 019 merged them); that is no longer reachable
+    through the app, but the dedupe-by-first-seen-name below stays as
+    defense in depth against a hand-edited or otherwise malformed database:
+    display_order alone is the tie-break, should a duplicate ever appear.
+    This must stay consistent with resolve_movement() in wod_movements.py,
+    which uses the identical ORDER BY — otherwise a movement could resolve
+    to a different section/metric depending on which one is asked.
     """
     rows = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library WHERE archived = 0 ORDER BY display_order"

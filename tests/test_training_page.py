@@ -21,10 +21,16 @@ def test_exercise_library_picker_present(auth_client):
     """Migration 019 removed `category` — the picker no longer groups by it
     (Task 2 falls back to a flat alphabetical list), so this now asserts on an
     actual exercise NAME rather than the category label the picker used to
-    render as an <optgroup>."""
+    render as an <optgroup>.
+
+    Asserting on the bare substring "Goblet Squat" would pass even with the
+    entire picker <option> loop deleted: the add-exercise form's name input
+    has `placeholder="e.g. Goblet Squat"` (training.html) unconditionally, on
+    every section, whether or not the library ever renders. Assert on the
+    picker's own JSON payload shape instead, which only exists per <option>."""
     resp = auth_client.get("/training")
     assert "From library" in resp.text
-    assert "Goblet Squat" in resp.text
+    assert '"n": "Goblet Squat"' in resp.text
 
 
 def test_exercise_library_picker_carries_metric_to_the_hidden_field(auth_client):

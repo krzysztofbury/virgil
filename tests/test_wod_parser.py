@@ -288,18 +288,23 @@ def test_canonical_movements_orders_by_display_order(tmp_path):
     """The dedupe-by-first-seen-name loop in canonical_movements() only does
     something observable if the query itself returns rows in display_order —
     this pins that ordering directly, independent of the (now impossible)
-    duplicate-name scenario the old CrossFit tie-break test covered."""
+    duplicate-name scenario the old CrossFit tie-break test covered.
+
+    Back Squat (display_order 30) is inserted BEFORE Row (display_order 1) on
+    purpose: SQLite's default rowid order would then put Back Squat first,
+    the opposite of what display_order demands, so an accidentally-deleted
+    `ORDER BY display_order` fails this instead of coincidentally passing."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
                 "INSERT INTO exercise_library (section, name, display_order, metric) "
-                "VALUES ('Cardio', 'Row', 1, 'time')"
+                "VALUES ('Core', 'Back Squat', 30, 'reps')"
             )
             await db.execute(
                 "INSERT INTO exercise_library (section, name, display_order, metric) "
-                "VALUES ('Core', 'Back Squat', 30, 'reps')"
+                "VALUES ('Cardio', 'Row', 1, 'time')"
             )
             await db.commit()
             movements = await wod_parser.canonical_movements(db)

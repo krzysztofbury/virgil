@@ -10,16 +10,8 @@ overloading it would make a withdrawn exercise indistinguishable from one
 logged ad hoc.
 
 The CrossFit rows are the closed vocabulary the WOD parser is constrained to.
-exercise_library is UNIQUE(name) (migration 009, in its post-019 shape from
-the start) — a name already seeded by 009 (Back Squat, Deadlift, Bench Press,
-Pull-up all exist in both EXERCISE_LIBRARY and CROSSFIT_MOVEMENTS) collides on
-INSERT. The upsert below resolves that the same way migration 019 resolves it
-for a pre-existing database: the CrossFit metric wins (it is written
-explicitly here, where 009's version was DERIVED by migration 011 from the
-rep-spec string) and the row becomes user-editable (builtin=0), since the
-CrossFit vocabulary must stay editable regardless of which row got there
-first — see migration 017. Re-running is safe either way (upsert, not
-INSERT-or-fail).
+Seeding is INSERT OR IGNORE against UNIQUE(category, name), so re-running is safe
+and a user's own edits to a row are never overwritten.
 """
 
 import aiosqlite
@@ -44,11 +36,11 @@ async def up(db: aiosqlite.Connection) -> None:
         # guards update/delete of a builtin row to 'archived' only.
         # This vocabulary is the user's to curate — add, rename, delete.
         await db.execute(
-            "INSERT INTO exercise_library "
-            "(section, name, sets, reps, notes, display_order, metric, builtin) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, 0) "
-            "ON CONFLICT(name) DO UPDATE SET metric = excluded.metric, builtin = 0",
+            "INSERT OR IGNORE INTO exercise_library "
+            "(category, section, name, sets, reps, notes, display_order, metric, builtin) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
             (
+                ex["category"],
                 ex["section"],
                 ex["name"],
                 ex["sets"],
@@ -58,10 +50,3 @@ async def up(db: aiosqlite.Connection) -> None:
                 ex["metric"],
             ),
         )
-        row = await db.execute_fetchall("SELECT id FROM exercise_library WHERE name = ?", (ex["name"],))
-        lib_id = row[0]["id"]
-        for tag in ex.get("tags", []):
-            await db.execute(
-                "INSERT OR IGNORE INTO exercise_library_tags (library_id, tag) VALUES (?, ?)",
-                (lib_id, tag),
-            )
