@@ -7,6 +7,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app.library_validation import valid_library_metric
 from app.main import templates
 from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements, parse_wod
@@ -190,7 +191,7 @@ async def training_page(request: Request):
     # Exercise picker dictionary — DB-backed, managed in Settings → App Config.
     # Archived rows stay in the DB (history) but leave the picker.
     lib_rows = await db.execute_fetchall(
-        "SELECT category, section, name, sets, reps, notes FROM exercise_library "
+        "SELECT category, section, name, sets, reps, notes, metric FROM exercise_library "
         "WHERE archived = 0 ORDER BY display_order, name"
     )
     exercise_library = [dict(r) for r in lib_rows]
@@ -504,6 +505,13 @@ async def add_exercise(request: Request):
         target_sets = 3
     target_reps = truncate(form.get("target_reps", "").strip(), 50)
     notes = truncate(form.get("notes", "").strip(), 200)
+    # The library picker's onchange fills a hidden `metric` field from the
+    # picked row (see training.html) so a library-backed pick (e.g. "Row",
+    # metric='time') carries its real metric through instead of silently
+    # taking the column default 'reps' — see B3 in the 2026-07-30 review.
+    metric = form.get("metric", "reps")
+    if not valid_library_metric(metric):
+        metric = "reps"
 
     if not name:
         return RedirectResponse("/training", status_code=303)
@@ -513,9 +521,9 @@ async def add_exercise(request: Request):
     next_order = row[0]["mx"] + 1
 
     await db.execute(
-        "INSERT INTO training_exercises (name, section, target_sets, target_reps, notes, display_order) "
-        "VALUES (?, ?, ?, ?, ?, ?)",
-        (name, section, target_sets, target_reps, notes, next_order),
+        "INSERT INTO training_exercises (name, section, target_sets, target_reps, notes, display_order, metric) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        (name, section, target_sets, target_reps, notes, next_order, metric),
     )
     await db.commit()
     return RedirectResponse("/training", status_code=303)

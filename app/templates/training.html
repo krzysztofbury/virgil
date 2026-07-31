@@ -78,16 +78,17 @@
             <button type="button" class="btn btn-sm btn-outline" @click="adding = !adding" x-show="!adding" style="font-size:0.7rem;">+ Add exercise</button>
             <form method="POST" action="/training/exercise" x-show="adding" x-cloak class="ex-form">
                 <input type="hidden" name="section" value="{{ section_name }}">
+                <input type="hidden" name="metric" value="reps">
                 {% set lib = exercise_library | selectattr("section", "equalto", section_name) | list %}
                 {% if lib %}
                 <label class="ex-field">
                     <span>From library</span>
-                    <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';}">
+                    <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';f.metric.value=d.t||'reps';}">
                         <option value="">Pick an exercise — fills the fields below</option>
                         {% for category, items in lib | groupby("category") %}
                         <optgroup label="{{ category }}">
                             {% for it in items %}
-                            <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes} | tojson }}'>{{ it.name }}</option>
+                            <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes, "t": it.metric} | tojson }}'>{{ it.name }}</option>
                             {% endfor %}
                         </optgroup>
                         {% endfor %}
