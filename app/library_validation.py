@@ -117,6 +117,28 @@ def normalize_tags(raw: list[str] | str | None) -> list[str]:
     return sorted(out)
 
 
+async def _name_taken(db, name: str, exclude_id: int | None = None) -> bool:
+    """Case-insensitive, Unicode-aware name collision check.
+
+    exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019), but
+    SQLite's COLLATE NOCASE — like its lower() function — only folds ASCII:
+    'ĆWICZENIE' and 'ćwiczenie' both satisfy that constraint as distinct rows
+    (SQL lower('ĆWICZENIE') is 'Ćwiczenie' — only the ASCII letters fold; the
+    leading Ć does not). Comparing in Python (str.lower(), fully
+    Unicode-aware) instead of delegating to SQL catches what the database
+    constraint cannot; the DB constraint remains a backstop for the ASCII
+    case (and for any writer that bypasses this function entirely).
+    """
+    sql = "SELECT name FROM exercise_library"
+    params: tuple = ()
+    if exclude_id is not None:
+        sql += " WHERE id != ?"
+        params = (exclude_id,)
+    rows = await db.execute_fetchall(sql, params)
+    target = name.lower()
+    return any(r["name"].lower() == target for r in rows)
+
+
 async def validate_library_write(
     db,
     *,
@@ -172,14 +194,7 @@ async def validate_library_write(
         if not valid_library_metric(metric):
             raise LibraryWriteError(422, f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}")
 
-        # Case-insensitive: exercise_library.name is UNIQUE(name COLLATE
-        # NOCASE) (migration 019) — a plain `name = ?` here would let 'Row'
-        # and 'row' both insert at the application layer only to have the
-        # SECOND one 500 on the DB's own constraint instead of getting this
-        # 409, or (without the DB constraint) silently split the WOD parser's
-        # vocabulary between two case-variant rows for the same movement.
-        dup = await db.execute_fetchall("SELECT id FROM exercise_library WHERE lower(name) = lower(?)", (name,))
-        if dup:
+        if await _name_taken(db, name):
             raise LibraryWriteError(409, f"{name!r} already exists")
 
         return {
@@ -203,11 +218,7 @@ async def validate_library_write(
             if not name:
                 raise LibraryWriteError(422, "name cannot be blank")
             if name.lower() != existing["name"].lower():
-                clash = await db.execute_fetchall(
-                    "SELECT id FROM exercise_library WHERE lower(name) = lower(?) AND id != ?",
-                    (name, entry_id),
-                )
-                if clash:
+                if await _name_taken(db, name, exclude_id=entry_id):
                     raise LibraryWriteError(409, f"{name!r} already exists")
                 # I2: a rename must not orphan training_exercises rows still
                 # holding history under the OLD name — resolve_movement()

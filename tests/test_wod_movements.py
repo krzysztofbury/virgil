@@ -36,7 +36,7 @@ async def _db(tmp_path):
             metric TEXT NOT NULL DEFAULT 'reps',
             builtin INTEGER NOT NULL DEFAULT 0,
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(name)
+            UNIQUE(name COLLATE NOCASE)
         )"""
     )
     await db.execute(
@@ -206,10 +206,13 @@ def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
     'Back Squat' could exist twice (Gym classics + CrossFit) and
     resolve_movement() needed an explicit CrossFit-preferring tie-break to
     avoid resolving to the wrong section/metric — exactly the class of defect
-    already fixed in training.py's picker path (B3). UNIQUE is now (name)
-    alone, so the duplicate itself can no longer be written; this proves the
-    constraint holds, and that a movement seeded before the (rejected) second
-    insert still resolves to its own section/metric untouched."""
+    already fixed in training.py's picker path (B3). UNIQUE is now (name
+    COLLATE NOCASE), so the duplicate itself can no longer be written; this
+    proves the constraint holds, and that a movement seeded before the
+    (rejected) second insert still resolves to its own section/metric
+    untouched. The second insert deliberately differs only by case ('back
+    squat' vs 'Back Squat') — a binary UNIQUE(name), with no COLLATE, would
+    let this one through and this test would pass for the wrong reason."""
 
     async def run():
         db = await _db(tmp_path)
@@ -222,12 +225,12 @@ def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
             try:
                 await db.execute(
                     "INSERT INTO exercise_library (section, name, display_order, metric, builtin) "
-                    "VALUES ('Core', 'Back Squat', 50, 'reps', 0)"
+                    "VALUES ('Core', 'back squat', 50, 'reps', 0)"
                 )
                 raised = False
             except aiosqlite.IntegrityError:
                 raised = True
-            assert raised, "a second row with the same name must be rejected by UNIQUE(name)"
+            assert raised, "a case-variant duplicate name must be rejected by UNIQUE(name COLLATE NOCASE)"
 
             ex_id = await resolve_movement(db, "Back Squat")
             rows = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (ex_id,))

@@ -138,6 +138,32 @@ def test_unknown_user_category_is_normalised(tmp_path):
     _run(lambda: run())
 
 
+def test_non_ascii_name_keeps_its_tag(tmp_path):
+    """SQLite's lower() is ASCII-only, while the grouping key is built with
+    Python's Unicode-aware str.lower() -- a name like 'ĆWICZENIE' becomes
+    'ćwiczenie' in Python but SQLite's lower('ĆWICZENIE') leaves the accented
+    letters untouched. A tag-attachment step that looked the survivor back up
+    by `lower(name) = key` would silently miss and drop the tag entirely;
+    keying off the INSERT's own lastrowid instead has no such gap."""
+
+    async def run():
+        db = await _legacy_db(
+            tmp_path,
+            [
+                {"category": "CrossFit", "section": "Core", "name": "ĆWICZENIE"},
+            ],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            assert await _tags_of(db, "ĆWICZENIE") == ["crossfit"]
+        finally:
+            await db.close()
+
+    _run(lambda: run())
+
+
 def test_long_category_is_truncated_not_dropped(tmp_path):
     """Categories were free text capped at 100 characters on both write
     surfaces (settings.py and api.py) -- well past MAX_TAG_LEN (40). A

@@ -42,10 +42,15 @@ async def resolve_movement(db, name: str) -> int | None:
         return ex_id
 
     # Same dedupe tie-break as canonical_movements() in wod_parser.py:
-    # exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019)
-    # and validate_library_write's dup checks are case-insensitive too, so a
-    # duplicate can no longer be created through the app — the
-    # lowest-display_order ORDER BY is defense in depth only, against a
+    # exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019),
+    # but that constraint is ASCII-only, same as the SQLite lower() it's
+    # built on: 'ĆWICZENIE' and 'ćwiczenie' both satisfy it as distinct rows
+    # (SQL lower('ĆWICZENIE') is 'Ćwiczenie' — only the ASCII letters fold;
+    # the leading Ć does not). What actually closes the gap for non-ASCII
+    # names is validate_library_write's dup check, which compares in Python
+    # (str.lower(), fully Unicode-aware) instead of delegating to SQL — a
+    # duplicate, ASCII or not, can no longer be created through the app. The
+    # lowest-display_order ORDER BY here is defense in depth only, against a
     # hand-edited or otherwise malformed database. Both functions must agree,
     # or a movement resolves to a different section/metric depending on which
     # one is asked; see canonical_movements()'s docstring for the full

@@ -207,8 +207,10 @@ def test_vocabulary_at_the_bound_is_accepted(monkeypatch):
 
 
 async def _real_library_db(tmp_path):
-    """Post-019 shape: no `category`, UNIQUE(name) — see migration 009's
-    docstring (it creates exercise_library in this shape from the start)."""
+    """Post-019 shape: no `category`, UNIQUE(name COLLATE NOCASE) — migration
+    019 rebuilds exercise_library into this shape on every install, fresh or
+    upgraded (009 still seeds the OLD category-bearing shape; 019 is the one
+    and only conversion path — see its module docstring)."""
     db = await aiosqlite.connect(tmp_path / "lib.db")
     db.row_factory = aiosqlite.Row
     await db.execute(
@@ -219,7 +221,7 @@ async def _real_library_db(tmp_path):
             display_order INTEGER DEFAULT 0,
             metric TEXT NOT NULL DEFAULT 'reps',
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(name)
+            UNIQUE(name COLLATE NOCASE)
         )"""
     )
     return db
@@ -251,10 +253,12 @@ def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
     """Before migration 019, UNIQUE was (category, name), so 'Back Squat' could
     exist under both Gym classics and CrossFit — canonical_movements() then
     needed an explicit CrossFit-preferring tie-break to avoid silently
-    mis-typing the duplicate. UNIQUE is now (name) alone, so that scenario is
-    no longer a tie-break case to get right; it is a write the database itself
-    refuses. This proves the constraint is actually in place, not just
-    documented."""
+    mis-typing the duplicate. UNIQUE is now (name COLLATE NOCASE), so that
+    scenario is no longer a tie-break case to get right; it is a write the
+    database itself refuses. The second insert deliberately differs only by
+    case ('back squat' vs 'Back Squat') — a binary UNIQUE(name), with no
+    COLLATE, would let this one through and this test would pass for the
+    wrong reason."""
 
     async def run():
         db = await _real_library_db(tmp_path)
@@ -267,12 +271,12 @@ def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
             try:
                 await db.execute(
                     "INSERT INTO exercise_library (section, name, display_order, metric) "
-                    "VALUES ('Core', 'Back Squat', 50, 'reps')"
+                    "VALUES ('Core', 'back squat', 50, 'reps')"
                 )
                 raised = False
             except aiosqlite.IntegrityError:
                 raised = True
-            assert raised, "a second row with the same name must be rejected by UNIQUE(name)"
+            assert raised, "a case-variant duplicate name must be rejected by UNIQUE(name COLLATE NOCASE)"
             movements = await wod_parser.canonical_movements(db)
             matches = [m for m in movements if m["name"] == "Back Squat"]
             assert len(matches) == 1, "only the original row must exist"

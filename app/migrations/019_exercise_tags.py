@@ -92,16 +92,17 @@ async def up(db: aiosqlite.Connection) -> None:
     for r in rows:
         groups.setdefault(r["name"].strip().lower(), []).append(r)
 
-    survivors: list[dict] = []
+    survivors: dict[str, dict] = {}
     tags_for: dict[str, set[str]] = {}
     for key, group in groups.items():
         explicit = [r for r in group if (r["name"].lower(), r["section"], r["metric"]) in seeded]
         survivor = explicit[0] if explicit else group[0]
         merged = dict(survivor)
-        # Strip the name so it exactly matches `key` (name.strip().lower()) --
-        # the tag-attachment lookup below finds the survivor by
-        # `lower(name) = key`, which would silently miss (and drop the
-        # group's tags) for a legacy row whose name carried whitespace.
+        # Stripped for data hygiene (a legacy name with stray whitespace
+        # shouldn't propagate) -- NOT for matching `key` later. Tag inserts
+        # below are keyed off the INSERT's own lastrowid, not a name lookup,
+        # specifically so this stripping (or any other name transform) can
+        # never cause a tag-attachment miss.
         merged["name"] = survivor["name"].strip()
         merged["builtin"] = 0 if any(not r["builtin"] for r in group) else 1
         merged["archived"] = 0 if any(not r["archived"] for r in group) else 1
@@ -111,7 +112,7 @@ async def up(db: aiosqlite.Connection) -> None:
                     if r.get(field):
                         merged[field] = r[field]
                         break
-        survivors.append(merged)
+        survivors[key] = merged
         tags = {t for t in (_tag_for(r["category"]) for r in group) if t}
         tags_for[key] = tags
 
@@ -130,8 +131,17 @@ async def up(db: aiosqlite.Connection) -> None:
             UNIQUE(name COLLATE NOCASE)
         )"""
     )
-    for s in survivors:
-        await db.execute(
+    # SQLite's lower() (and hence COLLATE NOCASE) is ASCII-only, while `key`
+    # was built with Python's Unicode-aware str.lower() -- a name like
+    # 'ĆWICZENIE' would satisfy `key == "ćwiczenie"` in Python but NOT
+    # `lower(name) = 'ćwiczenie'` in SQL (SQLite's lower() leaves the
+    # accented characters untouched). Looking the survivor back up by name
+    # would silently miss and drop its tags. Capturing each INSERT's own
+    # lastrowid sidesteps the question entirely: no name comparison, no
+    # collation, no second place for the two spellings to disagree.
+    survivor_ids: dict[str, int] = {}
+    for key, s in survivors.items():
+        cursor = await db.execute(
             "INSERT INTO exercise_library_new "
             "(section, name, sets, reps, notes, display_order, metric, builtin, archived) "
             "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
@@ -147,6 +157,7 @@ async def up(db: aiosqlite.Connection) -> None:
                 s["archived"],
             ),
         )
+        survivor_ids[key] = cursor.lastrowid
     await db.execute("DROP TABLE exercise_library")
     await db.execute("ALTER TABLE exercise_library_new RENAME TO exercise_library")
 
@@ -162,11 +173,9 @@ async def up(db: aiosqlite.Connection) -> None:
     for key, tags in tags_for.items():
         if not tags:
             continue
-        found = await db.execute_fetchall("SELECT id FROM exercise_library WHERE lower(name) = ? LIMIT 1", (key,))
-        if not found:
-            continue
+        library_id = survivor_ids[key]
         for tag in sorted(tags):
             await db.execute(
                 "INSERT OR IGNORE INTO exercise_library_tags (library_id, tag) VALUES (?, ?)",
-                (found[0]["id"], tag),
+                (library_id, tag),
             )

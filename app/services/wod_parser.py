@@ -81,19 +81,24 @@ async def canonical_movements(db) -> list[dict]:
     dictionary, and a warm-up or a barbell lift the user actually logs
     deserves the same closed-vocabulary treatment a CrossFit movement gets.
 
-    exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019) —
-    case-insensitively, so 'Row' and 'row' cannot both exist — and
-    validate_library_write's own dup checks are case-insensitive too, so a
-    write through either surface is refused before it ever reaches that
-    constraint. It used to be possible for a name to exist twice under two
-    categories (Back Squat, Bench Press, Deadlift and Pull-up all did,
-    briefly, before migration 019 merged them); that is no longer reachable
-    through the app, but the dedupe-by-first-seen-name below stays as
-    defense in depth against a hand-edited or otherwise malformed database:
-    display_order alone is the tie-break, should a duplicate ever appear.
-    This must stay consistent with resolve_movement() in wod_movements.py,
-    which uses the identical ORDER BY — otherwise a movement could resolve
-    to a different section/metric depending on which one is asked.
+    exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019), but
+    that constraint — like SQLite's lower() it's built on — only folds ASCII
+    case: 'ĆWICZENIE' and 'ćwiczenie' both satisfy it as distinct rows (SQL
+    lower('ĆWICZENIE') is 'Ćwiczenie' — only the ASCII letters fold; the
+    leading Ć does not). validate_library_write's own dup checks close that
+    gap by comparing in Python (str.lower(), fully Unicode-aware) instead of
+    delegating to SQL, so a write through either surface is refused before
+    any duplicate — ASCII or not — reaches the table. It used to be possible
+    for a name to exist twice under two categories (Back Squat, Bench Press,
+    Deadlift and Pull-up all did, briefly, before migration 019 merged them);
+    that is no longer reachable through the app, but the
+    dedupe-by-first-seen-name below stays as defense in depth against a
+    hand-edited or otherwise malformed database: display_order alone is the
+    tie-break, should a duplicate ever appear. This must stay consistent with
+    resolve_movement() in wod_movements.py, which uses the identical ORDER
+    BY — otherwise a movement could resolve to a different section/metric
+    depending on which
+    one is asked.
     """
     rows = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library WHERE archived = 0 ORDER BY display_order"

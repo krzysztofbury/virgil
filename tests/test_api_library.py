@@ -36,20 +36,23 @@ def test_library_requires_key():
 
 def test_list_returns_crossfit_vocabulary(auth_client):
     """`?category=` is gone (migration 019 dropped the column); GET /api/library
-    now always returns the whole library. `auth_client` is the session-scoped
-    fixture shared by the whole suite, so the total is a floor (>=), not an
-    exact match — other test files create/delete their own rows against this
-    same database and file execution order isn't guaranteed. The floor is the
-    post-merge count the migration brief calls for: 46 EXERCISE_LIBRARY + 31
-    CROSSFIT_MOVEMENTS - 4 merged duplicate names (Back Squat, Deadlift, Bench
-    Press, Pull-up) = 73."""
-    from app.exercise_library import CROSSFIT_MOVEMENTS
+    now always returns the whole library. The expected count is DERIVED from
+    the seed data, not hardcoded, so it stays correct (and exact) if
+    EXERCISE_LIBRARY or CROSSFIT_MOVEMENTS ever changes: every seeded name,
+    deduped the same way migration 019 dedupes them (stripped,
+    case-insensitive) — the four known collisions (Back Squat, Deadlift,
+    Bench Press, Pull-up) collapse automatically via the set."""
+    from app.exercise_library import CROSSFIT_MOVEMENTS, EXERCISE_LIBRARY
+
+    expected_names = {e["name"].strip().lower() for e in EXERCISE_LIBRARY} | {
+        m["name"].strip().lower() for m in CROSSFIT_MOVEMENTS
+    }
 
     body = auth_client.get("/api/library", headers=KEY).json()
     names = {e["name"] for e in body["entries"]}
     assert "Thruster" in names
     assert {m["name"] for m in CROSSFIT_MOVEMENTS} <= names, "every CrossFit movement must still be listed"
-    assert len(body["entries"]) >= 73
+    assert len(body["entries"]) == len(expected_names)
 
 
 def test_create_then_read_back(auth_client):
@@ -87,6 +90,33 @@ def test_duplicate_name_case_insensitive_is_409(auth_client):
         json={"section": "Core", "name": "thruster", "metric": "reps"},
     )
     assert resp.status_code == 409
+
+
+def test_duplicate_name_unicode_case_insensitive_is_409(auth_client):
+    """SQLite's lower()/COLLATE NOCASE are ASCII-only. 'ĆWICZENIE' vs
+    'ćwiczenie' is the case that actually proves it: SQL lower('ĆWICZENIE')
+    returns 'Ćwiczenie' (only the ASCII letters fold; the leading Ć does
+    not), which does not equal 'ćwiczenie' — so this pair is rejected by
+    validate_library_write's Python-side check but would sail past a SQL
+    `lower(name) = lower(?)` comparison. (A pair like 'Podciąganie' /
+    'podciąganie' would NOT prove this: the only case-differing letter there
+    is the ASCII 'P', which SQL's lower() folds correctly on its own.)"""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "ĆWICZENIE", "metric": "reps"},
+    )
+    assert resp.status_code == 201
+    entry_id = resp.json()["id"]
+    try:
+        resp = auth_client.post(
+            "/api/library",
+            headers=KEY,
+            json={"section": "Core", "name": "ćwiczenie", "metric": "reps"},
+        )
+        assert resp.status_code == 409
+    finally:
+        auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
 
 def test_create_strips_name_and_rejects_blank(auth_client):
@@ -246,6 +276,25 @@ def test_patch_rename_collision_409(auth_client):
         resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"name": "Thruster"})
         assert resp.status_code == 409
         assert _get("Rename Collision Target") is not None
+    finally:
+        auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
+
+
+def test_patch_rename_collision_case_insensitive_409(auth_client):
+    """The rename-collision check must be case-insensitive, same as create's
+    dup check — a bare `name = ?` would let a PATCH rename onto a
+    case-variant of an existing name reach the DB's UNIQUE(name COLLATE
+    NOCASE) constraint directly (a 500), instead of this clean 409."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Rename Case Collision Target", "metric": "reps"},
+    )
+    entry_id = resp.json()["id"]
+    try:
+        resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"name": "thruster"})
+        assert resp.status_code == 409
+        assert _get("Rename Case Collision Target") is not None
     finally:
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
