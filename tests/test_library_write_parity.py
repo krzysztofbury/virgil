@@ -332,6 +332,36 @@ def test_rename_refused_when_training_history_exists_api(auth_client):
         _delete_training_exercise("Parity Snatch")
 
 
+def test_rename_refused_when_training_history_exists_case_insensitive_unicode(auth_client):
+    """The I2 guard matches the library row's CURRENT name against
+    training_exercises case-insensitively — SQL's lower() only folds ASCII,
+    so history logged under a non-ASCII case-variant of the library name
+    would slip past a `lower(name) = lower(?)` SQL comparison and let the
+    rename through, silently splitting the movement's history in two. Only
+    the leading letter's case differs here ('Ć' vs 'ć') — SQL lower('ĆWICZENIE')
+    is 'Ćwiczenie' (the accented letter is left untouched), which does not
+    equal lower('ćwiczenie'), so this pair specifically exercises the gap a
+    Python-side comparison is needed to close."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "ĆWICZENIE", "metric": "reps"},
+    )
+    entry_id = resp.json()["id"]
+    _insert_training_exercise("ćwiczenie")
+
+    try:
+        resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"name": "Cwiczenie Nowe"})
+        assert resp.status_code == 409, (
+            "a rename must be refused while training history exists, even under a non-ASCII case variant"
+        )
+        assert _row("ĆWICZENIE") is not None
+        assert _row("Cwiczenie Nowe") is None
+    finally:
+        _delete_row("ĆWICZENIE")
+        _delete_training_exercise("ćwiczenie")
+
+
 def test_rename_allowed_when_no_training_history_exists(auth_client):
     """Control: the I2 guard must only fire when training_exercises actually
     holds a matching row — a plain rename with no history must still work on

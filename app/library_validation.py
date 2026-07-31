@@ -139,6 +139,20 @@ async def _name_taken(db, name: str, exclude_id: int | None = None) -> bool:
     return any(r["name"].lower() == target for r in rows)
 
 
+async def _training_history_exists_for(db, name: str) -> bool:
+    """Case-insensitive, Unicode-aware check for training_exercises history
+    under `name` — same rationale as _name_taken(), same fix: SQL lower() is
+    ASCII-only, so a rename onto a non-ASCII case-variant of a name that
+    already has logged history (e.g. a Polish movement) would slip past a
+    `lower(name) = lower(?)` SQL comparison. This backs the I2 guard, whose
+    entire purpose is to catch exactly that rename before it splits the
+    movement's Personal Best/volume history across two rows.
+    """
+    rows = await db.execute_fetchall("SELECT name FROM training_exercises")
+    target = name.lower()
+    return any(r["name"].lower() == target for r in rows)
+
+
 async def validate_library_write(
     db,
     *,
@@ -225,11 +239,7 @@ async def validate_library_write(
                 # matches training_exercises by name, so the next WOD
                 # mentioning the new name would create a SECOND row and
                 # split the movement's Personal Best/volume history in two.
-                trained = await db.execute_fetchall(
-                    "SELECT id FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1",
-                    (existing["name"],),
-                )
-                if trained:
+                if await _training_history_exists_for(db, existing["name"]):
                     raise LibraryWriteError(
                         409,
                         f"cannot rename {existing['name']!r} — training history exists under "
