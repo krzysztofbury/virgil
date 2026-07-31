@@ -172,9 +172,16 @@ def test_update_changes_metric(auth_client):
     assert _row("Ski Erg Intervals")["metric"] == "time", "update must persist a changed metric, not ignore it"
 
 
-def test_add_rejects_invalid_metric_defaults_to_reps(auth_client):
+def test_add_rejects_invalid_metric(auth_client):
+    """I1 (2026-07-30 review): this used to assert the OPPOSITE — that an
+    invalid metric silently coerced to 'reps' and the row was created anyway.
+    That was ratifying a defect: app/routers/api.py rejects the identical
+    input with a 422, so the same bad value was garbage-in-silently-fixed on
+    one write surface and loudly refused on the other. Both surfaces now
+    share one policy (validate_library_write in app/library_validation.py):
+    an invalid metric must be refused, not coerced, on both."""
     token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
+    resp = auth_client.post(
         "/settings/library/add",
         data={
             "name": "Bogus Metric Move",
@@ -188,9 +195,8 @@ def test_add_rejects_invalid_metric_defaults_to_reps(auth_client):
         },
         follow_redirects=False,
     )
-    row = _row("Bogus Metric Move")
-    assert row is not None
-    assert row["metric"] == "reps", "an invalid metric must fall back to the safe default, not persist garbage"
+    assert "err=" in resp.headers["location"], "an invalid metric must be rejected loudly, not silently coerced"
+    assert _row("Bogus Metric Move") is None, "no row must be created for a rejected metric"
 
 
 def test_archive_hides_from_training_picker(auth_client):

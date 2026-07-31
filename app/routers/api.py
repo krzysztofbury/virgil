@@ -19,12 +19,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
-from app.library_validation import (
-    LIBRARY_METRICS,
-    clamp_library_sets,
-    normalize_library_text,
-    valid_library_metric,
-)
+from app.library_validation import LibraryWriteError, validate_library_write
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
@@ -435,30 +430,20 @@ async def api_noporn(
 
 
 # --- Exercise library: dictionary CRUD ---
-# Mirrors app/routers/settings.py's rules exactly (do not diverge): a builtin
-# row may be archived/unarchived but never otherwise edited or deleted — the
-# settings form silently no-ops that case, but an MCP client can't see a
-# redirect, so here it's a loud 409 instead.
+# Every write below routes through app/library_validation.py's
+# validate_library_write — the ONE place that decides accept/reject for this
+# table (I1, 2026-07-30 review). This router's only job is to translate a
+# LibraryWriteError into an HTTPException(exc.status, exc.message); settings.py
+# renders the identical decision as a `?err=` redirect instead. Do not
+# re-implement any of section/metric/duplicate/rename/builtin checks here —
+# that duplication is exactly how the two surfaces drifted apart before.
 #
 # CrossFit rows (category = 'CrossFit') are also the WOD parser's closed
 # prompt vocabulary (app/services/wod_parser.py:canonical_movements) — editing
-# or deleting one of those rows through these endpoints directly changes what
-# movements the parser is allowed to recognise in a future WOD note.
-
-_LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
-
-
-def _check_section(section: str) -> None:
-    if section not in _LIBRARY_SECTIONS:
-        raise HTTPException(
-            status_code=422, detail=f"section must be one of {'/'.join(_LIBRARY_SECTIONS)}, got {section!r}"
-        )
-
-
-def _check_metric(metric: str) -> None:
-    if not valid_library_metric(metric):
-        detail = f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}"
-        raise HTTPException(status_code=422, detail=detail)
+# section/metric or deleting one of those rows changes what movements the
+# parser is allowed to recognise in a future WOD note. Renaming does NOT
+# narrow that vocabulary (the parser reads whatever name is current) and may
+# now be refused outright — see validate_library_write's I2 rename guard.
 
 
 # extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
@@ -512,34 +497,36 @@ async def api_library_list(
 
 @router.post("/library", status_code=201)
 async def api_library_create(db: ApiDb, payload: LibraryCreate):
-    _check_section(payload.section)
-    _check_metric(payload.metric)
-    # Strip before truncating/deduping: settings.py's form handler does the same
-    # (library_add) — untrimmed whitespace would create a visually-identical
-    # second "Thruster " that both the picker and the WOD parser's closed
-    # vocabulary would treat as a distinct movement.
-    category = normalize_library_text(payload.category, 100)
-    name = normalize_library_text(payload.name, 100)
-    if not category or not name:
-        raise HTTPException(status_code=422, detail="category and name are required")
-    existing = await db.execute_fetchall(
-        "SELECT id FROM exercise_library WHERE category = ? AND name = ?", (category, name)
-    )
-    if existing:
-        raise HTTPException(status_code=409, detail=f"{name!r} already exists in category {category!r}")
+    try:
+        row = await validate_library_write(
+            db,
+            op="create",
+            category=payload.category,
+            fields={
+                "name": payload.name,
+                "section": payload.section,
+                "sets": payload.sets,
+                "reps": payload.reps,
+                "notes": payload.notes,
+                "metric": payload.metric,
+            },
+        )
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
     order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) AS m FROM exercise_library")
     cursor = await db.execute(
         "INSERT INTO exercise_library (category, section, name, sets, reps, notes, display_order, metric, builtin) "
         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
         (
-            category,
-            payload.section,
-            name,
-            clamp_library_sets(payload.sets),
-            normalize_library_text(payload.reps, 100),
-            normalize_library_text(payload.notes, 300),
+            row["category"],
+            row["section"],
+            row["name"],
+            row["sets"],
+            row["reps"],
+            row["notes"],
             (order_row[0]["m"] if order_row else 0) + 1,
-            payload.metric,
+            row["metric"],
         ),
     )
     await db.commit()
@@ -551,60 +538,36 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
     rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
     if not rows:
         raise HTTPException(status_code=404, detail=f"library entry {entry_id} not found")
-    row = rows[0]
+    existing = dict(rows[0])
 
     fields = payload.model_dump(exclude_none=True)
-    # Mirrors settings.py: a builtin row may be archived but never re-shaped.
-    if row["builtin"] and set(fields) - {"archived"}:
-        raise HTTPException(status_code=409, detail=f"library entry {entry_id} is builtin — only 'archived' can change")
     if not fields:
         return {"id": entry_id, "updated": []}
-    if "archived" in fields:
-        # Mirrors settings.py's library_archive: coerce to 0/1. `archived` is the
-        # one field a builtin row's guard above lets through, so left uncoerced
-        # it is the one way to park an out-of-domain value (e.g. 99) on a
-        # protected row — invisible to `archived = 0` filters, never matched by
-        # `archived = 1` ones either.
-        fields["archived"] = 1 if fields["archived"] else 0
-    if "section" in fields:
-        _check_section(fields["section"])
-    if "metric" in fields:
-        _check_metric(fields["metric"])
-    if "sets" in fields:
-        fields["sets"] = clamp_library_sets(fields["sets"])
-    if "name" in fields:
-        fields["name"] = normalize_library_text(fields["name"], 100)
-        if not fields["name"]:
-            raise HTTPException(status_code=422, detail="name cannot be blank")
-        clash = await db.execute_fetchall(
-            "SELECT id FROM exercise_library WHERE category = ? AND name = ? AND id != ?",
-            (row["category"], fields["name"], entry_id),
-        )
-        if clash:
-            raise HTTPException(
-                status_code=409, detail=f"{fields['name']!r} already exists in category {row['category']!r}"
-            )
-    if "reps" in fields:
-        fields["reps"] = normalize_library_text(fields["reps"], 100)
-    if "notes" in fields:
-        fields["notes"] = normalize_library_text(fields["notes"], 300)
 
-    assignments = ", ".join(f"{k} = ?" for k in fields)
+    try:
+        result = await validate_library_write(db, op="update", entry_id=entry_id, existing=existing, fields=fields)
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
+    assignments = ", ".join(f"{k} = ?" for k in result)
     await db.execute(
-        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are LibraryPatch's own
-        # fields (extra="forbid" above), never attacker-controlled column names.
-        [*fields.values(), entry_id],
+        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys come from
+        # validate_library_write's fixed key set (itself built from LibraryPatch's extra="forbid"
+        # fields above), never attacker-controlled column names.
+        [*result.values(), entry_id],
     )
     await db.commit()
-    return {"id": entry_id, "updated": sorted(fields)}
+    return {"id": entry_id, "updated": sorted(result)}
 
 
 @router.delete("/library/{entry_id}", status_code=204)
 async def api_library_delete(db: ApiDb, entry_id: int):
-    rows = await db.execute_fetchall("SELECT builtin FROM exercise_library WHERE id = ?", (entry_id,))
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
     if not rows:
         raise HTTPException(status_code=404, detail=f"library entry {entry_id} not found")
-    if rows[0]["builtin"]:
-        raise HTTPException(status_code=409, detail=f"library entry {entry_id} is builtin — archive it instead")
+    try:
+        await validate_library_write(db, op="delete", entry_id=entry_id, existing=dict(rows[0]))
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
     await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
     await db.commit()
