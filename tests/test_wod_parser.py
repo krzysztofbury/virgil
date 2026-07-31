@@ -159,3 +159,41 @@ def test_container_type_guard_prevents_string_iteration(monkeypatch):
     result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "anything"))
     assert result.entries == []
     assert result.unmatched == []
+
+
+def test_vocabulary_bound_is_enforced(monkeypatch):
+    """I5 reproduction: canonical_movements() had no LIMIT and no count check,
+    and parse_wod concatenates every row into the system prompt unchecked.
+    POST /api/library is agent-callable — an agent looping on add_exercise is
+    exactly what an MCP-writable dictionary invites — and the cost of an
+    unbounded vocabulary is paid on every subsequent parse until the prompt
+    breaks the model's context window. This must now fail loudly instead of
+    silently growing the prompt forever.
+    """
+    oversized_library = [
+        {"name": f"Movement {i}", "section": "Core", "metric": "reps"}
+        for i in range(wod_parser.MAX_LIBRARY_MOVEMENTS + 1)
+    ]
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        # Must never be reached: canonical_movements() should raise before
+        # parse_wod gets this far. Deliberately worded without "vocabulary" or
+        # a row count, so this can't accidentally satisfy the match= below for
+        # the wrong reason if the real bound check is removed.
+        raise AssertionError("the LLM stub fired — the precondition check should have failed first")
+
+    monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+    with pytest.raises(AssertionError, match=r"has grown to 501 rows \(max 500\)"):
+        asyncio.run(wod_parser.parse_wod(_FakeDB(oversized_library), "anything"))
+
+
+def test_vocabulary_at_the_bound_is_accepted(monkeypatch):
+    """The bound must not be off-by-one in the wrong direction: exactly
+    MAX_LIBRARY_MOVEMENTS rows must still parse normally."""
+    library_at_bound = [
+        {"name": f"Movement {i}", "section": "Core", "metric": "reps"} for i in range(wod_parser.MAX_LIBRARY_MOVEMENTS)
+    ]
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": []})
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(library_at_bound), "anything"))
+    assert result.entries == []
+    assert result.unmatched == []

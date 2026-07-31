@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 
 MAX_WOD_CHARS = 4000
 
+# The vocabulary is concatenated whole into the system prompt (see
+# parse_wod below) — with no LIMIT and no count check, it grows unbounded:
+# POST /api/library is agent-callable (an agent looping on add_exercise is
+# exactly what an MCP-writable dictionary invites), and every extra row is
+# paid for on every subsequent parse until the prompt breaks the model's
+# context window and the feature degrades to permanent parse_error. The
+# user has 31 rows today; 500 is a generous ceiling that still fails loudly
+# well before that happens.
+MAX_LIBRARY_MOVEMENTS = 500
+
 _SYSTEM_PROMPT = """You extract structured training data from a short, messy \
 note a CrossFit athlete wrote from memory after a session. The note may be in \
 Polish or English and may mix both.
@@ -65,7 +75,13 @@ async def canonical_movements(db) -> list[dict]:
         "SELECT name, section, metric FROM exercise_library "
         "WHERE category = 'CrossFit' AND archived = 0 ORDER BY display_order"
     )
-    return [dict(r) for r in rows]
+    movements = [dict(r) for r in rows]
+    assert len(movements) <= MAX_LIBRARY_MOVEMENTS, (
+        f"CrossFit movement vocabulary has grown to {len(movements)} rows "
+        f"(max {MAX_LIBRARY_MOVEMENTS}) — prune exercise_library before the WOD "
+        "parser's system prompt grows any further"
+    )
+    return movements
 
 
 def _coerce(value, caster):
