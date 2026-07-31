@@ -426,6 +426,27 @@ def test_patch_replaces_tags(auth_client):
     assert "Sled Push" not in {e["name"] for e in body["entries"]}
 
 
+def test_patch_without_tags_field_leaves_existing_tags_alone(auth_client):
+    """Absence of `tags` in a PATCH body must mean 'leave them', never 'clear them'.
+    api_library_patch's `fields.pop("tags", None)` vs `fields.pop("tags", [])` is the
+    entire difference between those two outcomes -- a PATCH that never mentions tags
+    at all must not silently wipe them."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Tag Survival Target", "metric": "reps", "tags": ["kettlebell"]},
+    )
+    entry_id = resp.json()["id"]
+    try:
+        assert auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"notes": "x"}).status_code == 200
+        body = auth_client.get("/api/library", headers=KEY, params={"tag": "kettlebell"}).json()
+        assert "Tag Survival Target" in {e["name"] for e in body["entries"]}, (
+            "a PATCH that doesn't mention tags must not wipe them"
+        )
+    finally:
+        auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
+
+
 def test_builtin_row_can_be_tagged(auth_client):
     """builtin protects name/section/metric, never tags."""
     row = _get("Goblet Squat")
@@ -433,12 +454,81 @@ def test_builtin_row_can_be_tagged(auth_client):
     assert auth_client.patch(f"/api/library/{row['id']}", headers=KEY, json={"tags": ["kettlebell"]}).status_code == 200
     body = auth_client.get("/api/library", headers=KEY, params={"tag": "kettlebell"}).json()
     assert "Goblet Squat" in {e["name"] for e in body["entries"]}
+    resp = auth_client.patch(f"/api/library/{row['id']}", headers=KEY, json={"name": "Hacked Squat"})
+    assert resp.status_code == 409, "builtin still refuses name/section/metric changes, even after a tag edit"
+
+
+def test_tag_filter_is_case_insensitive(auth_client):
+    """?tag= must be normalised the same way a write is -- a caller filtering with
+    different case than how the tag was stored (tags are always stored lowercased)
+    must still match."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Case Filter Target", "metric": "reps", "tags": ["kettlebell"]},
+    )
+    entry_id = resp.json()["id"]
+    try:
+        body = auth_client.get("/api/library", headers=KEY, params={"tag": "Kettlebell"}).json()
+        assert "Case Filter Target" in {e["name"] for e in body["entries"]}
+    finally:
+        auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
+
+
+def test_tags_by_library_id_sorts_regardless_of_row_order():
+    """_tags_by_library_id's `sorted()` is unreachable through the real API/DB path:
+    exercise_library_tags's composite PRIMARY KEY (library_id, tag) makes SQLite
+    satisfy `WHERE library_id IN (...)` with a covering-index scan over that same
+    (library_id, tag) index (confirmed with EXPLAIN QUERY PLAN), which hands back
+    rows already ordered by tag -- so a real-DB test inserting tags in any order
+    still gets them back sorted with or without this function's own sort. This
+    test stubs the db dependency to hand back genuinely out-of-order rows, so it
+    exercises `sorted()` itself rather than SQLite's incidental ordering."""
+    import asyncio
+
+    from app.routers.api import _tags_by_library_id
+
+    class FakeDb:
+        async def execute_fetchall(self, sql, params):
+            return [
+                {"library_id": 1, "tag": "zeta"},
+                {"library_id": 1, "tag": "alpha"},
+                {"library_id": 1, "tag": "mid"},
+            ]
+
+    result = asyncio.run(_tags_by_library_id(FakeDb(), [1]))
+    assert result == {1: ["alpha", "mid", "zeta"]}
+
+
+def test_patch_with_invalid_tag_applies_no_field(auth_client):
+    """A rejected tag must not let another field in the same PATCH slip through --
+    same invariant test_patch_rejects_unknown_field pins for an unknown field, now for
+    a validation failure that happens AFTER the SQL-column fields already validated
+    (tags normalise, and can therefore still reject, after `result` is computed)."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "Partial Patch Target", "metric": "reps"},
+    )
+    entry_id = resp.json()["id"]
+    try:
+        resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"notes": "ok", "tags": ["!!!"]})
+        assert resp.status_code == 422
+        assert _get("Partial Patch Target")["notes"] == "", "a rejected PATCH must not partially apply"
+    finally:
+        auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
 
 def test_duplicate_name_is_409_regardless_of_tags(auth_client):
+    """Beyond the plain 409 (test_duplicate_name_is_409 already covers that): a
+    rejected duplicate create must not leak its tags onto the row it collided with --
+    duplicate detection runs on `name` alone, before tags are ever normalised or
+    written, so a successful attacker-style contamination would be a distinct bug."""
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
         json={"section": "Core", "name": "Thruster", "metric": "reps", "tags": ["whatever"]},
     )
     assert resp.status_code == 409, "names are unique library-wide now"
+    body = auth_client.get("/api/library", headers=KEY, params={"tag": "whatever"}).json()
+    assert body["entries"] == [], "a rejected duplicate must not attach its tags to the existing row"
