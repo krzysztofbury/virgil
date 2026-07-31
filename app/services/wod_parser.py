@@ -1,8 +1,9 @@
 """Parse a free-text WOD note into structured training entries.
 
 The user writes one messy line from memory after training; an LLM turns it into
-entries. The model is constrained to the CrossFit movement vocabulary held in
-exercise_library — without a closed list it invents 'Thruster', 'thrusters' and
+entries. The model is constrained to the movement vocabulary held in
+exercise_library — every non-archived row, not just the ones labelled
+'CrossFit' — without a closed list it invents 'Thruster', 'thrusters' and
 'Thruster 43kg' as three movements and the catalogue rots within a month.
 
 Anything the model returns outside that vocabulary is reported as unmatched
@@ -24,8 +25,9 @@ MAX_WOD_CHARS = 4000
 # exactly what an MCP-writable dictionary invites), and every extra row is
 # paid for on every subsequent parse until the prompt breaks the model's
 # context window and the feature degrades to permanent parse_error. The
-# user has 31 rows today; 500 is a generous ceiling that still fails loudly
-# well before that happens.
+# user has 77 non-archived exercise_library rows today, 73 once the 4
+# same-name duplicates across categories collapse; 500 is a generous
+# ceiling that still fails loudly well before that happens.
 MAX_LIBRARY_MOVEMENTS = 500
 
 _SYSTEM_PROMPT = """You extract structured training data from a short, messy \
@@ -70,14 +72,50 @@ class ParsedWod:
 
 
 async def canonical_movements(db) -> list[dict]:
-    """The closed vocabulary: active CrossFit rows from the exercise library."""
+    """The closed vocabulary: every active exercise_library row, deduped by name.
+
+    Category organises the Settings picker; it does not gate what the parser
+    may recognise. exercise_library as a whole — Warmup, Stretching, Gym
+    classics, Kettlebell, ... not just CrossFit — is the user's curated
+    dictionary, and a warm-up or a barbell lift the user actually logs
+    deserves the same closed-vocabulary treatment a CrossFit movement gets.
+
+    UNIQUE on exercise_library is (category, name), not (name) — a name can
+    exist under two categories. Four do today: Back Squat, Bench Press,
+    Deadlift (Gym classics + CrossFit) and Pull-up (Workout B + CrossFit).
+    Both rows happen to be (section, metric)-identical today, but the
+    vocabulary must not depend on that being true forever, so a duplicate is
+    resolved by an explicit, deterministic rule rather than "whichever the
+    query happened to return first": prefer the CrossFit row; otherwise the
+    lowest display_order. CrossFit rows carry a `metric` seeded explicitly
+    (migration 016); older rows had theirs derived by migration 011 from the
+    rep-spec string — if a future duplicate ever disagrees (say a `Row`
+    seeded metric='time' under CrossFit and another `Row` derived as 'reps'
+    elsewhere), picking arbitrarily would silently mis-type the movement and
+    feed erg strokes into the weekly rep count. The ORDER BY below sorts a
+    duplicate's CrossFit row first and breaks remaining ties by
+    display_order, so keeping only the first row seen per lower(name)
+    implements the tie-break. resolve_movement() in wod_movements.py uses the
+    identical ORDER BY — both must agree, or a movement resolves to a
+    different section/metric depending on which one is asked.
+    """
     rows = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library "
-        "WHERE category = 'CrossFit' AND archived = 0 ORDER BY display_order"
+        "WHERE archived = 0 "
+        "ORDER BY (category != 'CrossFit'), display_order"
     )
-    movements = [dict(r) for r in rows]
+    seen: set[str] = set()
+    movements: list[dict] = []
+    for r in rows:
+        row = dict(r)
+        key = row["name"].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        movements.append(row)
+
     assert len(movements) <= MAX_LIBRARY_MOVEMENTS, (
-        f"CrossFit movement vocabulary has grown to {len(movements)} rows "
+        f"movement vocabulary has grown to {len(movements)} rows "
         f"(max {MAX_LIBRARY_MOVEMENTS}) — prune exercise_library before the WOD "
         "parser's system prompt grows any further"
     )

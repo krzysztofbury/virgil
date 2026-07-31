@@ -209,10 +209,16 @@ after training and let it be parsed:
   correctable; your own words are the source of truth. A parser failure — no
   provider configured, a timeout, a garbled reply, even a crash — costs you the
   structure, never the record.
-- **The parser is confined to a closed movement vocabulary** (`exercise_library`,
-  category `CrossFit`). A movement outside it is reported as unrecognised, never
+- **The parser is confined to a closed movement vocabulary: every non-archived
+  row in `exercise_library`**, not just the ones categorised `CrossFit` — a
+  session's warm-up and stretching are movements you likely already have in
+  the library under other categories, and the closed list covers them the
+  same way. A movement outside it is reported as unrecognised, never
   invented — this is what stops the catalogue filling with `Thruster`,
-  `thrusters` and `Thruster 43kg` as three separate exercises.
+  `thrusters` and `Thruster 43kg` as three separate exercises. A name that
+  exists under two categories (e.g. `Back Squat` in both Gym classics and
+  CrossFit) resolves deterministically: the CrossFit row wins, otherwise the
+  lowest `display_order`.
 - **Nothing is written until you confirm.** The confirmation screen is editable:
   fix a misread weight, skip an entry you did not mean to log, or assign an
   unrecognised movement from a dropdown. Refreshing it never re-invokes the LLM

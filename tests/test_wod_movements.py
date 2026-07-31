@@ -175,3 +175,95 @@ def test_unknown_movement_creates_nothing(tmp_path):
             await db.close()
 
     asyncio.run(run())
+
+
+def test_non_crossfit_library_row_is_resolvable(tmp_path):
+    """The category filter used to gate this lookup the same way it gated
+    canonical_movements()'s vocabulary — a Warmup/Stretching/Gym-classics/
+    Kettlebell row could never be created via a WOD even once the parser was
+    allowed to name it. Both must agree, or the parser proposes a movement
+    that then silently fails to resolve."""
+
+    async def run():
+        db = await _db(tmp_path)
+        try:
+            await db.execute(
+                "INSERT INTO exercise_library (category, section, name, metric, builtin) "
+                "VALUES ('Warmup', 'Warmup', 'Band Pull-apart', 'reps', 0)"
+            )
+            await db.commit()
+            ex_id = await resolve_movement(db, "Band Pull-apart")
+            assert ex_id is not None, "a non-CrossFit library row must now resolve"
+            rows = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (ex_id,))
+            assert rows[0]["section"] == "Warmup"
+            assert rows[0]["metric"] == "reps"
+            assert rows[0]["ad_hoc"] == 1
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
+async def _db_with_duplicate_names(tmp_path):
+    """Same schema as _db(), but seeded with a name duplicated across two
+    categories instead of the single-category CrossFit rows _db() uses."""
+    db = await aiosqlite.connect(tmp_path / "dup.db")
+    db.row_factory = aiosqlite.Row
+    await db.execute(
+        """CREATE TABLE training_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            section TEXT NOT NULL,
+            target_sets INTEGER,
+            target_reps TEXT,
+            notes TEXT DEFAULT '',
+            display_order INTEGER DEFAULT 0,
+            metric TEXT NOT NULL DEFAULT 'reps',
+            archived INTEGER NOT NULL DEFAULT 0,
+            ad_hoc INTEGER NOT NULL DEFAULT 0
+        )"""
+    )
+    await db.execute(
+        """CREATE TABLE exercise_library (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            category TEXT NOT NULL,
+            section TEXT NOT NULL,
+            name TEXT NOT NULL,
+            sets INTEGER,
+            reps TEXT DEFAULT '',
+            notes TEXT DEFAULT '',
+            display_order INTEGER DEFAULT 0,
+            metric TEXT NOT NULL DEFAULT 'reps',
+            builtin INTEGER NOT NULL DEFAULT 0,
+            archived INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(category, name)
+        )"""
+    )
+    # Gym classics carries the lower display_order but a different
+    # section/metric than CrossFit — a wrong tie-break would resolve the
+    # movement to the wrong section/metric, exactly the class of defect
+    # already fixed in training.py's picker path (B3).
+    await db.execute(
+        "INSERT INTO exercise_library (category, section, name, display_order, metric, builtin) "
+        "VALUES ('Gym classics', 'Warmup', 'Back Squat', 1, 'time', 0)"
+    )
+    await db.execute(
+        "INSERT INTO exercise_library (category, section, name, display_order, metric, builtin) "
+        "VALUES ('CrossFit', 'Core', 'Back Squat', 50, 'reps', 0)"
+    )
+    await db.commit()
+    return db
+
+
+def test_duplicate_name_resolves_to_the_crossfit_rows_section_and_metric(tmp_path):
+    async def run():
+        db = await _db_with_duplicate_names(tmp_path)
+        try:
+            ex_id = await resolve_movement(db, "Back Squat")
+            rows = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (ex_id,))
+            assert rows[0]["section"] == "Core", "must take the CrossFit row's section, not Gym classics'"
+            assert rows[0]["metric"] == "reps", "must take the CrossFit row's metric, not Gym classics'"
+        finally:
+            await db.close()
+
+    asyncio.run(run())
