@@ -51,3 +51,24 @@ def test_exercise_library_picker_carries_metric_to_the_hidden_field(auth_client)
     # seeded with metric='time' — its picker <option> JSON must carry that
     # through as "t": "time", not omit the key.
     assert '"t": "time"' in resp.text, "the picker option JSON must carry the library row's real metric"
+
+
+def test_picker_renders_each_movement_exactly_once(auth_client):
+    """A movement carrying two tags used to appear under each category optgroup.
+
+    Asserts == 1, not <= 1: a picker that stopped rendering movements
+    altogether would satisfy <= 1 and the test would pass while the feature
+    was gone.
+    """
+    page = auth_client.get("/training").text
+    protocol = page.split("Personal Bests")[0]
+    assert protocol.count(">Back Squat<") == 1, "exactly one option per movement, tags notwithstanding"
+
+
+def test_picker_exposes_tag_filter_chips(auth_client):
+    """Assert on the chip's own markup, not on the bare word: 'crossfit'
+    appears elsewhere on the page regardless of whether a chip rendered.
+    """
+    page = auth_client.get("/training").text
+    assert 'data-tag-filter="crossfit"' in page, "a chip must render for a tag present in the section"
+    assert "data-tags=" in page, "options must carry their tags for the filter to act on"

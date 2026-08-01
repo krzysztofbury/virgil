@@ -80,13 +80,26 @@
                 <input type="hidden" name="section" value="{{ section_name }}">
                 <input type="hidden" name="metric" value="reps">
                 {% set lib = exercise_library | selectattr("section", "equalto", section_name) | sort(attribute="name") %}
+                {% set section_tags = lib | map(attribute="tags") | sum(start=[]) | unique | sort %}
                 {% if lib %}
-                <label class="ex-field">
+                <label class="ex-field" x-data="exercisePicker()">
                     <span>From library</span>
+                    {% if section_tags %}
+                    <div class="tag-filter-chips" style="margin-bottom:0.35rem;display:flex;flex-wrap:wrap;gap:0.3rem;">
+                        {% for t in section_tags %}
+                        <button type="button" class="btn btn-sm btn-outline" data-tag-filter="{{ t }}"
+                                :class="{ 'btn-primary': activeTag === '{{ t }}' }"
+                                style="font-size:0.65rem;padding:0.15rem 0.4rem;"
+                                @click="toggle('{{ t }}')">{{ t }}</button>
+                        {% endfor %}
+                    </div>
+                    {% endif %}
                     <select onchange="if(this.value){var d=JSON.parse(this.value);var f=this.form;f.name.value=d.n;f.target_sets.value=d.s;f.target_reps.value=d.r;f.notes.value=d.o||'';f.metric.value=d.t||'reps';}">
                         <option value="">Pick an exercise — fills the fields below</option>
                         {% for it in lib %}
-                        <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes, "t": it.metric} | tojson }}'>{{ it.name }}</option>
+                        <option value='{{ {"n": it.name, "s": it.sets, "r": it.reps, "o": it.notes, "t": it.metric} | tojson }}'
+                                data-tags="{{ it.tags | join(',') }}"
+                                :hidden="activeTag && !tagMatches($el)">{{ it.name }}</option>
                         {% endfor %}
                     </select>
                 </label>
@@ -339,6 +352,22 @@
 
 {% block scripts %}
 <script>
+// Client-side tag filter for the "From library" picker. The chips never
+// touch the server — they only toggle which <option>s are hidden, so the
+// onchange JSON payload (n/s/r/o/t) that fills the form is untouched.
+function exercisePicker() {
+    return {
+        activeTag: '',
+        toggle(tag) {
+            this.activeTag = (this.activeTag === tag) ? '' : tag;
+        },
+        tagMatches(el) {
+            const tags = (el.dataset.tags || '').split(',').filter(Boolean);
+            return tags.includes(this.activeTag);
+        }
+    };
+}
+
 function restTimer() {
     return {
         seconds: 0,
