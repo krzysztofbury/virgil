@@ -1135,49 +1135,47 @@ def test_missing_entry_count_reports_the_right_cause(auth_client, monkeypatch):
     assert pending, "a rejected submission must leave the parse armed"
 
 
-def test_discard_does_not_touch_an_already_settled_session(auth_client, monkeypatch):
-    """Discard was an unconditional UPDATE on whatever id it was handed.
+def test_discard_on_a_settled_session_is_a_logged_no_op(auth_client, monkeypatch, caplog):
+    """Discard is conditioned like the consume, and reports when it matched nothing.
 
-    A stale tab or a bfcache resubmission carrying an old session_id would clear
-    a parse the user never looked at, silently, behind a success redirect.
+    An earlier version of this test claimed the condition stopped a stale tab
+    from clobbering a *different* session. That was wrong: `WHERE id = ?` already
+    scopes to one row, so removing `AND wod_parsed IS NOT NULL` changed no
+    observable behaviour and the test could not fail — a mutation proved it.
+
+    What the condition actually buys is the rowcount signal: "discarded a pending
+    parse" and "matched nothing" stop being indistinguishable successes. That is
+    what this pins.
     """
     _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
     token = csrf_token(auth_client, "/training")
-
     auth_client.post(
         "/training/wod",
-        data={"date": "2026-07-18", "wod_text": "ZZ bystander session", "_csrf_token": token},
+        data={"date": date.today().isoformat(), "wod_text": "ZZ discard no-op probe", "_csrf_token": token},
     )
-    bystander = _sessions()[0]["id"]
-    bystander_parse = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (bystander,))[0]["wod_parsed"]
-    assert bystander_parse, "precondition: the bystander starts armed"
+    session_id = _sessions()[0]["id"]
 
-    # Settle it, then replay discard against the same id — the stale-tab shape.
-    auth_client.post(
-        "/training/wod/confirm",
-        data={"_csrf_token": token, "session_id": str(bystander), "entry_count": "0", "action": "discard"},
-        follow_redirects=False,
-    )
-    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (bystander,))[0]["wod_parsed"] is None
+    def discard():
+        return auth_client.post(
+            "/training/wod/confirm",
+            data={"_csrf_token": token, "session_id": str(session_id), "entry_count": "0", "action": "discard"},
+            follow_redirects=False,
+        )
 
-    # Re-arm it the way a fresh capture would, then confirm a replayed discard
-    # for a DIFFERENT, already-settled id leaves it alone.
-    conn = sqlite3.connect(user_db_path())
-    try:
-        conn.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (bystander_parse, bystander))
-        conn.commit()
-    finally:
-        conn.close()
+    # First discard: a real one. Must not log a no-match.
+    with caplog.at_level("WARNING", logger="app.routers.training"):
+        caplog.clear()
+        assert discard().headers["location"] == "/training"
+        assert "matched nothing" not in caplog.text, "a discard that consumed a parse is not a no-match"
+    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"] is None
 
-    settled = _query("SELECT id FROM training_sessions WHERE wod_parsed IS NULL ORDER BY id DESC LIMIT 1")[0]["id"]
-    auth_client.post(
-        "/training/wod/confirm",
-        data={"_csrf_token": token, "session_id": str(settled), "entry_count": "0", "action": "discard"},
-        follow_redirects=False,
-    )
-    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (bystander,))[0]["wod_parsed"], (
-        "discarding one session must not disturb another"
-    )
+    # Replay against the now-settled session: same 303, but reported as a no-match.
+    with caplog.at_level("WARNING", logger="app.routers.training"):
+        caplog.clear()
+        assert discard().headers["location"] == "/training"
+        assert "matched nothing" in caplog.text, (
+            "discarding an already-settled session must be distinguishable from discarding a pending parse"
+        )
 
 
 @pytest.mark.parametrize("stored", ["not-json{{{", "null", "[]", "123", '"x"'])
