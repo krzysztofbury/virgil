@@ -241,6 +241,41 @@ def test_update_can_tag_a_builtin_row(auth_client):
     assert "mobility" in tags, "builtin must not block tag writes"
 
 
+def test_update_rejects_combined_name_and_tags_change_on_builtin_row(auth_client):
+    """Tags are not gated by builtin on their own, but a request that ALSO
+    touches a frozen field (name here) on the same builtin row must be
+    rejected wholesale — neither half may land. `fields` (which still
+    contains `name`) reaches validate_library_write's builtin guard exactly
+    as it does for a name-only update; that guard raises and the function
+    returns before the tags branch ever runs, so a request mixing a frozen
+    field with `tags` is refused in full, not partially applied."""
+    builtin = _any_builtin_id()
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/update",
+        data={
+            "entry_id": str(builtin["id"]),
+            "name": "Hacked Builtin Combo",
+            "tags": "sneaky-combo",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    conn = sqlite3.connect(user_db_path())
+    try:
+        current_name = conn.execute("SELECT name FROM exercise_library WHERE id = ?", (builtin["id"],)).fetchone()[0]
+        tags = [
+            r[0]
+            for r in conn.execute(
+                "SELECT tag FROM exercise_library_tags WHERE library_id = ? ORDER BY tag", (builtin["id"],)
+            )
+        ]
+    finally:
+        conn.close()
+    assert current_name == builtin["name"], "a rejected combined update must not rename the builtin row"
+    assert "sneaky-combo" not in tags, "a rejected combined update must not apply the tags half either"
+
+
 def test_update_without_tags_field_leaves_existing_tags_alone(auth_client):
     """A settings-form update that never mentions `tags` (e.g. editing notes
     only) must not wipe the row's existing tag set — same "omitted means

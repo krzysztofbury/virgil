@@ -208,10 +208,14 @@ async def library_update(
     notes: str | None = Form(None),
     metric: str | None = Form(None),
     # Tags live in exercise_library_tags, outside validate_library_write's
-    # scope entirely — never gated by builtin (unlike every field above).
-    # Same contract as the REST PATCH endpoint: None (absent) leaves tags
-    # untouched, "" (present but blank) clears them, anything else replaces
-    # the whole set.
+    # scope entirely — never gated by builtin ON THEIR OWN (unlike every
+    # field above). But `fields` above still reaches validate_library_write
+    # unconditionally, so a POST that mixes `tags` with one of those frozen
+    # fields on a builtin row is refused in full below (the tags never land
+    # either) — tag a builtin row in its own request, never together with a
+    # name/section/sets/reps/notes/metric edit. Same contract as the REST
+    # PATCH endpoint: None (absent) leaves tags untouched, "" (present but
+    # blank) clears them, anything else replaces the whole set.
     tags: str | None = Form(None),
 ):
     from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
@@ -253,10 +257,15 @@ async def library_update(
             [*result.values(), entry_id],
         )
 
-    # Tags bypass the builtin guard entirely — never routed through `fields`/
-    # validate_library_write above, so a builtin row can have its tags
-    # changed even though name/section/metric/sets/reps/notes on it stayed
-    # frozen. Same replace-the-whole-set semantics as api.py's PATCH.
+    # Tags themselves bypass the builtin guard — never routed through
+    # `fields`/validate_library_write above, so a builtin row accepts a
+    # tags-ONLY update even though name/section/metric/sets/reps/notes on it
+    # stay frozen. That guard is still all-or-nothing per request, though:
+    # if `fields` was non-empty and the row builtin, validate_library_write
+    # above already raised and returned before this line — so a request
+    # combining `tags` with one of those frozen fields never reaches here,
+    # and the tags don't land either. Same replace-the-whole-set semantics,
+    # and the same combined-request rejection, as api.py's PATCH.
     if tags is not None:
         try:
             tag_list = normalize_tags(tags)

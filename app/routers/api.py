@@ -448,8 +448,13 @@ async def api_noporn(
 # Tags live in exercise_library_tags, not in exercise_library, and are
 # deliberately OUTSIDE validate_library_write's scope: they're free-form
 # labels, not identity/vocabulary fields, so unlike name/section/metric they
-# are never gated by `builtin` — a builtin row can always have its tags
-# changed even though every other field on it is frozen.
+# are never THEMSELVES gated by `builtin` — a builtin row always accepts a
+# tags-only change. That guard is still all-or-nothing per request, though:
+# the rest of the payload (everything but `tags`) still reaches
+# validate_library_write, so a PATCH that mixes `tags` with any frozen field
+# (name/section/metric/reps/notes/sets) on a builtin row is refused in full
+# — the tags never land either. Tag a builtin row in its own request, never
+# combined with an edit to one of those fields.
 
 
 # extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
@@ -584,10 +589,15 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
     existing = dict(rows[0])
 
     fields = payload.model_dump(exclude_none=True)
-    # Tags live in a separate join table, are never gated by `builtin` (unlike
-    # every other field validate_library_write guards), and PATCH's semantics
-    # for them are "replace the whole set", not "merge" — so they're peeled
-    # off before `fields` ever reaches validate_library_write.
+    # Tags live in a separate join table and are never THEMSELVES gated by
+    # `builtin` — popping `tags_raw` out here means a tags-only PATCH never
+    # reaches validate_library_write's builtin guard at all. But `fields`
+    # (whatever else was in the payload) still does: if it's non-empty and
+    # the row is builtin, validate_library_write raises below before the
+    # tags branch further down ever runs — so a PATCH combining `tags` with
+    # a frozen field is rejected wholesale, tags included, not just the
+    # frozen field. PATCH's semantics for tags, once they DO land, are
+    # "replace the whole set", not "merge".
     tags_raw = fields.pop("tags", None)
     if not fields and tags_raw is None:
         return {"id": entry_id, "updated": []}

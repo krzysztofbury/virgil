@@ -217,7 +217,11 @@ def update_exercise(
     you pass change; `tags`, when passed, REPLACES the entry's whole tag set (not a
     merge) and is normalised the same way add_exercise's are. A builtin entry accepts
     tag changes but refuses everything else (name/section/metric/reps/notes/sets) with
-    a 409 — `archived` and `tags` are the only fields a builtin row lets through.
+    a 409 — `archived` and `tags` are the only fields a builtin row lets through, and
+    only when the call carries NOTHING else: a call that mixes `tags` (or `archived`)
+    with any of the frozen fields on a builtin entry still 409s, and the tags do NOT
+    land either — the whole call is rejected together, never partially applied. Change
+    a builtin entry's tags in their own call, separate from any other field.
     Changing `section`/`metric` on a movement tagged 'crossfit' narrows what the WOD
     parser is allowed to recognise. Renaming (`name`) does NOT narrow that vocabulary —
     the parser just reads whatever name is current — but is refused with a 409 if any

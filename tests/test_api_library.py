@@ -458,6 +458,27 @@ def test_builtin_row_can_be_tagged(auth_client):
     assert resp.status_code == 409, "builtin still refuses name/section/metric changes, even after a tag edit"
 
 
+def test_patch_rejects_combined_guarded_field_and_tags_on_builtin_row(auth_client):
+    """Tags are not gated by builtin on their own (test_builtin_row_can_be_tagged above),
+    but a PATCH that ALSO touches a frozen field (name here) on the same builtin row must
+    be rejected wholesale — neither half may land. `fields` (which still contains `name`
+    after `tags` is popped out) reaches validate_library_write's builtin guard exactly as
+    it would for a name-only PATCH; that guard raises before the tags branch further down
+    ever runs, so mixing `tags` into the same request as a frozen field is refused in
+    full, not partially applied. Same ordering as the settings form's library_update."""
+    row = _get("Goblet Squat")
+    resp = auth_client.patch(
+        f"/api/library/{row['id']}",
+        headers=KEY,
+        json={"name": "Hacked Combo Squat", "tags": ["sneaky-combo"]},
+    )
+    assert resp.status_code == 409
+    assert _get("Goblet Squat") is not None, "name must not change on a rejected combined PATCH"
+    assert _get("Hacked Combo Squat") is None
+    body = auth_client.get("/api/library", headers=KEY, params={"tag": "sneaky-combo"}).json()
+    assert body["entries"] == [], "tags must not land on a rejected combined PATCH either"
+
+
 def test_tag_filter_is_case_insensitive(auth_client):
     """?tag= must be normalised the same way a write is -- a caller filtering with
     different case than how the tag was stored (tags are always stored lowercased)
