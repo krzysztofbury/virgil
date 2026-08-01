@@ -369,7 +369,6 @@ async def save_training_schedule(request: Request):
         SETTING_SWIM,
         SWIM_PER_WEEK_MAX,
         normalize_days,
-        parse_swim_per_week,
     )
     from app.validation import truncate
 
@@ -395,16 +394,33 @@ async def save_training_schedule(request: Request):
 
     # Same policy for the swim target, which previously had none: an
     # unparseable value silently became 0 and reported success, dropping
-    # swimming from the plan on a typo. parse_swim_per_week still maps garbage
-    # to 0 for *reads* of already-stored data; a write must be explicit.
-    raw_swim = str(form.get("training_swim_per_week", "")).strip()
-    if raw_swim and (not raw_swim.isdigit() or int(raw_swim) > SWIM_PER_WEEK_MAX):
-        return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
-    swim = parse_swim_per_week(raw_swim) if raw_swim else 0
+    # swimming from the plan on a typo.
+    #
+    # Blank is not a typo — the number input can legitimately be submitted empty
+    # and 0 is the documented way to drop swimming from the plan, so blank and
+    # absent both mean 0.
+    #
+    # Parsed with try/except rather than str.isdigit(): isdigit() is True for
+    # '²' and for digit strings past CPython's int-conversion limit, both of
+    # which raise in int() — an earlier version of this guard used isdigit() and
+    # turned those inputs into a 500. truncate() bounds the length for the same
+    # reason raw_days is bounded.
+    raw_swim = truncate(str(form.get("training_swim_per_week", "")).strip(), 100)
+    if raw_swim:
+        try:
+            swim = int(raw_swim)
+        except ValueError:
+            return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+        if not 0 <= swim <= SWIM_PER_WEEK_MAX:
+            return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+    else:
+        swim = 0
 
     await set_setting(db, SETTING_DAYS, ",".join(days))
-    # No second clamp here: parse_swim_per_week owns that invariant, and the
-    # bound is already enforced above. A duplicate min() was unreachable.
+    # `swim` is already bounded by the guard above. parse_swim_per_week keeps its
+    # own clamp for the READ path (training_schedule.py), where it has to cope
+    # with whatever is already stored — it is not redundant, just unreachable
+    # from here.
     await set_setting(db, SETTING_SWIM, str(swim))
 
     return RedirectResponse(f"/settings?tab=configuration&msg={quote('Training schedule saved')}", status_code=303)

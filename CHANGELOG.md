@@ -19,8 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and `update_exercise` take `tags: list[str]` (`update_exercise`'s replaces the full set).
 - **Comma-separated tags input** in Settings → App Config, with a datalist of
   existing tags. (This release also shipped tag-filter chips in the `/training`
-  exercise picker; the picker itself was removed later in the same release — see
-  Removed — so the chips never reached a tagged release.)
+  exercise picker. That picker was part of the protocol table removed later in
+  the same release — see Removed — so the chips never reached a tagged release.)
 - **ASCII transliteration for tags.** `normalize_tag()` maps Polish letters that
   NFKD + ASCII-encoding alone would silently delete (`ł`, `đ`, `ø`, `æ`, `ß`) before
   folding, so `siłowy` becomes the tag `silowy` instead of vanishing to `siowy`.

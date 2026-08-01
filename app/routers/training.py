@@ -355,6 +355,24 @@ async def confirm_wod(request: Request):
         logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
         return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
 
+    # A submission where no row names a movement writes nothing. Letting it
+    # reach the consume below would set wod_parsed = NULL for a session that
+    # gained no entries, and the confirm GET 303s away once wod_parsed is NULL —
+    # the session would be stranded with no form and no route back.
+    #
+    # This became reachable the moment the form started rendering a blank seed
+    # row on a failed parse: one click on "Zapisz wpisy" without touching the
+    # movement select. It is the same dead end the seed row was added to remove.
+    #
+    # Deliberately placed BEFORE the consume and reading nothing from the DB, so
+    # a replay still finds wod_parsed intact and B1's guarantee is unchanged.
+    if not any(movement for movement, *_ in parsed_rows):
+        return RedirectResponse(
+            f"/training/wod/confirm/{session_id}?err="
+            + quote("Wybierz ruch w co najmniej jednym wierszu — albo wróć do treningu, notatka jest już zapisana."),
+            status_code=303,
+        )
+
     # B1: atomically consume the pending parse result. rowcount != 1 means
     # "unknown session" or "already confirmed" (replay) — either way, redirect
     # without writing rather than risk a second set of entries.

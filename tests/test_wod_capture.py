@@ -675,3 +675,76 @@ def test_seeded_row_can_actually_save_an_entry(auth_client, monkeypatch):
     )
     after = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
     assert after == before + 1, "submitting the seeded row must create exactly one entry"
+
+
+def test_blank_submit_does_not_strand_the_session(auth_client, monkeypatch):
+    """N1: submitting with no movement chosen must not consume the parse.
+
+    confirm_wod nulls wod_parsed to make a replay a no-op. If that ran for a
+    submission that writes nothing, the session would be left with no entries and
+    no way back — GET /training/wod/confirm/{id} 303s away once wod_parsed is
+    NULL. The blank seed row made that one click away: open the confirm screen
+    after a failed parse, press "Zapisz wpisy", lose the session for good.
+    """
+    _stub_llm(monkeypatch, exc=ValueError("provider unavailable"))
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-28", "wod_text": "ZZ blank submit probe", "_csrf_token": token},
+    )
+    session_id = _sessions()[0]["id"]
+    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "entry_0_movement": "",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "12",
+            "entry_0_weight": "",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+
+    still_pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+    assert still_pending, "a submission that writes nothing must not consume the pending parse"
+
+    # And the screen must still be reachable, not 303 away.
+    assert auth_client.get(f"/training/wod/confirm/{session_id}").status_code == 200
+
+
+def test_seed_row_field_names_match_what_the_route_reads(auth_client, monkeypatch):
+    """Couples the seeded row's field names to the POST the route actually parses.
+
+    The sibling save-test hand-writes its body, so renaming a seed field to an
+    index the route never reads left the suite green — a user typing weight into
+    `entry_9_weight` would save an entry with NULL weight. This extracts the
+    names from the rendered form instead of restating them.
+    """
+    import re
+
+    _stub_llm(monkeypatch, exc=ValueError("provider unavailable"))
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-27", "wod_text": "ZZ seed field names", "_csrf_token": token},
+    )
+    form_html = resp.text[resp.text.index('action="/training/wod/confirm"') :]
+    form_html = form_html[: form_html.index("</form>")]
+    names = set(re.findall(r'name="(entry_0_[a-z_]+)"', form_html))
+
+    expected = {
+        "entry_0_movement",
+        "entry_0_set_number",
+        "entry_0_reps",
+        "entry_0_weight",
+        "entry_0_duration",
+        "entry_0_note",
+    }
+    assert names == expected, f"seeded row must expose exactly the fields confirm_wod reads, got {sorted(names)}"

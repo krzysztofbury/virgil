@@ -522,3 +522,65 @@ def test_training_schedule_blank_day_list_clears_rather_than_rejects(auth_client
     )
     assert "err=" not in resp.headers["location"], "a blank day list is a valid 'no fixed days', not an error"
     assert _setting("training_days") == "", "blank must actually clear the stored schedule"
+
+
+def test_training_schedule_rejects_swim_inputs_that_crash_int(auth_client):
+    """N2 regression: the range guard used str.isdigit(), whose domain is wider
+    than int()'s. '²'.isdigit() is True and int('²') raises; a very long digit
+    string passes isdigit() and trips CPython's int-conversion limit. Both
+    reached the route as an unhandled ValueError — a 500 where the previous
+    behaviour had merely stored the wrong value.
+    """
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "2", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    for bad in ("²", "1" * 5000):
+        resp = auth_client.post(
+            "/settings/training-schedule",
+            data={"training_days": "mon", "training_swim_per_week": bad, "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303, f"{bad[:8]!r} must be rejected, not raise"
+        assert "err=" in resp.headers["location"]
+    assert _setting("training_swim_per_week") == "2", "rejected writes must leave the stored value alone"
+
+
+def test_training_schedule_rejects_a_negative_swim_target(auth_client):
+    """-1 was only rejected incidentally, via isdigit()'s refusal of the minus
+    sign. With an explicit int() parse the lower bound needs its own check."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "4", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "-1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert "err=" in resp.headers["location"]
+    assert _setting("training_swim_per_week") == "4"
+
+
+def test_training_schedule_blank_swim_means_zero(auth_client):
+    """The number input can legitimately be submitted empty, and 0 is the
+    documented way to drop swimming from the plan. The parallel blank-days path
+    is pinned; this one was not, leaving the same asymmetry in the tests that the
+    review found in the code."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "3", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert "err=" not in resp.headers["location"], "blank is a valid 'no swimming', not an error"
+    assert _setting("training_swim_per_week") == "0"

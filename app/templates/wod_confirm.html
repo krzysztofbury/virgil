@@ -31,7 +31,15 @@
        way to record a set at all — an LLM outage silently froze weekly volume and
        PBs. addSet() clones an existing <tr>, so "no rows" also meant nothing to
        clone from. One blank seed row below restores manual entry. #}
-    {% set form_rows = total_rows if total_rows > 0 else 1 %}
+    {# The seed row is only useful if there is a vocabulary to pick from. Under
+       library_error `movements` is empty, so the row would render a select whose
+       one option is "— pomiń": a manual-entry path that cannot write anything.
+       Suppressing it keeps the prose below honest. Nothing is lost either way —
+       confirm_wod refuses to consume wod_parsed when no row names a movement, so
+       this screen stays reachable once the library is back. #}
+    {% set seed_row = total_rows == 0 and movements %}
+    {% set form_rows = total_rows if total_rows > 0 else (1 if seed_row else 0) %}
+    {% if form_rows > 0 %}
     <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }})"
           @submit="$refs.entryCount.value = base + extraRows.length">
       <!-- Deliberate redundancy, not an oversight: the :value binding below is
@@ -84,7 +92,7 @@
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
           </tr>
         {% endfor %}
-        {% if total_rows == 0 %}
+        {% if seed_row %}
           {# Seed row: nothing was parsed, so this is the only way in. Same shape
              as an unmatched row, at index 0. #}
           <tr>
@@ -128,10 +136,18 @@
       <input type="hidden" name="entry_count" x-ref="entryCount" :value="base + extraRows.length">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
     </form>
+    {% endif %}
     {% if total_rows == 0 %}
+      {% if seed_row %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować —
       powyżej jest pusty wiersz do ręcznego wpisania. <a href="/training">Wróć do treningu</a>,
       jeśli notatka sama w sobie wystarczy.</p>
+      {% else %}
+      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
+      jest chwilowo niedostępna — bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
+      trzeba odłożyć. Notatka jest zapisana, a ten ekran pozostaje dostępny:
+      <a href="/training">wróć do treningu</a> i otwórz tę sesję ponownie, gdy lista wróci.</p>
+      {% endif %}
     {% endif %}
 
   </div>

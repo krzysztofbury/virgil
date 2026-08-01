@@ -11,6 +11,7 @@ renders empty, which is the failure it is supposed to catch.
 """
 
 import sqlite3
+from datetime import date
 
 from conftest import csrf_token, user_db_path
 
@@ -43,7 +44,11 @@ def test_kpis_and_history_survive(auth_client):
     conn = sqlite3.connect(user_db_path())
     try:
         cur = conn.execute(
-            "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES ('2026-08-01', 42, 'ZZTestPageSession')"
+            "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, 42, 'ZZTestPageSession')",
+            # Today, not a hardcoded date: history renders ORDER BY date DESC
+            # LIMIT 20, so a fixed past date drops off the page once enough
+            # later sessions exist.
+            (date.today().isoformat(),),
         )
         session_id = cur.lastrowid
         conn.commit()

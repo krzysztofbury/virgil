@@ -63,6 +63,13 @@ def test_format_days():
 
 
 def _make_db(tmp_path):
+    """Minimal hand-rolled schema, deliberately not app/db.py's.
+
+    Safe only because test_andy_generate.py asserts the same block against the
+    real migrated user DB — a rename in app_settings or training_sessions fails
+    there even though it would not fail here. Do not delete that test as
+    redundant; it is what makes this shortcut safe.
+    """
     path = tmp_path / "sched.db"
     conn = sqlite3.connect(path)
     conn.executescript(
