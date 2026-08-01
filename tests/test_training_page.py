@@ -34,10 +34,34 @@ def test_capture_form_is_the_only_input(auth_client):
 
 
 def test_kpis_and_history_survive(auth_client):
-    html = _page(auth_client)
-    assert "This Week" in html
-    assert "Workout History" in html
-    assert 'action="/training/session/' in html, "history keeps its per-session delete"
+    """Creates its own session rather than relying on one being there.
+
+    `auth_client` is session-scoped and the DB is shared across test files, so
+    the delete-form assertion below passed only because an earlier file happened
+    to leave a row behind — green in a full run, red when this file runs alone.
+    """
+    conn = sqlite3.connect(user_db_path())
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES ('2026-08-01', 42, 'ZZTestPageSession')"
+        )
+        session_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    try:
+        html = _page(auth_client)
+        assert "This Week" in html
+        assert "Workout History" in html
+        assert f'action="/training/session/{session_id}/delete"' in html, "history keeps its per-session delete"
+    finally:
+        conn = sqlite3.connect(user_db_path())
+        try:
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+            conn.commit()
+        finally:
+            conn.close()
 
 
 def test_no_picker_payload_is_embedded(auth_client):

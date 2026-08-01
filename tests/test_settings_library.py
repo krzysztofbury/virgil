@@ -443,11 +443,82 @@ def test_training_schedule_rejects_an_unparseable_day_list(auth_client):
     assert _setting("training_days") == "mon,wed,fri", "the previous schedule must survive a rejected write"
 
 
-def test_training_schedule_clamps_swim_target(auth_client):
+def test_training_schedule_rejects_an_out_of_range_swim_target(auth_client):
+    """Rejected, not clamped — the same policy the day list already had.
+
+    This previously asserted the opposite (99 silently became 7). That was the
+    asymmetry a review flagged: one field in the form refused bad input while
+    the other quietly rewrote it and reported success. Storing a number the user
+    never typed is the same class of defect as storing an empty schedule for a
+    typo.
+    """
     token = csrf_token(auth_client, "/settings?tab=configuration")
     auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "2", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    resp = auth_client.post(
         "/settings/training-schedule",
         data={"training_days": "mon", "training_swim_per_week": "99", "_csrf_token": token},
         follow_redirects=False,
     )
-    assert _setting("training_swim_per_week") == "7"
+    assert "err=" in resp.headers["location"]
+    assert _setting("training_swim_per_week") == "2", "a rejected write must not touch the stored value"
+
+
+def test_training_schedule_rejects_a_non_numeric_swim_target(auth_client):
+    """`abc` used to store 0 and report success — dropping swimming from the
+    plan on a typo, with no way to notice."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "3", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "abc", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert "err=" in resp.headers["location"]
+    assert _setting("training_swim_per_week") == "3"
+
+
+def test_training_schedule_rejects_before_writing_either_field(auth_client):
+    """The two set_setting calls commit separately, so a half-valid submission
+    must be refused before the first write rather than repaired after it."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon,wed", "training_swim_per_week": "1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    # Valid days, invalid swim: neither may land.
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "tue,thu", "training_swim_per_week": "abc", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert _setting("training_days") == "mon,wed", "days must not be written when the swim field is rejected"
+    assert _setting("training_swim_per_week") == "1"
+
+
+def test_training_schedule_blank_day_list_clears_rather_than_rejects(auth_client):
+    """A blank field is an explicit "no fixed days" and is stored; a field that
+    parses to nothing is rejected. Mutating that split (`if not days:`) left the
+    whole suite green — the reader-side test in test_training_schedule.py pins
+    how an empty schedule renders, not how the route decides to store one."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon,wed", "training_swim_per_week": "1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "  ", "training_swim_per_week": "1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert "err=" not in resp.headers["location"], "a blank day list is a valid 'no fixed days', not an error"
+    assert _setting("training_days") == "", "blank must actually clear the stored schedule"

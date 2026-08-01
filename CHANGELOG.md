@@ -17,10 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Each returned entry now carries its own `tags: list[str]`.
 - **MCP tag parameters** — `get_exercise_library` takes `tag` to filter; `add_exercise`
   and `update_exercise` take `tags: list[str]` (`update_exercise`'s replaces the full set).
-- **Tag filter chips in the exercise picker** (`/training`). Movements list flat per
-  section with clickable tag chips (plus an "All" chip) filtering client-side; Settings
-  → App Config gained a matching comma-separated tags input with a datalist of existing
-  tags.
+- **Comma-separated tags input** in Settings → App Config, with a datalist of
+  existing tags. (This release also shipped tag-filter chips in the `/training`
+  exercise picker; the picker itself was removed later in the same release — see
+  Removed — so the chips never reached a tagged release.)
 - **ASCII transliteration for tags.** `normalize_tag()` maps Polish letters that
   NFKD + ASCII-encoding alone would silently delete (`ł`, `đ`, `ø`, `æ`, `ß`) before
   folding, so `siłowy` becomes the tag `silowy` instead of vanishing to `siowy`.

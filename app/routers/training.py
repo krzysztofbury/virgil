@@ -222,11 +222,14 @@ async def capture_wod(request: Request):
         # litellm.APIError subclasses, and canonical_movements() below now
         # asserts a vocabulary bound (I5) that can also fire mid-parse. Any of
         # those left this session's wod_parsed NULL forever: the GET confirm
-        # page 303s away (:377) and /training/session always INSERTs a new
-        # session, so there was no way to ever attach entries to this one
-        # again. The INSERT+commit above already happened, so catching wider
-        # here weakens no ordering guarantee — it only stops a crash from
-        # stranding an otherwise-saved note.
+        # page 303s away when wod_parsed is unset, and at the time the only
+        # other writer always INSERTed a brand-new session, so there was no way
+        # to ever attach entries to this one again. That other writer is gone
+        # now (the confirm screen is the sole writer of training_entries),
+        # which makes this handler load-bearing rather than belt-and-braces:
+        # without it, a parse crash strands the session permanently.
+        # The INSERT+commit above already happened, so catching wider here
+        # weakens no ordering guarantee.
         parse_error = str(exc)
         logger.warning("WOD parse failed for session %s: %s", session_id, exc)
 

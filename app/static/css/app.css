@@ -281,34 +281,6 @@ main.container {
 }
 
 /* ── Exercise add/edit form (Training Protocol) ── */
-.ex-form {
-  display: grid;
-  gap: 0.6rem;
-  padding: 0.85rem;
-  margin-top: 0.5rem;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-.ex-form-grid {
-  display: grid;
-  grid-template-columns: minmax(9rem, 2fr) 4.5rem minmax(6rem, 1fr);
-  gap: 0.6rem;
-}
-.ex-field { display: flex; flex-direction: column; gap: 0.25rem; }
-.ex-field > span {
-  font-size: 0.68rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--text-tertiary);
-}
-.ex-field input, .ex-field select { width: 100%; margin: 0; }
-.ex-form-actions { display: flex; gap: 0.5rem; }
-@media (max-width: 560px) {
-  .ex-form-grid { grid-template-columns: 1fr 4.5rem; }
-  .ex-form-grid .ex-field:first-child { grid-column: 1 / -1; }
-}
 
 /* ── Mobile Bottom Bar ── */
 .bottom-bar {
@@ -1723,64 +1695,8 @@ input.flatpickr-input:hover {
 .gap-2 { gap: 1rem; }
 .overflow-x { overflow-x: auto; }
 
-/* ═══════════════════════════════════════════
-   Rest Timer
-   ═══════════════════════════════════════════ */
-.rest-timer-bar {
-  position: fixed;
-  bottom: var(--bottom-bar-height, 0px);
-  left: 0;
-  right: 0;
-  z-index: 100;
-  background: var(--bg-bottom-bar);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border-top: 1px solid var(--border);
-  padding: 0.5rem 1rem;
-}
-.rest-timer-inner {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  max-width: var(--container-width, 900px);
-  margin: 0 auto;
-}
-.rest-timer-presets {
-  display: flex;
-  gap: 0.35rem;
-}
-.rest-timer-display {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-.rest-timer-time {
-  font-size: 1.35rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
-  min-width: 3.5rem;
-  color: var(--text-primary);
-}
-.rest-timer-done {
-  color: var(--green);
-  animation: timerPulse 0.6s ease 3;
-}
-@keyframes timerPulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
-}
-.rest-timer-toggle {
-  margin-left: auto;
-  background: none;
-  border: none;
-  color: var(--text-tertiary);
-  font-size: 1.25rem;
-  cursor: pointer;
-  padding: 0.25rem;
-  line-height: 1;
-}
-.rest-timer-toggle:hover { color: var(--text-primary); }
+/* Alpine: hide until initialised. Used by onboarding.html and feniks.html —
+   this rule lived inside the Rest Timer block and is NOT part of it. */
 [x-cloak] { display: none !important; }
 
 /* ═══════════════════════════════════════════

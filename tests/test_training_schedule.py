@@ -197,3 +197,75 @@ def test_empty_week_and_no_history_omits_the_fallback_line(tmp_path):
     block = _block(path, date(2026, 8, 5), {SETTING_DAYS: "mon,wed"})
     assert "Logged this week (since Monday): nothing yet." in block
     assert "Last session before this week" not in block
+
+
+# --- Alignment and boundary coverage (added after review: three mutants survived
+#     the first pass — the Monday cut-off, and DAY_FULL/DAY_SHORT's weekend slots) ---
+
+
+@pytest.mark.parametrize(
+    ("target", "expected_full"),
+    [
+        (date(2026, 8, 3), "Monday"),
+        (date(2026, 8, 4), "Tuesday"),
+        (date(2026, 8, 5), "Wednesday"),
+        (date(2026, 8, 6), "Thursday"),
+        (date(2026, 8, 7), "Friday"),
+        (date(2026, 8, 8), "Saturday"),
+        (date(2026, 8, 9), "Sunday"),
+    ],
+)
+def test_every_weekday_is_named_correctly(tmp_path, target, expected_full):
+    """DAY_FULL must stay aligned with date.weekday().
+
+    The first test pass only ever rendered Mondays and Tuesdays, so swapping
+    Saturday and Sunday in DAY_FULL left the whole suite green — and this
+    sentence is what tells the planner whether to program a session.
+    """
+    path = _make_db(tmp_path)
+    block = _block(path, target, {SETTING_DAYS: "mon"})
+    assert f"Today is {expected_full} —" in block
+
+
+@pytest.mark.parametrize(
+    ("day_key", "expected_short"),
+    [
+        ("mon", "Mon"),
+        ("tue", "Tue"),
+        ("wed", "Wed"),
+        ("thu", "Thu"),
+        ("fri", "Fri"),
+        ("sat", "Sat"),
+        ("sun", "Sun"),
+    ],
+)
+def test_every_day_abbreviation_is_aligned(day_key, expected_short):
+    """Same gap as above, for DAY_SHORT: only Mon/Wed/Fri were ever formatted."""
+    assert format_days([day_key]) == expected_short
+
+
+def test_week_starts_on_monday_at_the_boundary(tmp_path):
+    """The Sunday immediately before the target week must be excluded.
+
+    The existing out-of-week fixture was a Friday — three days clear of the cut —
+    so shifting the week start by one day (`weekday + 1`) changed nothing and the
+    suite stayed green. 2026-08-02 is the Sunday before, 2026-08-03 the Monday.
+    """
+    path = _make_db(tmp_path)
+    block = _block(
+        path,
+        date(2026, 8, 5),  # Wednesday
+        {SETTING_DAYS: "mon,wed"},
+        sessions=[("2026-08-02", 30), ("2026-08-03", 55)],
+    )
+    assert "Logged this week (since Monday): 2026-08-03 (55 min)." in block
+    assert "2026-08-02" not in block, "the Sunday before the week must fall outside it"
+
+
+def test_blank_day_list_clears_the_schedule(tmp_path):
+    """Pins the deliberate asymmetry in save_training_schedule: a blank field is
+    an explicit "no fixed days" and is stored; a field that parses to nothing is
+    rejected. Both semantics were green before this test existed."""
+    path = _make_db(tmp_path)
+    block = _block(path, date(2026, 8, 3), {SETTING_DAYS: ""})
+    assert "No fixed CrossFit days set." in block

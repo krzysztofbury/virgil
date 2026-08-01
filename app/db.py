@@ -462,11 +462,14 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
 ('backup_max_copies', '7'),
 ('oura_sync_enabled', '0'),
 ('oura_sync_interval_hours', '6'),
-('briefing_enabled', '0'),
--- Weekly training schedule the A.N.D.Y. planner reasons about; edited in
--- Settings -> Configuration. See app/services/training_schedule.py.
-('training_days', 'mon,wed,fri'),
-('training_swim_per_week', '1');
+('briefing_enabled', '0');
+-- Deliberately absent: training_days / training_swim_per_week. This block runs
+-- only from migration 001, so on any database created before that setting
+-- existed it would never execute — the deployed NAS included. Seeding here
+-- would mean a fresh install reads the seeded row while production reads the
+-- code default, with only the fresh-install path under test. The defaults in
+-- app/services/training_schedule.py are the single source instead, applied via
+-- get_setting()'s default argument on every read.
 """
 
 SEED_TRAINING_EXERCISES = """

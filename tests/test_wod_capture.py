@@ -18,6 +18,15 @@ def _sessions():
         conn.close()
 
 
+def _query(sql, params=()):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.row_factory = sqlite3.Row
+        return [dict(r) for r in conn.execute(sql, params)]
+    finally:
+        conn.close()
+
+
 def _stub_llm(monkeypatch, payload=None, exc=None, raw=None):
     import app.services.wod_parser as wp
 
@@ -87,9 +96,9 @@ def test_note_survives_an_llm_failure(auth_client, monkeypatch):
     assert latest["notes"] == "5x5 back squat 70, potem metcon", "raw text must be persisted before parsing"
     assert "timed out" in resp.text or "parsowanie" in resp.text.lower()
     assert "uzupełnić wpisy ręcznie" not in resp.text, (
-        "I3: the old parse_error message claimed a manual-entry path that does not "
-        "exist (/training/session always INSERTs a new session, never attaches to "
-        "this one) — it must describe something real instead"
+        "I3: the old parse_error message claimed a manual-entry path that did not "
+        "exist. The path it points at now — the seeded row on this very confirm "
+        "screen — is real; see test_parse_failure_still_offers_a_usable_entry_row."
     )
     assert "historii treningów" in resp.text, "the parse_error message must point to where the note actually is"
 
@@ -123,9 +132,10 @@ def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
     max_tokens bounds) and transport errors that aren't litellm.APIError
     subclasses — propagated as a 500. The INSERT+commit had already happened
     (note intact), but `wod_parsed` stayed NULL, so
-    GET /training/wod/confirm/{id} redirected away forever and
-    /training/session always INSERTs a brand-new session — there was no way
-    back to this one.
+    GET /training/wod/confirm/{id} redirected away forever, and the
+    per-set log form that existed at the time always INSERTed a brand-new
+    session — there was no way back to this one. (That form has since been
+    removed; the confirm screen is now the only writer.)
 
     This test proves the crash no longer strands the session: the request now
     completes (the PRG redirect lands on a 200 confirm page, not a 500), the
@@ -584,3 +594,84 @@ def test_confirm_get_corrupt_wod_parsed_redirects_instead_of_500ing(auth_client)
     resp = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
     assert resp.status_code == 303
     assert resp.headers["location"] == "/training"
+
+
+def test_parse_failure_still_offers_a_usable_entry_row(auth_client, monkeypatch):
+    """A failed parse must leave a way to record sets, not a dead end.
+
+    POST /training/wod/confirm is the only route in the codebase that writes
+    training_entries. The confirm form used to be gated on
+    `entries|length + unmatched|length > 0`, so an LLM outage rendered no form at
+    all — and "+ dodaj serię" clones an existing <tr>, so there was nothing to
+    clone either. Weekly volume and Personal Bests would simply stop moving,
+    silently, for as long as the provider was down.
+
+    Worse, the on-screen message told the user to delete the session and log the
+    workout manually; the manual path had been removed, so following it destroyed
+    the saved note and returned nothing.
+    """
+    _stub_llm(monkeypatch, exc=ValueError("provider unavailable"))
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "50",
+            "wod_text": "cos czego parser nie ruszy",
+            "_csrf_token": token,
+        },
+    )
+    assert resp.status_code == 200
+
+    assert 'action="/training/wod/confirm"' in resp.text, (
+        "the confirm form must render even when nothing was parsed — it is the only route that writes training_entries"
+    )
+    assert 'name="entry_0_movement"' in resp.text, "a blank editable row must be seeded"
+    assert "wodConfirmForm(1)" in resp.text, (
+        "the Alpine row counter must account for the seeded row — at 0, '+ dodaj serię' "
+        "mints entry_0_* a second time and the two rows collide on submit"
+    )
+    assert 'name="entry_0_reps"' in resp.text
+    assert 'name="entry_count"' in resp.text
+
+    assert "usuń tę sesję" not in resp.text, "the message must not instruct the user to destroy the saved note"
+
+
+def test_seeded_row_can_actually_save_an_entry(auth_client, monkeypatch):
+    """The seed row is only worth having if submitting it writes an entry.
+
+    Asserting the HTML alone would pass against a row whose field names the
+    confirm route ignores.
+    """
+    _stub_llm(monkeypatch, exc=ValueError("provider unavailable"))
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-29",
+            "wod_text": "ZZ manual fallback session",
+            "_csrf_token": token,
+        },
+    )
+    session_id = _sessions()[0]["id"]
+
+    before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
+    movement = _query("SELECT name FROM exercise_library WHERE archived = 0 ORDER BY name LIMIT 1")[0]["name"]
+
+    auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "entry_0_movement": movement,
+            "entry_0_set_number": "1",
+            "entry_0_reps": "12",
+            "entry_0_weight": "40",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    after = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
+    assert after == before + 1, "submitting the seeded row must create exactly one entry"

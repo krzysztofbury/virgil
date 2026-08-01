@@ -373,24 +373,39 @@ async def save_training_schedule(request: Request):
     )
     from app.validation import truncate
 
+    def reject(message: str) -> RedirectResponse:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(message)}", status_code=303)
+
     form = await request.form()
     db = get_user_db_from_request(request)
 
+    # Both fields are validated before either is written. Two set_setting calls
+    # each commit separately (app/db.py), so there is no transaction to roll
+    # back — a half-valid submission must be refused before the first write,
+    # not repaired after it.
     raw_days = truncate(str(form.get("training_days", "")), 100)
     days = normalize_days(raw_days)
     # A submission that parses to nothing is rejected rather than silently
     # stored as "no training days": that would quietly tell the planner the week
-    # has no schedule at all, which is never what a typo meant.
+    # has no schedule at all, which is never what a typo meant. A blank field is
+    # the one exception — that is an explicit "no fixed days", which the planner
+    # renders as such.
     if raw_days.strip() and not days:
-        return RedirectResponse(
-            f"/settings?tab=configuration&err={quote('Nie rozpoznano żadnego dnia — użyj mon,tue,wed,thu,fri,sat,sun')}",
-            status_code=303,
-        )
+        return reject("Nie rozpoznano żadnego dnia — użyj mon,tue,wed,thu,fri,sat,sun")
 
-    swim = parse_swim_per_week(str(form.get("training_swim_per_week", "0")))
+    # Same policy for the swim target, which previously had none: an
+    # unparseable value silently became 0 and reported success, dropping
+    # swimming from the plan on a typo. parse_swim_per_week still maps garbage
+    # to 0 for *reads* of already-stored data; a write must be explicit.
+    raw_swim = str(form.get("training_swim_per_week", "")).strip()
+    if raw_swim and (not raw_swim.isdigit() or int(raw_swim) > SWIM_PER_WEEK_MAX):
+        return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+    swim = parse_swim_per_week(raw_swim) if raw_swim else 0
 
     await set_setting(db, SETTING_DAYS, ",".join(days))
-    await set_setting(db, SETTING_SWIM, str(min(swim, SWIM_PER_WEEK_MAX)))
+    # No second clamp here: parse_swim_per_week owns that invariant, and the
+    # bound is already enforced above. A duplicate min() was unreachable.
+    await set_setting(db, SETTING_SWIM, str(swim))
 
     return RedirectResponse(f"/settings?tab=configuration&msg={quote('Training schedule saved')}", status_code=303)
 

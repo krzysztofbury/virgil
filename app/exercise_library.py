@@ -2,7 +2,7 @@
 
 Users can pick from the library (prefills name/sets/reps/notes) or type
 a custom exercise — the library is a convenience, not a constraint.
-Sections match training SECTION_ORDER: Warmup / Core / Cardio / Stretching.
+Sections match LIBRARY_SECTIONS: Warmup / Core / Cardio / Stretching.
 """
 
 EXERCISE_LIBRARY: list[dict] = [

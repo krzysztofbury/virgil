@@ -11,8 +11,8 @@
 
     {% if parse_error %}
       <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
-      Notatka jest zapisana i widoczna w historii treningów na stronie /training —
-      usuń tę sesję i zaloguj trening ręcznie, jeśli chcesz zapisać serie.</p>
+      Notatka jest zapisana i widoczna w historii treningów na stronie /training.
+      Serie możesz wpisać ręcznie w tabeli poniżej — nie usuwaj tej sesji.</p>
     {% endif %}
 
     {% if library_error %}
@@ -25,8 +25,14 @@
     {% endif %}
 
     {% set total_rows = entries|length + unmatched|length %}
-    {% if total_rows > 0 %}
-    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ total_rows }})"
+    {# The form renders unconditionally. It used to be gated on total_rows > 0,
+       which turned a parse failure into a dead end: POST /training/wod/confirm is
+       the only route that writes training_entries, so with no rows there was no
+       way to record a set at all — an LLM outage silently froze weekly volume and
+       PBs. addSet() clones an existing <tr>, so "no rows" also meant nothing to
+       clone from. One blank seed row below restores manual entry. #}
+    {% set form_rows = total_rows if total_rows > 0 else 1 %}
+    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }})"
           @submit="$refs.entryCount.value = base + extraRows.length">
       <!-- Deliberate redundancy, not an oversight: the :value binding below is
            the first `:value` on an input anywhere in this repo (no other
@@ -78,6 +84,26 @@
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
           </tr>
         {% endfor %}
+        {% if total_rows == 0 %}
+          {# Seed row: nothing was parsed, so this is the only way in. Same shape
+             as an unmatched row, at index 0. #}
+          <tr>
+            <td>
+              <select name="entry_0_movement">
+                <option value="">— pomiń</option>
+                {% for m in movements %}
+                  <option value="{{ m.name }}">{{ m.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="number" name="entry_0_set_number" value="1" min="1"></td>
+            <td><input type="number" name="entry_0_reps" value="" min="0"></td>
+            <td><input type="number" step="0.5" name="entry_0_weight" value="" min="0"></td>
+            <td><input type="number" step="1" name="entry_0_duration" value="" min="0"></td>
+            <td><input type="text" name="entry_0_note" value="" maxlength="200"></td>
+            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
+          </tr>
+        {% endif %}
         <template x-for="row in extraRows" :key="row.index">
           <tr>
             <td>
@@ -102,9 +128,10 @@
       <input type="hidden" name="entry_count" x-ref="entryCount" :value="base + extraRows.length">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
     </form>
-    {% else %}
-      <p class="text-muted">Nic nie udało się sparsować. Notatka została zapisana przy sesji.</p>
-      <a href="/training">Wróć do treningu</a>
+    {% if total_rows == 0 %}
+      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować —
+      powyżej jest pusty wiersz do ręcznego wpisania. <a href="/training">Wróć do treningu</a>,
+      jeśli notatka sama w sobie wystarczy.</p>
     {% endif %}
 
   </div>
