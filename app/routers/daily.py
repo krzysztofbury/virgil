@@ -10,6 +10,7 @@ from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse,
 from app.config import SECOND_BRAIN_PATH
 from app.main import templates
 from app.services.llm import llm_available
+from app.services.training_schedule import schedule_block
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
@@ -258,27 +259,13 @@ async def generate_andy(request: Request, date: str = Form(...)):
             )
         context_parts.append("\n".join(week_lines))
 
-    # 3. Training protocol + recent sessions
-    # archived (retired) and ad_hoc (WOD-parser-created, no target_sets/target_reps)
-    # rows must stay out of this block: an ad_hoc row renders as "- Thruster: NonexNone"
-    # (resolve_movement never sets target_sets/target_reps), and after a month of
-    # CrossFit logging those garbage lines would dominate what the planner reads.
-    exercises = await db.execute_fetchall(
-        "SELECT * FROM training_exercises WHERE archived = 0 AND ad_hoc = 0 ORDER BY display_order"
-    )
-    if exercises:
-        train_lines = ["--- Training Protocol ---"]
-        for ex in exercises:
-            ex = dict(ex)
-            train_lines.append(f"- {ex['name']}: {ex['target_sets']}x{ex['target_reps']}")
-        recent_sessions = await db.execute_fetchall("SELECT * FROM training_sessions ORDER BY date DESC LIMIT 3")
-        if recent_sessions:
-            train_lines.append("\nRecent sessions:")
-            for s in recent_sessions:
-                s = dict(s)
-                dur = f" ({s['duration_minutes']} min)" if s["duration_minutes"] else ""
-                train_lines.append(f"- {s['date']}{dur}")
-        context_parts.append("\n".join(train_lines))
+    # 3. Weekly training schedule + what has actually been logged.
+    # This used to list every non-archived, non-ad_hoc row of training_exercises
+    # as a prescription. That block described a basement kettlebell program the
+    # user no longer follows, and the rows outlive the program by design (they
+    # anchor training_entries), so the staleness had no natural end. See
+    # app/services/training_schedule.py.
+    context_parts.append(await schedule_block(db, target_date))
 
     # 4. plan.md from disk (user-written, not generated)
     if SECOND_BRAIN_PATH:
@@ -288,7 +275,7 @@ async def generate_andy(request: Request, date: str = Form(...)):
                 context_parts.append(f"--- plan.md ---\n{f.read()[:3000]}")
 
     system_prompt = (
-        "You are a personal daily planner. Based on the user's goals, weekly plan, training protocol, "
+        "You are a personal daily planner. Based on the user's goals, weekly plan, training schedule, "
         "and current week's data, suggest specific actions for today. "
         "Respond ONLY with valid JSON, no markdown fences. "
         'The JSON must have exactly these keys: "andy_body_desc", "andy_spirit_desc", "andy_account_desc", "andy_relations_desc". '

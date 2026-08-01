@@ -462,7 +462,11 @@ INSERT OR IGNORE INTO app_settings (key, value) VALUES
 ('backup_max_copies', '7'),
 ('oura_sync_enabled', '0'),
 ('oura_sync_interval_hours', '6'),
-('briefing_enabled', '0');
+('briefing_enabled', '0'),
+-- Weekly training schedule the A.N.D.Y. planner reasons about; edited in
+-- Settings -> Configuration. See app/services/training_schedule.py.
+('training_days', 'mon,wed,fri'),
+('training_swim_per_week', '1');
 """
 
 SEED_TRAINING_EXERCISES = """

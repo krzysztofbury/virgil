@@ -330,20 +330,48 @@ def test_update_with_blank_tags_clears_them(auth_client):
     assert tags == [], "an explicit blank tags field must clear the tag set"
 
 
-def test_archive_hides_from_training_picker(auth_client):
+def test_archive_removes_the_movement_from_the_parser_vocabulary(auth_client):
+    """Archiving used to mean "leaves the training picker". That picker is gone,
+    so the surviving consequence is the one that matters more: an archived
+    movement leaves the closed vocabulary the WOD parser resolves notes against,
+    and comes back when restored.
+
+    Asserted against canonical_movements() directly rather than through rendered
+    HTML — the vocabulary is what the parser actually consumes.
+    """
+    import asyncio
+
+    import aiosqlite
+
+    from app.services.wod_parser import canonical_movements
+
+    def vocabulary() -> list[str]:
+        """canonical_movements returns dicts (name/section/metric); the parser
+        matches on the name, so that is what this compares."""
+
+        async def run():
+            db = await aiosqlite.connect(user_db_path())
+            db.row_factory = aiosqlite.Row
+            try:
+                return [m["name"] for m in await canonical_movements(db)]
+            finally:
+                await db.close()
+
+        return asyncio.run(run())
+
     token = csrf_token(auth_client, "/settings?tab=configuration")
     builtin = _any_builtin_id()
-    # The picker embeds library rows as option JSON ({"n": <name>, ...}); the bare
-    # name can also appear on the page via the user's protocol, so match the JSON.
-    picker_marker = f'{{"n": "{builtin["name"]}"'
+    name = builtin["name"]
+
+    assert name in vocabulary(), "precondition: an active library row is in the vocabulary"
 
     auth_client.post(
         "/settings/library/archive",
         data={"entry_id": str(builtin["id"]), "archived": "1", "_csrf_token": token},
         follow_redirects=False,
     )
-    assert _row(builtin["name"])["archived"] == 1
-    assert picker_marker not in auth_client.get("/training").text, "archived entries must leave the picker"
+    assert _row(name)["archived"] == 1
+    assert name not in vocabulary(), "archived entries must leave the parser vocabulary"
 
     # Restore.
     auth_client.post(
@@ -351,8 +379,8 @@ def test_archive_hides_from_training_picker(auth_client):
         data={"entry_id": str(builtin["id"]), "archived": "0", "_csrf_token": token},
         follow_redirects=False,
     )
-    assert _row(builtin["name"])["archived"] == 0
-    assert picker_marker in auth_client.get("/training").text
+    assert _row(name)["archived"] == 0
+    assert name in vocabulary(), "restoring must put the movement back in the vocabulary"
 
 
 def test_archive_missing_entry_redirects_with_error(auth_client):
@@ -371,3 +399,55 @@ def test_archive_missing_entry_redirects_with_error(auth_client):
     assert "err=" in resp.headers["location"], (
         "archiving a nonexistent entry must redirect with an error, not silently no-op"
     )
+
+
+# --- Training schedule (Settings -> Configuration) ---
+
+
+def _setting(key: str):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def test_training_schedule_round_trips(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "Friday, mon ,WED", "training_swim_per_week": "2", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    # Normalised on write, so the planner never reads a half-parsed list.
+    assert _setting("training_days") == "mon,wed,fri"
+    assert _setting("training_swim_per_week") == "2"
+    assert 'value="mon,wed,fri"' in auth_client.get("/settings?tab=configuration").text
+
+
+def test_training_schedule_rejects_an_unparseable_day_list(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon,wed,fri", "training_swim_per_week": "1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "qqq,zzz", "training_swim_per_week": "1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert "err=" in resp.headers["location"], "an all-garbage day list must be an error, not a silent wipe"
+    assert _setting("training_days") == "mon,wed,fri", "the previous schedule must survive a rejected write"
+
+
+def test_training_schedule_clamps_swim_target(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/training-schedule",
+        data={"training_days": "mon", "training_swim_per_week": "99", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert _setting("training_swim_per_week") == "7"

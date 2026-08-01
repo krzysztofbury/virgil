@@ -54,12 +54,20 @@ def test_generate_andy_surfaces_error(auth_client):
     assert "LLM" in resp.text and "⚠" in resp.text, f"reason must be shown, got: {resp.text[:200]}"
 
 
-def test_generate_andy_excludes_ad_hoc_and_archived_from_training_protocol(auth_client, monkeypatch):
-    """The '--- Training Protocol ---' prompt block must only include real,
-    active protocol movements. resolve_movement() never sets target_sets or
-    target_reps on an ad_hoc row, so an unfiltered query renders it as
-    "- Thruster: NonexNone" — after a month of CrossFit logging that garbage
-    would dominate what the daily-planner LLM reads to plan the user's day.
+def test_generate_andy_sends_the_schedule_not_a_prescription(auth_client, monkeypatch):
+    """The planner prompt carries the weekly schedule, never per-exercise targets.
+
+    It used to render every non-archived, non-ad_hoc row of training_exercises
+    as "- <name>: <sets>x<reps>". Two problems compounded: ad_hoc rows (created
+    by the WOD parser, which never sets target_sets/target_reps) rendered as
+    "- Thruster: NonexNone", and the rows that DID have targets described a
+    basement kettlebell program the user had already left. The rows cannot
+    simply be deleted — training_entries references them — so the fix was to
+    stop reading them here at all.
+
+    Both halves are asserted: the seeded prescription is absent, and the
+    schedule that replaced it is present. Checking only the absence would pass
+    against an empty prompt.
     """
     conn = sqlite3.connect(user_db_path())
     try:
@@ -96,14 +104,18 @@ def test_generate_andy_excludes_ad_hoc_and_archived_from_training_protocol(auth_
         )
         assert resp.status_code == 303
         assert "user_prompt" in captured, "call_llm must have been invoked"
-        assert "--- Training Protocol ---" in captured["user_prompt"]
-        assert "ZZTestAdHocPromptMovement" not in captured["user_prompt"], (
-            "ad-hoc movements must not flood the daily-planner prompt"
+        prompt = captured["user_prompt"]
+
+        assert "--- Training plan ---" in prompt, "the schedule block must reach the planner"
+        assert "CrossFit days:" in prompt, "the schedule must name the configured days"
+
+        assert "--- Training Protocol ---" not in prompt, "the prescription block is gone"
+        assert "ZZTestAdHocPromptMovement" not in prompt
+        assert "ZZTestArchivedPromptMovement" not in prompt
+        assert "Jump Rope" not in prompt, (
+            "seeded protocol rows must no longer be prescribed to the planner — "
+            "they outlive the program that created them"
         )
-        assert "ZZTestArchivedPromptMovement" not in captured["user_prompt"], (
-            "archived movements must not appear in the daily-planner prompt"
-        )
-        assert "Jump Rope" in captured["user_prompt"], "real, active protocol movements must still appear"
     finally:
         conn = sqlite3.connect(user_db_path())
         try:
