@@ -68,6 +68,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows there — but it no longer has a UI or a prescription role.
 
 ### Fixed
+- **A submission that writes nothing no longer consumes the pending parse.**
+  `confirm_wod` nulls `wod_parsed` to make a replay a no-op, and the confirm GET
+  redirects away once it is NULL — so submitting with no movement chosen wrote
+  nothing and stranded the session for good. Harmless while a failed parse
+  rendered no form; one click away as soon as it rendered a blank row.
 - **A failed parse no longer strands the workout.** `POST /training/wod/confirm`
   is the only route that writes `training_entries`, and its form was gated on
   having at least one parsed row — so with the LLM unavailable there was no form,
