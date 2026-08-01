@@ -46,6 +46,23 @@ per-commit `sha-*` tags. The alternative — a QNAP pull-and-verify script that
 pins a digest, waits for `/healthz` and keeps the previous image reference — is
 parked; revisit if a bad deploy actually bites.
 
+## Training page simplified — 2026-08-01 (branch `feat/training-page-simplify`)
+
+Removed the protocol table, the per-set log form and the rest timer; free-text
+capture is the only input. The A.N.D.Y. planner now reads a weekly schedule
+(`app/services/training_schedule.py`, stored in `app_settings`) instead of a
+per-exercise prescription drawn from `training_exercises` — those rows outlive
+the program that created them, so deleting only the UI would have hidden the
+staleness rather than fixed it.
+
+- [ ] `exercise_library.sets` / `reps` / `display_order` fed the deleted
+      protocol form. They still populate the parser's fallback values and the
+      Settings listing, but nothing consumes them as a prescription any more.
+      Worth deciding whether they stay or go before the next library change.
+- [ ] The schedule is CrossFit/swim-shaped in its wording (`CrossFit days:`).
+      Fine while that is the training, but it is copy, not data — generalise it
+      if the sport changes rather than editing the day list around it.
+
 ## CrossFit WOD tracking — 2026-07-30 (branch `feat/crossfit-wod-tracking`, PR #6)
 
 Shipped: free-text WOD capture (note persisted before the LLM runs), parsing
@@ -55,17 +72,17 @@ single shared write contract for that dictionary. Migrations 016–018.
 
 - [x] Free-form tags replacing `category`, names unique library-wide (migration
       019, branch `feat/exercise-tags`) — `?tag=` filter + MCP tag parameters,
-      tag-filter chips in the Training picker, section-grouped listing in
-      Settings → App Config, ASCII transliteration so Polish tags fold instead
-      of vanishing. See CHANGELOG.
+      section-grouped listing in Settings → App Config, ASCII transliteration so
+      Polish tags fold instead of vanishing. See CHANGELOG. (The tag-filter chips
+      this also shipped lived in the Training picker, which was removed the next
+      day — tags remain in Settings, the API and the parser vocabulary.)
 
 Deferred deliberately — each was raised by a review, ruled non-blocking, and is
 recorded here so it isn't rediscovered from scratch:
 
-- [ ] `/settings/library/archive` is the one library write surface still outside
-      `validate_library_write` — no existence check, so an unknown id silently
-      no-ops where `PATCH /api/library/{id}` returns 404. Policy is otherwise
-      identical.
+- [x] `/settings/library/archive` routed through `validate_library_write`
+      (PR #9) — an unknown id now redirects with an error instead of silently
+      no-opping, matching `PATCH /api/library/{id}`.
 - [ ] A parse yielding more than 200 entries produces a confirmation screen that
       rejects on every submit, with no user-adjustable input. Not a regression
       (the previous behaviour discarded them silently) but it is an

@@ -25,6 +25,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   NFKD + ASCII-encoding alone would silently delete (`ł`, `đ`, `ø`, `æ`, `ß`) before
   folding, so `siłowy` becomes the tag `silowy` instead of vanishing to `siowy`.
 
+### Changed
+- **The A.N.D.Y. planner is given a weekly schedule instead of an exercise
+  prescription.** The prompt used to list every non-archived, non-ad_hoc row of
+  `training_exercises` as `- <name>: <sets>x<reps>`. Those rows outlive the
+  program that created them by design, so the block kept describing a basement
+  kettlebell routine after training had moved to a CrossFit box — and removing
+  the UI alone would have hidden that rather than fixed it. The planner now
+  reads which days are training days, whether today is one, and what has
+  actually been logged this week.
+- **Training schedule is configurable** in Settings → Configuration
+  (`training_days`, `training_swim_per_week` in `app_settings`, defaulting to
+  `mon,wed,fri` and `1`). Kept out of code deliberately: the schedule changed
+  once within a week of first being written down, and this deployment
+  auto-pulls images unattended.
+- `/training` renamed its capture card from "Zapisz WOD" to "Zapisz trening" —
+  the parser resolves against the whole library, so a swim or a walk goes
+  through the same box a WOD does.
+- `settings.py` reads `LIBRARY_SECTIONS` for its section grouping; `SECTION_ORDER`
+  in `training.py` was a second copy of the same four values and is gone.
+
+- **`category` removed from the API — breaking.** `GET /api/library` no longer
+  returns a `category` string; `POST /api/library` and `PATCH /api/library/{id}`
+  no longer accept one — both request models reject unknown fields, so a
+  `category` key in the request body now fails with 422. Use `tags` instead.
+- **Exercise names are unique library-wide** (migration 019,
+  `UNIQUE(name COLLATE NOCASE)`) — a name can no longer exist twice under
+  different categories. Existing same-name duplicates were merged into one row
+  on upgrade (their tags merged together), preferring whichever row matched the
+  seeded CrossFit vocabulary.
+- **Settings → App Config's library listing is grouped by section**
+  (Warmup/Core/Cardio/Stretching) instead of by category.
+
+### Removed
+- **The training protocol table, the per-set log form and the rest timer**
+  (`/training`). All three assumed a fixed prescription followed at home; a
+  class-based session is programmed by the box, so a free-text note is the
+  record. Gone with them: `POST /training/session`, `POST /training/exercise`,
+  `POST /training/exercise/{id}/edit`, `POST /training/exercise/{id}/delete`.
+  The `training_exercises` table stays — `training_entries` references it, so
+  every logged set past and future depends on it, and the parser keeps creating
+  rows there — but it no longer has a UI or a prescription role.
+
 ### Fixed
 - **WOD parser vocabulary widened from CrossFit-only to the whole exercise
   library.** `canonical_movements()` and `resolve_movement()` both filtered
@@ -47,19 +89,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   form now reflects the live row count instead of the server-rendered
   constant — `confirm_wod` loops `for i in range(entry_count)`, so a stale
   count used to silently drop any row added this way.
-
-### Changed
-- **`category` removed from the API — breaking.** `GET /api/library` no longer
-  returns a `category` string; `POST /api/library` and `PATCH /api/library/{id}`
-  no longer accept one — both request models reject unknown fields, so a
-  `category` key in the request body now fails with 422. Use `tags` instead.
-- **Exercise names are unique library-wide** (migration 019,
-  `UNIQUE(name COLLATE NOCASE)`) — a name can no longer exist twice under
-  different categories. Existing same-name duplicates were merged into one row
-  on upgrade (their tags merged together), preferring whichever row matched the
-  seeded CrossFit vocabulary.
-- **Settings → App Config's library listing is grouped by section**
-  (Warmup/Core/Cardio/Stretching) instead of by category.
 
 ## [0.5.0] - 2026-07-31
 

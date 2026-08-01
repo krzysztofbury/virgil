@@ -16,7 +16,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 <td width="50%"><img src="docs/screenshots/daily.png" alt="Daily log"><br><sub><b>Daily</b> — energy, routines & A.N.D.Y. tasks (AI-suggested)</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> — protocol, per-set logging, weekly volume & PBs</sub></td>
+<td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> — free-text capture, weekly volume & PBs</sub></td>
 <td width="50%"><img src="docs/screenshots/oura.png" alt="Oura Ring data"><br><sub><b>Oura</b> — daily & monthly trends (sleep, HRV, readiness, RHR)</sub></td>
 </tr>
 <tr>
@@ -187,23 +187,24 @@ Overview with weekly completion stats, life score radar chart, Oura vitals, 7-da
 - Arrow keys to navigate between days (desktop)
 
 ### Training (`/training`)
-- Exercise protocol with 4 sections: Warmup, Core, Cardio, Stretching
-- Exercise CRUD — add, edit, delete exercises inline per section
-- Section-specific workout logging:
-  - **Warmup**: done toggle + duration (min)
-  - **Core**: multi-set reps + weight (kg)
-  - **Cardio**: multi-set rounds + duration (min)
-  - **Stretching**: duration (min)
+
+One free-text note per session is the only input. Everything else on the page
+reads back what was logged:
+
+- Capture form — date, optional duration, and the note itself
 - This Week KPIs — sessions count, total volume (Core, kg), total reps
 - Personal Bests — max weight per Core exercise (12-week window)
 - Session history with expandable details (including duration column)
-- Rest timer with presets (fixed-position bar above mobile nav)
 
-#### WOD capture — logging a CrossFit workout from one note
+The page previously carried a protocol table, a per-set log form generated from
+it, and a rest timer. All three assumed a fixed prescription followed at home;
+once training moved to a class that programs the session, the note became the
+record and they were removed. The `training_exercises` table stayed — every
+logged set references it — but it has no UI and no prescription role.
 
-A class-based workout has different movements every session, so the fixed
-protocol above does not fit it. Instead, write one free-text note from memory
-after training and let it be parsed:
+#### Capture — logging a workout from one note
+
+Write one free-text note from memory after training and let it be parsed:
 
 - **The note is saved before the LLM is called.** Parsing is derived and
   correctable; your own words are the source of truth. A parser failure — no
@@ -226,8 +227,8 @@ after training and let it be parsed:
   (the parse result is cached in `training_sessions.wod_parsed`), and
   re-submitting a confirmed session cannot double-count it.
 - **Movements you don't already train** are created with `ad_hoc = 1`: they count
-  toward session history, weekly volume and Personal Bests, but stay out of the
-  daily protocol form so it doesn't fill up with one-off movements.
+  toward session history, weekly volume and Personal Bests. The flag is what keeps
+  the daily-planner context clean of one-off movements.
 
 The vocabulary is yours to curate — add, rename, delete it in
 **Settings → App Config**, or over the REST API and MCP (see below). Renaming a
@@ -289,7 +290,7 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 ### Settings (`/settings`)
 Six-tab settings page:
 - **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), feature flag modules (enable/disable optional modules like Feniks)
-- **App Config** — Dictionary tables (exercise library for the Training picker): add your own entries, edit/delete them; built-in entries can be archived (hidden from pickers) but never edited or deleted
+- **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
 - **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
@@ -371,7 +372,7 @@ Current migrations:
 | 006 | `training_overhaul` | Adds `duration` column to entries, translates exercises to English, adds Stretching section |
 | 007 | `litellm_model_strings` | Converts `llm_providers` rows to LiteLLM format (`anthropic/...`, `gemini/...`) |
 | 008 | `onboarding` | Creates `user_profiles` table + `onboarding_completed` setting |
-| 009 | `exercise_library` | Creates the user-editable exercise picker dictionary |
+| 009 | `exercise_library` | Creates the user-editable exercise dictionary (now the parser vocabulary) |
 | 010 | `rename_feniks_flag` | Renames `feature_feniks` to `feature_no_porn` |
 | 011 | `exercise_metric` | Per-exercise `metric` ('reps' vs 'time') so timed holds don't pollute volume KPIs |
 | 012 | `llm_provider_no_check` | Rebuilds `llm_providers` without the provider CHECK (unblocks anthropic/mistral/groq/ollama) |
@@ -395,7 +396,7 @@ Current migrations:
 - `daily_logs` — daily tracking entries
 - `body_measurements` — Saturday weigh-ins
 - `daily_briefings` — AI-generated morning briefings
-- `training_exercises` — exercise protocol (seeded)
+- `training_exercises` — the row every logged set references; seeded, no longer a UI-managed protocol
 - `training_sessions` + `training_entries` — workout logs
 - `feniks_config`, `feniks_journal`, `feniks_pleasures`, `feniks_milestones` — Feniks program
 - `pmo_events` — relapse/reset events
