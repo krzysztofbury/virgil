@@ -748,3 +748,47 @@ def test_seed_row_field_names_match_what_the_route_reads(auth_client, monkeypatc
         "entry_0_note",
     }
     assert names == expected, f"seeded row must expose exactly the fields confirm_wod reads, got {sorted(names)}"
+
+
+def test_no_seed_row_when_the_movement_list_is_unavailable(auth_client):
+    """N3: under library_error the vocabulary is empty, so a seeded row would
+    render a select whose only option is "— pomiń" — a manual-entry path that
+    cannot write anything, advertised by prose promising it can.
+
+    Uses the same over-bound trigger as the degraded-GET test above: the
+    MAX_LIBRARY_MOVEMENTS assert in canonical_movements() is what empties
+    `movements` on this screen.
+    """
+    conn = sqlite3.connect(user_db_path())
+    session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, wod_parsed) VALUES (?, 60, ?, ?)",
+            ("2026-07-26", "ZZ no-seed-under-library-error", '{"entries": [], "unmatched": [], "parse_error": "boom"}'),
+        )
+        conn.commit()
+        session_id = cur.lastrowid
+
+        max_order = conn.execute("SELECT COALESCE(MAX(display_order), 0) FROM exercise_library").fetchone()[0]
+        conn.executemany(
+            "INSERT INTO exercise_library (section, name, display_order, metric, builtin) "
+            "VALUES ('Core', ?, ?, 'reps', 0)",
+            [(f"NoSeed Bound Movement {i}", max_order + i + 1) for i in range(500)],
+        )
+        conn.commit()
+
+        resp = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
+        assert resp.status_code == 200
+        assert 'name="entry_0_movement"' not in resp.text, (
+            "no seed row when there is no vocabulary to pick from — it could not save anything"
+        )
+        assert "lista ruchów" in resp.text, "the page must say why manual entry is unavailable"
+        assert "pusty wiersz do ręcznego wpisania" not in resp.text, (
+            "the prose must not promise a manual-entry row that was not rendered"
+        )
+    finally:
+        conn.execute("DELETE FROM exercise_library WHERE name LIKE 'NoSeed Bound Movement %'")
+        if session_id is not None:
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        conn.commit()
+        conn.close()
