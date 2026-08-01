@@ -195,6 +195,106 @@ def test_add_rejects_invalid_metric(auth_client):
     assert _row("Bogus Metric Move") is None, "no row must be created for a rejected metric"
 
 
+def test_add_with_tags_normalises_them(auth_client):
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "Sandbag Carry",
+            "section": "Core",
+            "metric": "time",
+            "tags": "Strongman, KETTLEBELL ",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    conn = sqlite3.connect(user_db_path())
+    try:
+        row = conn.execute("SELECT id FROM exercise_library WHERE name = 'Sandbag Carry'").fetchone()
+        assert row, "row must be created"
+        tags = [
+            r[0]
+            for r in conn.execute("SELECT tag FROM exercise_library_tags WHERE library_id = ? ORDER BY tag", (row[0],))
+        ]
+    finally:
+        conn.close()
+    assert tags == ["kettlebell", "strongman"]
+
+
+def test_update_can_tag_a_builtin_row(auth_client):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        row = conn.execute("SELECT id FROM exercise_library WHERE builtin = 1 LIMIT 1").fetchone()
+    finally:
+        conn.close()
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/update",
+        data={"entry_id": str(row[0]), "tags": "mobility", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    conn = sqlite3.connect(user_db_path())
+    try:
+        tags = [r[0] for r in conn.execute("SELECT tag FROM exercise_library_tags WHERE library_id = ?", (row[0],))]
+    finally:
+        conn.close()
+    assert "mobility" in tags, "builtin must not block tag writes"
+
+
+def test_update_without_tags_field_leaves_existing_tags_alone(auth_client):
+    """A settings-form update that never mentions `tags` (e.g. editing notes
+    only) must not wipe the row's existing tag set — same "omitted means
+    untouched" contract the REST PATCH endpoint enforces (Task 3 caught this
+    exact defect class: a stray default of `Form("")` instead of `Form(None)`
+    would make every such save silently clear tags, and every OTHER test
+    would still pass since none of them re-check tag survival)."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={"name": "Farmers Walk", "section": "Core", "tags": "grip", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    row = _row("Farmers Walk")
+
+    auth_client.post(
+        "/settings/library/update",
+        data={"entry_id": str(row["id"]), "name": "Farmers Walk", "notes": "heavy", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    conn = sqlite3.connect(user_db_path())
+    try:
+        tags = [r[0] for r in conn.execute("SELECT tag FROM exercise_library_tags WHERE library_id = ?", (row["id"],))]
+    finally:
+        conn.close()
+    assert tags == ["grip"], "an update that never mentions tags must not wipe them"
+
+
+def test_update_with_blank_tags_clears_them(auth_client):
+    """The flip side of the test above: a `tags` field that IS present but
+    blank (the user cleared the text input and hit Save) must clear the tag
+    set, exactly like the REST PATCH's `tags: []` — "present but empty" is
+    not the same as "absent"."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={"name": "Sled Drag", "section": "Core", "tags": "strongman", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    row = _row("Sled Drag")
+
+    auth_client.post(
+        "/settings/library/update",
+        data={"entry_id": str(row["id"]), "tags": "", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    conn = sqlite3.connect(user_db_path())
+    try:
+        tags = [r[0] for r in conn.execute("SELECT tag FROM exercise_library_tags WHERE library_id = ?", (row["id"],))]
+    finally:
+        conn.close()
+    assert tags == [], "an explicit blank tags field must clear the tag set"
+
+
 def test_archive_hides_from_training_picker(auth_client):
     token = csrf_token(auth_client, "/settings?tab=configuration")
     builtin = _any_builtin_id()

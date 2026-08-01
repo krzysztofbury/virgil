@@ -72,14 +72,23 @@ async def settings_page(request: Request, tab: str = Query("general")):
     elif tab == "configuration":
         from app.routers.training import SECTION_ORDER
 
-        # Grouped by section (not category, which migration 019 removed) —
-        # a flat stand-in until Task 4 adds tag-based grouping/filtering.
+        # Grouped by section (not category, which migration 019 removed).
+        # Tags live in exercise_library_tags — one batched query rather than
+        # one per row, same rationale as api.py's _tags_by_library_id.
         lib_rows = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY section, display_order, name")
+        tag_rows = await db.execute_fetchall("SELECT library_id, tag FROM exercise_library_tags ORDER BY tag")
+        tags_by_id: dict[int, list[str]] = {}
+        for tr in tag_rows:
+            tags_by_id.setdefault(tr["library_id"], []).append(tr["tag"])
+
         library_by_section: dict[str, list[dict]] = {s: [] for s in SECTION_ORDER}
         for r in lib_rows:
-            library_by_section.setdefault(r["section"], []).append(dict(r))
+            entry = dict(r)
+            entry["tags"] = tags_by_id.get(entry["id"], [])
+            library_by_section.setdefault(entry["section"], []).append(entry)
         context["library_by_section"] = library_by_section
         context["section_order"] = SECTION_ORDER
+        context["library_all_tags"] = sorted({tr["tag"] for tr in tag_rows})
 
     elif tab == "integrations":
         oura_row = await db.execute_fetchall("SELECT * FROM integrations WHERE provider = 'oura'")
@@ -138,8 +147,9 @@ async def library_add(
     reps: str = Form(""),
     notes: str = Form(""),
     metric: str = Form("reps"),
+    tags: str = Form(""),
 ):
-    from app.library_validation import LibraryWriteError, validate_library_write
+    from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
 
     try:
         sets_val = int(sets) if sets.strip() else None
@@ -156,12 +166,22 @@ async def library_add(
     except LibraryWriteError as exc:
         return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
 
-    await db.execute(
+    # normalize_tags accepts the raw comma-separated field straight from the
+    # form. Run it before the INSERT so a bad tag (e.g. one that normalises
+    # to nothing) 422s-equivalent-redirects without creating an orphan row.
+    try:
+        tag_list = normalize_tags(tags)
+    except LibraryWriteError as exc:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+
+    cursor = await db.execute(
         "INSERT INTO exercise_library "
         "(section, name, sets, reps, notes, display_order, metric, builtin) "
         "VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), ?, 0)",
         (row["section"], row["name"], row["sets"], row["reps"], row["notes"], row["metric"]),
     )
+    for tag in tag_list:
+        await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (cursor.lastrowid, tag))
     await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
 
@@ -170,7 +190,6 @@ async def library_add(
 async def library_update(
     request: Request,
     entry_id: int = Form(...),
-    name: str = Form(...),
     # None (absent from the POST body) means "leave this column unchanged" —
     # NOT "reset to a default". A stale settings page cached from before this
     # branch added the metric <select> would omit `metric` entirely on
@@ -178,13 +197,24 @@ async def library_update(
     # movement to 'reps' on every such save (I1). Form(None) lets FastAPI
     # tell "field absent" (None) apart from "field present but blank" ('') —
     # the latter still means "clear it", same as api.py's PATCH.
+    # `name` joined this group so a builtin row's tag-only edit form (which
+    # never renders name/section/etc — those stay frozen for builtin rows)
+    # can omit it entirely without tripping the "name is required"
+    # validation or the builtin guard in validate_library_write.
+    name: str | None = Form(None),
     section: str | None = Form(None),
     sets: str | None = Form(None),
     reps: str | None = Form(None),
     notes: str | None = Form(None),
     metric: str | None = Form(None),
+    # Tags live in exercise_library_tags, outside validate_library_write's
+    # scope entirely — never gated by builtin (unlike every field above).
+    # Same contract as the REST PATCH endpoint: None (absent) leaves tags
+    # untouched, "" (present but blank) clears them, anything else replaces
+    # the whole set.
+    tags: str | None = Form(None),
 ):
-    from app.library_validation import LibraryWriteError, validate_library_write
+    from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
 
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
@@ -192,7 +222,9 @@ async def library_update(
         return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
     existing = dict(rows[0])
 
-    fields: dict = {"name": name}
+    fields: dict = {}
+    if name is not None:
+        fields["name"] = name
     if section is not None:
         fields["section"] = section
     if sets is not None:
@@ -220,6 +252,21 @@ async def library_update(
             # attacker-controlled.
             [*result.values(), entry_id],
         )
+
+    # Tags bypass the builtin guard entirely — never routed through `fields`/
+    # validate_library_write above, so a builtin row can have its tags
+    # changed even though name/section/metric/sets/reps/notes on it stayed
+    # frozen. Same replace-the-whole-set semantics as api.py's PATCH.
+    if tags is not None:
+        try:
+            tag_list = normalize_tags(tags)
+        except LibraryWriteError as exc:
+            return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+        await db.execute("DELETE FROM exercise_library_tags WHERE library_id = ?", (entry_id,))
+        for tag in tag_list:
+            await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (entry_id, tag))
+
+    if result or tags is not None:
         await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
 
