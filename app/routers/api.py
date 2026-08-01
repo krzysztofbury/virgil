@@ -607,6 +607,23 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
     except LibraryWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
+    # M2 (2026-07-31 review): normalize_tags must run — and be allowed to
+    # raise — BEFORE the UPDATE below, not after. This used to run after,
+    # with no db.rollback() on the except branch, so a bad tag left the
+    # UPDATE's effect sitting uncommitted on this request's connection. It
+    # only ever looked atomic because auth.py opens a brand new connection
+    # per request and closes it in a `finally` without ever committing on an
+    # exception path — introduce any form of connection reuse/pooling and
+    # this starts committing half of a rejected write. Validating first (same
+    # order settings.py's add path already uses) makes that true regardless
+    # of what closes the connection, instead of by accident.
+    tags = None
+    if tags_raw is not None:
+        try:
+            tags = normalize_tags(tags_raw)
+        except LibraryWriteError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
     if result:
         assignments = ", ".join(f"{k} = ?" for k in result)
         await db.execute(
@@ -618,10 +635,6 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
 
     updated = set(result)
     if tags_raw is not None:
-        try:
-            tags = normalize_tags(tags_raw)
-        except LibraryWriteError as exc:
-            raise HTTPException(status_code=exc.status, detail=exc.message) from exc
         await _replace_tags(db, entry_id, tags)
         updated.add("tags")
 

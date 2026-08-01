@@ -248,6 +248,23 @@ async def library_update(
     except LibraryWriteError as exc:
         return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
 
+    # M2 (2026-07-31 review): normalize_tags must run — and be allowed to
+    # raise — BEFORE the UPDATE below, not after. This used to run after,
+    # with no db.rollback() on the except branch below, so a bad tag left the
+    # UPDATE's effect sitting uncommitted on this request's connection. It
+    # only ever looked atomic because auth.py opens a brand new connection
+    # per request and closes it in a `finally` without ever committing on an
+    # exception path — introduce any form of connection reuse/pooling and
+    # this starts committing half of a rejected write. Validating first (same
+    # order the add path above already uses) makes that true regardless of
+    # what closes the connection, instead of by accident.
+    tag_list = None
+    if tags is not None:
+        try:
+            tag_list = normalize_tags(tags)
+        except LibraryWriteError as exc:
+            return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+
     if result:
         assignments = ", ".join(f"{k} = ?" for k in result)
         await db.execute(
@@ -267,10 +284,6 @@ async def library_update(
     # and the tags don't land either. Same replace-the-whole-set semantics,
     # and the same combined-request rejection, as api.py's PATCH.
     if tags is not None:
-        try:
-            tag_list = normalize_tags(tags)
-        except LibraryWriteError as exc:
-            return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
         await db.execute("DELETE FROM exercise_library_tags WHERE library_id = ?", (entry_id,))
         for tag in tag_list:
             await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (entry_id, tag))
@@ -300,9 +313,38 @@ async def library_delete(request: Request, entry_id: int = Form(...)):
 
 @router.post("/settings/library/archive")
 async def library_archive(request: Request, entry_id: int = Form(...), archived: int = Form(1)):
+    # M1 (2026-07-31 review): this was the one library write with no existence
+    # check and no validate_library_write call at all -- a bogus id silently
+    # updated zero rows and redirected as if it had succeeded, while api.py's
+    # PATCH 404s for the same input. That's the exact "returns success having
+    # done nothing" shape library_validation.py's module docstring says
+    # validate_library_write exists to rule out for both surfaces together.
+    # Archiving a builtin row is still allowed here (unchanged behaviour):
+    # validate_library_write's builtin guard only fires when `fields` carries
+    # something OTHER than `archived` (see its op="update" branch), so
+    # fields={"archived": ...} alone never trips it.
+    from app.library_validation import LibraryWriteError, validate_library_write
+
     db = get_user_db_from_request(request)
-    await db.execute("UPDATE exercise_library SET archived = ? WHERE id = ?", (1 if archived else 0, entry_id))
-    await db.commit()
+    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
+    if not rows:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
+    existing = dict(rows[0])
+
+    try:
+        result = await validate_library_write(
+            db, op="update", entry_id=entry_id, existing=existing, fields={"archived": archived}
+        )
+    except LibraryWriteError as exc:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+
+    if result:
+        assignments = ", ".join(f"{k} = ?" for k in result)
+        await db.execute(
+            f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — see library_update
+            [*result.values(), entry_id],
+        )
+        await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
 
 

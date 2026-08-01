@@ -34,6 +34,21 @@ LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
 
 MAX_TAG_LEN = 40
 
+# B3 (2026-07-31 review): MAX_TAG_LEN bounds one tag; nothing bounded how many
+# a single entry could carry. Measured: 200,000 tags accepted in 0.25s.
+# api.py's _replace_tags and settings.py's tag-replace both issue one
+# `await db.execute(INSERT)` per tag INSIDE the write transaction, holding the
+# SQLite write lock for as long as the caller's tag list is long, and every
+# distinct tag then renders as a chip (Training page) and an `x-data` entry
+# (Settings) -- so an unbounded list is a write-lock-hold and a page-weight
+# problem, not merely wasted storage. The caller here is an LLM over MCP: "the
+# model produced an enormous list" is normal operation, not an attack that
+# needs a threat model to justify guarding against. Same discipline this
+# codebase already applies to the library's own vocabulary size --
+# MAX_LIBRARY_MOVEMENTS = 500 in wod_parser.py, with a loud assert rather than
+# a silent truncation.
+MAX_TAGS_PER_ENTRY = 12
+
 # Free-form tags with normalisation on write. The category field this replaces
 # was raw free text with a datalist, which is how a program label ("Workout A
 # (KB full-body)") became a category. Normalising here means "Kettlebell",
@@ -145,6 +160,14 @@ def normalize_tags(raw: list[str] | str | None) -> list[str]:
         if not str(item).strip():
             continue
         out[normalize_tag(str(item))] = None
+    # B3: bounded on the DEDUPLICATED count, not the raw input length --
+    # `out` is exactly the set of rows _replace_tags is about to INSERT one
+    # at a time inside the caller's write transaction, and exactly the set of
+    # chips/datalist entries that render afterward, so that's the count that
+    # actually matters here. Raising here means both callers reject before
+    # their INSERT loop ever runs a single statement.
+    if len(out) > MAX_TAGS_PER_ENTRY:
+        raise LibraryWriteError(422, f"at most {MAX_TAGS_PER_ENTRY} tags allowed per entry, got {len(out)}")
     return sorted(out)
 
 
@@ -262,7 +285,30 @@ async def validate_library_write(
             name = normalize_library_text(fields["name"], 100)
             if not name:
                 raise LibraryWriteError(422, "name cannot be blank")
-            if name.lower() != existing["name"].lower():
+            # B2 (2026-07-31 review): this decides "is this a rename at all" --
+            # a DIFFERENT question from "is this the same movement", which is
+            # what _name_taken/_training_history_exists_for below decide (both
+            # deliberately Unicode-aware, per their own docstrings) and what
+            # resolve_movement() (wod_movements.py) decides when the next WOD
+            # gets parsed (deliberately SQL-only, ASCII lower()). A Python
+            # str.lower() comparison HERE used to let a change through as "not
+            # a rename" whenever Python's Unicode-aware fold treated old and
+            # new as equal -- e.g. capitalising a Polish letter ('ćwiczenie
+            # na łydki' -> 'Ćwiczenie na łydki'). That bypassed both the
+            # collision check and the I2 history guard below and still wrote
+            # the new spelling to the column. resolve_movement's SQL lower()
+            # does NOT fold that same pair the same way (it leaves non-ASCII
+            # letters untouched), so the next WOD mentioning the new spelling
+            # failed to match the training_exercises row logged under the old
+            # one and created a second row, splitting history across two ids
+            # (reproduced end-to-end: library id=74, training_exercises id=28
+            # with logged history, this rename accepted, resolve_movement then
+            # returned a NEW id=29 for the "same" movement). The trigger must
+            # be at least as loose as the loosest downstream comparison, so
+            # this is now an exact string comparison -- ANY change trips it,
+            # and the checks below decide whether the DB actually considers it
+            # a different movement.
+            if name != existing["name"]:
                 if await _name_taken(db, name, exclude_id=entry_id):
                     raise LibraryWriteError(409, f"{name!r} already exists")
                 # I2: a rename must not orphan training_exercises rows still

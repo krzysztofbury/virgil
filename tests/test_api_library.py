@@ -540,6 +540,63 @@ def test_patch_with_invalid_tag_applies_no_field(auth_client):
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
 
+def test_patch_update_does_not_write_before_tags_validate(auth_client):
+    """M2 (2026-07-31 review): api_library_patch used to run the column UPDATE
+    BEFORE normalize_tags got a chance to raise, with no db.rollback() in the
+    except branch. The test above (test_patch_with_invalid_tag_applies_no_field)
+    can't tell a real fix from accidental safety: auth.py opens a brand new
+    connection per request and closes it in a `finally` without ever
+    committing on the exception path, so an uncommitted UPDATE disappears
+    when THAT connection closes regardless of whether the handler itself
+    validates in the right order — it would pass identically before and
+    after this fix. This test calls the handler directly on a connection WE
+    keep open so we can inspect the row through the SAME connection before
+    any rollback/close: if the UPDATE ran, its (uncommitted) effect is
+    already visible here, with or without a subsequent rollback."""
+    import asyncio
+
+    import aiosqlite
+    from fastapi import HTTPException
+
+    from app.routers.api import LibraryPatch, api_library_patch
+
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "M2 Same-Connection Target", "metric": "reps"},
+    )
+    entry_id = resp.json()["id"]
+
+    async def scenario():
+        db = await aiosqlite.connect(user_db_path())
+        db.row_factory = aiosqlite.Row
+        try:
+            raised = False
+            try:
+                await api_library_patch(db, entry_id, LibraryPatch(notes="should not stick", tags=["!!!"]))
+            except HTTPException as exc:
+                raised = True
+                assert exc.status_code == 422
+            assert raised, "the bad tag must still be rejected"
+            # Same connection, no commit/rollback issued yet by us -- an
+            # uncommitted UPDATE would already be visible here if the handler
+            # had run it before raising.
+            row = await db.execute_fetchall("SELECT notes FROM exercise_library WHERE id = ?", (entry_id,))
+            return row[0]["notes"]
+        finally:
+            await db.rollback()
+            await db.close()
+
+    notes = asyncio.run(scenario())
+    try:
+        assert notes == "", (
+            "the UPDATE must not run before tag validation -- an uncommitted write must never be "
+            "issued for a request that ends up rejected, regardless of what closes the connection"
+        )
+    finally:
+        auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
+
+
 def test_duplicate_name_is_409_regardless_of_tags(auth_client):
     """Beyond the plain 409 (test_duplicate_name_is_409 already covers that): a
     rejected duplicate create must not leak its tags onto the row it collided with --

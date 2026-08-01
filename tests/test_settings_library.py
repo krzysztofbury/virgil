@@ -353,3 +353,21 @@ def test_archive_hides_from_training_picker(auth_client):
     )
     assert _row(builtin["name"])["archived"] == 0
     assert picker_marker in auth_client.get("/training").text
+
+
+def test_archive_missing_entry_redirects_with_error(auth_client):
+    """M1 (2026-07-31 review): /settings/library/archive had no existence
+    check and never called validate_library_write at all -- a bogus id
+    silently updated zero rows and redirected as if it had succeeded, while
+    api.py's PATCH 404s for the same input. That was the one library write
+    where the two surfaces disagreed on "does this row exist", contradicting
+    library_validation.py's own claim of being the one shared decision point."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    resp = auth_client.post(
+        "/settings/library/archive",
+        data={"entry_id": "999999999", "archived": "1", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert "err=" in resp.headers["location"], (
+        "archiving a nonexistent entry must redirect with an error, not silently no-op"
+    )

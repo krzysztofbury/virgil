@@ -2,7 +2,7 @@
 
 import pytest
 
-from app.library_validation import LibraryWriteError, normalize_tag, normalize_tags
+from app.library_validation import MAX_TAGS_PER_ENTRY, LibraryWriteError, normalize_tag, normalize_tags
 
 
 @pytest.mark.parametrize(
@@ -102,3 +102,28 @@ def test_normalize_tags_raises_on_non_blank_item_that_normalises_to_nothing():
 def test_normalize_tags_drops_blank_items_silently():
     """Blank items (empty strings, whitespace-only) are dropped, not an error."""
     assert normalize_tags(["crossfit", "", "  ", "kettlebell"]) == ["crossfit", "kettlebell"]
+
+
+def test_normalize_tags_accepts_exactly_the_max_count():
+    tags = [f"tag-{i}" for i in range(MAX_TAGS_PER_ENTRY)]
+    assert normalize_tags(tags) == sorted(tags)
+
+
+def test_normalize_tags_rejects_over_the_max_count():
+    """B3 (2026-07-31 review): MAX_TAG_LEN bounded one tag's length; nothing
+    bounded how many an entry could carry — 200,000 tags were measured
+    accepted in 0.25s. _replace_tags (api.py) and settings.py's tag-replace
+    both issue one INSERT per tag inside the write transaction, so this must
+    raise BEFORE that loop even sees the list, not truncate it silently."""
+    tags = [f"tag-{i}" for i in range(MAX_TAGS_PER_ENTRY + 1)]
+    with pytest.raises(LibraryWriteError) as exc:
+        normalize_tags(tags)
+    assert exc.value.status == 422
+
+
+def test_normalize_tags_count_limit_is_on_the_deduplicated_set():
+    """The bound applies to distinct tags -- the rows _replace_tags is about
+    to INSERT -- not to the raw (pre-dedup) input length. A long list that
+    collapses to a small distinct set must still be accepted."""
+    tags = ["kettlebell"] * (MAX_TAGS_PER_ENTRY * 5)
+    assert normalize_tags(tags) == ["kettlebell"]

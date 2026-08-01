@@ -362,6 +362,45 @@ def test_rename_refused_when_training_history_exists_case_insensitive_unicode(au
         _delete_training_exercise("ćwiczenie")
 
 
+def test_rename_that_only_changes_non_ascii_letter_case_is_still_refused_with_history(auth_client):
+    """B2 (2026-07-31 review): validate_library_write's TRIGGER for "is this a
+    rename at all" used to be `name.lower() != existing["name"].lower()` —
+    Python's Unicode-aware str.lower(). resolve_movement() (wod_movements.py)
+    decides "is this the SAME movement" with SQL's ASCII-only lower(). A
+    capitalisation-only change to a non-ASCII letter folds to the identical
+    string under Python's fold on both sides ('ćwiczenie na łydki'.lower() ==
+    'Ćwiczenie na łydki'.lower()), so the OLD trigger read that as "not a
+    rename" and skipped the guard (and the collision check) entirely, writing
+    the new spelling straight through. The next WOD mentioning the new
+    spelling then fails resolve_movement()'s SQL lookup — SQL lower() leaves
+    the accented capital untouched, so 'Ćwiczenie na łydki' no longer matches
+    the training_exercises row logged under the lowercase spelling — and
+    creates a SECOND row, splitting history in two. This is exactly the
+    reviewer's reproduced case (library id=74 / training_exercises id=28 with
+    logged history; the rename was accepted; resolve_movement then returned a
+    new id=29 for the "same" movement). Trigger must be an exact string
+    comparison, not a Python-side fold."""
+    resp = auth_client.post(
+        "/api/library",
+        headers=KEY,
+        json={"section": "Core", "name": "ćwiczenie na łydki", "metric": "reps"},
+    )
+    entry_id = resp.json()["id"]
+    _insert_training_exercise("ćwiczenie na łydki")
+
+    try:
+        resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"name": "Ćwiczenie na łydki"})
+        assert resp.status_code == 409, (
+            "capitalising a single non-ASCII letter is still a rename and must trip the "
+            "training-history guard, even though Python's str.lower() folds it away"
+        )
+        assert _row("ćwiczenie na łydki") is not None, "the old spelling must survive the refused rename"
+        assert _row("Ćwiczenie na łydki") is None
+    finally:
+        _delete_row("ćwiczenie na łydki")
+        _delete_training_exercise("ćwiczenie na łydki")
+
+
 def test_rename_allowed_when_no_training_history_exists(auth_client):
     """Control: the I2 guard must only fire when training_exercises actually
     holds a matching row — a plain rename with no history must still work on
@@ -402,3 +441,72 @@ def test_rename_allowed_when_no_training_history_exists(auth_client):
     finally:
         _delete_row("Parity No History")
         _delete_row("Parity Renamed Fine")
+
+
+def test_settings_update_does_not_write_before_tags_validate(auth_client):
+    """M2 (2026-07-31 review): settings.py's library_update had the same
+    defect as api.py's PATCH (see test_patch_update_does_not_write_before_tags_validate
+    in test_api_library.py) -- it ran the column UPDATE before normalize_tags
+    got a chance to raise, with no db.rollback() on the except branch, masked
+    identically by auth.py's per-request connection teardown. This calls the
+    handler directly on a connection we control, the same discriminator: an
+    uncommitted UPDATE is visible on that SAME connection immediately, before
+    any rollback/close, regardless of whether a black-box HTTP test could
+    ever observe it."""
+    import asyncio
+
+    import aiosqlite
+
+    from app.routers.settings import library_update
+
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    auth_client.post(
+        "/settings/library/add",
+        data={
+            "name": "M2 Settings Target",
+            "section": "Core",
+            "sets": "",
+            "reps": "",
+            "notes": "",
+            "metric": "reps",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    entry_id = _row("M2 Settings Target")["id"]
+
+    class _State:
+        def __init__(self, db):
+            self.user_db = db
+
+    class _Req:
+        def __init__(self, db):
+            self.state = _State(db)
+
+    async def scenario():
+        db = await aiosqlite.connect(user_db_path())
+        db.row_factory = aiosqlite.Row
+        try:
+            resp = await library_update(
+                _Req(db),
+                entry_id=entry_id,
+                name=None,
+                section=None,
+                sets=None,
+                reps=None,
+                notes="should not stick",
+                metric=None,
+                tags="!!!",
+            )
+            assert "err=" in resp.headers["location"], "the bad tag must still be rejected"
+            row = await db.execute_fetchall("SELECT notes FROM exercise_library WHERE id = ?", (entry_id,))
+            return row[0]["notes"]
+        finally:
+            await db.rollback()
+            await db.close()
+
+    notes = asyncio.run(scenario())
+    try:
+        assert notes == "", "the UPDATE must not run before tag validation on the settings surface either"
+    finally:
+        _delete_row("M2 Settings Target")
