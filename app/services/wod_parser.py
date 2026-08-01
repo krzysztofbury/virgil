@@ -94,11 +94,19 @@ async def canonical_movements(db) -> list[dict]:
     that is no longer reachable through the app, but the
     dedupe-by-first-seen-name below stays as defense in depth against a
     hand-edited or otherwise malformed database: display_order alone is the
-    tie-break, should a duplicate ever appear. This must stay consistent with
-    resolve_movement() in wod_movements.py, which uses the identical ORDER
-    BY — otherwise a movement could resolve to a different section/metric
-    depending on which
-    one is asked.
+    tie-break, should a duplicate ever appear. This function is the one place
+    that needs it: the SELECT above has no WHERE on name, so two rows that
+    differ only in a non-ASCII letter's case both come back from the same
+    query and must be collapsed here. resolve_movement() in wod_movements.py
+    no longer carries the equivalent machinery — its WHERE targets one
+    specific name, and lower(name) = lower(?) compares both sides with the
+    same SQL lower() this table's UNIQUE constraint is built on, so two rows
+    that both matched would, by transitivity, also match each other and would
+    already violate that constraint. There is nothing for it to break a tie
+    among. The two functions still agree on which row wins: whatever name
+    this function surfaces for a movement is the exact string
+    resolve_movement() is later called with, and a query for an exact name
+    can only ever match the row that owns it.
     """
     rows = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library WHERE archived = 0 ORDER BY display_order"

@@ -288,6 +288,50 @@ def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
     asyncio.run(run())
 
 
+def test_seen_dedupe_collapses_non_ascii_case_duplicates(tmp_path):
+    """The `seen` dedupe loop is NOT dead code: SQLite's UNIQUE(name COLLATE
+    NOCASE) only folds ASCII case, so 'Ćwiczenie' and 'ćwiczenie' — differing
+    only in a non-ASCII letter's case — both satisfy the constraint as
+    distinct rows (proven below: the second INSERT does not raise). A
+    hand-edited or otherwise malformed database (something writing directly
+    to the table, bypassing validate_library_write's Unicode-aware dup check)
+    can therefore still produce this pair. Without the Python-level `seen`
+    dedupe, canonical_movements() would hand the LLM both spellings of the
+    same movement in its system prompt. This test would fail if that loop
+    were deleted: the raw SELECT has no WHERE on name, so both rows always
+    come back from SQLite; only the dedupe loop collapses them to one."""
+
+    async def run():
+        db = await _real_library_db(tmp_path)
+        try:
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Core', 'Ćwiczenie', 1, 'reps')"
+            )
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Cardio', 'ćwiczenie', 2, 'time')"
+            )
+            await db.commit()
+
+            # Confirm the premise: SQLite's NOCASE really does let this pair
+            # coexist -- if a future SQLite version closed this gap, this
+            # assertion (not the one below) is what should fail.
+            rows = await db.execute_fetchall("SELECT name FROM exercise_library")
+            assert len(rows) == 2, "both non-ASCII case-variant rows must have been accepted by the UNIQUE constraint"
+
+            movements = await wod_parser.canonical_movements(db)
+            matches = [m for m in movements if m["name"].lower() == "ćwiczenie"]
+            assert len(matches) == 1, "the two Unicode-only-differing rows must collapse to one vocabulary entry"
+            assert matches[0]["name"] == "Ćwiczenie", "first-by-display_order (id 1) must be the survivor"
+            assert matches[0]["section"] == "Core"
+            assert matches[0]["metric"] == "reps"
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
 def test_canonical_movements_orders_by_display_order(tmp_path):
     """The dedupe-by-first-seen-name loop in canonical_movements() only does
     something observable if the query itself returns rows in display_order —

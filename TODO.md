@@ -53,6 +53,12 @@ confined to a closed movement vocabulary, editable confirmation screen, `ad_hoc`
 movements, a user-curatable dictionary over the Settings form / REST / MCP, and a
 single shared write contract for that dictionary. Migrations 016–018.
 
+- [x] Free-form tags replacing `category`, names unique library-wide (migration
+      019, branch `feat/exercise-tags`) — `?tag=` filter + MCP tag parameters,
+      tag-filter chips in the Training picker, section-grouped listing in
+      Settings → App Config, ASCII transliteration so Polish tags fold instead
+      of vanishing. See CHANGELOG.
+
 Deferred deliberately — each was raised by a review, ruled non-blocking, and is
 recorded here so it isn't rediscovered from scratch:
 

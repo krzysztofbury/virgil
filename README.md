@@ -210,15 +210,16 @@ after training and let it be parsed:
   provider configured, a timeout, a garbled reply, even a crash — costs you the
   structure, never the record.
 - **The parser is confined to a closed movement vocabulary: every non-archived
-  row in `exercise_library`**, not just the ones categorised `CrossFit` — a
-  session's warm-up and stretching are movements you likely already have in
-  the library under other categories, and the closed list covers them the
-  same way. A movement outside it is reported as unrecognised, never
+  row in `exercise_library`** — your whole library, not a CrossFit-only slice
+  of it. Movements carry free-form tags (e.g. `kettlebell`, `gym-classic`)
+  instead of a single category, and tags organise the picker without gating
+  what the parser may recognise: a session's warm-up, stretching, kettlebell
+  or barbell work is picked up the same way a CrossFit movement is. A
+  movement outside the vocabulary is reported as unrecognised, never
   invented — this is what stops the catalogue filling with `Thruster`,
-  `thrusters` and `Thruster 43kg` as three separate exercises. A name that
-  exists under two categories (e.g. `Back Squat` in both Gym classics and
-  CrossFit) resolves deterministically: the CrossFit row wins, otherwise the
-  lowest `display_order`.
+  `thrusters` and `Thruster 43kg` as three separate exercises. Movement names
+  are unique library-wide (migration 019), so there is no same-name-under-
+  two-categories ambiguity left to resolve.
 - **Nothing is written until you confirm.** The confirmation screen is editable:
   fix a misread weight, skip an entry you did not mean to log, or assign an
   unrecognised movement from a dropdown. Refreshing it never re-invokes the LLM
@@ -380,6 +381,7 @@ Current migrations:
 | 016 | `crossfit_movements` | Adds `training_exercises.ad_hoc` to mark parser-created movements; seeds 31 CrossFit movements (vocabulary for WOD parser) |
 | 017 | `crossfit_editable` | Makes the seeded CrossFit movements user-editable (`builtin = 0`) so they can be renamed/deleted, not just archived |
 | 018 | `wod_parsed_cache` | Adds `training_sessions.wod_parsed` — caches the WOD parser result so Post/Redirect/Get never re-invokes the LLM on a refresh |
+| 019 | `exercise_tags` | Replaces `exercise_library.category` with free-form tags (`exercise_library_tags` join table); makes `name` unique (`UNIQUE(name COLLATE NOCASE)`), merging same-name rows that used to coexist under different categories |
 
 ## Data Model
 

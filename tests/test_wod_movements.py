@@ -201,6 +201,52 @@ def test_non_crossfit_library_row_is_resolvable(tmp_path):
     asyncio.run(run())
 
 
+def test_non_ascii_duplicate_names_each_resolve_unambiguously(tmp_path):
+    """resolve_movement() used to break ties with `ORDER BY display_order
+    LIMIT 1`, "just in case" two rows matched. They can't: exercise_library's
+    UNIQUE(name COLLATE NOCASE) is ASCII-only, so 'Ćwiczenie'/'ćwiczenie' (a
+    non-ASCII case pair) can coexist in the table (proven below), but the
+    lookup here — `WHERE lower(name) = lower(?)` — compares both sides with
+    that SAME SQL lower(), so if two rows both matched one `clean` value they
+    would, by transitivity, also match each other and would already have
+    violated the UNIQUE constraint. This inserts both spellings, with
+    DIFFERENT section/metric so a wrong pick is visible, and resolves each
+    exact name — proving neither query is ever ambiguous, which is why the
+    ORDER BY/LIMIT tie-break was removed rather than kept as a no-op."""
+
+    async def run():
+        db = await _db(tmp_path)
+        try:
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, metric, builtin) VALUES ('Core', 'Ćwiczenie', 'reps', 0)"
+            )
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, metric, builtin) "
+                "VALUES ('Cardio', 'ćwiczenie', 'time', 0)"
+            )
+            await db.commit()
+
+            rows = await db.execute_fetchall(
+                "SELECT name FROM exercise_library WHERE name IN ('Ćwiczenie', 'ćwiczenie')"
+            )
+            assert len(rows) == 2, "both non-ASCII case-variant rows must have been accepted by the UNIQUE constraint"
+
+            upper_id = await resolve_movement(db, "Ćwiczenie")
+            lower_id = await resolve_movement(db, "ćwiczenie")
+            assert upper_id != lower_id, "each spelling must resolve to its own row, not collide"
+
+            upper_row = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (upper_id,))
+            lower_row = await db.execute_fetchall("SELECT * FROM training_exercises WHERE id = ?", (lower_id,))
+            assert upper_row[0]["section"] == "Core"
+            assert upper_row[0]["metric"] == "reps"
+            assert lower_row[0]["section"] == "Cardio"
+            assert lower_row[0]["metric"] == "time"
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
 def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
     """Before migration 019, exercise_library was UNIQUE(category, name), so
     'Back Squat' could exist twice (Gym classics + CrossFit) and
