@@ -14,7 +14,6 @@ import aiosqlite
 import pytest
 
 from app.services.training_schedule import (
-    DEFAULT_DAYS,
     SETTING_DAYS,
     SETTING_SWIM,
     format_days,
@@ -147,7 +146,10 @@ def test_defaults_apply_when_the_settings_row_is_absent(tmp_path):
     """A fresh DB (or one predating the seed) must not yield an empty plan."""
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {})
-    assert format_days(normalize_days(DEFAULT_DAYS)) in block
+    # Literal, not format_days(normalize_days(DEFAULT_DAYS)) — that fed the
+    # constant back to itself, so changing DEFAULT_DAYS to anything still passed.
+    assert "CrossFit days: Mon, Wed, Fri." in block
+    assert "Swimming: 1x/week, any day." in block, "DEFAULT_SWIM must apply too"
 
 
 def test_logged_sessions_are_listed_for_the_current_week(tmp_path):

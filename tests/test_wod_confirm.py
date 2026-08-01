@@ -2,8 +2,10 @@
 
 import json
 import sqlite3
+from datetime import date
+from urllib.parse import unquote
 
-from conftest import csrf_token, stat_value_for_label, user_db_path
+from conftest import csrf_token, plain_stat_value_for_label, stat_value_for_label, user_db_path
 
 
 def _query(sql, params=()):
@@ -435,3 +437,221 @@ def test_out_of_range_duration_rejects_the_whole_submission(auth_client):
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
     assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
+
+
+# --- Rejection must be distinguishable from consume-then-re-arm ---
+#
+# A mutation sweep showed the four test_out_of_range_* tests and the entry_count
+# test all pass with their rejection branches deleted: rejection and
+# "consumed, resolved nothing, re-armed" both produce 303 + ?err= + 0 entries +
+# wod_parsed still set. The re-arm added on this branch made them vacuous
+# without touching them. These pin the difference.
+
+
+def _capture_two_row_parse(auth_client, monkeypatch, note):
+    from test_wod_capture import _sessions, _stub_llm
+
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {"movement": "Thruster", "set_number": 1, "reps": 21, "weight": 43.0, "duration": None, "note": ""},
+                {"movement": "Pull-up", "set_number": 1, "reps": 21, "weight": None, "duration": None, "note": ""},
+            ],
+            "unmatched": [],
+        },
+    )
+    token = csrf_token(auth_client, "/training")
+    auth_client.post("/training/wod", data={"date": date.today().isoformat(), "wod_text": note, "_csrf_token": token})
+    return _sessions()[0]["id"], token
+
+
+def test_a_rejected_field_never_reaches_the_consume(auth_client, monkeypatch, caplog):
+    """The docstring's claim — validation runs BEFORE the B1 consume — was untested.
+
+    Without this, deleting the `return` from the _ConfirmRejected handler still
+    passes: execution falls through, the parse is consumed, and the re-arm
+    produces the same 303 + err the rejection would have.
+    """
+    session_id, token = _capture_two_row_parse(auth_client, monkeypatch, "ZZ reject-before-consume")
+
+    with caplog.at_level("WARNING", logger="app.routers.training"):
+        caplog.clear()
+        resp = auth_client.post(
+            "/training/wod/confirm",
+            data={
+                "_csrf_token": token,
+                "session_id": str(session_id),
+                "entry_count": "2",
+                "entry_0_movement": "Thruster",
+                "entry_0_set_number": "1",
+                "entry_0_reps": "21",
+                "entry_0_weight": "43",
+                "entry_0_duration": "",
+                "entry_0_note": "",
+                "entry_1_movement": "Pull-up",
+                "entry_1_set_number": "1",
+                "entry_1_reps": "99999",
+                "entry_1_weight": "",
+                "entry_1_duration": "",
+                "entry_1_note": "",
+            },
+            follow_redirects=False,
+        )
+    assert resp.status_code == 303
+    assert "poza zakresem" in unquote(resp.headers["location"]), "the rejection names the offending field"
+    assert "parse re-armed" not in caplog.text, (
+        "a rejected submission must never reach the consume — re-arming means it did"
+    )
+    assert _query("SELECT COUNT(*) AS n FROM training_entries WHERE session_id = ?", (session_id,))[0]["n"] == 0, (
+        "the valid row must not be written when a sibling row is rejected"
+    )
+
+
+def test_out_of_range_entry_count_never_reaches_the_consume(auth_client, monkeypatch, caplog):
+    """Same masking: with the reject branch replaced by `entry_count = 0`, the
+    loop writes nothing, the consume succeeds, and the re-arm emits the same
+    303 + err. That is the exact B2 defect this route was built to prevent."""
+    session_id, token = _capture_two_row_parse(auth_client, monkeypatch, "ZZ entry-count-before-consume")
+
+    with caplog.at_level("WARNING", logger="app.routers.training"):
+        caplog.clear()
+        resp = auth_client.post(
+            "/training/wod/confirm",
+            data={"_csrf_token": token, "session_id": str(session_id), "entry_count": "201"},
+            follow_redirects=False,
+        )
+    assert "Zbyt dużo wpisów" in unquote(resp.headers["location"])
+    assert "parse re-armed" not in caplog.text, "an over-bound entry_count must be refused before the consume"
+
+
+def test_discard_survives_an_out_of_range_entry_count(auth_client, monkeypatch):
+    """Discard is hoisted above entry_count validation, not just above the field
+    loop. The existing test only pushes an out-of-range entry *field*, so moving
+    discard back below the entry_count check went unnoticed."""
+    session_id, token = _capture_two_row_parse(auth_client, monkeypatch, "ZZ discard-over-entry-count")
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, "session_id": str(session_id), "entry_count": "201", "action": "discard"},
+        follow_redirects=False,
+    )
+    assert resp.headers["location"] == "/training", "discard must outrank every field check, entry_count included"
+    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"] is None
+
+
+def test_volume_kpi_counts_only_core_reps_movements(auth_client):
+    """K01/K02/K03: the KPI tests all use a before/after delta and log a Core
+    reps movement, so dropping `section = 'Core'` or `metric = 'reps'` shifts
+    baseline and new by the same amount and the delta still matches. A Cardio
+    entry must move Total Reps and leave Volume (Core) alone.
+    """
+    conn = sqlite3.connect(user_db_path())
+    ex_id = session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES (?, 'Cardio', 'reps', 1)",
+            ("ZZTestCardioForKpi",),
+        )
+        ex_id = cur.lastrowid
+        cur = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (date.today().isoformat(),))
+        session_id = cur.lastrowid
+        conn.commit()
+
+        page = auth_client.get("/training").text
+        vol_before = stat_value_for_label(page, "Volume (Core)")
+        reps_before = plain_stat_value_for_label(page, "Total Reps")
+
+        conn.execute(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, 1, 30, 20)",
+            (session_id, ex_id),
+        )
+        conn.commit()
+
+        page = auth_client.get("/training").text
+        assert plain_stat_value_for_label(page, "Total Reps") == reps_before + 30, (
+            "a Cardio reps entry counts toward reps"
+        )
+        assert stat_value_for_label(page, "Volume (Core)") == vol_before, (
+            "Volume (Core) must ignore non-Core sections — a delta-only test cannot see this"
+        )
+    finally:
+        if session_id is not None:
+            conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        if ex_id is not None:
+            conn.execute("DELETE FROM training_exercises WHERE id = ?", (ex_id,))
+        conn.commit()
+        conn.close()
+
+
+def test_personal_best_is_the_maximum_not_the_first_or_lowest(auth_client):
+    """P03/P05: every PB fixture logs exactly one set, so MIN and MAX agree and
+    GROUP BY is a no-op. Two sets at different weights separate them."""
+    conn = sqlite3.connect(user_db_path())
+    ex_id = session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES (?, 'Core', 'reps', 1)",
+            ("ZZTestPbMaximum",),
+        )
+        ex_id = cur.lastrowid
+        cur = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (date.today().isoformat(),))
+        session_id = cur.lastrowid
+        conn.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, ?, 5, ?)",
+            [(session_id, ex_id, 1, 60.0), (session_id, ex_id, 2, 85.0), (session_id, ex_id, 3, 70.0)],
+        )
+        conn.commit()
+
+        assert stat_value_for_label(auth_client.get("/training").text, "ZZTestPbMaximum") == 85.0, (
+            "the PB must be the heaviest set, not the first or the lightest"
+        )
+    finally:
+        if session_id is not None:
+            conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        if ex_id is not None:
+            conn.execute("DELETE FROM training_exercises WHERE id = ?", (ex_id,))
+        conn.commit()
+        conn.close()
+
+
+def test_delete_session_actually_deletes(auth_client):
+    """E21: the only delete test asserts the route is registered (!= 404).
+    Replacing the DELETE with `pass` left the suite green."""
+    conn = sqlite3.connect(user_db_path())
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, notes) VALUES (?, 'ZZ delete-me')", (date.today().isoformat(),)
+        )
+        session_id = cur.lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(f"/training/session/{session_id}/delete", data={"_csrf_token": token}, follow_redirects=False)
+    assert _query("SELECT id FROM training_sessions WHERE id = ?", (session_id,)) == [], (
+        "the delete route must remove the row, not merely exist"
+    )
+
+
+def test_rendered_confirm_form_carries_every_field_the_route_needs(auth_client, monkeypatch):
+    """W25/G01: no test in the suite ever submits a rendered form — every POST
+    body is hand-built — so the template's field names and form action are
+    uncoupled from the route that reads them. Removing the session_id hidden
+    input left the suite green while every real submission silently wrote
+    nothing.
+    """
+    import re as _re
+
+    session_id, _token = _capture_two_row_parse(auth_client, monkeypatch, "ZZ rendered form contract")
+    html = auth_client.get(f"/training/wod/confirm/{session_id}").text
+    form = html[html.index('action="/training/wod/confirm"') :]
+    form = form[: form.index("</form>")]
+
+    hidden = set(_re.findall(r'name="(_csrf_token|session_id|entry_count)"', form))
+    assert hidden == {"_csrf_token", "session_id", "entry_count"}, (
+        f"the rendered form must carry every field confirm_wod reads, got {sorted(hidden)}"
+    )
+    assert _re.search(r'name="session_id"[^>]*\svalue="\d+"', form), "session_id must carry a server-rendered value"

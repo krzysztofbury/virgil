@@ -954,7 +954,14 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
     # Negative control: without it, a link rendered for EVERY session satisfies
     # the assertion above just as well — and on a settled session that link only
     # 303s back to this page.
-    settled = _query("SELECT id FROM training_sessions WHERE wod_parsed IS NULL ORDER BY id DESC LIMIT 1")
+    # From the page's OWN window: /training renders ORDER BY date DESC LIMIT 20,
+    # while this used to pick by id DESC. The two sets need not intersect, so the
+    # "not in page" assertion below could pass without proving anything.
+    settled = _query(
+        "SELECT id FROM training_sessions WHERE wod_parsed IS NULL "
+        "AND id IN (SELECT id FROM training_sessions ORDER BY date DESC LIMIT 20) "
+        "ORDER BY date DESC LIMIT 1"
+    )
     assert settled, "precondition: at least one settled session must exist for the control to mean anything"
     assert f"/training/wod/confirm/{settled[0]['id']}" not in page, (
         "a session with no pending parse must not be offered a 'dokończ' link"

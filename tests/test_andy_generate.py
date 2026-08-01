@@ -108,6 +108,9 @@ def test_generate_andy_sends_the_schedule_not_a_prescription(auth_client, monkey
 
         assert "--- Training plan ---" in prompt, "the schedule block must reach the planner"
         assert "CrossFit days:" in prompt, "the schedule must name the configured days"
+        # 2026-07-08 is a Wednesday. Without this, passing schedule_block the
+        # wrong date — or a date offset by days — changed nothing observable.
+        assert "Today is Wednesday" in prompt, "the block must describe the date actually being planned"
 
         assert "--- Training Protocol ---" not in prompt, "the prescription block is gone"
         assert "ZZTestAdHocPromptMovement" not in prompt
