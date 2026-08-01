@@ -101,7 +101,7 @@ def test_valid_workout_saves_then_exercise_archives_not_deletes(auth_client):
 
 
 def test_picker_added_row_gets_time_metric_from_library(auth_client):
-    """B3 reproduction: exercise_library seeds 'Row' (category='CrossFit',
+    """B3 reproduction: exercise_library seeds 'Row' (tagged 'crossfit',
     section='Cardio') with metric='time', but the picker's SELECT (training.py
     training_page()) and the add_exercise() INSERT both used to omit `metric`
     entirely, so a picker-added 'Row' landed on the column default 'reps'

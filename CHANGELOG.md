@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Tags replace `exercise_library.category`** (migration 019, `exercise_library_tags`
+  join table). A movement can carry several free-form tags (`kettlebell`, `warmup`, ...)
+  or none — tags organise the Settings picker without gating what the WOD parser may
+  recognise, unlike the single category they replace.
+- **`?tag=` filter on `GET /api/library`** — filters to entries carrying the given tag
+  (normalised the same way tags are on write: lowercased, transliterated, kebab-cased).
+  Each returned entry now carries its own `tags: list[str]`.
+- **MCP tag parameters** — `get_exercise_library` takes `tag` to filter; `add_exercise`
+  and `update_exercise` take `tags: list[str]` (`update_exercise`'s replaces the full set).
+- **Tag filter chips in the exercise picker** (`/training`). Movements list flat per
+  section with clickable tag chips (plus an "All" chip) filtering client-side; Settings
+  → App Config gained a matching comma-separated tags input with a datalist of existing
+  tags.
+- **ASCII transliteration for tags.** `normalize_tag()` maps Polish letters that
+  NFKD + ASCII-encoding alone would silently delete (`ł`, `đ`, `ø`, `æ`, `ß`) before
+  folding, so `siłowy` becomes the tag `silowy` instead of vanishing to `siowy`.
+
 ### Fixed
 - **WOD parser vocabulary widened from CrossFit-only to the whole exercise
   library.** `canonical_movements()` and `resolve_movement()` both filtered
@@ -15,11 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Pull-apart, Goblet Hold, Hamstring Stretch, ...), the kettlebell program,
   and the Gym-classics barbell lifts came back "unrecognised" even though
   they were already in the library under other categories. Both functions now
-  scope to every non-archived row. A name that exists under two categories —
-  `Back Squat`, `Bench Press`, `Deadlift` (Gym classics + CrossFit) and
-  `Pull-up` (Workout B + CrossFit) today — resolves deterministically: the
-  CrossFit row wins, otherwise the lowest `display_order`, so the two
-  functions can never disagree on a movement's section/metric.
+  scope to every non-archived row. (A name could briefly exist under two
+  categories at the time — `Back Squat`, `Bench Press`, `Deadlift`,
+  `Pull-up` — until migration 019 below made names unique library-wide and
+  merged those duplicates for good.)
 - **WOD confirmation screen can no longer strand extra sets.** The screen only
   ever let you submit exactly the rows the server rendered — an unrecognised
   movement was synthesised as exactly one row, and the same limit applied
@@ -30,6 +47,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   form now reflects the live row count instead of the server-rendered
   constant — `confirm_wod` loops `for i in range(entry_count)`, so a stale
   count used to silently drop any row added this way.
+
+### Changed
+- **`category` removed from the API — breaking.** `GET /api/library` no longer
+  returns a `category` string; `POST /api/library` and `PATCH /api/library/{id}`
+  no longer accept one — both request models reject unknown fields, so a
+  `category` key in the request body now fails with 422. Use `tags` instead.
+- **Exercise names are unique library-wide** (migration 019,
+  `UNIQUE(name COLLATE NOCASE)`) — a name can no longer exist twice under
+  different categories. Existing same-name duplicates were merged into one row
+  on upgrade (their tags merged together), preferring whichever row matched the
+  seeded CrossFit vocabulary.
+- **Settings → App Config's library listing is grouped by section**
+  (Warmup/Core/Cardio/Stretching) instead of by category.
 
 ## [0.5.0] - 2026-07-31
 

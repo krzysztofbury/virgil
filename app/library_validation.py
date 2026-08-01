@@ -24,16 +24,65 @@ refuses a name change when training_exercises has a matching row under the old
 name, for both surfaces.
 """
 
+import re
+import unicodedata
+
 from app.validation import truncate
 
 LIBRARY_METRICS = ("reps", "time")
 LIBRARY_SECTIONS = ("Warmup", "Core", "Cardio", "Stretching")
 
+MAX_TAG_LEN = 40
+
+# B3 (2026-07-31 review): MAX_TAG_LEN bounds one tag; nothing bounded how many
+# a single entry could carry. Measured: 200,000 tags accepted in 0.25s.
+# api.py's _replace_tags and settings.py's tag-replace both issue one
+# `await db.execute(INSERT)` per tag INSIDE the write transaction, holding the
+# SQLite write lock for as long as the caller's tag list is long, and every
+# distinct tag then renders as a chip (Training page) and an `x-data` entry
+# (Settings) -- so an unbounded list is a write-lock-hold and a page-weight
+# problem, not merely wasted storage. The caller here is an LLM over MCP: "the
+# model produced an enormous list" is normal operation, not an attack that
+# needs a threat model to justify guarding against. Same discipline this
+# codebase already applies to the library's own vocabulary size --
+# MAX_LIBRARY_MOVEMENTS = 500 in wod_parser.py, with a loud assert rather than
+# a silent truncation.
+MAX_TAGS_PER_ENTRY = 12
+
+# Free-form tags with normalisation on write. The category field this replaces
+# was raw free text with a datalist, which is how a program label ("Workout A
+# (KB full-body)") became a category. Normalising here means "Kettlebell",
+# "KETTLEBELL" and "Kettle Bell " are one tag rather than three.
+_TAG_INVALID_CHARS = re.compile(r"[^a-z0-9-]+")
+_TAG_DASHES = re.compile(r"-{2,}")
+
+# Tags are ASCII kebab-case slugs, deliberately -- the `name` column stays
+# full Unicode, only tags get folded. NFKD + ascii-encode alone is NOT enough:
+# it decomposes an accented vowel (é, ć) into a base letter plus a combining
+# mark that the ascii encode then drops cleanly, but a letter that is its own
+# member of an alphabet rather than a decorated Latin vowel -- Polish "ł"
+# chief among them -- has no decomposition and simply gets deleted by the
+# ascii encode, same as it was deleted by the old invalid-char filter. Measured:
+# NFKD-only turns "siłowy" into "siowy" and "żółty" into "zoty" -- exactly the
+# defect this transliteration step exists to fix, just narrower. The explicit
+# map below runs BEFORE NFKD to catch what NFKD cannot decompose. Keys are
+# lowercase because this only ever runs after `.strip().lower()`, and Python's
+# Unicode-aware str.lower() already folds "Ł" -> "ł".
+_TAG_TRANSLITERATE = str.maketrans(
+    {
+        "ł": "l",
+        "đ": "d",
+        "ø": "o",
+        "æ": "ae",
+        "ß": "ss",
+    }
+)
+
 
 def normalize_library_text(value: str, max_len: int) -> str:
     """Strip surrounding whitespace, then clamp to max_len.
 
-    Both routers must apply this identically to name/category/reps/notes —
+    Both routers must apply this identically to name/reps/notes —
     api.py previously truncated `reps`/`notes` without stripping first, which
     diverged from settings.py's form handlers.
     """
@@ -67,20 +116,110 @@ class LibraryWriteError(Exception):
         super().__init__(message)
 
 
+def normalize_tag(raw: str) -> str:
+    """Lowercase, transliterate to ASCII, whitespace-to-dash, alphanumerics
+    and dashes only.
+
+    Transliteration (explicit map, then NFKD + ascii fold) runs before the
+    invalid-char filter so an accented letter folds to its base letter
+    instead of being deleted -- see _TAG_TRANSLITERATE for why the explicit
+    map has to run first.
+
+    Raises LibraryWriteError(422) when nothing survives — a tag that
+    normalises to the empty string is a typo, not an unnamed tag.
+    """
+    text = (raw or "").strip().lower()
+    text = text.translate(_TAG_TRANSLITERATE)
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    text = re.sub(r"\s+", "-", text)
+    text = _TAG_INVALID_CHARS.sub("", text)
+    text = _TAG_DASHES.sub("-", text).strip("-")
+    if not text:
+        raise LibraryWriteError(422, f"tag {raw!r} normalises to nothing")
+    if len(text) > MAX_TAG_LEN:
+        raise LibraryWriteError(422, f"tag {text!r} exceeds {MAX_TAG_LEN} characters")
+    return text
+
+
+def normalize_tags(raw: list[str] | str | None) -> list[str]:
+    """Normalise a list (or comma-separated string) of tags.
+
+    Blank items are dropped silently — a trailing comma in a form field is not
+    a user error. A non-blank item that normalises to nothing still raises.
+    """
+    if raw is None:
+        return []
+    items = raw.split(",") if isinstance(raw, str) else list(raw)
+    # Use dict instead of set to preserve insertion order (Python 3.7+) and
+    # deduplicate by key. This makes sorted() essential — without it, the
+    # output order becomes dependent on input order rather than alphabetical,
+    # which tests can then verify deterministically. A set would leave the
+    # mutation `sorted(out)` → `list(out)` undetectable on some random seeds.
+    out: dict[str, None] = {}
+    for item in items:
+        if not str(item).strip():
+            continue
+        out[normalize_tag(str(item))] = None
+    # B3: bounded on the DEDUPLICATED count, not the raw input length --
+    # `out` is exactly the set of rows _replace_tags is about to INSERT one
+    # at a time inside the caller's write transaction, and exactly the set of
+    # chips/datalist entries that render afterward, so that's the count that
+    # actually matters here. Raising here means both callers reject before
+    # their INSERT loop ever runs a single statement.
+    if len(out) > MAX_TAGS_PER_ENTRY:
+        raise LibraryWriteError(422, f"at most {MAX_TAGS_PER_ENTRY} tags allowed per entry, got {len(out)}")
+    return sorted(out)
+
+
+async def _name_taken(db, name: str, exclude_id: int | None = None) -> bool:
+    """Case-insensitive, Unicode-aware name collision check.
+
+    exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019), but
+    SQLite's COLLATE NOCASE — like its lower() function — only folds ASCII:
+    'ĆWICZENIE' and 'ćwiczenie' both satisfy that constraint as distinct rows
+    (SQL lower('ĆWICZENIE') is 'Ćwiczenie' — only the ASCII letters fold; the
+    leading Ć does not). Comparing in Python (str.lower(), fully
+    Unicode-aware) instead of delegating to SQL catches what the database
+    constraint cannot; the DB constraint remains a backstop for the ASCII
+    case (and for any writer that bypasses this function entirely).
+    """
+    sql = "SELECT name FROM exercise_library"
+    params: tuple = ()
+    if exclude_id is not None:
+        sql += " WHERE id != ?"
+        params = (exclude_id,)
+    rows = await db.execute_fetchall(sql, params)
+    target = name.lower()
+    return any(r["name"].lower() == target for r in rows)
+
+
+async def _training_history_exists_for(db, name: str) -> bool:
+    """Case-insensitive, Unicode-aware check for training_exercises history
+    under `name` — same rationale as _name_taken(), same fix: SQL lower() is
+    ASCII-only, so a rename onto a non-ASCII case-variant of a name that
+    already has logged history (e.g. a Polish movement) would slip past a
+    `lower(name) = lower(?)` SQL comparison. This backs the I2 guard, whose
+    entire purpose is to catch exactly that rename before it splits the
+    movement's Personal Best/volume history across two rows.
+    """
+    rows = await db.execute_fetchall("SELECT name FROM training_exercises")
+    target = name.lower()
+    return any(r["name"].lower() == target for r in rows)
+
+
 async def validate_library_write(
     db,
     *,
     op: str,
     entry_id: int | None = None,
     existing: dict | None = None,
-    category: str | None = None,
     fields: dict | None = None,
 ) -> dict | None:
     """The one write policy both surfaces share.
 
-    op="create": `category` and `fields["name"]` are required. `fields` may
-    omit section/sets/reps/notes/metric, which then take the same defaults
-    both surfaces have always used (section='Core', metric='reps', sets=None,
+    op="create": `fields["name"]` is required. `fields` may omit
+    section/sets/reps/notes/metric, which then take the same defaults both
+    surfaces have always used (section='Core', metric='reps', sets=None,
     reps/notes=''). Returns the full row to INSERT.
 
     op="update": `existing` is the current DB row (a dict, e.g. from
@@ -94,10 +233,9 @@ async def validate_library_write(
     op="delete": `existing` is the current DB row. Returns None.
 
     Raises LibraryWriteError for anything that must be refused outright: an
-    invalid section/metric, a blank required name, a duplicate
-    (category, name), a rename that collides with another row or with
-    training_exercises history (I2), or any edit/delete of a builtin row
-    other than `archived`.
+    invalid section/metric, a blank required name, a duplicate name, a rename
+    that collides with another row or with training_exercises history (I2),
+    or any edit/delete of a builtin row other than `archived`.
 
     Callers are responsible for the 404 case (fetch the row first; if it
     doesn't exist, respond before calling this at all) — this function only
@@ -112,10 +250,9 @@ async def validate_library_write(
         return None
 
     if op == "create":
-        norm_category = normalize_library_text(category or "", 100)
         name = normalize_library_text(fields.get("name", ""), 100)
-        if not norm_category or not name:
-            raise LibraryWriteError(422, "category and name are required")
+        if not name:
+            raise LibraryWriteError(422, "name is required")
 
         section = fields.get("section", "Core")
         if section not in LIBRARY_SECTIONS:
@@ -125,14 +262,10 @@ async def validate_library_write(
         if not valid_library_metric(metric):
             raise LibraryWriteError(422, f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}")
 
-        dup = await db.execute_fetchall(
-            "SELECT id FROM exercise_library WHERE category = ? AND name = ?", (norm_category, name)
-        )
-        if dup:
-            raise LibraryWriteError(409, f"{name!r} already exists in category {norm_category!r}")
+        if await _name_taken(db, name):
+            raise LibraryWriteError(409, f"{name!r} already exists")
 
         return {
-            "category": norm_category,
             "section": section,
             "name": name,
             "sets": clamp_library_sets(fields.get("sets")),
@@ -152,23 +285,38 @@ async def validate_library_write(
             name = normalize_library_text(fields["name"], 100)
             if not name:
                 raise LibraryWriteError(422, "name cannot be blank")
-            if name.lower() != existing["name"].lower():
-                clash = await db.execute_fetchall(
-                    "SELECT id FROM exercise_library WHERE category = ? AND name = ? AND id != ?",
-                    (existing["category"], name, entry_id),
-                )
-                if clash:
-                    raise LibraryWriteError(409, f"{name!r} already exists in category {existing['category']!r}")
+            # B2 (2026-07-31 review): this decides "is this a rename at all" --
+            # a DIFFERENT question from "is this the same movement", which is
+            # what _name_taken/_training_history_exists_for below decide (both
+            # deliberately Unicode-aware, per their own docstrings) and what
+            # resolve_movement() (wod_movements.py) decides when the next WOD
+            # gets parsed (deliberately SQL-only, ASCII lower()). A Python
+            # str.lower() comparison HERE used to let a change through as "not
+            # a rename" whenever Python's Unicode-aware fold treated old and
+            # new as equal -- e.g. capitalising a Polish letter ('ćwiczenie
+            # na łydki' -> 'Ćwiczenie na łydki'). That bypassed both the
+            # collision check and the I2 history guard below and still wrote
+            # the new spelling to the column. resolve_movement's SQL lower()
+            # does NOT fold that same pair the same way (it leaves non-ASCII
+            # letters untouched), so the next WOD mentioning the new spelling
+            # failed to match the training_exercises row logged under the old
+            # one and created a second row, splitting history across two ids
+            # (reproduced end-to-end: library id=74, training_exercises id=28
+            # with logged history, this rename accepted, resolve_movement then
+            # returned a NEW id=29 for the "same" movement). The trigger must
+            # be at least as loose as the loosest downstream comparison, so
+            # this is now an exact string comparison -- ANY change trips it,
+            # and the checks below decide whether the DB actually considers it
+            # a different movement.
+            if name != existing["name"]:
+                if await _name_taken(db, name, exclude_id=entry_id):
+                    raise LibraryWriteError(409, f"{name!r} already exists")
                 # I2: a rename must not orphan training_exercises rows still
                 # holding history under the OLD name — resolve_movement()
                 # matches training_exercises by name, so the next WOD
                 # mentioning the new name would create a SECOND row and
                 # split the movement's Personal Best/volume history in two.
-                trained = await db.execute_fetchall(
-                    "SELECT id FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1",
-                    (existing["name"],),
-                )
-                if trained:
+                if await _training_history_exists_for(db, existing["name"]):
                     raise LibraryWriteError(
                         409,
                         f"cannot rename {existing['name']!r} — training history exists under "

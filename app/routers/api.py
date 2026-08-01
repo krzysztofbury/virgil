@@ -19,7 +19,7 @@ from pydantic import BaseModel, ConfigDict
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
-from app.library_validation import LibraryWriteError, validate_library_write
+from app.library_validation import LibraryWriteError, normalize_tag, normalize_tags, validate_library_write
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
@@ -438,30 +438,41 @@ async def api_noporn(
 # re-implement any of section/metric/duplicate/rename/builtin checks here —
 # that duplication is exactly how the two surfaces drifted apart before.
 #
-# CrossFit rows (category = 'CrossFit') are also the WOD parser's closed
-# prompt vocabulary (app/services/wod_parser.py:canonical_movements) — editing
-# section/metric or deleting one of those rows changes what movements the
-# parser is allowed to recognise in a future WOD note. Renaming does NOT
+# CrossFit rows (tagged 'crossfit', migration 019) are also the WOD parser's
+# closed prompt vocabulary (app/services/wod_parser.py:canonical_movements) —
+# editing section/metric or deleting one of those rows changes what movements
+# the parser is allowed to recognise in a future WOD note. Renaming does NOT
 # narrow that vocabulary (the parser reads whatever name is current) and may
 # now be refused outright — see validate_library_write's I2 rename guard.
+#
+# Tags live in exercise_library_tags, not in exercise_library, and are
+# deliberately OUTSIDE validate_library_write's scope: they're free-form
+# labels, not identity/vocabulary fields, so unlike name/section/metric they
+# are never THEMSELVES gated by `builtin` — a builtin row always accepts a
+# tags-only change. That guard is still all-or-nothing per request, though:
+# the rest of the payload (everything but `tags`) still reaches
+# validate_library_write, so a PATCH that mixes `tags` with any frozen field
+# (name/section/metric/reps/notes/sets) on a builtin row is refused in full
+# — the tags never land either. Tag a builtin row in its own request, never
+# combined with an edit to one of those fields.
 
 
 # extra="forbid" does double duty: it turns an unknown key (e.g. an MCP client
-# sending `category` back on a PATCH, since every GET response includes it)
-# into a loud 422 instead of a silently-ignored no-op, and it guarantees
+# sending the retired `category` field back on a PATCH) into a loud 422
+# instead of a silently-ignored no-op, and it guarantees
 # `LibraryPatch.model_dump()` can only ever contain the fields declared below —
 # which is what keeps the dynamic `SET {k} = ?` construction in api_library_patch
 # structurally safe rather than merely safe-by-current-convention.
 class LibraryCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    category: str
     section: str
     name: str
     sets: int | None = None
     reps: str = ""
     notes: str = ""
     metric: str = "reps"
+    tags: list[str] = []
 
 
 class LibraryPatch(BaseModel):
@@ -474,25 +485,58 @@ class LibraryPatch(BaseModel):
     notes: str | None = None
     metric: str | None = None
     archived: int | None = None
+    tags: list[str] | None = None
+
+
+async def _tags_by_library_id(db, ids: list[int]) -> dict[int, list[str]]:
+    """Batched tag lookup for a set of library ids — one query rather than
+    one-per-row, same rationale as api_training_detail's batched entries query."""
+    if not ids:
+        return {}
+    placeholders = ",".join("?" * len(ids))
+    rows = await db.execute_fetchall(
+        f"SELECT library_id, tag FROM exercise_library_tags WHERE library_id IN ({placeholders})",
+        ids,
+    )
+    out: dict[int, list[str]] = {}
+    for r in rows:
+        out.setdefault(r["library_id"], []).append(r["tag"])
+    return {k: sorted(v) for k, v in out.items()}
+
+
+async def _replace_tags(db, entry_id: int, tags: list[str]) -> None:
+    """Delete-then-insert the full tag set for one row, inside the caller's transaction."""
+    await db.execute("DELETE FROM exercise_library_tags WHERE library_id = ?", (entry_id,))
+    for tag in tags:
+        await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (entry_id, tag))
 
 
 @router.get("/library")
 async def api_library_list(
     db: ApiDb,
-    category: str | None = Query(None),
     include_archived: bool = Query(False),
+    tag: str = Query(""),
 ):
-    """The exercise library — the dictionary the WOD parser and the picker draw from."""
+    """The exercise library — the dictionary the WOD parser and the picker draw from.
+    ?tag= filters to entries carrying that tag (normalised the same way a write would)."""
     sql = "SELECT * FROM exercise_library WHERE 1 = 1"
     params: list = []
-    if category:
-        sql += " AND category = ?"
-        params.append(category)
     if not include_archived:
         sql += " AND archived = 0"
+    if tag:
+        try:
+            norm_tag = normalize_tag(tag)
+        except LibraryWriteError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+        sql += " AND id IN (SELECT library_id FROM exercise_library_tags WHERE tag = ?)"
+        params.append(norm_tag)
     sql += " ORDER BY display_order, name"
     rows = await db.execute_fetchall(sql, params)
-    return {"entries": [dict(r) for r in rows]}
+    entries = [dict(r) for r in rows]
+    tags_by_id = await _tags_by_library_id(db, [e["id"] for e in entries])
+    for e in entries:
+        e["tags"] = tags_by_id.get(e["id"], [])
+    return {"entries": entries}
 
 
 @router.post("/library", status_code=201)
@@ -501,7 +545,6 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
         row = await validate_library_write(
             db,
             op="create",
-            category=payload.category,
             fields={
                 "name": payload.name,
                 "section": payload.section,
@@ -514,12 +557,16 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
     except LibraryWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
+    try:
+        tags = normalize_tags(payload.tags)
+    except LibraryWriteError as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
     order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) AS m FROM exercise_library")
     cursor = await db.execute(
-        "INSERT INTO exercise_library (category, section, name, sets, reps, notes, display_order, metric, builtin) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)",
+        "INSERT INTO exercise_library (section, name, sets, reps, notes, display_order, metric, builtin) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, 0)",
         (
-            row["category"],
             row["section"],
             row["name"],
             row["sets"],
@@ -529,6 +576,7 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
             row["metric"],
         ),
     )
+    await _replace_tags(db, cursor.lastrowid, tags)
     await db.commit()
     return {"id": cursor.lastrowid}
 
@@ -541,7 +589,17 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
     existing = dict(rows[0])
 
     fields = payload.model_dump(exclude_none=True)
-    if not fields:
+    # Tags live in a separate join table and are never THEMSELVES gated by
+    # `builtin` — popping `tags_raw` out here means a tags-only PATCH never
+    # reaches validate_library_write's builtin guard at all. But `fields`
+    # (whatever else was in the payload) still does: if it's non-empty and
+    # the row is builtin, validate_library_write raises below before the
+    # tags branch further down ever runs — so a PATCH combining `tags` with
+    # a frozen field is rejected wholesale, tags included, not just the
+    # frozen field. PATCH's semantics for tags, once they DO land, are
+    # "replace the whole set", not "merge".
+    tags_raw = fields.pop("tags", None)
+    if not fields and tags_raw is None:
         return {"id": entry_id, "updated": []}
 
     try:
@@ -549,15 +607,39 @@ async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
     except LibraryWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
-    assignments = ", ".join(f"{k} = ?" for k in result)
-    await db.execute(
-        f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys come from
-        # validate_library_write's fixed key set (itself built from LibraryPatch's extra="forbid"
-        # fields above), never attacker-controlled column names.
-        [*result.values(), entry_id],
-    )
+    # M2 (2026-07-31 review): normalize_tags must run — and be allowed to
+    # raise — BEFORE the UPDATE below, not after. This used to run after,
+    # with no db.rollback() on the except branch, so a bad tag left the
+    # UPDATE's effect sitting uncommitted on this request's connection. It
+    # only ever looked atomic because auth.py opens a brand new connection
+    # per request and closes it in a `finally` without ever committing on an
+    # exception path — introduce any form of connection reuse/pooling and
+    # this starts committing half of a rejected write. Validating first (same
+    # order settings.py's add path already uses) makes that true regardless
+    # of what closes the connection, instead of by accident.
+    tags = None
+    if tags_raw is not None:
+        try:
+            tags = normalize_tags(tags_raw)
+        except LibraryWriteError as exc:
+            raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
+    if result:
+        assignments = ", ".join(f"{k} = ?" for k in result)
+        await db.execute(
+            f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys come from
+            # validate_library_write's fixed key set (itself built from LibraryPatch's extra="forbid"
+            # fields above), never attacker-controlled column names.
+            [*result.values(), entry_id],
+        )
+
+    updated = set(result)
+    if tags_raw is not None:
+        await _replace_tags(db, entry_id, tags)
+        updated.add("tags")
+
     await db.commit()
-    return {"id": entry_id, "updated": sorted(result)}
+    return {"id": entry_id, "updated": sorted(updated)}
 
 
 @router.delete("/library/{entry_id}", status_code=204)

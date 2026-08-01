@@ -25,9 +25,10 @@ MAX_WOD_CHARS = 4000
 # exactly what an MCP-writable dictionary invites), and every extra row is
 # paid for on every subsequent parse until the prompt breaks the model's
 # context window and the feature degrades to permanent parse_error. The
-# user has 77 non-archived exercise_library rows today, 73 once the 4
-# same-name duplicates across categories collapse; 500 is a generous
-# ceiling that still fails loudly well before that happens.
+# user has 73 non-archived exercise_library rows today (77 before migration
+# 019 merged the 4 same-name duplicates that used to exist across
+# categories); 500 is a generous ceiling that still fails loudly well
+# before that happens.
 MAX_LIBRARY_MOVEMENTS = 500
 
 _SYSTEM_PROMPT = """You extract structured training data from a short, messy \
@@ -74,35 +75,41 @@ class ParsedWod:
 async def canonical_movements(db) -> list[dict]:
     """The closed vocabulary: every active exercise_library row, deduped by name.
 
-    Category organises the Settings picker; it does not gate what the parser
-    may recognise. exercise_library as a whole — Warmup, Stretching, Gym
+    Tags organise the Settings picker; they do not gate what the parser may
+    recognise. exercise_library as a whole — Warmup, Stretching, Gym
     classics, Kettlebell, ... not just CrossFit — is the user's curated
     dictionary, and a warm-up or a barbell lift the user actually logs
     deserves the same closed-vocabulary treatment a CrossFit movement gets.
 
-    UNIQUE on exercise_library is (category, name), not (name) — a name can
-    exist under two categories. Four do today: Back Squat, Bench Press,
-    Deadlift (Gym classics + CrossFit) and Pull-up (Workout B + CrossFit).
-    Both rows happen to be (section, metric)-identical today, but the
-    vocabulary must not depend on that being true forever, so a duplicate is
-    resolved by an explicit, deterministic rule rather than "whichever the
-    query happened to return first": prefer the CrossFit row; otherwise the
-    lowest display_order. CrossFit rows carry a `metric` seeded explicitly
-    (migration 016); older rows had theirs derived by migration 011 from the
-    rep-spec string — if a future duplicate ever disagrees (say a `Row`
-    seeded metric='time' under CrossFit and another `Row` derived as 'reps'
-    elsewhere), picking arbitrarily would silently mis-type the movement and
-    feed erg strokes into the weekly rep count. The ORDER BY below sorts a
-    duplicate's CrossFit row first and breaks remaining ties by
-    display_order, so keeping only the first row seen per lower(name)
-    implements the tie-break. resolve_movement() in wod_movements.py uses the
-    identical ORDER BY — both must agree, or a movement resolves to a
-    different section/metric depending on which one is asked.
+    exercise_library.name is UNIQUE(name COLLATE NOCASE) (migration 019), but
+    that constraint — like SQLite's lower() it's built on — only folds ASCII
+    case: 'ĆWICZENIE' and 'ćwiczenie' both satisfy it as distinct rows (SQL
+    lower('ĆWICZENIE') is 'Ćwiczenie' — only the ASCII letters fold; the
+    leading Ć does not). validate_library_write's own dup checks close that
+    gap by comparing in Python (str.lower(), fully Unicode-aware) instead of
+    delegating to SQL, so a write through either surface is refused before
+    any duplicate — ASCII or not — reaches the table. It used to be possible
+    for a name to exist twice under two categories (Back Squat, Bench Press,
+    Deadlift and Pull-up all did, briefly, before migration 019 merged them);
+    that is no longer reachable through the app, but the
+    dedupe-by-first-seen-name below stays as defense in depth against a
+    hand-edited or otherwise malformed database: display_order alone is the
+    tie-break, should a duplicate ever appear. This function is the one place
+    that needs it: the SELECT above has no WHERE on name, so two rows that
+    differ only in a non-ASCII letter's case both come back from the same
+    query and must be collapsed here. resolve_movement() in wod_movements.py
+    no longer carries the equivalent machinery — its WHERE targets one
+    specific name, and lower(name) = lower(?) compares both sides with the
+    same SQL lower() this table's UNIQUE constraint is built on, so two rows
+    that both matched would, by transitivity, also match each other and would
+    already violate that constraint. There is nothing for it to break a tie
+    among. The two functions still agree on which row wins: whatever name
+    this function surfaces for a movement is the exact string
+    resolve_movement() is later called with, and a query for an exact name
+    can only ever match the row that owns it.
     """
     rows = await db.execute_fetchall(
-        "SELECT name, section, metric FROM exercise_library "
-        "WHERE archived = 0 "
-        "ORDER BY (category != 'CrossFit'), display_order"
+        "SELECT name, section, metric FROM exercise_library WHERE archived = 0 ORDER BY display_order"
     )
     seen: set[str] = set()
     movements: list[dict] = []

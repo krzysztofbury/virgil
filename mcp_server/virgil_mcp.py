@@ -155,21 +155,24 @@ def get_noporn(days: int = 30) -> dict:
 
 
 @mcp.tool()
-def get_exercise_library(category: str = "", include_archived: bool = False) -> dict:
+def get_exercise_library(tag: str = "", include_archived: bool = False) -> dict:
     """The exercise dictionary: every movement the training picker offers and the
-    WOD parser is allowed to recognise. Pass category='CrossFit' for the WOD
-    vocabulary. Entries marked builtin=1 can only be archived, not edited or deleted."""
+    WOD parser is allowed to recognise. Each entry's `tags` is a free-form,
+    normalised list (lowercased, whitespace-to-dash) — pass tag='crossfit' for
+    the WOD vocabulary, or any other tag a movement has been given. Entries
+    marked builtin=1 can only be archived or have their tags changed — every
+    other field is frozen."""
     params: dict = {"include_archived": include_archived}
-    if category:
-        params["category"] = category
+    if tag:
+        params["tag"] = tag
     return _get("/api/library", params=params)
 
 
 @mcp.tool()
 def add_exercise(
-    category: str,
     section: str,
     name: str,
+    tags: list[str] | None = None,
     metric: str = "reps",
     sets: int | None = None,
     reps: str = "",
@@ -179,14 +182,19 @@ def add_exercise(
     Stretching — Core+reps feeds weekly volume; PBs include weighted Core entries
     regardless of metric. Cardio always logs rounds+duration and does not feed volume.
     For Core entries, `metric` 'reps' logs weight+reps (feeds volume/aggregate), while
-    'time' logs weight+seconds (excluded from rep aggregates). Adding to category
-    'CrossFit' also teaches the WOD parser what movements it can recognise."""
+    'time' logs weight+seconds (excluded from rep aggregates). `tags` are free-form
+    labels normalised on write (lowercased, transliterated to ASCII so accented
+    letters fold to their base letter, whitespace-to-dash, any other punctuation
+    dropped rather than dashed, deduplicated) — tagging a movement 'crossfit' also
+    teaches the WOD parser what movements it can recognise. `name` is unique across
+    the whole library (not just within a tag or section): a name that already
+    exists, in any case, returns 409."""
     return _post(
         "/api/library",
         {
-            "category": category,
             "section": section,
             "name": name,
+            "tags": tags or [],
             "metric": metric,
             "sets": sets,
             "reps": reps,
@@ -205,14 +213,24 @@ def update_exercise(
     notes: str | None = None,
     sets: int | None = None,
     archived: int | None = None,
+    tags: list[str] | None = None,
 ) -> dict:
     """Edit one dictionary entry — see get_exercise_library for ids. Only the fields
-    you pass change. A builtin entry refuses everything except `archived`. Changing
-    `section`/`metric` on a category='CrossFit' entry narrows what the WOD parser is
-    allowed to recognise. Renaming (`name`) does NOT narrow that vocabulary — the
-    parser just reads whatever name is current — but is refused with a 409 if any
+    you pass change; `tags`, when passed, REPLACES the entry's whole tag set (not a
+    merge) and is normalised the same way add_exercise's are. A builtin entry accepts
+    tag changes but refuses everything else (name/section/metric/reps/notes/sets) with
+    a 409 — `archived` and `tags` are the only fields a builtin row lets through,
+    together or separately, and only when the call carries nothing outside those two:
+    a call that mixes `tags` and/or `archived` with any of the frozen fields on a
+    builtin entry still 409s, and neither `tags` nor `archived` land either — the
+    whole call is rejected together, never partially applied. Change a builtin entry's
+    `archived`/`tags` in their own call, separate from any of the frozen fields.
+    Changing `section`/`metric` on a movement tagged 'crossfit' narrows what the WOD
+    parser is allowed to recognise. Renaming (`name`) does NOT narrow that vocabulary —
+    the parser just reads whatever name is current — but is refused with a 409 if any
     training history already exists under the old name (archive the entry and add a
-    new one instead of renaming through history)."""
+    new one instead of renaming through history). Since names are unique library-wide,
+    renaming onto an existing name also returns 409."""
     payload = {
         k: v
         for k, v in (
@@ -223,6 +241,7 @@ def update_exercise(
             ("notes", notes),
             ("sets", sets),
             ("archived", archived),
+            ("tags", tags),
         )
         if v is not None
     }
@@ -234,7 +253,7 @@ def update_exercise(
 @mcp.tool()
 def delete_exercise(entry_id: int) -> dict:
     """Remove a dictionary entry permanently. Builtin entries refuse deletion —
-    archive them instead. Deleting a category='CrossFit' entry narrows what the WOD
+    archive them instead. Deleting a movement tagged 'crossfit' narrows what the WOD
     parser is allowed to recognise. Deleting does NOT touch logged training history."""
     return _delete(f"/api/library/{entry_id}")
 

@@ -189,12 +189,30 @@ async def training_page(request: Request):
     personal_bests = [dict(r) for r in pb_rows]
 
     # Exercise picker dictionary — DB-backed, managed in Settings → App Config.
-    # Archived rows stay in the DB (history) but leave the picker.
+    # Archived rows stay in the DB (history) but leave the picker. `category`
+    # is gone (migration 019); the picker is a flat alphabetical list per
+    # section with tag filter chips (a movement with two tags used to appear
+    # under each category <optgroup> — the chosen shape keeps each movement
+    # rendered exactly once).
     lib_rows = await db.execute_fetchall(
-        "SELECT category, section, name, sets, reps, notes, metric FROM exercise_library "
+        "SELECT id, section, name, sets, reps, notes, metric FROM exercise_library "
         "WHERE archived = 0 ORDER BY display_order, name"
     )
     exercise_library = [dict(r) for r in lib_rows]
+    # Tags live in exercise_library_tags — one batched query rather than one
+    # per row, same rationale as api.py's _tags_by_library_id.
+    lib_ids = [e["id"] for e in exercise_library]
+    tags_by_id: dict[int, list[str]] = {}
+    if lib_ids:
+        placeholders = ",".join("?" * len(lib_ids))
+        tag_rows = await db.execute_fetchall(
+            f"SELECT library_id, tag FROM exercise_library_tags WHERE library_id IN ({placeholders}) ORDER BY tag",
+            lib_ids,
+        )
+        for tr in tag_rows:
+            tags_by_id.setdefault(tr["library_id"], []).append(tr["tag"])
+    for e in exercise_library:
+        e["tags"] = tags_by_id.get(e["id"], [])
 
     return templates.TemplateResponse(
         "training.html",

@@ -207,18 +207,21 @@ def test_vocabulary_at_the_bound_is_accepted(monkeypatch):
 
 
 async def _real_library_db(tmp_path):
+    """Post-019 shape: no `category`, UNIQUE(name COLLATE NOCASE) — migration
+    019 rebuilds exercise_library into this shape on every install, fresh or
+    upgraded (009 still seeds the OLD category-bearing shape; 019 is the one
+    and only conversion path — see its module docstring)."""
     db = await aiosqlite.connect(tmp_path / "lib.db")
     db.row_factory = aiosqlite.Row
     await db.execute(
         """CREATE TABLE exercise_library (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            category TEXT NOT NULL,
             section TEXT NOT NULL,
             name TEXT NOT NULL,
             display_order INTEGER DEFAULT 0,
             metric TEXT NOT NULL DEFAULT 'reps',
             archived INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(category, name)
+            UNIQUE(name COLLATE NOCASE)
         )"""
     )
     return db
@@ -228,14 +231,14 @@ def test_warmup_section_movement_is_in_the_vocabulary(tmp_path):
     """The reported bug: a Warmup/Stretching row was invisible to the parser
     because canonical_movements() filtered category = 'CrossFit'. A session's
     warm-up and stretching are real movements the user already has in the
-    library under other categories, and must now be recognised too."""
+    library under other tags (or none), and must now be recognised too."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Warmup', 'Warmup', 'Band Pull-apart', 1, 'reps')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Warmup', 'Band Pull-apart', 1, 'reps')"
             )
             await db.commit()
             movements = await wod_parser.canonical_movements(db)
@@ -246,57 +249,115 @@ def test_warmup_section_movement_is_in_the_vocabulary(tmp_path):
     asyncio.run(run())
 
 
-def test_duplicate_name_prefers_the_crossfit_row(tmp_path):
-    """UNIQUE is (category, name), not (name) — 'Back Squat' exists under both
-    Gym classics and CrossFit. The Gym classics row here is given the lower
-    display_order AND a different section/metric than CrossFit's, so a wrong
-    tie-break (first row, last row, lowest display_order regardless of
-    category) would be caught by asserting on which section/metric wins."""
+def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
+    """Before migration 019, UNIQUE was (category, name), so 'Back Squat' could
+    exist under both Gym classics and CrossFit — canonical_movements() then
+    needed an explicit CrossFit-preferring tie-break to avoid silently
+    mis-typing the duplicate. UNIQUE is now (name COLLATE NOCASE), so that
+    scenario is no longer a tie-break case to get right; it is a write the
+    database itself refuses. The second insert deliberately differs only by
+    case ('back squat' vs 'Back Squat') — a binary UNIQUE(name), with no
+    COLLATE, would let this one through and this test would pass for the
+    wrong reason."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Gym classics', 'Warmup', 'Back Squat', 1, 'time')"
-            )
-            await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('CrossFit', 'Core', 'Back Squat', 50, 'reps')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Warmup', 'Back Squat', 1, 'time')"
             )
             await db.commit()
+            try:
+                await db.execute(
+                    "INSERT INTO exercise_library (section, name, display_order, metric) "
+                    "VALUES ('Core', 'back squat', 50, 'reps')"
+                )
+                raised = False
+            except aiosqlite.IntegrityError:
+                raised = True
+            assert raised, "a case-variant duplicate name must be rejected by UNIQUE(name COLLATE NOCASE)"
             movements = await wod_parser.canonical_movements(db)
             matches = [m for m in movements if m["name"] == "Back Squat"]
-            assert len(matches) == 1, "a duplicate name must appear exactly once, not twice"
-            assert matches[0]["section"] == "Core", "the CrossFit row's section must win"
-            assert matches[0]["metric"] == "reps", "the CrossFit row's metric must win"
+            assert len(matches) == 1, "only the original row must exist"
+            assert matches[0]["section"] == "Warmup"
+            assert matches[0]["metric"] == "time"
         finally:
             await db.close()
 
     asyncio.run(run())
 
 
-def test_duplicate_name_without_crossfit_prefers_lowest_display_order(tmp_path):
-    """When neither duplicate is CrossFit, the tie-break falls back to lowest
-    display_order — asserted here via section/metric so a reversed comparison
-    (highest wins) or "last row wins" would fail this."""
+def test_seen_dedupe_collapses_non_ascii_case_duplicates(tmp_path):
+    """The `seen` dedupe loop is NOT dead code: SQLite's UNIQUE(name COLLATE
+    NOCASE) only folds ASCII case, so 'Ćwiczenie' and 'ćwiczenie' — differing
+    only in a non-ASCII letter's case — both satisfy the constraint as
+    distinct rows (proven below: the second INSERT does not raise). A
+    hand-edited or otherwise malformed database (something writing directly
+    to the table, bypassing validate_library_write's Unicode-aware dup check)
+    can therefore still produce this pair. Without the Python-level `seen`
+    dedupe, canonical_movements() would hand the LLM both spellings of the
+    same movement in its system prompt. This test would fail if that loop
+    were deleted: the raw SELECT has no WHERE on name, so both rows always
+    come back from SQLite; only the dedupe loop collapses them to one."""
 
     async def run():
         db = await _real_library_db(tmp_path)
         try:
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Cardio', 'Cardio', 'Row', 1, 'time')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Core', 'Ćwiczenie', 1, 'reps')"
             )
             await db.execute(
-                "INSERT INTO exercise_library (category, section, name, display_order, metric) "
-                "VALUES ('Gym classics', 'Core', 'Row', 30, 'reps')"
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Cardio', 'ćwiczenie', 2, 'time')"
+            )
+            await db.commit()
+
+            # Confirm the premise: SQLite's NOCASE really does let this pair
+            # coexist -- if a future SQLite version closed this gap, this
+            # assertion (not the one below) is what should fail.
+            rows = await db.execute_fetchall("SELECT name FROM exercise_library")
+            assert len(rows) == 2, "both non-ASCII case-variant rows must have been accepted by the UNIQUE constraint"
+
+            movements = await wod_parser.canonical_movements(db)
+            matches = [m for m in movements if m["name"].lower() == "ćwiczenie"]
+            assert len(matches) == 1, "the two Unicode-only-differing rows must collapse to one vocabulary entry"
+            assert matches[0]["name"] == "Ćwiczenie", "first-by-display_order (id 1) must be the survivor"
+            assert matches[0]["section"] == "Core"
+            assert matches[0]["metric"] == "reps"
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
+def test_canonical_movements_orders_by_display_order(tmp_path):
+    """The dedupe-by-first-seen-name loop in canonical_movements() only does
+    something observable if the query itself returns rows in display_order —
+    this pins that ordering directly, independent of the (now impossible)
+    duplicate-name scenario the old CrossFit tie-break test covered.
+
+    Back Squat (display_order 30) is inserted BEFORE Row (display_order 1) on
+    purpose: SQLite's default rowid order would then put Back Squat first,
+    the opposite of what display_order demands, so an accidentally-deleted
+    `ORDER BY display_order` fails this instead of coincidentally passing."""
+
+    async def run():
+        db = await _real_library_db(tmp_path)
+        try:
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Core', 'Back Squat', 30, 'reps')"
+            )
+            await db.execute(
+                "INSERT INTO exercise_library (section, name, display_order, metric) "
+                "VALUES ('Cardio', 'Row', 1, 'time')"
             )
             await db.commit()
             movements = await wod_parser.canonical_movements(db)
-            matches = [m for m in movements if m["name"] == "Row"]
-            assert len(matches) == 1
-            assert matches[0]["metric"] == "time", "the lower display_order (Cardio) row must win"
+            names = [m["name"] for m in movements]
+            assert names == ["Row", "Back Squat"], "movements must come back in display_order"
         finally:
             await db.close()
 

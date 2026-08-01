@@ -547,8 +547,8 @@ def test_confirm_get_with_library_over_bound_renders_instead_of_500ing(auth_clie
 
         max_order = conn.execute("SELECT COALESCE(MAX(display_order), 0) FROM exercise_library").fetchone()[0]
         conn.executemany(
-            "INSERT INTO exercise_library (category, section, name, display_order, metric, builtin) "
-            "VALUES ('CrossFit', 'Core', ?, ?, 'reps', 0)",
+            "INSERT INTO exercise_library (section, name, display_order, metric, builtin) "
+            "VALUES ('Core', ?, ?, 'reps', 0)",
             [(f"Over Bound Movement {i}", max_order + i + 1) for i in range(500)],
         )
         conn.commit()

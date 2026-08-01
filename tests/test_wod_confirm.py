@@ -90,7 +90,7 @@ def test_unknown_movement_is_skipped_without_creating_an_exercise(auth_client):
 def test_ad_hoc_movement_is_absent_from_the_protocol_form(auth_client):
     # NOTE: this deliberately does NOT assert on the substring "Wall Ball" in the
     # rendered page. "Wall Ball" is seeded into exercise_library (migration 016,
-    # category='CrossFit') and is therefore always rendered as an <option> in the
+    # tagged 'crossfit') and is therefore always rendered as an <option> in the
     # Core section's "Add exercise" picker dropdown on every page load, regardless
     # of whether this route ever ran. Asserting on that substring would pass even
     # if the ad_hoc exclusion filter in training_page() were deleted, and fail even

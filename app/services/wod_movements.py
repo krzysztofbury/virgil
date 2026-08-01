@@ -41,17 +41,23 @@ async def resolve_movement(db, name: str) -> int | None:
             )
         return ex_id
 
-    # Same dedupe tie-break as canonical_movements() in wod_parser.py: a name
-    # can exist under two categories (UNIQUE is (category, name), not (name)),
-    # so prefer the CrossFit row — its metric is seeded explicitly (migration
-    # 016) rather than derived from a rep-spec string (migration 011) — and
-    # otherwise the lowest display_order. Both functions must agree, or a
-    # movement resolves to a different section/metric depending on which one
-    # is asked; see canonical_movements()'s docstring for the full rationale.
+    # Unlike canonical_movements()'s unscoped full-table scan in
+    # wod_parser.py, this WHERE targets one specific name, so no tie-break is
+    # needed here even though exercise_library.name's UNIQUE(name COLLATE
+    # NOCASE) (migration 019) is ASCII-only and can't stop two rows differing
+    # only in a non-ASCII letter's case ('Ćwiczenie' vs 'ćwiczenie') from both
+    # existing (confirmed: SQLite lets that second INSERT through — see
+    # test_non_ascii_duplicate_names_each_resolve_unambiguously below). What
+    # that leaves is not ambiguity, though: `lower(name) = lower(?)` compares
+    # both sides with the SAME SQL lower() the UNIQUE constraint is built on,
+    # so if two rows both matched a given `clean`, they would — by
+    # transitivity of equality — also match each other's lower(name), which
+    # is exactly what UNIQUE(name COLLATE NOCASE) already forbids. So at most
+    # one row can ever satisfy this WHERE clause, for any `clean`, whether or
+    # not a Unicode-only duplicate of it exists elsewhere in the table —
+    # there is nothing left to order or limit among.
     lib = await db.execute_fetchall(
-        "SELECT name, section, metric FROM exercise_library "
-        "WHERE lower(name) = lower(?) AND archived = 0 "
-        "ORDER BY (category != 'CrossFit'), display_order LIMIT 1",
+        "SELECT name, section, metric FROM exercise_library WHERE lower(name) = lower(?) AND archived = 0",
         (clean,),
     )
     if not lib:
