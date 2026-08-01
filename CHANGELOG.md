@@ -68,6 +68,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows there — but it no longer has a UI or a prescription role.
 
 ### Fixed
+- **A failed parse no longer strands the workout.** `POST /training/wod/confirm`
+  is the only route that writes `training_entries`, and its form was gated on
+  having at least one parsed row — so with the LLM unavailable there was no form,
+  nothing for "+ dodaj serię" to clone, and weekly volume and Personal Bests
+  silently stopped accruing. The form now always renders, seeding one blank
+  editable row. The message that told the user to delete the session and log the
+  workout manually pointed at a path that had just been removed; it now points at
+  the row above it.
+- **The swim target is validated like the day list.** `abc` or an out-of-range
+  value used to be stored as `0` while reporting success, dropping swimming from
+  the plan on a typo. Both are rejected now, and both fields are checked before
+  either is written — the two `set_setting` calls commit separately, so there is
+  no transaction to roll back.
+
 - **WOD parser vocabulary widened from CrossFit-only to the whole exercise
   library.** `canonical_movements()` and `resolve_movement()` both filtered
   `category = 'CrossFit'`, so the parser only recognised 31 of the 77 rows in
