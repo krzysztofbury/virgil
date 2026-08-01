@@ -48,6 +48,50 @@ parked; revisit if a bad deploy actually bites.
 
 ## Training page simplified — 2026-08-01 (branch `feat/training-page-simplify`)
 
+Raised by the final whole-branch review (5 rounds; each earlier round was scoped
+to the fix commits, which is why every defect kept turning up at a seam with code
+the reviewer had not been given). Ranked, none blocking:
+
+- [ ] **Duration is stored in seconds and rendered as minutes.** `training.html`
+      prints `{{ e.duration }} min`; the confirm column is labelled `Czas (s)` and
+      validated against `DURATION_SECONDS_MAX`. Off by 60× on every metcon time.
+      Not a one-line fix: before this branch the deleted log form wrote *minutes*
+      for Warmup/Cardio/Stretching, so the column is historically mixed-unit and
+      old rows cannot be told apart from new ones. Needs a decision about existing
+      data, not just a label change.
+- [ ] **A partial resolve consumes the session silently.** `confirm_wod` skips
+      rows whose movement no longer resolves and the `if not rows:` guard is
+      all-or-nothing, so 1-of-2 rows can be written with no message and no route
+      back. Same family as the four blockers, narrower trigger.
+- [ ] **A crash between `capture_wod`'s two commits leaves a session that can
+      never gain entries** — note saved, `wod_parsed` NULL, no form, no `dokończ`.
+      Not a regression (the deleted log form always INSERTed a new session), and
+      Watchtower recreating the container mid-parse is the realistic trigger. Fix
+      is read-side: offer manual entry for an entry-less session with notes.
+- [ ] **A parse over 200 entries can never be saved** — `entry_count` is capped at
+      200 and the parser bounds nothing. Only exit is discarding the parse.
+- [ ] **A rejected field silently discards every other edit in the form,**
+      including rows added with „+ dodaj serię". The toast names one field and
+      says nothing about the rest.
+- [ ] **Double-click on „Zapisz i sparsuj" creates two sessions and two paid LLM
+      calls.** PRG protects the confirm page, not capture.
+- [ ] **Sessions outside the newest 20 by date are unreachable** — `/training` is
+      `ORDER BY date DESC LIMIT 20`, so backdating a capture hides it and its
+      `dokończ` immediately, while the confirm screen promises it is visible there.
+- [ ] **`training_entries.notes` has no reader.** The confirm screen collects it
+      and the parser prompt designates it for the metcon result; history, the API,
+      MCP and the markdown export all drop it.
+- [ ] **The planner is given a swim target it cannot score.** Nothing distinguishes
+      a swim from a WOD in the logged sessions it reads.
+- [ ] **`DEFAULT_DAYS`/`DEFAULT_SWIM` make "never configured" look like a
+      configured CrossFit week** for any new user. `normalize_days("")` already
+      renders "No fixed CrossFit days set." — the honest default is `""`.
+- [ ] `training_exercises.ad_hoc` now has no reader, and `archived` there can only
+      be cleared, never set. Neither is a bug; both will mislead the next reader.
+- [ ] The `?err=` toast is interpolated into a JS string literal — no XSS
+      (autoescape holds), but a backslash silently truncates the message. `|tojson`.
+
+
 Removed the protocol table, the per-set log form and the rest timer; free-text
 capture is the only input. The A.N.D.Y. planner now reads a weekly schedule
 (`app/services/training_schedule.py`, stored in `app_settings`) instead of a
