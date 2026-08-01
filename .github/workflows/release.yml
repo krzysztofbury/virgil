@@ -33,6 +33,17 @@ jobs:
       - name: Install dependencies
         run: uv sync --extra dev
 
+      # tests/test_training_page.py shells out to `node` for a handful of
+      # tests that execute the real, extracted Alpine picker JS (not a
+      # hand-copied re-implementation of it) — those tests skip gracefully
+      # if `node` is absent, but a skip must never be the ONLY thing standing
+      # between a regression and a production release. Pin Node explicitly
+      # rather than relying on whatever ubuntu-latest happens to preinstall.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Ruff lint
         run: uv run ruff check app/ scripts/ tests/
 
