@@ -3,8 +3,10 @@
 import asyncio
 import concurrent.futures
 import json
+import re
 import sqlite3
 from datetime import date
+from urllib.parse import unquote
 
 import pytest
 from conftest import csrf_token, user_db_path
@@ -1080,3 +1082,148 @@ def test_discard_works_when_the_parse_holds_an_out_of_range_value(auth_client, m
     assert resp.headers["location"] == "/training", "discard must not be blocked by the rows it discards"
     pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert pending is None, "discard must consume the parse"
+
+
+def test_entry_count_is_server_rendered_not_javascript_only(auth_client, monkeypatch):
+    """The sole write path must not depend on a CDN script having loaded.
+
+    entry_count carried only Alpine's `:value` binding, so the field existed only
+    if a third-party script ran. That was survivable while a plain-HTML log form
+    also existed; this route is now the only writer of training_entries, so a CDN
+    failure meant no way to record a workout at all.
+    """
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {"movement": "Thruster", "set_number": 1, "reps": 21, "weight": 43.0, "duration": None, "note": ""}
+            ],
+            "unmatched": [],
+        },
+    )
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-20", "wod_text": "ZZ static entry_count probe", "_csrf_token": token},
+    )
+    assert 'name="entry_count"' in resp.text
+    assert re.search(r'name="entry_count"[^>]*\svalue="\d+"', resp.text), (
+        "entry_count must carry a server-rendered value, not only an Alpine binding"
+    )
+
+
+def test_missing_entry_count_reports_the_right_cause(auth_client, monkeypatch):
+    """A blank entry_count used to say "too many entries at once — try again",
+    sending the user after a row-count problem they do not have and telling them
+    to retry something that cannot succeed."""
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-19", "wod_text": "ZZ blank entry_count probe", "_csrf_token": token},
+    )
+    session_id = _sessions()[0]["id"]
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, "session_id": str(session_id), "entry_count": ""},
+        follow_redirects=False,
+    )
+    location = unquote(resp.headers["location"])
+    assert "Zbyt dużo wpisów" not in location, "a missing field is not a too-many-rows problem"
+    assert "niekompletny" in location
+    pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+    assert pending, "a rejected submission must leave the parse armed"
+
+
+def test_discard_does_not_touch_an_already_settled_session(auth_client, monkeypatch):
+    """Discard was an unconditional UPDATE on whatever id it was handed.
+
+    A stale tab or a bfcache resubmission carrying an old session_id would clear
+    a parse the user never looked at, silently, behind a success redirect.
+    """
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+
+    auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-18", "wod_text": "ZZ bystander session", "_csrf_token": token},
+    )
+    bystander = _sessions()[0]["id"]
+    bystander_parse = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (bystander,))[0]["wod_parsed"]
+    assert bystander_parse, "precondition: the bystander starts armed"
+
+    # Settle it, then replay discard against the same id — the stale-tab shape.
+    auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, "session_id": str(bystander), "entry_count": "0", "action": "discard"},
+        follow_redirects=False,
+    )
+    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (bystander,))[0]["wod_parsed"] is None
+
+    # Re-arm it the way a fresh capture would, then confirm a replayed discard
+    # for a DIFFERENT, already-settled id leaves it alone.
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (bystander_parse, bystander))
+        conn.commit()
+    finally:
+        conn.close()
+
+    settled = _query("SELECT id FROM training_sessions WHERE wod_parsed IS NULL ORDER BY id DESC LIMIT 1")[0]["id"]
+    auth_client.post(
+        "/training/wod/confirm",
+        data={"_csrf_token": token, "session_id": str(settled), "entry_count": "0", "action": "discard"},
+        follow_redirects=False,
+    )
+    assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (bystander,))[0]["wod_parsed"], (
+        "discarding one session must not disturb another"
+    )
+
+
+@pytest.mark.parametrize("stored", ["not-json{{{", "null", "[]", "123", '"x"'])
+def test_unusable_wod_parsed_is_cleared_instead_of_500ing_or_sticking(auth_client, stored):
+    """Valid JSON that is not an object reached parsed.get(...) as an
+    AttributeError — a permanent 500 on the GET the corrupt-JSON guard exists to
+    keep reachable, now also offered as a clickable 'dokończ' link.
+
+    Clearing rather than redirecting: an unreadable parse carries nothing, but
+    leaving it armed kept the session flagged forever behind a link that only
+    redirects back, with deleting the session (and its note) the only escape.
+    """
+    conn = sqlite3.connect(user_db_path())
+    session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, wod_parsed) VALUES (?, 30, ?, ?)",
+            # today(), not a fixed date: /training history is ORDER BY date DESC
+            # LIMIT 20, so a past date falls out of the window as soon as other
+            # tests leave later sessions behind — and the precondition below
+            # depends on this session being rendered.
+            (date.today().isoformat(), "ZZ unusable parse", stored),
+        )
+        conn.commit()
+        session_id = cur.lastrowid
+
+        assert f"/training/wod/confirm/{session_id}" in auth_client.get("/training").text, (
+            "precondition: an armed session is linked, which is what makes this state clickable"
+        )
+
+        resp = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
+        assert resp.status_code == 303, f"{stored!r} must not 500"
+
+        conn2 = sqlite3.connect(user_db_path())
+        try:
+            row = conn2.execute(
+                "SELECT wod_parsed, notes FROM training_sessions WHERE id = ?", (session_id,)
+            ).fetchone()
+        finally:
+            conn2.close()
+        assert row[0] is None, "an unusable parse must be cleared, not left armed forever"
+        assert row[1] == "ZZ unusable parse", "the raw note must survive"
+        assert f"/training/wod/confirm/{session_id}" not in auth_client.get("/training").text
+    finally:
+        if session_id is not None:
+            conn = sqlite3.connect(user_db_path())
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+            conn.commit()
+            conn.close()

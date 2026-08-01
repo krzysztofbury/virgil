@@ -262,13 +262,36 @@ async def wod_confirm_page(request: Request, session_id: int):
         return RedirectResponse("/training", status_code=303)
 
     session = rows[0]
+    parsed = None
+    unusable = ""
     try:
         parsed = json.loads(session["wod_parsed"])
     except (json.JSONDecodeError, TypeError, ValueError):
         # A corrupt stored value must not 500 this GET forever (M3, rides
-        # along with I3) — fall back to the same "nothing to confirm" redirect
-        # used above when there is no stored result at all.
-        logger.warning("Corrupt wod_parsed for session %s — nothing to confirm", session_id)
+        # along with I3).
+        unusable = "corrupt JSON"
+    else:
+        if not isinstance(parsed, dict):
+            # M3 covered "json.loads raised" but not "json.loads succeeded and
+            # returned something that is not a mapping". `null`, `[]`, `123` and
+            # `"x"` are all valid JSON and every one of them reached
+            # parsed.get(...) below as an AttributeError — a permanent 500 on the
+            # very GET that guard exists to keep reachable.
+            unusable = f"{type(parsed).__name__}, not an object"
+
+    if unusable:
+        # Clear it rather than redirecting and leaving it armed. An unreadable
+        # parse carries no information, so nothing is lost — but leaving it in
+        # place kept the session flagged "dokończ" on /training forever, behind a
+        # link that only redirects back here. The user's only escape was deleting
+        # the session, which cascades and takes the raw note with it: exactly what
+        # this screen's own prose tells them not to do.
+        #
+        # A write on a GET, deliberately: it is idempotent, repairs local
+        # corruption, and touches only a value that could never be read.
+        logger.warning("wod_parsed for session %s is unusable (%s) — clearing it", session_id, unusable)
+        await db.execute("UPDATE training_sessions SET wod_parsed = NULL WHERE id = ?", (session_id,))
+        await db.commit()
         return RedirectResponse("/training", status_code=303)
 
     try:
@@ -344,26 +367,41 @@ async def confirm_wod(request: Request):
     # on the button does not help — it suppresses the browser's check, not this
     # one.
     #
-    # Unconditional UPDATE with no rowcount check: unlike the consume below there
-    # is nothing to lose here. An unknown or already-consumed id updates nothing
-    # and the user lands on /training either way, which is the outcome discard
-    # promises. The per-user database (app/auth.py opens the caller's own file)
-    # is what keeps `WHERE id = ?` from reaching anyone else's session.
+    # Conditioned the same way the consume below is. "Nothing to lose here" was
+    # wrong for any id other than the one on screen: a stale tab or a bfcache
+    # resubmission carrying an old session_id would discard a parse the user
+    # never looked at, silently and with a success redirect. Reaching another
+    # user's row is already impossible — app/auth.py opens the caller's own
+    # database file — but same-user collateral damage was not.
     if form.get("action") == "discard":
-        await db.execute("UPDATE training_sessions SET wod_parsed = NULL WHERE id = ?", (session_id,))
+        cursor = await db.execute(
+            "UPDATE training_sessions SET wod_parsed = NULL WHERE id = ? AND wod_parsed IS NOT NULL",
+            (session_id,),
+        )
+        if cursor.rowcount == 0:
+            logger.warning("WOD discard for session %s matched nothing (unknown id or already settled)", session_id)
         await db.commit()
         return RedirectResponse("/training", status_code=303)
 
     entry_count_raw = form.get("entry_count")
     entry_count = _parse_int_in_range(entry_count_raw, 0, 200)
     if entry_count is None:
+        # Two different causes, two different messages. They used to share one:
+        # "too many entries at once — try again", which sent a user whose
+        # entry_count was missing or unparseable looking for a row-count problem
+        # they did not have, and told them to retry an action that could not
+        # succeed. Absent/blank is the interesting case — it means the hidden
+        # field never made it into the submission.
         logger.warning(
             "WOD confirm rejected for session %s: entry_count=%r out of [0, 200]", session_id, entry_count_raw
         )
-        return RedirectResponse(
-            f"/training/wod/confirm/{session_id}?err={quote('Zbyt dużo wpisów naraz — spróbuj ponownie.')}",
-            status_code=303,
+        blank = entry_count_raw is None or str(entry_count_raw).strip() == ""
+        message = (
+            "Formularz dotarł niekompletny — odśwież stronę i spróbuj ponownie. Notatka jest zapisana."
+            if blank
+            else "Zbyt dużo wpisów naraz — spróbuj ponownie."
         )
+        return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(message)}", status_code=303)
 
     parsed_rows: list[tuple[str, int, int | None, float | None, float | None, str]] = []
     try:

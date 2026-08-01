@@ -135,7 +135,16 @@
         </tbody>
       </table>
       </div>
-      <input type="hidden" name="entry_count" x-ref="entryCount" :value="base + extraRows.length">
+      {# Static value AND the Alpine binding. Alpine loads `defer` from a CDN with
+         no vendored fallback, so `:value` alone meant this field — and therefore
+         every set the user typed — existed only if a third-party script had
+         loaded. That was survivable while a plain-HTML log form also existed;
+         this route is now the only writer of training_entries, so a CDN failure
+         meant no way to record a workout at all. The server-rendered count is
+         correct whenever Alpine has not added rows, which is exactly the case
+         where the binding is absent. #}
+      <input type="hidden" name="entry_count" x-ref="entryCount"
+             value="{{ form_rows }}" :value="base + extraRows.length">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
       {# The supported way to end with the note and no entries. formnovalidate so
          a half-filled row cannot block the exit. #}
