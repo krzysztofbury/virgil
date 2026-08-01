@@ -73,9 +73,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   redirects away once it is NULL — so a submission that wrote nothing took the
   parse with it and left no route back. Two earlier attempts guarded on whether
   any row *named* a movement, which is not the predicate the write uses:
-  `resolve_movement` also returns None for a name that no longer resolves, which
-  happens whenever a library row is archived between rendering the form and
-  submitting it. The parse is now re-armed when nothing resolved, and
+  `resolve_movement` also returns None for a name that resolves to nothing — a
+  client can post any string, and archiving an `exercise_library` row breaks
+  resolution for any movement not already in `training_exercises`. The parse is now re-armed when nothing resolved, and
   "Odrzuć parsowanie" is the explicit way to end with the note and no entries.
 - **Sessions with an unfinished parse are linked from `/training`.** The confirm
   screen told the user to come back later; nothing on the page led back to it.

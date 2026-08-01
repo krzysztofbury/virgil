@@ -38,8 +38,8 @@
        library_error `movements` is empty, so the row would render a select whose
        one option is "— pomiń": a manual-entry path that cannot write anything.
        Suppressing it keeps the prose below honest. Nothing is lost either way —
-       confirm_wod refuses to consume wod_parsed when no row names a movement, so
-       this screen stays reachable once the library is back. #}
+       confirm_wod re-arms wod_parsed when no row *resolves*, so this screen stays
+       reachable once the library is back. #}
     {% set form_rows = total_rows if total_rows > 0 else (1 if seed_row else 0) %}
     {% if form_rows > 0 %}
     <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }})"
@@ -149,13 +149,14 @@
     {% if total_rows == 0 %}
       {% if seed_row %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować —
-      powyżej jest pusty wiersz do ręcznego wpisania. <a href="/training">Wróć do treningu</a>,
-      jeśli notatka sama w sobie wystarczy.</p>
+      powyżej jest pusty wiersz do ręcznego wpisania. Jeśli notatka sama w sobie wystarczy,
+      użyj „Odrzuć parsowanie” — <a href="/training">powrót do treningu</a> zostawi tę sesję
+      oznaczoną jako niedokończoną.</p>
       {% else %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
       jest chwilowo niedostępna — bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
       trzeba odłożyć. Notatka jest zapisana. W historii na
-      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ" — wróć nim tutaj,
+      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ” — wróć nim tutaj,
       gdy lista będzie z powrotem dostępna.</p>
       {% endif %}
     {% endif %}

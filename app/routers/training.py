@@ -330,6 +330,30 @@ async def confirm_wod(request: Request):
     if session_id is None:
         return RedirectResponse("/training", status_code=303)
 
+    # "Discard this parse": the supported way to end up with the note and no
+    # entries. Without an explicit exit, "I reviewed this and want none of it" is
+    # byte-identical to "nothing resolved", and one of the two has to be refused.
+    #
+    # Hoisted above every field check on purpose. It reads no entry_* field and
+    # no entry_count, so validating them first could only ever refuse it — and it
+    # did: the parser applies no upper bound to reps/weight/duration, so an LLM
+    # returning `reps: 5000` for "row 5000m" put a value past REPS_MAX into
+    # wod_parsed, which the GET rendered straight back into the form. Every
+    # submission then bounced off _confirm_int, discard included. The worse the
+    # parse, the more surely the escape hatch was unavailable. `formnovalidate`
+    # on the button does not help — it suppresses the browser's check, not this
+    # one.
+    #
+    # Unconditional UPDATE with no rowcount check: unlike the consume below there
+    # is nothing to lose here. An unknown or already-consumed id updates nothing
+    # and the user lands on /training either way, which is the outcome discard
+    # promises. The per-user database (app/auth.py opens the caller's own file)
+    # is what keeps `WHERE id = ?` from reaching anyone else's session.
+    if form.get("action") == "discard":
+        await db.execute("UPDATE training_sessions SET wod_parsed = NULL WHERE id = ?", (session_id,))
+        await db.commit()
+        return RedirectResponse("/training", status_code=303)
+
     entry_count_raw = form.get("entry_count")
     entry_count = _parse_int_in_range(entry_count_raw, 0, 200)
     if entry_count is None:
@@ -354,15 +378,6 @@ async def confirm_wod(request: Request):
     except _ConfirmRejected as exc:
         logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
         return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
-
-    # "Discard this parse": the supported way to end up with the note and no
-    # entries. Without an explicit exit, "I reviewed this and want none of it"
-    # is indistinguishable from "nothing resolved", and one of the two has to be
-    # refused. Consumes the parse deliberately, writes nothing.
-    if form.get("action") == "discard":
-        await db.execute("UPDATE training_sessions SET wod_parsed = NULL WHERE id = ?", (session_id,))
-        await db.commit()
-        return RedirectResponse("/training", status_code=303)
 
     # B1: atomically consume the pending parse result. rowcount != 1 means
     # "unknown session" or "already confirmed" (replay) — either way, redirect
@@ -397,15 +412,28 @@ async def confirm_wod(request: Request):
         #
         # Two earlier attempts guarded this *before* the consume, on whether any
         # row named a movement. That predicate is not the one the write uses:
-        # resolve_movement also returns None for a name that no longer resolves,
-        # which happens whenever a library row is archived between rendering this
-        # form and submitting it (Settings in another tab, or PATCH /api/library
-        # from MCP). The guard has to be the postcondition itself — `rows` — not
-        # a proxy for it, so this sits after the resolve loop.
+        # resolve_movement also returns None for a name that resolves to nothing.
+        # A client can post any string, and an archived exercise_library row stops
+        # resolving once no training_exercises row carries that name — the
+        # training_exercises lookup runs first and reactivates archived rows
+        # there, so archiving alone only breaks movements never logged before.
+        # The guard has to be the postcondition itself — `rows` — not a proxy for
+        # it, so this sits after the resolve loop.
         #
         # Re-arming keeps B1 idempotent: atomicity comes from the conditional
         # WHERE above, and a replay reaching this branch also writes nothing.
-        await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (pending, session_id))
+        #
+        # rowcount == 1 above proves wod_parsed was non-NULL one statement
+        # earlier, so `pending` must carry it. Asserted rather than assumed: the
+        # read is in autocommit (sqlite3 issues BEGIN only before DML), and if it
+        # ever came back NULL this UPDATE would strand exactly the session this
+        # branch exists to save. The WHERE clause makes it structural — re-arm
+        # only what is still consumed.
+        assert pending is not None, f"session {session_id}: consume succeeded but no pending parse was read"
+        await db.execute(
+            "UPDATE training_sessions SET wod_parsed = ? WHERE id = ? AND wod_parsed IS NULL",
+            (pending, session_id),
+        )
         await db.commit()
         logger.warning("WOD confirm resolved no movements for session %s; parse re-armed", session_id)
         return RedirectResponse(

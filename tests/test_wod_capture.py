@@ -10,6 +10,28 @@ import pytest
 from conftest import csrf_token, user_db_path
 
 
+@pytest.fixture(autouse=True)
+def _drop_probe_sessions():
+    """Remove this file's own probe sessions after each test.
+
+    auth_client is session-scoped over one shared DB, so sessions left with
+    wod_parsed armed accumulate across the file. That residue is not inert: it
+    fills /training with 'dokończ' links, which is what made an ungated link
+    indistinguishable from a gated one in this file's own tests.
+    """
+    yield
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute(
+            "DELETE FROM training_entries WHERE session_id IN "
+            "(SELECT id FROM training_sessions WHERE notes LIKE 'ZZ %')"
+        )
+        conn.execute("DELETE FROM training_sessions WHERE notes LIKE 'ZZ %'")
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def _sessions():
     conn = sqlite3.connect(user_db_path())
     try:
@@ -317,12 +339,12 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
 def test_all_rows_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
     """Submitting with every row left on '— pomiń' must create no entries.
 
-    Renamed from test_unmatched_row_skipped_on_confirm_creates_no_entry: since
-    the "resolved nothing" guard landed, a submission where EVERY row is blank no
-    longer reaches the resolve_movement -> continue path this used to describe.
-    It is refused before the consume and redirected back with an error, which
-    still satisfies both assertions here (303, no entries) — so the test kept
-    passing while its own docstring stopped being true.
+    Renamed from test_unmatched_row_skipped_on_confirm_creates_no_entry. It still
+    reaches the resolve_movement -> continue path for every row, but the outcome
+    changed: the parse is consumed, nothing resolves, and the parse is re-armed
+    with a redirect back to the form. Both assertions here (303, no entries) hold
+    across all three behaviours this test has seen, which is why it never noticed
+    any of the changes.
 
     The per-row skip path it was named for is covered by
     test_skipping_a_parsed_entry_drops_only_that_row, which mixes a named row
@@ -832,6 +854,8 @@ def test_named_but_unresolvable_movement_does_not_strand_the_session(auth_client
     session_id = _sessions()[0]["id"]
 
     before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
+    before_parse = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+    assert before_parse, "precondition: the session starts with a pending parse"
     resp = auth_client.post(
         "/training/wod/confirm",
         data={
@@ -852,6 +876,9 @@ def test_named_but_unresolvable_movement_does_not_strand_the_session(auth_client
 
     still_pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert still_pending, "a submission that resolved nothing must leave the parse re-armed, not consumed"
+    # Byte-equality, not truthiness: writing a placeholder back would keep the
+    # session "reachable" while silently discarding every row the user reviewed.
+    assert still_pending == before_parse, "the re-arm must restore the original parse, not a substitute"
     assert auth_client.get(f"/training/wod/confirm/{session_id}").status_code == 200, "screen must stay reachable"
 
 
@@ -922,6 +949,15 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
         "a session with a pending parse must be reachable from /training"
     )
 
+    # Negative control: without it, a link rendered for EVERY session satisfies
+    # the assertion above just as well — and on a settled session that link only
+    # 303s back to this page.
+    settled = _query("SELECT id FROM training_sessions WHERE wod_parsed IS NULL ORDER BY id DESC LIMIT 1")
+    assert settled, "precondition: at least one settled session must exist for the control to mean anything"
+    assert f"/training/wod/confirm/{settled[0]['id']}" not in page, (
+        "a session with no pending parse must not be offered a 'dokończ' link"
+    )
+
 
 def test_library_error_with_parsed_rows_is_escapable(auth_client):
     """S2: with rows to confirm but no vocabulary, every select holds only skip
@@ -977,3 +1013,70 @@ def test_library_error_with_parsed_rows_is_escapable(auth_client):
             conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
         conn.commit()
         conn.close()
+
+
+def test_discard_works_when_the_parse_holds_an_out_of_range_value(auth_client, monkeypatch):
+    """S1 (round 4): the escape hatch must not be gated on validating the rows
+    it exists to throw away.
+
+    wod_parser applies no upper bound to reps/weight/duration — only confirm_wod
+    does. So an LLM reading "row 5000m" as `reps: 5000` puts a value past
+    REPS_MAX into wod_parsed, the GET renders it straight back into the form, and
+    every submission bounces off _confirm_int. Discard used to sit after that
+    loop, so the worse the parse, the more certainly the exit was unavailable.
+    `formnovalidate` on the button suppresses the browser's check, not this one.
+    """
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {"movement": "Thruster", "set_number": 1, "reps": 5000, "weight": None, "duration": None, "note": ""}
+            ],
+            "unmatched": [],
+        },
+    )
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-21", "wod_text": "ZZ out-of-range discard probe", "_csrf_token": token},
+    )
+    session_id = _sessions()[0]["id"]
+
+    # Control: saving really is refused for this parse — otherwise the test
+    # would prove nothing about discard being reachable when saving is not.
+    blocked = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "entry_0_movement": "Thruster",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "5000",
+            "entry_0_weight": "",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert "err=" in blocked.headers["location"], "control: an out-of-range reps value must be refused on save"
+
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "action": "discard",
+            "entry_0_movement": "Thruster",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "5000",
+            "entry_0_weight": "",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.headers["location"] == "/training", "discard must not be blocked by the rows it discards"
+    pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+    assert pending is None, "discard must consume the parse"
