@@ -574,10 +574,33 @@ def test_volume_kpi_counts_only_core_reps_movements(auth_client):
         assert stat_value_for_label(page, "Volume (Core)") == vol_before, (
             "Volume (Core) must ignore non-Core sections — a delta-only test cannot see this"
         )
+
+        # A metric='time' movement carrying a reps value must be excluded from
+        # Total Reps. Without this the metric filter can be dropped entirely and
+        # nothing notices: every other fixture uses metric='reps', which counts
+        # either way.
+        cur = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES (?, 'Core', 'time', 1)",
+            ("ZZTestTimeMetricForKpi",),
+        )
+        conn.execute(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, 1, 45, 16)",
+            (session_id, cur.lastrowid),
+        )
+        conn.commit()
+
+        page = auth_client.get("/training").text
+        assert plain_stat_value_for_label(page, "Total Reps") == reps_before + 30, (
+            "a metric='time' movement's reps must not reach Total Reps"
+        )
+        assert stat_value_for_label(page, "Volume (Core)") == vol_before, (
+            "nor its weight reach Volume (Core), even though its section is Core"
+        )
     finally:
         if session_id is not None:
             conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
             conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        conn.execute("DELETE FROM training_exercises WHERE name LIKE 'ZZTest%ForKpi'")
         if ex_id is not None:
             conn.execute("DELETE FROM training_exercises WHERE id = ?", (ex_id,))
         conn.commit()
