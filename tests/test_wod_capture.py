@@ -4,6 +4,7 @@ import asyncio
 import concurrent.futures
 import json
 import sqlite3
+from datetime import date
 
 import pytest
 from conftest import csrf_token, user_db_path
@@ -313,9 +314,20 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
     assert "Nic nie udało się sparsować" not in resp.text
 
 
-def test_unmatched_row_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
-    """Submitting the confirm form with the unmatched row left on '— pomiń —'
-    (empty movement value) must create no training_entries row for it."""
+def test_all_rows_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
+    """Submitting with every row left on '— pomiń' must create no entries.
+
+    Renamed from test_unmatched_row_skipped_on_confirm_creates_no_entry: since
+    the "resolved nothing" guard landed, a submission where EVERY row is blank no
+    longer reaches the resolve_movement -> continue path this used to describe.
+    It is refused before the consume and redirected back with an error, which
+    still satisfies both assertions here (303, no entries) — so the test kept
+    passing while its own docstring stopped being true.
+
+    The per-row skip path it was named for is covered by
+    test_skipping_a_parsed_entry_drops_only_that_row, which mixes a named row
+    with a skipped one.
+    """
     _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
     token = csrf_token(auth_client, "/training")
     auth_client.post(
@@ -786,8 +798,181 @@ def test_no_seed_row_when_the_movement_list_is_unavailable(auth_client):
         assert "pusty wiersz do ręcznego wpisania" not in resp.text, (
             "the prose must not promise a manual-entry row that was not rendered"
         )
+        # The parse_error paragraph made the same promise independently and this
+        # test walked straight past it, checking only the newer sentence.
+        assert "w tabeli poniżej" not in resp.text, "no paragraph may point at a table that did not render"
+        assert 'action="/training/wod/confirm"' not in resp.text, "no form renders when there is nothing to pick"
     finally:
         conn.execute("DELETE FROM exercise_library WHERE name LIKE 'NoSeed Bound Movement %'")
+        if session_id is not None:
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+
+
+def test_named_but_unresolvable_movement_does_not_strand_the_session(auth_client, monkeypatch):
+    """S1, third attempt: the guard must be the postcondition, not a proxy.
+
+    Two earlier fixes checked "does any row name a movement" before consuming the
+    parse. The write path checks something else — resolve_movement() also returns
+    None for a name that no longer resolves — so a named-but-unresolvable row
+    passed the guard, consumed wod_parsed, wrote nothing, and stranded the
+    session. Reachable by archiving a library row between rendering the form and
+    submitting it: Settings in a second tab, or PATCH /api/library over MCP.
+
+    Simulated here by naming a movement that exists in neither table, which is
+    exactly what resolve_movement sees after such an archive.
+    """
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-25", "wod_text": "ZZ unresolvable probe", "_csrf_token": token},
+    )
+    session_id = _sessions()[0]["id"]
+
+    before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "entry_0_movement": "ZZ Movement That Does Not Exist Anywhere",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "10",
+            "entry_0_weight": "20",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"] == before, "nothing resolved, nothing written"
+
+    still_pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+    assert still_pending, "a submission that resolved nothing must leave the parse re-armed, not consumed"
+    assert auth_client.get(f"/training/wod/confirm/{session_id}").status_code == 200, "screen must stay reachable"
+
+
+def test_discard_is_a_supported_exit(auth_client, monkeypatch):
+    """ "I reviewed this and want none of it" must be expressible.
+
+    Without an explicit discard, that intent is byte-identical to "nothing
+    resolved" — and one of the two has to be refused. Discard consumes the parse
+    deliberately and writes nothing.
+    """
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-24", "wod_text": "ZZ discard probe", "_csrf_token": token},
+    )
+    session_id = _sessions()[0]["id"]
+    before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
+
+    resp = auth_client.post(
+        "/training/wod/confirm",
+        data={
+            "_csrf_token": token,
+            "session_id": str(session_id),
+            "entry_count": "1",
+            "action": "discard",
+            "entry_0_movement": "",
+            "entry_0_set_number": "1",
+            "entry_0_reps": "",
+            "entry_0_weight": "",
+            "entry_0_duration": "",
+            "entry_0_note": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/training", "discard is a terminal action, not a loop back to the form"
+    assert _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"] == before
+    pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
+    assert pending is None, "discard must consume the parse — that is the point"
+    assert _query("SELECT notes FROM training_sessions WHERE id = ?", (session_id,))[0]["notes"], "note survives"
+
+
+def test_discard_button_is_offered_on_the_confirm_screen(auth_client, monkeypatch):
+    """The route accepting action=discard is useless if no UI sends it."""
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    token = csrf_token(auth_client, "/training")
+    resp = auth_client.post(
+        "/training/wod",
+        data={"date": "2026-07-23", "wod_text": "ZZ discard button probe", "_csrf_token": token},
+    )
+    assert 'name="action" value="discard"' in resp.text
+
+
+def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypatch):
+    """S4: the confirm screen told the user to come back later, but /training
+    rendered no route to it — recovery depended on browser history."""
+    _stub_llm(monkeypatch, exc=ValueError("provider unavailable"))
+    token = csrf_token(auth_client, "/training")
+    auth_client.post(
+        "/training/wod",
+        data={"date": date.today().isoformat(), "wod_text": "ZZ pending link probe", "_csrf_token": token},
+    )
+    session_id = _sessions()[0]["id"]
+
+    page = auth_client.get("/training").text
+    assert f"/training/wod/confirm/{session_id}" in page, (
+        "a session with a pending parse must be reachable from /training"
+    )
+
+
+def test_library_error_with_parsed_rows_is_escapable(auth_client):
+    """S2: with rows to confirm but no vocabulary, every select holds only skip
+    options, so "pick a movement" is an instruction the user cannot follow. That
+    state must still have an exit — discard — rather than looping on the error.
+    """
+    conn = sqlite3.connect(user_db_path())
+    session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, wod_parsed) VALUES (?, 60, ?, ?)",
+            (
+                "2026-07-22",
+                "ZZ library-error escapable",
+                '{"entries": [], "unmatched": ["Devil Press"], "parse_error": ""}',
+            ),
+        )
+        conn.commit()
+        session_id = cur.lastrowid
+        max_order = conn.execute("SELECT COALESCE(MAX(display_order), 0) FROM exercise_library").fetchone()[0]
+        conn.executemany(
+            "INSERT INTO exercise_library (section, name, display_order, metric, builtin) "
+            "VALUES ('Core', ?, ?, 'reps', 0)",
+            [(f"Escapable Bound Movement {i}", max_order + i + 1) for i in range(500)],
+        )
+        conn.commit()
+
+        page = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
+        assert page.status_code == 200
+        assert 'name="action" value="discard"' in page.text, "the only usable exit must be offered"
+
+        token = csrf_token(auth_client, "/training")
+        resp = auth_client.post(
+            "/training/wod/confirm",
+            data={
+                "_csrf_token": token,
+                "session_id": str(session_id),
+                "entry_count": "1",
+                "action": "discard",
+                "entry_0_movement": "",
+                "entry_0_set_number": "1",
+                "entry_0_reps": "",
+                "entry_0_weight": "",
+                "entry_0_duration": "",
+                "entry_0_note": "",
+            },
+            follow_redirects=False,
+        )
+        assert resp.headers["location"] == "/training", "discard must terminate, not loop"
+    finally:
+        conn.execute("DELETE FROM exercise_library WHERE name LIKE 'Escapable Bound Movement %'")
         if session_id is not None:
             conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
         conn.commit()

@@ -156,8 +156,9 @@ def get_noporn(days: int = 30) -> dict:
 
 @mcp.tool()
 def get_exercise_library(tag: str = "", include_archived: bool = False) -> dict:
-    """The exercise dictionary: the movements offered for parsing (archived ones excluded by default, though resolve_movement still matches and reactivates them) and the
-    WOD parser is allowed to recognise. Each entry's `tags` is a free-form,
+    """The exercise dictionary: the `exercise_library` rows offered when confirming a
+    workout, and the vocabulary the parser resolves free-text notes against.
+    Archived rows are excluded unless include_archived=True. Each entry's `tags` is a free-form,
     normalised list (lowercased, whitespace-to-dash) — pass tag='crossfit' for
     the WOD vocabulary, or any other tag a movement has been given. Entries
     marked builtin=1 can only be archived or have their tags changed — every

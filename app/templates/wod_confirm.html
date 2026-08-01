@@ -9,10 +9,14 @@
     <script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('err') }}", true); });</script>
     {% endif %}
 
+    {% set total_rows = entries|length + unmatched|length %}
+    {% set seed_row = total_rows == 0 and movements %}
+
     {% if parse_error %}
       <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
-      Notatka jest zapisana i widoczna w historii treningów na stronie /training.
-      Serie możesz wpisać ręcznie w tabeli poniżej — nie usuwaj tej sesji.</p>
+      Notatka jest zapisana i widoczna w historii treningów na stronie /training —
+      nie usuwaj tej sesji.
+      {% if entries or unmatched or seed_row %}Serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
     {% endif %}
 
     {% if library_error %}
@@ -24,7 +28,6 @@
       <p class="text-muted">Nierozpoznane ruchy — wybierz odpowiednik albo pomiń:</p>
     {% endif %}
 
-    {% set total_rows = entries|length + unmatched|length %}
     {# The form renders unconditionally. It used to be gated on total_rows > 0,
        which turned a parse failure into a dead end: POST /training/wod/confirm is
        the only route that writes training_entries, so with no rows there was no
@@ -37,7 +40,6 @@
        Suppressing it keeps the prose below honest. Nothing is lost either way —
        confirm_wod refuses to consume wod_parsed when no row names a movement, so
        this screen stays reachable once the library is back. #}
-    {% set seed_row = total_rows == 0 and movements %}
     {% set form_rows = total_rows if total_rows > 0 else (1 if seed_row else 0) %}
     {% if form_rows > 0 %}
     <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }})"
@@ -135,6 +137,13 @@
       </div>
       <input type="hidden" name="entry_count" x-ref="entryCount" :value="base + extraRows.length">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
+      {# The supported way to end with the note and no entries. formnovalidate so
+         a half-filled row cannot block the exit. #}
+      <button type="submit" name="action" value="discard" formnovalidate
+              class="btn btn-outline" style="margin-left:0.5rem;"
+              onclick="return confirm('Odrzucić sparsowane wpisy? Notatka zostanie w historii treningów.')">
+        Odrzuć parsowanie
+      </button>
     </form>
     {% endif %}
     {% if total_rows == 0 %}
@@ -145,8 +154,9 @@
       {% else %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
       jest chwilowo niedostępna — bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
-      trzeba odłożyć. Notatka jest zapisana, a ten ekran pozostaje dostępny:
-      <a href="/training">wróć do treningu</a> i otwórz tę sesję ponownie, gdy lista wróci.</p>
+      trzeba odłożyć. Notatka jest zapisana. W historii na
+      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ" — wróć nim tutaj,
+      gdy lista będzie z powrotem dostępna.</p>
       {% endif %}
     {% endif %}
 

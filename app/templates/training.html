@@ -78,6 +78,12 @@
         <summary style="cursor:pointer;">
             <strong>{{ s.date }}</strong>
             {% if s.duration_minutes %}<span class="text-muted"> - {{ s.duration_minutes }} min</span>{% endif %}
+            {# The only route back to a confirm screen the user left without
+               finishing. Without it, "come back later" was advice the UI made
+               impossible — recovery depended on browser history. #}
+            {% if s.wod_parsed %}
+            <a href="/training/wod/confirm/{{ s.id }}" style="margin-left:0.5rem;font-size:0.75rem;">dokończ</a>
+            {% endif %}
         </summary>
         <div style="padding: 0.5rem 0;">
             {% if s.notes %}<p style="margin-bottom:0.5rem;"><small>{{ s.notes }}</small></p>{% endif %}

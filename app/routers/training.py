@@ -355,27 +355,23 @@ async def confirm_wod(request: Request):
         logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
         return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
 
-    # A submission where no row names a movement writes nothing. Letting it
-    # reach the consume below would set wod_parsed = NULL for a session that
-    # gained no entries, and the confirm GET 303s away once wod_parsed is NULL —
-    # the session would be stranded with no form and no route back.
-    #
-    # This became reachable the moment the form started rendering a blank seed
-    # row on a failed parse: one click on "Zapisz wpisy" without touching the
-    # movement select. It is the same dead end the seed row was added to remove.
-    #
-    # Deliberately placed BEFORE the consume and reading nothing from the DB, so
-    # a replay still finds wod_parsed intact and B1's guarantee is unchanged.
-    if not any(movement for movement, *_ in parsed_rows):
-        return RedirectResponse(
-            f"/training/wod/confirm/{session_id}?err="
-            + quote("Wybierz ruch w co najmniej jednym wierszu — albo wróć do treningu, notatka jest już zapisana."),
-            status_code=303,
-        )
+    # "Discard this parse": the supported way to end up with the note and no
+    # entries. Without an explicit exit, "I reviewed this and want none of it"
+    # is indistinguishable from "nothing resolved", and one of the two has to be
+    # refused. Consumes the parse deliberately, writes nothing.
+    if form.get("action") == "discard":
+        await db.execute("UPDATE training_sessions SET wod_parsed = NULL WHERE id = ?", (session_id,))
+        await db.commit()
+        return RedirectResponse("/training", status_code=303)
 
     # B1: atomically consume the pending parse result. rowcount != 1 means
     # "unknown session" or "already confirmed" (replay) — either way, redirect
     # without writing rather than risk a second set of entries.
+    #
+    # The pending value is read first so it can be put back: see the re-arm
+    # below.
+    pending_rows = await db.execute_fetchall("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))
+    pending = pending_rows[0]["wod_parsed"] if pending_rows else None
     cursor = await db.execute(
         "UPDATE training_sessions SET wod_parsed = NULL WHERE id = ? AND wod_parsed IS NOT NULL",
         (session_id,),
@@ -393,12 +389,39 @@ async def confirm_wod(request: Request):
             continue
         rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
 
-    if rows:
-        await db.executemany(
-            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            rows,
+    if not rows:
+        # Nothing resolved, so the consume above took the parse from a session
+        # that gained nothing — and the confirm GET 303s away once wod_parsed is
+        # NULL, which strands the session with no form and no route back. Put it
+        # back and say so.
+        #
+        # Two earlier attempts guarded this *before* the consume, on whether any
+        # row named a movement. That predicate is not the one the write uses:
+        # resolve_movement also returns None for a name that no longer resolves,
+        # which happens whenever a library row is archived between rendering this
+        # form and submitting it (Settings in another tab, or PATCH /api/library
+        # from MCP). The guard has to be the postcondition itself — `rows` — not
+        # a proxy for it, so this sits after the resolve loop.
+        #
+        # Re-arming keeps B1 idempotent: atomicity comes from the conditional
+        # WHERE above, and a replay reaching this branch also writes nothing.
+        await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (pending, session_id))
+        await db.commit()
+        logger.warning("WOD confirm resolved no movements for session %s; parse re-armed", session_id)
+        return RedirectResponse(
+            f"/training/wod/confirm/{session_id}?err="
+            + quote(
+                "Żaden wiersz nie wskazał znanego ruchu, więc nic nie zapisano. "
+                "Wybierz ruch z listy albo użyj „Odrzuć parsowanie”, jeśli notatka wystarczy."
+            ),
+            status_code=303,
         )
+
+    await db.executemany(
+        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        rows,
+    )
     await db.commit()
     return RedirectResponse("/training", status_code=303)
 
