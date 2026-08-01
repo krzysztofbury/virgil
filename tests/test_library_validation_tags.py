@@ -26,6 +26,31 @@ def test_normalize_tag_collapses_spellings(raw, expected):
     assert normalize_tag(raw) == expected
 
 
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # "ł" is an independent letter of the Polish alphabet, not a Latin
+        # vowel with a diacritic -- NFKD does not decompose it, so an
+        # NFKD-only fold leaves it for the character filter to delete
+        # ("siłowy" -> "siowy", "ŁAWKA" -> "AWKA"). An explicit map has to
+        # run before NFKD to catch it. Covered in both cases because the map
+        # only has a lowercase key -- lowercasing happens first.
+        ("siłowy", "silowy"),
+        ("ŁAWKA", "lawka"),
+        # Mixes an undecomposable letter (ż, ł) with letters NFKD DOES
+        # decompose (ó) in one word, so both mechanisms must fire together.
+        ("żółty", "zolty"),
+        # Accented vowels: NFKD decomposes these into base letter + combining
+        # mark, which the plain ascii encode then drops -- this path already
+        # worked before the explicit map was added, and must keep working.
+        ("ćwiczenia", "cwiczenia"),
+        ("pięść", "piesc"),
+    ],
+)
+def test_normalize_tag_transliterates_polish_to_ascii(raw, expected):
+    assert normalize_tag(raw) == expected
+
+
 @pytest.mark.parametrize("raw", ["", "   ", "!!!", "---"])
 def test_normalize_tag_rejects_empty_result(raw):
     with pytest.raises(LibraryWriteError) as exc:

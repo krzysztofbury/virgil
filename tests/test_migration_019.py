@@ -190,6 +190,60 @@ def test_long_category_is_truncated_not_dropped(tmp_path):
     _run(lambda: run())
 
 
+def test_long_category_with_polish_letters_is_transliterated_and_truncated(tmp_path):
+    """Polish letters (here "ł", which has no NFKD decomposition and folds
+    1:1 via the explicit transliteration map) don't change length, so a
+    60-char category built entirely of them must still truncate to a
+    40-char ASCII tag -- same guarantee as the plain-ASCII long-category
+    case, now going through the transliteration step first."""
+
+    async def run():
+        long_category = "Ł" * 60
+        db = await _legacy_db(
+            tmp_path,
+            [
+                {"category": long_category, "section": "Cardio", "name": "Sandbag Carry"},
+            ],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            assert await _tags_of(db, "Sandbag Carry") == ["l" * MAX_TAG_LEN]
+        finally:
+            await db.close()
+
+    _run(lambda: run())
+
+
+def test_category_that_still_overflows_after_transliteration_is_dropped_not_raised(tmp_path):
+    """Unlike the old character filter, transliteration can LENGTHEN a
+    string (ß -> "ss"): 40 raw "ß" become 80 ascii "s", which still exceeds
+    MAX_TAG_LEN even after truncating the raw category to 40 chars first.
+    The migration must not blow up over this -- the row survives with no
+    tag, same as a pure-punctuation category."""
+
+    async def run():
+        long_category = "ß" * 60
+        db = await _legacy_db(
+            tmp_path,
+            [
+                {"category": long_category, "section": "Cardio", "name": "Farmer Carry"},
+            ],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            assert await _tags_of(db, "Farmer Carry") == []
+            rows = await db.execute_fetchall("SELECT COUNT(*) AS c FROM exercise_library")
+            assert rows[0]["c"] == 1, "the row must survive even though it gets no tag"
+        finally:
+            await db.close()
+
+    _run(lambda: run())
+
+
 def test_duplicate_names_merge_keeping_the_explicitly_seeded_metric(tmp_path):
     async def run():
         # 'Row' is in CROSSFIT_MOVEMENTS as Cardio/time. The legacy row has the

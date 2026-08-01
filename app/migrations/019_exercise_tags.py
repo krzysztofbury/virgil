@@ -67,10 +67,17 @@ def _tag_for(category: str) -> str | None:
         # free text capped at 100 characters on both write surfaces (settings
         # and the REST API) — well past the 40-char tag limit — so a long
         # category is real user data, not noise. Truncating the raw input to
-        # MAX_TAG_LEN before normalising guarantees the result fits: every
-        # normalize_tag transform (strip, whitespace-to-dash, invalid-char
-        # removal, dash-collapse) only ever shortens or holds length steady,
-        # never lengthens it.
+        # MAX_TAG_LEN before normalising fits the vast majority of cases:
+        # lowercasing, whitespace-to-dash, invalid-char removal and
+        # dash-collapse only ever shorten or hold length steady, and so does
+        # transliteration for the letters this codebase cares about (Polish
+        # ł/Ł and friends fold 1:1). It is NOT an absolute guarantee, though:
+        # normalize_tag's transliteration step maps a handful of characters
+        # to a *longer* ASCII sequence (æ -> "ae", ß -> "ss"), so a category
+        # that is mostly those letters can still exceed MAX_TAG_LEN after
+        # truncating the raw input. The except below already covers that —
+        # same as the pure-punctuation case above, a category that still
+        # doesn't fit gets dropped rather than aborting the whole migration.
         try:
             return normalize_tag(category[:MAX_TAG_LEN])
         except LibraryWriteError:

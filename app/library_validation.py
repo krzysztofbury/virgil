@@ -25,6 +25,7 @@ name, for both surfaces.
 """
 
 import re
+import unicodedata
 
 from app.validation import truncate
 
@@ -39,6 +40,28 @@ MAX_TAG_LEN = 40
 # "KETTLEBELL" and "Kettle Bell " are one tag rather than three.
 _TAG_INVALID_CHARS = re.compile(r"[^a-z0-9-]+")
 _TAG_DASHES = re.compile(r"-{2,}")
+
+# Tags are ASCII kebab-case slugs, deliberately -- the `name` column stays
+# full Unicode, only tags get folded. NFKD + ascii-encode alone is NOT enough:
+# it decomposes an accented vowel (é, ć) into a base letter plus a combining
+# mark that the ascii encode then drops cleanly, but a letter that is its own
+# member of an alphabet rather than a decorated Latin vowel -- Polish "ł"
+# chief among them -- has no decomposition and simply gets deleted by the
+# ascii encode, same as it was deleted by the old invalid-char filter. Measured:
+# NFKD-only turns "siłowy" into "siowy" and "żółty" into "zoty" -- exactly the
+# defect this transliteration step exists to fix, just narrower. The explicit
+# map below runs BEFORE NFKD to catch what NFKD cannot decompose. Keys are
+# lowercase because this only ever runs after `.strip().lower()`, and Python's
+# Unicode-aware str.lower() already folds "Ł" -> "ł".
+_TAG_TRANSLITERATE = str.maketrans(
+    {
+        "ł": "l",
+        "đ": "d",
+        "ø": "o",
+        "æ": "ae",
+        "ß": "ss",
+    }
+)
 
 
 def normalize_library_text(value: str, max_len: int) -> str:
@@ -79,12 +102,20 @@ class LibraryWriteError(Exception):
 
 
 def normalize_tag(raw: str) -> str:
-    """Lowercase, whitespace-to-dash, alphanumerics and dashes only.
+    """Lowercase, transliterate to ASCII, whitespace-to-dash, alphanumerics
+    and dashes only.
+
+    Transliteration (explicit map, then NFKD + ascii fold) runs before the
+    invalid-char filter so an accented letter folds to its base letter
+    instead of being deleted -- see _TAG_TRANSLITERATE for why the explicit
+    map has to run first.
 
     Raises LibraryWriteError(422) when nothing survives — a tag that
     normalises to the empty string is a typo, not an unnamed tag.
     """
     text = (raw or "").strip().lower()
+    text = text.translate(_TAG_TRANSLITERATE)
+    text = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
     text = re.sub(r"\s+", "-", text)
     text = _TAG_INVALID_CHARS.sub("", text)
     text = _TAG_DASHES.sub("-", text).strip("-")
