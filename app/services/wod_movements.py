@@ -4,7 +4,7 @@ A movement the user already trains resolves to their existing row untouched.
 One that only appears in a WOD is created with ad_hoc = 1: it keeps its history,
 volume and PB contribution, but never shows up in the daily protocol form.
 
-A name absent from the CrossFit library resolves to None and creates nothing —
+A name absent from the exercise library resolves to None and creates nothing —
 that is the guard that stops the exercise catalogue from filling with the
 model's spelling variants.
 
@@ -41,13 +41,21 @@ async def resolve_movement(db, name: str) -> int | None:
             )
         return ex_id
 
+    # Same dedupe tie-break as canonical_movements() in wod_parser.py: a name
+    # can exist under two categories (UNIQUE is (category, name), not (name)),
+    # so prefer the CrossFit row — its metric is seeded explicitly (migration
+    # 016) rather than derived from a rep-spec string (migration 011) — and
+    # otherwise the lowest display_order. Both functions must agree, or a
+    # movement resolves to a different section/metric depending on which one
+    # is asked; see canonical_movements()'s docstring for the full rationale.
     lib = await db.execute_fetchall(
         "SELECT name, section, metric FROM exercise_library "
-        "WHERE category = 'CrossFit' AND lower(name) = lower(?) AND archived = 0 LIMIT 1",
+        "WHERE lower(name) = lower(?) AND archived = 0 "
+        "ORDER BY (category != 'CrossFit'), display_order LIMIT 1",
         (clean,),
     )
     if not lib:
-        logger.info("WOD movement %r is outside the CrossFit library — not created", clean)
+        logger.info("WOD movement %r is outside the exercise library — not created", clean)
         return None
 
     row = lib[0]

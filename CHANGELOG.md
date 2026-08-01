@@ -8,6 +8,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Fixed
+- **WOD parser vocabulary widened from CrossFit-only to the whole exercise
+  library.** `canonical_movements()` and `resolve_movement()` both filtered
+  `category = 'CrossFit'`, so the parser only recognised 31 of the 77 rows in
+  `exercise_library` — a real session's warm-up and stretching (Band
+  Pull-apart, Goblet Hold, Hamstring Stretch, ...), the kettlebell program,
+  and the Gym-classics barbell lifts came back "unrecognised" even though
+  they were already in the library under other categories. Both functions now
+  scope to every non-archived row. A name that exists under two categories —
+  `Back Squat`, `Bench Press`, `Deadlift` (Gym classics + CrossFit) and
+  `Pull-up` (Workout B + CrossFit) today — resolves deterministically: the
+  CrossFit row wins, otherwise the lowest `display_order`, so the two
+  functions can never disagree on a movement's section/metric.
 - **WOD confirmation screen can no longer strand extra sets.** The screen only
   ever let you submit exactly the rows the server rendered — an unrecognised
   movement was synthesised as exactly one row, and the same limit applied
