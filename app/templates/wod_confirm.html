@@ -9,10 +9,14 @@
     <script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('err') }}", true); });</script>
     {% endif %}
 
+    {% set total_rows = entries|length + unmatched|length %}
+    {% set seed_row = total_rows == 0 and movements %}
+
     {% if parse_error %}
       <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
       Notatka jest zapisana i widoczna w historii treningów na stronie /training —
-      usuń tę sesję i zaloguj trening ręcznie, jeśli chcesz zapisać serie.</p>
+      nie usuwaj tej sesji.
+      {% if entries or unmatched or seed_row %}Serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
     {% endif %}
 
     {% if library_error %}
@@ -24,9 +28,21 @@
       <p class="text-muted">Nierozpoznane ruchy — wybierz odpowiednik albo pomiń:</p>
     {% endif %}
 
-    {% set total_rows = entries|length + unmatched|length %}
-    {% if total_rows > 0 %}
-    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ total_rows }})"
+    {# The form renders unconditionally. It used to be gated on total_rows > 0,
+       which turned a parse failure into a dead end: POST /training/wod/confirm is
+       the only route that writes training_entries, so with no rows there was no
+       way to record a set at all — an LLM outage silently froze weekly volume and
+       PBs. addSet() clones an existing <tr>, so "no rows" also meant nothing to
+       clone from. One blank seed row below restores manual entry. #}
+    {# The seed row is only useful if there is a vocabulary to pick from. Under
+       library_error `movements` is empty, so the row would render a select whose
+       one option is "— pomiń": a manual-entry path that cannot write anything.
+       Suppressing it keeps the prose below honest. Nothing is lost either way —
+       confirm_wod re-arms wod_parsed when no row *resolves*, so this screen stays
+       reachable once the library is back. #}
+    {% set form_rows = total_rows if total_rows > 0 else (1 if seed_row else 0) %}
+    {% if form_rows > 0 %}
+    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }})"
           @submit="$refs.entryCount.value = base + extraRows.length">
       <!-- Deliberate redundancy, not an oversight: the :value binding below is
            the first `:value` on an input anywhere in this repo (no other
@@ -78,6 +94,26 @@
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
           </tr>
         {% endfor %}
+        {% if seed_row %}
+          {# Seed row: nothing was parsed, so this is the only way in. Same shape
+             as an unmatched row, at index 0. #}
+          <tr>
+            <td>
+              <select name="entry_0_movement">
+                <option value="">— pomiń</option>
+                {% for m in movements %}
+                  <option value="{{ m.name }}">{{ m.name }}</option>
+                {% endfor %}
+              </select>
+            </td>
+            <td><input type="number" name="entry_0_set_number" value="1" min="1"></td>
+            <td><input type="number" name="entry_0_reps" value="" min="0"></td>
+            <td><input type="number" step="0.5" name="entry_0_weight" value="" min="0"></td>
+            <td><input type="number" step="1" name="entry_0_duration" value="" min="0"></td>
+            <td><input type="text" name="entry_0_note" value="" maxlength="200"></td>
+            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
+          </tr>
+        {% endif %}
         <template x-for="row in extraRows" :key="row.index">
           <tr>
             <td>
@@ -99,12 +135,39 @@
         </tbody>
       </table>
       </div>
-      <input type="hidden" name="entry_count" x-ref="entryCount" :value="base + extraRows.length">
+      {# Static value AND the Alpine binding. Alpine loads `defer` from a CDN with
+         no vendored fallback, so `:value` alone meant this field — and therefore
+         every set the user typed — existed only if a third-party script had
+         loaded. That was survivable while a plain-HTML log form also existed;
+         this route is now the only writer of training_entries, so a CDN failure
+         meant no way to record a workout at all. The server-rendered count is
+         correct whenever Alpine has not added rows, which is exactly the case
+         where the binding is absent. #}
+      <input type="hidden" name="entry_count" x-ref="entryCount"
+             value="{{ form_rows }}" :value="base + extraRows.length">
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
+      {# The supported way to end with the note and no entries. formnovalidate so
+         a half-filled row cannot block the exit. #}
+      <button type="submit" name="action" value="discard" formnovalidate
+              class="btn btn-outline" style="margin-left:0.5rem;"
+              onclick="return confirm('Odrzucić sparsowane wpisy? Notatka zostanie w historii treningów.')">
+        Odrzuć parsowanie
+      </button>
     </form>
-    {% else %}
-      <p class="text-muted">Nic nie udało się sparsować. Notatka została zapisana przy sesji.</p>
-      <a href="/training">Wróć do treningu</a>
+    {% endif %}
+    {% if total_rows == 0 %}
+      {% if seed_row %}
+      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować —
+      powyżej jest pusty wiersz do ręcznego wpisania. Jeśli notatka sama w sobie wystarczy,
+      użyj „Odrzuć parsowanie” — <a href="/training">powrót do treningu</a> zostawi tę sesję
+      oznaczoną jako niedokończoną.</p>
+      {% else %}
+      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
+      jest chwilowo niedostępna — bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
+      trzeba odłożyć. Notatka jest zapisana. W historii na
+      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ” — wróć nim tutaj,
+      gdy lista będzie z powrotem dostępna.</p>
+      {% endif %}
     {% endif %}
 
   </div>

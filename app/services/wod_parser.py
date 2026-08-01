@@ -158,6 +158,9 @@ async def parse_wod(db, text: str) -> ParsedWod:
 
     for item in raw_entries if isinstance(raw_entries, list) else []:
         if not isinstance(item, dict):
+            # Nothing identifiable to surface — no movement name to put in
+            # `unmatched`. Logged so it is at least visible in the container logs.
+            logger.warning("WOD parser skipped a non-object entry: %r", item)
             continue
         name = str(item.get("movement") or "").strip()
         canonical = by_lower.get(name.lower())
@@ -185,8 +188,20 @@ async def parse_wod(db, text: str) -> ParsedWod:
                 note=str(item.get("note") or "")[:200],
             )
         except (TypeError, ValueError):
-            # One malformed row must not lose the rest of the workout.
-            logger.warning("WOD parser skipped malformed entry: %r", item)
+            # One malformed row must not lose the rest of the workout — but it
+            # must not vanish either. `continue` alone put the movement in
+            # neither `entries` nor `unmatched`, so the confirm screen showed no
+            # trace of it: the user reviewed two of three movements, confirmed,
+            # and the third had never existed.
+            #
+            # This needs no failure injection to hit. The system prompt above
+            # invites exactly the shapes that break _coerce — "Rep schemes such
+            # as 21-15-9" lands as `"reps": "21-15-9"`, and a weight comes back
+            # as "43kg" often enough. Surfacing the movement as unmatched costs
+            # its numbers but keeps the row on screen, where the user can map it.
+            logger.warning("WOD parser could not coerce entry for %r: %r", canonical, item)
+            if canonical not in unmatched:
+                unmatched.append(canonical)
             continue
         entries.append(entry)
 

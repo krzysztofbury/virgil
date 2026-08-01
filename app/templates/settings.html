@@ -150,8 +150,29 @@
 {% elif active_tab == 'configuration' %}
 <!-- ═══ APP CONFIG TAB: dictionary tables ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Training Schedule</h3>
+        <small class="text-muted">What the A.N.D.Y. planner assumes about your week. It only decides whether today is a training day — it never prescribes movements.</small>
+    </div>
+    <form action="/settings/training-schedule" method="post"
+          style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+        <label style="margin:0;">Training days
+            <input type="text" name="training_days" value="{{ training_days }}"
+                   placeholder="mon,wed,fri" maxlength="100" style="width: 12rem; margin: 0;">
+        </label>
+        <label style="margin:0;">Swim sessions / week
+            <input type="number" name="training_swim_per_week" value="{{ training_swim_per_week }}"
+                   min="0" max="7" style="width: 6rem; margin: 0;">
+        </label>
+        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+    </form>
+    <p class="text-muted" style="margin-top:0.5rem;"><small>
+        Comma-separated, any of <code>mon tue wed thu fri sat sun</code>. Swim has no fixed day — set 0 to drop it from the plan.
+    </small></p>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Exercise Library</h3>
-        <small class="text-muted">Dictionary used by the Training exercise picker. Add your own entries; built-in ones can be archived (hidden from pickers) but not edited or deleted.</small>
+        <small class="text-muted">The vocabulary the workout parser resolves your notes against. Add your own entries; built-in ones can be archived (hidden from the parser) but not edited or deleted.</small>
     </div>
 
     <datalist id="lib-tags">

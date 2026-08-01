@@ -73,6 +73,21 @@ def stat_value_for_label(html: str, label: str) -> float:
     return float(match.group(1).replace(",", ""))
 
 
+def plain_stat_value_for_label(html: str, label: str) -> float:
+    """Same, for a stat-card whose value carries no unit <small> (Sessions, Total Reps).
+
+    The "kg" anchor above cannot read those, which is part of why the Total Reps
+    and Sessions KPIs had no assertion anywhere in the suite — dropping their
+    query filters entirely left everything green.
+    """
+    pattern = re.compile(
+        r'stat-value">([\d,]+(?:\.\d+)?)\s*</div>\s*<div class="stat-label">' + re.escape(label) + r"</div>"
+    )
+    match = pattern.search(html)
+    assert match, f"no plain stat-card found for label {label!r}"
+    return float(match.group(1).replace(",", ""))
+
+
 def _complete_onboarding() -> None:
     """Mark onboarding as done directly in the (single) user DB file."""
     conn = sqlite3.connect(user_db_path())

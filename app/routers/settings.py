@@ -70,9 +70,12 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["feature_flags"] = await get_feature_flags(db)
 
     elif tab == "configuration":
-        from app.routers.training import SECTION_ORDER
+        from app.library_validation import LIBRARY_SECTIONS
+        from app.services.training_schedule import DEFAULT_DAYS, DEFAULT_SWIM, SETTING_DAYS, SETTING_SWIM
 
         # Grouped by section (not category, which migration 019 removed).
+        # LIBRARY_SECTIONS is the canonical four; training.py used to keep a
+        # second copy of the same list, which this now reads instead.
         # Tags live in exercise_library_tags — one batched query rather than
         # one per row, same rationale as api.py's _tags_by_library_id.
         lib_rows = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY section, display_order, name")
@@ -81,13 +84,15 @@ async def settings_page(request: Request, tab: str = Query("general")):
         for tr in tag_rows:
             tags_by_id.setdefault(tr["library_id"], []).append(tr["tag"])
 
-        library_by_section: dict[str, list[dict]] = {s: [] for s in SECTION_ORDER}
+        library_by_section: dict[str, list[dict]] = {s: [] for s in LIBRARY_SECTIONS}
         for r in lib_rows:
             entry = dict(r)
             entry["tags"] = tags_by_id.get(entry["id"], [])
             library_by_section.setdefault(entry["section"], []).append(entry)
         context["library_by_section"] = library_by_section
-        context["section_order"] = SECTION_ORDER
+        context["section_order"] = list(LIBRARY_SECTIONS)
+        context["training_days"] = await get_setting(db, SETTING_DAYS, DEFAULT_DAYS)
+        context["training_swim_per_week"] = await get_setting(db, SETTING_SWIM, DEFAULT_SWIM)
         context["library_all_tags"] = sorted({tr["tag"] for tr in tag_rows})
 
     elif tab == "integrations":
@@ -346,6 +351,79 @@ async def library_archive(request: Request, entry_id: int = Form(...), archived:
         )
         await db.commit()
     return RedirectResponse("/settings?tab=configuration", status_code=303)
+
+
+# --- Training schedule ---
+
+
+@router.post("/settings/training-schedule")
+async def save_training_schedule(request: Request):
+    """Persist the weekly schedule the A.N.D.Y. planner reads.
+
+    Both values are normalised before storage rather than on read, so whatever
+    reaches app_settings is already the canonical form and the planner cannot be
+    handed a half-parsed day list.
+    """
+    from app.services.training_schedule import (
+        SETTING_DAYS,
+        SETTING_SWIM,
+        SWIM_PER_WEEK_MAX,
+        normalize_days,
+    )
+    from app.validation import truncate
+
+    def reject(message: str) -> RedirectResponse:
+        return RedirectResponse(f"/settings?tab=configuration&err={quote(message)}", status_code=303)
+
+    form = await request.form()
+    db = get_user_db_from_request(request)
+
+    # Both fields are validated before either is written. Two set_setting calls
+    # each commit separately (app/db.py), so there is no transaction to roll
+    # back — a half-valid submission must be refused before the first write,
+    # not repaired after it.
+    raw_days = truncate(str(form.get("training_days", "")), 100)
+    days = normalize_days(raw_days)
+    # A submission that parses to nothing is rejected rather than silently
+    # stored as "no training days": that would quietly tell the planner the week
+    # has no schedule at all, which is never what a typo meant. A blank field is
+    # the one exception — that is an explicit "no fixed days", which the planner
+    # renders as such.
+    if raw_days.strip() and not days:
+        return reject("Nie rozpoznano żadnego dnia — użyj mon,tue,wed,thu,fri,sat,sun")
+
+    # Same policy for the swim target, which previously had none: an
+    # unparseable value silently became 0 and reported success, dropping
+    # swimming from the plan on a typo.
+    #
+    # Blank is not a typo — the number input can legitimately be submitted empty
+    # and 0 is the documented way to drop swimming from the plan, so blank and
+    # absent both mean 0.
+    #
+    # Parsed with try/except rather than str.isdigit(): isdigit() is True for
+    # '²' and for digit strings past CPython's int-conversion limit, both of
+    # which raise in int() — an earlier version of this guard used isdigit() and
+    # turned those inputs into a 500. truncate() bounds the length for the same
+    # reason raw_days is bounded.
+    raw_swim = truncate(str(form.get("training_swim_per_week", "")).strip(), 100)
+    if raw_swim:
+        try:
+            swim = int(raw_swim)
+        except ValueError:
+            return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+        if not 0 <= swim <= SWIM_PER_WEEK_MAX:
+            return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+    else:
+        swim = 0
+
+    await set_setting(db, SETTING_DAYS, ",".join(days))
+    # `swim` is already bounded by the guard above. parse_swim_per_week keeps its
+    # own clamp for the READ path (training_schedule.py), where it has to cope
+    # with whatever is already stored — it is not redundant, just unreachable
+    # from here.
+    await set_setting(db, SETTING_SWIM, str(swim))
+
+    return RedirectResponse(f"/settings?tab=configuration&msg={quote('Training schedule saved')}", status_code=303)
 
 
 # --- Automation settings ---

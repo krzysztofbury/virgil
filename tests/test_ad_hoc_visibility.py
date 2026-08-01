@@ -1,4 +1,9 @@
-"""ad_hoc exercises are excluded from protocol form but visible in volume/PBs."""
+"""ad_hoc exercises still reach the volume and PB aggregates.
+
+The companion test asserting their absence from the protocol form went with
+the form itself (2026-08-01): with nothing on /training rendering a
+configured-exercise list, that assertion could no longer fail.
+"""
 
 import sqlite3
 from datetime import date, timedelta
@@ -60,32 +65,6 @@ def _cleanup_ad_hoc_exercise(ex_id: int) -> None:
         conn.commit()
     finally:
         conn.close()
-
-
-def test_ad_hoc_excluded_from_protocol_section(auth_client):
-    """ad_hoc=1 movements must not appear in the protocol form section.
-
-    The protocol section is the exercise-picker table (training.html:9-24).
-    It renders {{ ex.name }} literally. Session history below it deliberately
-    does NOT filter on ad_hoc (queries join by id only), so the exercise's
-    name legitimately appears further down once it has entries. This test
-    scopes the assertion to the protocol section only.
-    """
-    ex_id = _create_ad_hoc_exercise_with_entry(auth_client)
-    try:
-        resp = auth_client.get("/training")
-        assert resp.status_code == 200
-
-        # The exercise name should NOT appear in the protocol section.
-        # "Personal Bests" is the next section, so split there.
-        protocol_section = resp.text.split("Personal Bests")[0]
-        assert "ZZTestAdHocMovement" not in protocol_section, "ad_hoc exercise should be absent from protocol form"
-
-        # Verify the exercise does appear elsewhere (in session history),
-        # so it's not being filtered out entirely.
-        assert "ZZTestAdHocMovement" in resp.text, "exercise should appear in session history (not filtered globally)"
-    finally:
-        _cleanup_ad_hoc_exercise(ex_id)
 
 
 def test_ad_hoc_counted_in_core_volume(auth_client):
