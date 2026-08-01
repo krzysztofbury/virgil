@@ -123,6 +123,38 @@ async def up(db: aiosqlite.Connection) -> None:
         tags = {t for t in (_tag_for(r["category"]) for r in group) if t}
         tags_for[key] = tags
 
+    # B1 (2026-07-31 review): this CREATE is the FIRST statement `up()` issues,
+    # before any INSERT has opened aiosqlite's implicit transaction -- under
+    # aiosqlite's legacy isolation mode, DDL does not participate in the
+    # implicit-BEGIN-before-DML machinery, so it commits on its own the moment
+    # it runs. Everything from the survivor INSERT loop below onward is DML and
+    # rides in the ONE transaction that first INSERT opens, which
+    # runner.py:66 only commits after `up()` returns -- so a crash anywhere
+    # from there onward rolls all of it back together, leaving this table
+    # exactly as this CREATE left it (present, whatever rows survived the
+    # rollback). A crash right after THIS statement (reproduced against a real
+    # v18 database) is therefore the one gap: the table is committed, nothing
+    # else is, and the `category` guard above still sees the unmigrated
+    # original table on every restart, re-entering this exact code path.
+    # Without this DROP, the CREATE below then raises "table
+    # exercise_library_new already exists" forever, wedging the database.
+    # `DROP TABLE IF EXISTS` (not `CREATE TABLE IF NOT EXISTS`) is deliberate:
+    # a leftover table from a crash further into the INSERT loop could be
+    # partially populated, and reusing it as-is would silently merge on top of
+    # stale rows instead of rebuilding cleanly from the untouched original
+    # `exercise_library`.
+    #
+    # Deliberately NOT also wrapping `up()` in an explicit `BEGIN IMMEDIATE`:
+    # the analysis above shows the DROP already closes the only gap (every
+    # other statement here already shares one transaction). An explicit BEGIN
+    # would additionally have to guard against `db.in_transaction` to avoid
+    # "cannot start a transaction within a transaction" the second time `up()`
+    # runs on the same still-open connection without an intervening commit --
+    # exactly what test_is_idempotent below does, and what 015's crash-retry
+    # docstring documents as this codebase's existing, intentional contract
+    # for migration re-entrancy. That extra guard would buy no additional
+    # crash-safety over the DROP alone, so it isn't worth the complexity.
+    await db.execute("DROP TABLE IF EXISTS exercise_library_new")
     await db.execute(
         """CREATE TABLE exercise_library_new (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -168,10 +200,24 @@ async def up(db: aiosqlite.Connection) -> None:
     await db.execute("DROP TABLE exercise_library")
     await db.execute("ALTER TABLE exercise_library_new RENAME TO exercise_library")
 
+    # H1 (2026-07-31 review): `tag TEXT NOT NULL` alone encodes none of the
+    # "one concept, one spelling" invariant the tags feature rests on -- that
+    # was held only by four Python call sites remembering to route every
+    # write through normalize_tag/normalize_tags. A CHECK constraint on the
+    # column itself makes the shape a normalized tag can have (lowercase
+    # ascii/digits/dash, 1-40 chars — mirroring normalize_tag's own output
+    # exactly) a property of the TABLE, not just of the callers that are
+    # careful. length(...) BETWEEN 1 AND MAX_TAG_LEN rejects both the empty
+    # string (an un-removable empty chip through the UI, since
+    # normalize_tag('') itself raises 422) and anything over the same bound
+    # normalize_tag enforces; the GLOB rejects any character normalize_tag
+    # would never produce (uppercase, punctuation, whitespace, quotes).
+    from app.library_validation import MAX_TAG_LEN
+
     await db.execute(
-        """CREATE TABLE IF NOT EXISTS exercise_library_tags (
+        f"""CREATE TABLE IF NOT EXISTS exercise_library_tags (
             library_id INTEGER NOT NULL REFERENCES exercise_library(id) ON DELETE CASCADE,
-            tag TEXT NOT NULL,
+            tag TEXT NOT NULL CHECK (length(tag) BETWEEN 1 AND {MAX_TAG_LEN} AND tag NOT GLOB '*[^a-z0-9-]*'),
             PRIMARY KEY (library_id, tag)
         )"""
     )

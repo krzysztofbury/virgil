@@ -17,6 +17,11 @@ from app.library_validation import MAX_TAG_LEN
 async def _legacy_db(tmp_path, rows):
     db = await aiosqlite.connect(tmp_path / "legacy.db")
     db.row_factory = aiosqlite.Row
+    # B1 (2026-07-31 review): production opens every user DB with
+    # `PRAGMA foreign_keys=ON` (app/user_db.py:26,41) before migrations ever
+    # run — this fixture didn't, so it was exercising the migration under
+    # laxer constraint checking than it actually runs with in production.
+    await db.execute("PRAGMA foreign_keys=ON")
     await db.execute(
         """CREATE TABLE exercise_library (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -485,3 +490,128 @@ def test_training_history_is_untouched(tmp_path):
             await db.close()
 
     _run(lambda: run())
+
+
+def test_survives_crash_right_after_create_table_new(tmp_path):
+    """B1 (2026-07-31 review): CREATE TABLE exercise_library_new is the very
+    FIRST statement `up()` executes, before any INSERT has opened aiosqlite's
+    implicit transaction -- so under aiosqlite's legacy isolation mode it
+    commits on its own (DDL doesn't participate in the implicit-BEGIN-before-
+    DML machinery), while everything from the survivor INSERT loop onward
+    rides in the transaction runner.py commits only after `up()` returns, and
+    rolls back together on a crash. Reproduced against a real v18 database: a
+    kill right after that CREATE leaves exercise_library_new sitting there,
+    committed, with none of its rows written yet -- and since the `category`
+    guard at the top of `up()` still sees the unmigrated original table, every
+    restart re-enters this exact path. Before the fix that raised
+    `OperationalError: table exercise_library_new already exists` forever,
+    wedging the database permanently — a container restart was not recovery,
+    it was the same failure again.
+
+    This simulates the crash by raising the instant `up()` tries its first
+    INSERT into exercise_library_new (i.e. right after the CREATE has already
+    run and committed on its own, exactly like a real kill at that point)."""
+
+    rows = [
+        {"category": "CrossFit", "section": "Core", "name": "Thruster"},
+        {"category": "Kettlebell", "section": "Core", "name": "KB Swing"},
+        {"category": "Gym classics", "section": "Core", "name": "Leg Press"},
+    ]
+
+    async def crash_after_create():
+        db = await _legacy_db(tmp_path, rows)
+        mod = importlib.import_module("app.migrations.019_exercise_tags")
+        real_execute = db.execute
+
+        async def _boom(sql, *a, **kw):
+            if isinstance(sql, str) and sql.lstrip().startswith("INSERT INTO exercise_library_new"):
+                raise RuntimeError("simulated crash right after CREATE TABLE exercise_library_new")
+            return await real_execute(sql, *a, **kw)
+
+        db.execute = _boom
+        try:
+            try:
+                await mod.up(db)
+            except RuntimeError:
+                pass
+            else:
+                raise AssertionError("expected the simulated crash to fire")
+        finally:
+            db.execute = real_execute
+            # A real crash never gets to close() cleanly either, but nothing
+            # beyond the CREATE was committed regardless of how the
+            # connection goes away -- closing here is equivalent.
+            await db.close()
+
+    async def restart_from_scratch():
+        db = await aiosqlite.connect(tmp_path / "legacy.db")
+        db.row_factory = aiosqlite.Row
+        await db.execute("PRAGMA foreign_keys=ON")
+        try:
+            tables = {r["name"] for r in await db.execute_fetchall("SELECT name FROM sqlite_master WHERE type='table'")}
+            assert "exercise_library_new" in tables, "the crash must actually leave the leftover table behind"
+
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)  # must NOT raise "table already exists"
+            await db.commit()
+
+            survivors = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY name")
+            tags = {r["name"]: await _tags_of(db, r["name"]) for r in survivors}
+            return [dict(r) for r in survivors], tags
+        finally:
+            await db.close()
+
+    _run(lambda: crash_after_create())
+    survivors, tags = _run(lambda: restart_from_scratch())
+
+    assert len(survivors) == len(rows), "restart must converge to one row per movement, not wedge or duplicate"
+    assert tags["Thruster"] == ["crossfit"]
+    assert tags["KB Swing"] == ["kettlebell"]
+    assert tags["Leg Press"] == ["gym-classic"]
+
+
+def test_tags_table_rejects_a_row_that_bypasses_normalize_tag(tmp_path):
+    """H1 (2026-07-31 review): `tag TEXT NOT NULL` alone accepted an empty
+    string, uppercase, punctuation, or a 300-char value -- the whole "one
+    concept, one spelling" design rested on nothing but four Python call
+    sites remembering to call normalize_tag before every write. The CHECK
+    constraint added to the table itself must reject anything normalize_tag
+    would never produce, even when a write bypasses normalize_tag entirely
+    (a raw INSERT, as this test does)."""
+
+    async def run():
+        db = await _legacy_db(
+            tmp_path,
+            [{"category": "CrossFit", "section": "Core", "name": "Thruster"}],
+        )
+        try:
+            mod = importlib.import_module("app.migrations.019_exercise_tags")
+            await mod.up(db)
+            await db.commit()
+            lib_id = (await db.execute_fetchall("SELECT id FROM exercise_library WHERE name = 'Thruster'"))[0]["id"]
+
+            rejected = []
+            for bad_tag in ("", "SIŁOWY", "a'); alert(1);//", "y" * 300):
+                try:
+                    await db.execute(
+                        "INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (lib_id, bad_tag)
+                    )
+                    rejected.append(False)
+                except aiosqlite.IntegrityError:
+                    rejected.append(True)
+                    await db.rollback()  # the failed INSERT's implicit transaction must not poison later ones
+
+            # A normalized tag must still be accepted -- the CHECK bounds
+            # shape, it doesn't ban tags outright. ("crossfit" is already
+            # attached to this row by the migration itself, so use a
+            # different valid tag to avoid colliding with the PRIMARY KEY.)
+            await db.execute(
+                "INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (lib_id, "bodyweight")
+            )
+            await db.commit()
+            return rejected
+        finally:
+            await db.close()
+
+    rejected = _run(lambda: run())
+    assert rejected == [True, True, True, True], "every one of these must be rejected by the CHECK constraint"
