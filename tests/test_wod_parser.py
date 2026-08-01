@@ -362,3 +362,46 @@ def test_canonical_movements_orders_by_display_order(tmp_path):
             await db.close()
 
     asyncio.run(run())
+
+
+def test_uncoercible_entry_is_surfaced_as_unmatched_not_dropped(monkeypatch):
+    """A row the coercion cannot handle must stay visible on the confirm screen.
+
+    It used to go into neither `entries` nor `unmatched`, so the movement simply
+    vanished: the user reviewed the rows that survived, confirmed, and the rest
+    had never existed. No failure injection is needed to reach this — the system
+    prompt invites "21-15-9" rep schemes, which arrive as a string in `reps`.
+    """
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {"movement": "Thruster", "set_number": 1, "reps": "21-15-9", "weight": 43.0},
+                {"movement": "Back Squat", "set_number": 1, "reps": 5, "weight": 70.0},
+            ],
+            "unmatched": [],
+        },
+    )
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "21-15-9 thruster 43, back squat 5x5 70"))
+    names = [e.movement for e in result.entries]
+    assert "Back Squat" in names, "the well-formed row must still be parsed"
+    assert "Thruster" not in names, "the uncoercible row cannot become an entry"
+    assert "Thruster" in result.unmatched, (
+        "an uncoercible row must be surfaced for the user to map, not silently dropped"
+    )
+
+
+def test_uncoercible_entry_is_not_duplicated_in_unmatched(monkeypatch):
+    """Two bad rows for one movement must not stack up two identical rows."""
+    _stub_llm(
+        monkeypatch,
+        {
+            "entries": [
+                {"movement": "Thruster", "set_number": 1, "reps": "21-15-9"},
+                {"movement": "Thruster", "set_number": 2, "reps": "15-9"},
+            ],
+            "unmatched": [],
+        },
+    )
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "21-15-9 thruster"))
+    assert result.unmatched.count("Thruster") == 1
