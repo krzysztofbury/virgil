@@ -145,15 +145,22 @@ async def up(db: aiosqlite.Connection) -> None:
     # `exercise_library`.
     #
     # Deliberately NOT also wrapping `up()` in an explicit `BEGIN IMMEDIATE`:
-    # the analysis above shows the DROP already closes the only gap (every
-    # other statement here already shares one transaction). An explicit BEGIN
-    # would additionally have to guard against `db.in_transaction` to avoid
-    # "cannot start a transaction within a transaction" the second time `up()`
-    # runs on the same still-open connection without an intervening commit --
-    # exactly what test_is_idempotent below does, and what 015's crash-retry
-    # docstring documents as this codebase's existing, intentional contract
-    # for migration re-entrancy. That extra guard would buy no additional
-    # crash-safety over the DROP alone, so it isn't worth the complexity.
+    # the DROP above is sufficient for a non-empty library, which production
+    # always is (it always holds `builtin = 1` rows, and deleting a builtin
+    # row is refused). It is NOT sufficient for an EMPTY library: with no
+    # rows there's no INSERT to open a transaction, so the DROP TABLE
+    # exercise_library and the RENAME right after it (below) each autocommit
+    # on their own -- a crash between them leaves no `exercise_library` table
+    # at all, and the `category` guard above reads that missing table the
+    # same as "already migrated", so the runner stamps version 19 over a
+    # silently wedged database. BEGIN IMMEDIATE would close that gap too;
+    # it's left out only because the gap isn't reachable in production, not
+    # because it wouldn't help. (It also would NOT collide with
+    # test_is_idempotent's second `up()` call, despite an earlier version of
+    # this comment claiming otherwise: that call returns at the `category`
+    # guard above before ever reaching a BEGIN, so there's nothing for it to
+    # collide with -- verified by inserting BEGIN IMMEDIATE there and
+    # re-running the suite.)
     await db.execute("DROP TABLE IF EXISTS exercise_library_new")
     await db.execute(
         """CREATE TABLE exercise_library_new (
@@ -223,6 +230,14 @@ async def up(db: aiosqlite.Connection) -> None:
     )
     await db.execute("CREATE INDEX IF NOT EXISTS idx_library_tags_tag ON exercise_library_tags(tag)")
 
+    # INSERT OR IGNORE silently skips a CHECK-constraint violation on this
+    # table (verified: no exception, row simply not written) -- unlike the
+    # runtime write paths (routers/api.py, routers/settings.py), which use a
+    # plain INSERT and so raise on the same violation. Harmless today: a
+    # fuzz of 20,035 legacy category strings through `_tag_for` produced zero
+    # violations. But if a future change to `_tag_for` ever produced a tag
+    # the CHECK rejects, this loop would drop it silently instead of failing
+    # loudly like every other write path does.
     for key, tags in tags_for.items():
         if not tags:
             continue
