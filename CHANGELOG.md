@@ -68,6 +68,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows there — but it no longer has a UI or a prescription role.
 
 ### Fixed
+- **`training_entries.duration` is seconds, and now reads that way.** The history
+  row printed the raw value with a literal " min", so a 69-minute ride stored as
+  4140 rendered "4140.0 min" beside a header that correctly said "69 min".
+  Relabelling alone would have been wrong: the deleted per-set log form wrote
+  *minutes* for Warmup/Cardio/Stretching and seconds only for Core+`time`, so a
+  3-minute jump rope sits in the column as `3` and would have become "3 s".
+  Migration 020 converts the legacy minute rows using a structural rule — which
+  branch of the old writer produced each row — rather than guessing from
+  magnitude, where minutes and seconds overlap across 30-120. Verified against
+  every duration-carrying row in the deployed database; 18 convert, 17 stay.
+
 - **A submission that resolves no movements no longer strands the session.**
   `confirm_wod` nulls `wod_parsed` to make a replay a no-op, and the confirm GET
   redirects away once it is NULL — so a submission that wrote nothing took the
