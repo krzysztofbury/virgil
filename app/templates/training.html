@@ -98,7 +98,7 @@
                             <td>{{ e.set_number }}</td>
                             <td>{{ e.reps or '-' }}</td>
                             <td>{% if e.weight %}{{ e.weight }} kg{% else %}-{% endif %}</td>
-                            <td>{% if e.duration %}{{ e.duration }} min{% else %}-{% endif %}</td>
+                            <td>{{ e.duration | duration or "-" }}</td>
                         </tr>
                         {% endfor %}
                     </tbody>

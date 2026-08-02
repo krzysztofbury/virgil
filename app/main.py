@@ -13,6 +13,7 @@ from fastapi.templating import Jinja2Templates
 
 from app.auth import AuthMiddleware
 from app.csrf import CSRFMiddleware
+from app.formatting import format_duration_seconds
 from app.rate_limit import RateLimitMiddleware
 from app.security_headers import SecurityHeadersMiddleware
 
@@ -173,6 +174,7 @@ templates = Jinja2Templates(directory=BASE_DIR / "templates")
 templates.env.filters["md"] = _md_inline
 templates.env.filters["strip_md"] = lambda t: re.sub(r"\*\*(.+?)\*\*", r"\1", t)
 templates.env.filters["md_block"] = _md_block
+templates.env.filters["duration"] = format_duration_seconds
 
 
 from fastapi.responses import JSONResponse, Response  # noqa: E402
