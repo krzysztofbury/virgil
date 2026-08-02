@@ -52,13 +52,13 @@ Raised by the final whole-branch review (5 rounds; each earlier round was scoped
 to the fix commits, which is why every defect kept turning up at a seam with code
 the reviewer had not been given). Ranked, none blocking:
 
-- [ ] **Duration is stored in seconds and rendered as minutes.** `training.html`
-      prints `{{ e.duration }} min`; the confirm column is labelled `Czas (s)` and
-      validated against `DURATION_SECONDS_MAX`. Off by 60× on every metcon time.
-      Not a one-line fix: before this branch the deleted log form wrote *minutes*
-      for Warmup/Cardio/Stretching, so the column is historically mixed-unit and
-      old rows cannot be told apart from new ones. Needs a decision about existing
-      data, not just a label change.
+- [x] **Duration stored in seconds, rendered as minutes** — fixed 2026-08-02.
+      Migration 020 converts the legacy minute rows by a structural rule (which
+      branch of the deleted log form wrote them), verified row by row against the
+      deployed database. `format_duration_seconds` renders the column.
+- [ ] The markdown export still drops `duration` entirely (`_section_training`
+      renders Exercise/Set/Reps/Weight), so it now omits the one column that just
+      got a canonical unit.
 - [ ] **A partial resolve consumes the session silently.** `confirm_wod` skips
       rows whose movement no longer resolves and the `if not rows:` guard is
       all-or-nothing, so 1-of-2 rows can be written with no message and no route
