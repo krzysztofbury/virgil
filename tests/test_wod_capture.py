@@ -11,6 +11,8 @@ from urllib.parse import unquote
 import pytest
 from conftest import csrf_token, user_db_path
 
+from app.routers.training import MAX_CONFIRM_ENTRIES, SEED_ROWS_ON_PARSE_FAILURE
+
 
 @pytest.fixture(autouse=True)
 def _drop_probe_sessions():
@@ -663,9 +665,9 @@ def test_parse_failure_still_offers_a_usable_entry_row(auth_client, monkeypatch)
         "the confirm form must render even when nothing was parsed — it is the only route that writes training_entries"
     )
     assert 'name="entry_0_movement"' in resp.text, "a blank editable row must be seeded"
-    assert "wodConfirmForm(1)" in resp.text, (
-        "the Alpine row counter must account for the seeded row — at 0, '+ dodaj serię' "
-        "mints entry_0_* a second time and the two rows collide on submit"
+    assert f"wodConfirmForm({SEED_ROWS_ON_PARSE_FAILURE}, {MAX_CONFIRM_ENTRIES})" in resp.text, (
+        "the Alpine row counter must account for EVERY seeded row - one short, '+ dodaj serię' "
+        "re-mints an existing entry_N_* and the two rows collide on submit"
     )
     assert 'name="entry_0_reps"' in resp.text
     assert 'name="entry_count"' in resp.text

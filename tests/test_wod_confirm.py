@@ -7,6 +7,8 @@ from urllib.parse import unquote
 
 from conftest import csrf_token, plain_stat_value_for_label, stat_value_for_label, user_db_path
 
+from app.routers.training import MAX_CONFIRM_ENTRIES
+
 
 def _query(sql, params=()):
     conn = sqlite3.connect(user_db_path())
@@ -405,7 +407,10 @@ def test_confirm_page_renders_the_add_set_control_and_alpine_wiring(auth_client)
     resp = auth_client.get(f"/training/wod/confirm/{session_id}")
     assert resp.status_code == 200
     html = resp.text
-    assert 'x-data="wodConfirmForm(1)"' in html, "the Alpine component must be wired with the server-rendered count"
+    assert f'x-data="wodConfirmForm(1, {MAX_CONFIRM_ENTRIES})"' in html, (
+        "the Alpine component must be wired with the server-rendered count, and with the row bound "
+        "the handler enforces - past it confirm_wod rejects the whole submission, losing every typed row"
+    )
     assert "addSet($el)" in html, "each row must carry the add-a-set click handler"
     assert 'x-for="row in extraRows"' in html, "appended rows must be driven by an Alpine x-for template"
     assert ':value="base + extraRows.length"' in html, (
