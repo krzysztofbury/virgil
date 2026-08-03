@@ -23,6 +23,25 @@ WEIGHT_KG_MAX = 1000.0
 DURATION_MINUTES_MAX = 1440.0
 DURATION_SECONDS_MAX = 86400.0
 
+# Rows one confirm submission may carry. Exceeding it rejects the WHOLE
+# submission (see the entry_count check in confirm_wod), so the confirm template
+# is given this number and stops adding rows at it, rather than letting the user
+# build a form that cannot be saved and losing the lot on submit.
+MAX_CONFIRM_ENTRIES = 200
+
+# Blank rows offered when the parser produced nothing to review.
+#
+# One row was not a manual-entry path. It holds a single set of a single
+# movement, and a WOD is never that: the note that motivated this carried a
+# warm-up, six snatch singles and a three-movement AMRAP. The add-row buttons
+# are Alpine, which loads deferred from a CDN with no vendored fallback, so on
+# the exact screen a parse failure lands on, these server-rendered rows are the
+# only manual entry that survives that script not arriving.
+#
+# Blank rows cost nothing on submit: confirm_wod resolves an empty movement to
+# None and skips the row, the same way it treats the skip option.
+SEED_ROWS_ON_PARSE_FAILURE = 5
+
 
 def _parse_int_in_range(raw, minimum: int, maximum: int) -> int | None:
     """Parse a form value as int within [minimum, maximum]; None if invalid."""
@@ -321,6 +340,8 @@ async def wod_confirm_page(request: Request, session_id: int):
             "parse_error": parsed.get("parse_error", ""),
             "movements": movements,
             "library_error": library_error,
+            "seed_rows": SEED_ROWS_ON_PARSE_FAILURE,
+            "max_entries": MAX_CONFIRM_ENTRIES,
         },
     )
 
@@ -384,7 +405,7 @@ async def confirm_wod(request: Request):
         return RedirectResponse("/training", status_code=303)
 
     entry_count_raw = form.get("entry_count")
-    entry_count = _parse_int_in_range(entry_count_raw, 0, 200)
+    entry_count = _parse_int_in_range(entry_count_raw, 0, MAX_CONFIRM_ENTRIES)
     if entry_count is None:
         # Two different causes, two different messages. They used to share one:
         # "too many entries at once — try again", which sent a user whose

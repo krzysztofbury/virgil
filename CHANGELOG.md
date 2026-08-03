@@ -68,6 +68,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows there — but it no longer has a UI or a prescription role.
 
 ### Fixed
+- **A failed parse now leaves a usable manual-entry path.** It offered one blank
+  row, whose only labelled action was "+ dodaj serię" - another *set* of one
+  movement. A WOD is never one set of one movement, and reaching a second
+  *exercise* meant adding a "set" and then changing its select, so the only
+  labelled way in described the wrong action. Five rows are now seeded, and a
+  distinct "+ dodaj ćwiczenie" appends a row with a blank movement at set 1.
+  The row count is server-rendered because the add-row buttons are Alpine, which
+  loads deferred from a CDN with no vendored fallback: on the exact screen a
+  parse failure lands on, those rows are the only manual entry that survives the
+  script not arriving. Unfilled rows are skipped on submit, as the copy now says.
+  Both the template and `confirm_wod` take the row bound from one constant
+  (`MAX_CONFIRM_ENTRIES`), so the client stops offering rows at the number the
+  handler accepts - past it the whole submission is rejected, which would have
+  cost the user every row they had typed.
+
 - **A WOD note long enough to matter no longer parses to nothing.** The reported
   session was a warm-up, 6 snatch singles and "Cindy" (an AMRAP whose 7 rounds
   expand, by design, to one entry per round). At ~28 entries it is the
