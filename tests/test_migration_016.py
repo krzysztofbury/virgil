@@ -77,17 +77,24 @@ def test_seeds_crossfit_movements_with_sections_and_metrics(tmp_path):
                 "SELECT name, section, metric, builtin FROM exercise_library WHERE category = 'CrossFit'"
             )
             by_name = {r["name"]: r for r in rows}
-            assert len(rows) == 31, f"expected 31 CrossFit movements, got {len(rows)}"
+            assert len(rows) == 32, f"expected 32 CrossFit movements, got {len(rows)}"
             assert by_name["Thruster"]["section"] == "Core"
             assert by_name["Thruster"]["metric"] == "reps"
             assert by_name["Row"]["section"] == "Cardio"
             assert by_name["Row"]["metric"] == "time"
             assert by_name["Double-under"]["section"] == "Cardio"
             assert by_name["Double-under"]["metric"] == "reps"
+            # The bodyweight squat every benchmark WOD is built on. Seeding only
+            # Back/Front/Overhead Squat left a note reading "15 squats" with no
+            # canonical match, and the closed vocabulary correctly refused to
+            # guess - so a third of Cindy came back as `unmatched` (021 backfills
+            # this for databases seeded before it was added here).
+            assert by_name["Air Squat"]["section"] == "Core"
+            assert by_name["Air Squat"]["metric"] == "reps"
             assert all(r["builtin"] == 0 for r in rows)
             # Verify the full vocabulary split
             assert Counter((r["section"], r["metric"]) for r in rows) == {
-                ("Core", "reps"): 25,
+                ("Core", "reps"): 26,
                 ("Cardio", "time"): 4,
                 ("Cardio", "reps"): 2,
             }
@@ -106,7 +113,7 @@ def test_is_idempotent(tmp_path):
             await mod.up(db)
             await db.commit()
             rows = await db.execute_fetchall("SELECT COUNT(*) as c FROM exercise_library WHERE category = 'CrossFit'")
-            assert rows[0]["c"] == 31
+            assert rows[0]["c"] == 32
         finally:
             await db.close()
 
@@ -127,7 +134,7 @@ def test_crossfit_movements_stay_out_of_the_009_seed_list():
     from app.exercise_library import CROSSFIT_MOVEMENTS, EXERCISE_LIBRARY
 
     assert not [e for e in EXERCISE_LIBRARY if e["category"] == "CrossFit"]
-    assert len(CROSSFIT_MOVEMENTS) == 31
+    assert len(CROSSFIT_MOVEMENTS) == 32
     assert all(m["category"] == "CrossFit" for m in CROSSFIT_MOVEMENTS)
 
 

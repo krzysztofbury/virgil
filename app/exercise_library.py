@@ -402,6 +402,14 @@ CROSSFIT_MOVEMENTS: list[dict] = [
             "notes": "",
         }
         for n in (
+            # Air Squat is the bodyweight squat every benchmark WOD is built on
+            # (Cindy is pull-up / push-up / air squat; so is Murph). Seeding only
+            # the loaded variants left a note reading "15 squats" with no
+            # canonical match at all, so a third of the workout came back as
+            # `unmatched` - the closed vocabulary refusing, correctly, to guess
+            # between Back, Front and Overhead Squat. Migration 021 backfills it
+            # for databases seeded before this line existed.
+            "Air Squat",
             "Back Squat",
             "Front Squat",
             "Overhead Squat",

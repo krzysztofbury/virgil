@@ -148,7 +148,35 @@ async def parse_wod(db, text: str) -> ParsedWod:
     by_lower = {m["name"].lower(): m["name"] for m in movements}
 
     system_prompt = _SYSTEM_PROMPT + "\n".join(f"- {m['name']}" for m in movements)
-    raw = await call_llm(db, system_prompt, text, json_mode=True, max_tokens=4096)
+    # Bound thinking and budget generously - this call is the token-hungriest in
+    # the app and it was the only structured one still asking for neither.
+    #
+    # The reported failure: a note reading "amrap 20 minutes, 7 series, 5x pull
+    # up, 10x push ups, 15 squats" plus a warm-up and 6 snatch singles. The
+    # one-entry-per-round rule above makes that ~28 entries, roughly 1200 output
+    # tokens of JSON - an order of magnitude more than any other caller here
+    # produces. Against gemini/gemini-3-pro-preview the response came back cut
+    # off after 837 characters, mid-object, and 25 correctly-parsed movements
+    # were thrown away with it.
+    #
+    # Omitting reasoning_effort is NOT the same as leaving a default alone:
+    # litellm sends no thinkingConfig at all, so Gemini 3 picks its own default
+    # level (high on Pro) and the thinking spend lands inside max_tokens. That
+    # is what consumed nearly the whole 4096 allowance.
+    #
+    # "disable" is aspirational on this model family and deliberately so: litellm
+    # clamps it to thinkingLevel 'low' with includeThoughts false (verified
+    # against the pinned litellm for both gemini-3-pro-preview and
+    # gemini-3.5-flash) because Gemini 3 Pro cannot turn thinking off - low is
+    # the floor. It is a request for the cheapest level available, not a
+    # guarantee of none, which is exactly why the cap below has to be generous
+    # rather than merely sufficient.
+    #
+    # MAX_WOD_CHARS (4000) bounds the input, so the output cannot grow without
+    # bound either; 16384 clears the worst realistic note with thinking headroom
+    # to spare. A cap costs nothing when unused - only generated tokens are
+    # billed - whereas one set too low costs the user their whole session.
+    raw = await call_llm(db, system_prompt, text, json_mode=True, reasoning_effort="disable", max_tokens=16384)
     payload = parse_andy_response(raw)
 
     raw_entries = payload.get("entries")

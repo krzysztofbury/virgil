@@ -391,6 +391,103 @@ def test_uncoercible_entry_is_surfaced_as_unmatched_not_dropped(monkeypatch):
     )
 
 
+def test_parse_bounds_thinking_and_budgets_the_output(monkeypatch):
+    """The reported bug's root cause.
+
+    parse_wod was the only structured caller passing neither reasoning_effort nor
+    a budget sized for its own output. Against gemini/gemini-3-pro-preview
+    thinking then ran unbounded inside a 4096-token cap, and a note that expands
+    to ~28 entries (an AMRAP's rounds, one entry each) came back truncated after
+    837 characters - 25 correctly-parsed movements discarded with it.
+
+    Pinned as an explicit contract because the failure is invisible locally: the
+    LLM is stubbed in every other test here, so a budget regression would show up
+    only in production, only on long notes, and only on a thinking model.
+    """
+    seen = {}
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        seen.update(kwargs)
+        return json.dumps({"entries": [], "unmatched": []})
+
+    monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+    asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "cindy"))
+
+    assert seen.get("json_mode") is True
+    assert seen.get("reasoning_effort") == "disable", "thinking must be capped, not left to eat the output budget"
+    assert seen.get("max_tokens", 0) >= 16384, (
+        "the budget must clear a full AMRAP expansion plus whatever thinking litellm's drop_params lets through"
+    )
+
+
+def test_omitting_reasoning_effort_really_does_leave_thinking_at_the_default():
+    """Confirm the premise the budget fix rests on, at the litellm boundary.
+
+    Two facts, neither obvious from the call site, and both load-bearing:
+
+      1. Omitting reasoning_effort sends NO thinkingConfig, so Gemini 3 picks its
+         own default level - it does not mean "no thinking". That is what ate the
+         old 4096-token allowance.
+      2. "disable" is clamped to thinkingLevel 'low', not dropped and not
+         honoured as off, because Gemini 3 Pro cannot disable thinking. So the
+         parser still pays for thinking and the max_tokens cap must absorb it.
+
+    If a litellm upgrade changes either - starts dropping the parameter, or gains
+    a genuine off - this assertion is what should fail, so the max_tokens choice
+    can be revisited deliberately rather than silently.
+    """
+    from litellm.utils import get_optional_params
+
+    def thinking_for(**kwargs):
+        params = get_optional_params(
+            model="gemini-3-pro-preview",
+            custom_llm_provider="gemini",
+            max_tokens=16384,
+            response_format={"type": "json_object"},
+            drop_params=True,
+            **kwargs,
+        )
+        return params.get("thinkingConfig")
+
+    assert thinking_for() is None, "no reasoning_effort means no thinkingConfig, so the model's own default applies"
+    assert thinking_for(reasoning_effort="disable") == {"thinkingLevel": "low", "includeThoughts": False}, (
+        "'disable' is the cheapest level this model family offers, not off - the token cap must still cover thinking"
+    )
+
+
+def test_truncated_response_still_yields_the_movements_that_arrived(monkeypatch):
+    """End-to-end recovery: parse_wod must survive the exact prod failure.
+
+    The response below is cut mid-object inside `entries`, three levels deep -
+    the shape parse_andy_response's old one-level repair could never close. The
+    whole session used to be lost; the movements that did arrive must now come
+    through.
+    """
+    full = {
+        "entries": [
+            {"movement": "Row", "set_number": 1, "reps": None, "weight": None, "duration": 180.0, "note": "warmup"},
+            {"movement": "Pull-up", "set_number": 1, "reps": 5, "weight": None, "duration": None, "note": "cindy"},
+            {"movement": "Pull-up", "set_number": 2, "reps": 5, "weight": None, "duration": None, "note": ""},
+        ],
+        "unmatched": [],
+    }
+    text = json.dumps(full, indent=2)
+    truncated = text[: text.rindex('"set_number": 2') + len('"set_number": 2')]
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        return truncated
+
+    monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "..."))
+
+    assert [e.movement for e in result.entries] == ["Row", "Pull-up", "Pull-up"]
+    assert result.entries[0].duration == 180.0
+    assert result.entries[0].note == "warmup"
+    assert result.entries[1].reps == 5
+    assert result.entries[2].set_number == 2, "the half-written entry keeps the fields that did arrive"
+    assert result.entries[2].reps is None, "and honestly reports the ones that did not"
+
+
 def test_uncoercible_entry_is_not_duplicated_in_unmatched(monkeypatch):
     """Two bad rows for one movement must not stack up two identical rows."""
     _stub_llm(

@@ -124,6 +124,108 @@ async def call_llm(
     return content
 
 
+def _repair_truncated_json(text: str, start: int) -> dict | None:
+    """Salvage a truncated JSON object by discarding the incomplete tail.
+
+    Truncated output - thinking eating into the output allowance - is the
+    dominant real-world failure, and by the time it happens most of the useful
+    payload has already arrived. This scans for every structural boundary where
+    an element ends (a closed container, or a comma), then works from the LAST
+    boundary backwards: cut the tail off there and close whatever brackets are
+    still open. Longest repairable prefix wins, so nothing salvageable is lost.
+
+    This replaces appending a single "}" or '"}', which closes exactly ONE
+    level. That was enough for the flat 4-field A.N.D.Y. object it was written
+    for, but the WOD parser's payload nests three deep -
+    {"entries": [{...}, {...}]} - so no single suffix could ever repair it. The
+    repair was silently dead code for that caller: a note whose first 25
+    movements had parsed perfectly was discarded whole.
+
+    Returns the first candidate that decodes to a NON-EMPTY dict, or None. An
+    empty dict is refused deliberately: '{' alone repairs to '{}', which is
+    indistinguishable from "the model said nothing useful" and must surface as
+    a failure rather than as a successful parse of nothing.
+    """
+    # raw_decode stops at the first syntax error, so an attempt costs the walk up
+    # to that error - not the whole response. Cheap for a genuine truncation,
+    # where the error is at the very end and the first attempt succeeds. The
+    # expensive shape is a body that is malformed in the MIDDLE and carries
+    # thousands more boundaries after it: every candidate cut past the halfway
+    # point pays the full walk to it, and the total goes quadratic. Measured at
+    # 1.9s on a 32 KB body, against a max_tokens that permits roughly twice that.
+    #
+    # Capping attempts is not a lost repair. Candidates are tried from the
+    # truncation point backwards, so a real cut is salvaged within an attempt or
+    # two; what the unbounded scan eventually finds on a mid-document error is a
+    # cut that silently discards half the response to route around it, which is
+    # worse than the diagnostic ValueError the caller already handles.
+    MAX_REPAIR_ATTEMPTS = 64
+
+    def closers_for(open_brackets: list[str]) -> str:
+        return "".join("]" if c == "[" else "}" for c in reversed(open_brackets))
+
+    stack: list[str] = []
+    in_string = False
+    escape = False
+    # (cut, closers): text[:cut] + closers is a structurally complete document.
+    candidates: list[tuple[int, str]] = []
+
+    for i in range(start, len(text)):
+        ch = text[i]
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == '"':
+                in_string = False
+            continue
+        if ch == '"':
+            in_string = True
+            continue
+        if ch in "{[":
+            stack.append(ch)
+            continue
+        if ch in "}]":
+            if not stack:
+                # The outermost object closed. raw_decode already handles a
+                # complete object plus trailing junk, so there is nothing
+                # further out to salvage.
+                break
+            stack.pop()
+        elif ch != ",":
+            continue
+        # A container just closed, or an element just ended at a comma. Cutting
+        # AT the comma (not past it) is what drops the trailing comma that would
+        # otherwise make the repaired document invalid.
+        if stack:
+            candidates.append((i if ch == "," else i + 1, closers_for(stack)))
+
+    # Closing at the very end is the only candidate for a shallow cut
+    # ('{"a": 1') - there is no earlier boundary to fall back to - and for a
+    # deep cut it keeps the final half-written element's fields instead of
+    # discarding them. An unterminated string gets its closing quote back too,
+    # unless the cut landed on a backslash, where the escape would swallow it.
+    if stack:
+        tail = text.rstrip()
+        if in_string and not escape:
+            candidates.append((len(tail), '"' + closers_for(stack)))
+        elif not in_string:
+            candidates.append((len(tail.rstrip(",")), closers_for(stack)))
+
+    for cut, closers in reversed(candidates[-MAX_REPAIR_ATTEMPTS:]):
+        try:
+            obj, _ = json.JSONDecoder().raw_decode(text[:cut] + closers, start)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(obj, dict) and obj:
+            logger.warning(
+                "Repaired truncated LLM JSON (len=%d, kept %d chars, closed %r)", len(text), cut - start, closers
+            )
+            return obj
+    return None
+
+
 def parse_andy_response(text: str) -> dict:
     """Extract a JSON object from an LLM response.
 
@@ -146,18 +248,9 @@ def parse_andy_response(text: str) -> dict:
         if isinstance(obj, dict):
             return obj
 
-        # Truncated output (thinking ate the token budget mid-object) is the
-        # dominant real-world failure — salvage it by closing the JSON instead
-        # of throwing away four perfectly good suggestions.
-        trimmed = text.rstrip().rstrip(",")
-        for suffix in ("}", '"}'):
-            try:
-                obj, _ = json.JSONDecoder().raw_decode(trimmed + suffix, start)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(obj, dict) and obj:
-                logger.warning("Repaired truncated LLM JSON (len=%d, suffix=%r)", len(text), suffix)
-                return obj
+        repaired = _repair_truncated_json(text, start)
+        if repaired is not None:
+            return repaired
 
     # head + tail + length so the failure is self-diagnosing: ending in '}' means
     # complete-but-unparseable; ending mid-string means truncated.
