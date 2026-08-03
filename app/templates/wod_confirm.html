@@ -16,7 +16,7 @@
       <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
       Notatka jest zapisana i widoczna w historii treningów na stronie /training —
       nie usuwaj tej sesji.
-      {% if entries or unmatched or seed_row %}Serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
+      {% if entries or unmatched or seed_row %}Ruchy i serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
     {% endif %}
 
     {% if library_error %}
@@ -40,9 +40,9 @@
        Suppressing it keeps the prose below honest. Nothing is lost either way —
        confirm_wod re-arms wod_parsed when no row *resolves*, so this screen stays
        reachable once the library is back. #}
-    {% set form_rows = total_rows if total_rows > 0 else (1 if seed_row else 0) %}
+    {% set form_rows = total_rows if total_rows > 0 else (seed_rows if seed_row else 0) %}
     {% if form_rows > 0 %}
-    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }})"
+    <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }}, {{ max_entries }})"
           @submit="$refs.entryCount.value = base + extraRows.length">
       <!-- Deliberate redundancy, not an oversight: the :value binding below is
            the first `:value` on an input anywhere in this repo (no other
@@ -95,24 +95,31 @@
           </tr>
         {% endfor %}
         {% if seed_row %}
-          {# Seed row: nothing was parsed, so this is the only way in. Same shape
-             as an unmatched row, at index 0. #}
+          {# Seed rows: nothing was parsed, so these are the only way in. Same
+             shape as an unmatched row, starting at index 0 (total_rows is 0 here).
+             Several of them, not one: the buttons that add more are Alpine, which
+             loads deferred from a CDN with no vendored fallback, so these rows are
+             the whole manual-entry path when that script does not arrive. A blank
+             row is skipped on submit exactly like the skip option, so an unused
+             one costs nothing. #}
+          {% for _ in range(seed_rows) %}
           <tr>
             <td>
-              <select name="entry_0_movement">
+              <select name="entry_{{ loop.index0 }}_movement">
                 <option value="">— pomiń</option>
                 {% for m in movements %}
                   <option value="{{ m.name }}">{{ m.name }}</option>
                 {% endfor %}
               </select>
             </td>
-            <td><input type="number" name="entry_0_set_number" value="1" min="1"></td>
-            <td><input type="number" name="entry_0_reps" value="" min="0"></td>
-            <td><input type="number" step="0.5" name="entry_0_weight" value="" min="0"></td>
-            <td><input type="number" step="1" name="entry_0_duration" value="" min="0"></td>
-            <td><input type="text" name="entry_0_note" value="" maxlength="200"></td>
+            <td><input type="number" name="entry_{{ loop.index0 }}_set_number" value="1" min="1"></td>
+            <td><input type="number" name="entry_{{ loop.index0 }}_reps" value="" min="0"></td>
+            <td><input type="number" step="0.5" name="entry_{{ loop.index0 }}_weight" value="" min="0"></td>
+            <td><input type="number" step="1" name="entry_{{ loop.index0 }}_duration" value="" min="0"></td>
+            <td><input type="text" name="entry_{{ loop.index0 }}_note" value="" maxlength="200"></td>
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
           </tr>
+          {% endfor %}
         {% endif %}
         <template x-for="row in extraRows" :key="row.index">
           <tr>
@@ -145,6 +152,17 @@
          where the binding is absent. #}
       <input type="hidden" name="entry_count" x-ref="entryCount"
              value="{{ form_rows }}" :value="base + extraRows.length">
+      {# A row for a DIFFERENT movement, which "+ dodaj serię" cannot give: that
+         one clones the movement of the row it sits in and increments its set
+         number, which is right for another set and wrong for another exercise.
+         Reaching a second movement used to mean adding a "set" and then changing
+         its select, so the only labelled way in described the wrong action. #}
+      <button type="button" class="btn btn-outline" @click="addExercise()"
+              x-show="!atLimit" style="margin-bottom:0.75rem;">+ dodaj ćwiczenie</button>
+      <p class="text-muted" x-show="atLimit" x-cloak style="margin-bottom:0.75rem;">
+        Osiągnięto limit {{ max_entries }} wierszy w jednym zapisie. Zapisz te wpisy,
+        a resztę dodaj w kolejnym kroku.</p>
+      <div>
       <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
       {# The supported way to end with the note and no entries. formnovalidate so
          a half-filled row cannot block the exit. #}
@@ -153,14 +171,18 @@
               onclick="return confirm('Odrzucić sparsowane wpisy? Notatka zostanie w historii treningów.')">
         Odrzuć parsowanie
       </button>
+      </div>
     </form>
     {% endif %}
     {% if total_rows == 0 %}
       {% if seed_row %}
-      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować —
-      powyżej jest pusty wiersz do ręcznego wpisania. Jeśli notatka sama w sobie wystarczy,
-      użyj „Odrzuć parsowanie” — <a href="/training">powrót do treningu</a> zostawi tę sesję
-      oznaczoną jako niedokończoną.</p>
+      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować -
+      powyżej jest {{ seed_rows }} pustych wierszy do ręcznego wpisania. „+ dodaj ćwiczenie”
+      dodaje kolejny ruch, a „+ dodaj serię” w wierszu - następną serię tego samego ruchu.
+      Puste wiersze są pomijane przy zapisie, więc nie musisz ich wypełniać.
+      Jeśli notatka sama w sobie wystarczy, użyj „Odrzuć parsowanie” -
+      <a href="/training">powrót do treningu</a> zostawi tę sesję oznaczoną jako
+      niedokończoną.</p>
       {% else %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
       jest chwilowo niedostępna — bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
@@ -176,26 +198,44 @@
 
 {% block scripts %}
 <script>
-function wodConfirmForm(baseCount) {
+function wodConfirmForm(baseCount, maxRows) {
     return {
         base: baseCount,
+        maxRows: maxRows,
         extraRows: [],
+        // confirm_wod rejects the WHOLE submission when entry_count exceeds its
+        // bound, so growing past it would cost the user every row they had
+        // typed. Stop offering rows at the limit instead.
+        get atLimit() {
+            return this.base + this.extraRows.length >= this.maxRows;
+        },
         // Appends a new row at the END of the table (never inserted after the
         // source row) so existing entry_N_* field names never get renumbered.
         // The new row's index continues from the server-rendered count plus
         // however many extra rows already exist, so it can never collide with
         // an existing name.
+        addRow(movement, setNumber) {
+            if (this.atLimit) return;
+            this.extraRows.push({
+                index: this.base + this.extraRows.length,
+                movement: movement,
+                setNumber: setNumber
+            });
+        },
+        // Another set of the movement in the row the button sits in.
         addSet(buttonEl) {
             const tr = buttonEl.closest('tr');
             const movementSelect = tr.querySelector('select[name$="_movement"]');
             const setNumberInput = tr.querySelector('input[name$="_set_number"]');
             const movement = movementSelect ? movementSelect.value : '';
             const currentSetNumber = parseInt(setNumberInput && setNumberInput.value, 10) || 0;
-            this.extraRows.push({
-                index: this.base + this.extraRows.length,
-                movement: movement,
-                setNumber: currentSetNumber + 1
-            });
+            this.addRow(movement, currentSetNumber + 1);
+        },
+        // A different movement: blank select, set 1. Cloning and incrementing
+        // (what addSet does) is wrong here -- it would pre-fill someone else's
+        // movement and start the new exercise at set 2.
+        addExercise() {
+            this.addRow('', 1);
         }
     };
 }
