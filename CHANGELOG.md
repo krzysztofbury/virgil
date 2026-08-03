@@ -68,6 +68,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rows there — but it no longer has a UI or a prescription role.
 
 ### Fixed
+- **A WOD note long enough to matter no longer parses to nothing.** The reported
+  session was a warm-up, 6 snatch singles and "Cindy" (an AMRAP whose 7 rounds
+  expand, by design, to one entry per round). At ~28 entries it is the
+  token-hungriest input the parser sees, and it was the only structured LLM call
+  in the app passing neither `reasoning_effort` nor a budget sized for its own
+  output. Omitting `reasoning_effort` is not the same as leaving a default alone:
+  litellm then sends no `thinkingConfig` at all, so Gemini 3 Pro thinks at its
+  own default level and spends that inside `max_tokens`. It consumed nearly the
+  whole 4096-token allowance and the response arrived cut off after 837
+  characters, mid-object. Now capped to the cheapest thinking level the model
+  family offers and budgeted at 16384. `"disable"` is aspirational and
+  deliberately so - litellm clamps it to `thinkingLevel: low` because Gemini 3
+  Pro cannot turn thinking off, which is why the cap is generous rather than
+  merely sufficient. A test pins that mapping so a litellm upgrade that changes
+  it fails loudly instead of silently.
+
+- **A truncated response no longer costs the whole session.**
+  `parse_andy_response` repaired truncation by appending a single `}` or `"}`,
+  which closes exactly one level. That was enough for the flat 4-field A.N.D.Y.
+  object it was written for, but the WOD payload nests three deep
+  (`{"entries": [{...}]}`), so the repair was silently dead code for that caller
+  and 25 correctly-parsed movements were discarded whole. It now scans for every
+  structural boundary where an element ends and works back from the truncation
+  point, cutting the incomplete tail and closing whatever is still open, so the
+  longest repairable prefix wins. The half-written entry keeps the fields that
+  did arrive. Attempts are bounded: each one re-parses the response, and on a
+  body that is malformed mid-document rather than merely cut short that was
+  quadratic - 1.9s on 32 KB, where the cap permits roughly twice that length.
+
+- **`Air Squat` was missing from the WOD vocabulary** (migration 021). Migration
+  016 seeded Back, Front and Overhead Squat but no bodyweight squat. That
+  vocabulary is closed and the prompt forbids guessing a near match - correctly,
+  or the catalogue rots - so "15 squats" had nothing to map to and came back as
+  `unmatched`. Air Squat is a third of Cindy and a fifth of Murph, so the gap
+  cost most of any benchmark WOD logged. `INSERT OR IGNORE`, so a user who
+  already added the movement keeps their own metric and section.
+
 - **`training_entries.duration` is seconds, and now reads that way.** The history
   row printed the raw value with a literal " min", so a 69-minute ride stored as
   4140 rendered "4140.0 min" beside a header that correctly said "69 min".
