@@ -91,6 +91,26 @@ CREATE TABLE IF NOT EXISTS pmo_events (
     created_at TEXT DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS feniks_daily (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL UNIQUE,
+    used INTEGER NOT NULL DEFAULT 0 CHECK(used IN (0, 1)),
+    minutes INTEGER,
+    edging INTEGER NOT NULL DEFAULT 0 CHECK(edging IN (0, 1)),
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS feniks_bricks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT NOT NULL,
+    hook TEXT NOT NULL,
+    situation TEXT DEFAULT '',
+    craving INTEGER CHECK(craving BETWEEN 0 AND 10),
+    action TEXT DEFAULT '',
+    lesson TEXT DEFAULT '',
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS oura_monthly (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     month TEXT NOT NULL UNIQUE,

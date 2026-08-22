@@ -7,7 +7,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from app.main import templates
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import get_user_db_from_request
-from app.validation import truncate, valid_date
+from app.validation import OptionalFormInt, clamp, truncate, valid_date
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +52,17 @@ async def feniks_page(request: Request, tab: str = "journal"):
     today_pleasures = await db.execute_fetchall("SELECT * FROM feniks_pleasures WHERE date = ?", (today.isoformat(),))
     today_pleasures = dict(today_pleasures[0]) if today_pleasures else None
 
+    # Bricks (urges survived) — the module's progress unit
+    bricks = await db.execute_fetchall("SELECT * FROM feniks_bricks ORDER BY date DESC, id DESC LIMIT 30")
+    bricks = [dict(r) for r in bricks]
+    bricks_total = (await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks"))[0]["c"]
+
+    # Daily log (used / minutes / edging)
+    daily = await db.execute_fetchall("SELECT * FROM feniks_daily ORDER BY date DESC LIMIT 30")
+    daily = [dict(r) for r in daily]
+    today_daily = await db.execute_fetchall("SELECT * FROM feniks_daily WHERE date = ?", (today.isoformat(),))
+    today_daily = dict(today_daily[0]) if today_daily else None
+
     return templates.TemplateResponse(
         "feniks.html",
         {
@@ -66,6 +77,10 @@ async def feniks_page(request: Request, tab: str = "journal"):
             "today_journal": today_journal,
             "pleasures": pleasures,
             "today_pleasures": today_pleasures,
+            "bricks": bricks,
+            "bricks_total": bricks_total,
+            "daily": daily,
+            "today_daily": today_daily,
             "today": today.isoformat(),
             "form_date": form_date,
         },
@@ -142,3 +157,80 @@ async def log_relapse(
     await db.execute("INSERT INTO pmo_events (date, event_type, notes) VALUES (?, 'relapse', ?)", (date, notes))
     await db.commit()
     return RedirectResponse("/feniks", status_code=303)
+
+
+@router.post("/feniks/daily")
+async def save_daily(
+    request: Request,
+    date: str = Form(...),
+    used: str = Form(""),
+    edging: str = Form(""),
+    minutes: OptionalFormInt = None,
+):
+    """20-second daily log: used / total minutes / edging. Upsert per date.
+
+    used=1 also records a relapse pmo_event for that date (once); correcting the
+    day back to used=0 removes only that marker event ('via daily log'), never a
+    manually reported relapse — so the streak / weekly clean-rate stay consistent
+    with the daily log. The sync is one-way: /feniks/relapse does not write here
+    (a relapse event without a daily row is history, not corruption).
+    """
+    if not valid_date(date):
+        return RedirectResponse("/feniks", status_code=303)
+    used_val = 1 if used == "1" else 0
+    edging_val = 1 if edging == "1" else 0
+    minutes_val = clamp(minutes, 0, 1440)
+    db = get_user_db_from_request(request)
+    await db.execute(
+        """
+        INSERT INTO feniks_daily (date, used, minutes, edging)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(date) DO UPDATE SET
+            used=excluded.used, minutes=excluded.minutes, edging=excluded.edging
+        """,
+        (date, used_val, minutes_val, edging_val),
+    )
+    if used_val:
+        await db.execute(
+            """
+            INSERT INTO pmo_events (date, event_type, notes)
+            SELECT ?, 'relapse', 'via daily log'
+            WHERE NOT EXISTS (SELECT 1 FROM pmo_events WHERE date = ? AND event_type = 'relapse')
+            """,
+            (date, date),
+        )
+    else:
+        await db.execute(
+            "DELETE FROM pmo_events WHERE date = ? AND event_type = 'relapse' AND notes = 'via daily log'",
+            (date,),
+        )
+    await db.commit()
+    return RedirectResponse("/feniks", status_code=303)
+
+
+@router.post("/feniks/bricks")
+async def save_brick(
+    request: Request,
+    date: str = Form(...),
+    hook: str = Form(""),
+    situation: str = Form(""),
+    action: str = Form(""),
+    lesson: str = Form(""),
+    craving: OptionalFormInt = None,
+):
+    """A brick = one urge survived, in Gola's structure. The hook (hak
+    pamięciowy) is what makes it retrievable under pressure — required."""
+    if not valid_date(date) or not hook.strip():
+        return RedirectResponse("/feniks/bricks", status_code=303)
+    hook = truncate(hook.strip(), 200)
+    situation = truncate(situation, 2000)
+    action = truncate(action, 2000)
+    lesson = truncate(lesson, 2000)
+    craving_val = clamp(craving, 0, 10)
+    db = get_user_db_from_request(request)
+    await db.execute(
+        "INSERT INTO feniks_bricks (date, hook, situation, craving, action, lesson) VALUES (?, ?, ?, ?, ?, ?)",
+        (date, hook, situation, craving_val, action, lesson),
+    )
+    await db.commit()
+    return RedirectResponse("/feniks/bricks", status_code=303)
