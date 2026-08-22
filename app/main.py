@@ -3,6 +3,7 @@ import contextlib
 import logging
 import os
 import re
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -97,6 +98,11 @@ def get_app_version() -> str:
                     ).strip()
                     or "unknown"
                 )
+        if not os.environ.get("VIRGIL_GIT_SHA"):
+            # Dev run: the SW caches /static/ cache-first under a name keyed on
+            # this version, and a bare git sha only changes per commit — suffix
+            # the start time so every restart serves fresh static assets.
+            version = f"{version}-{int(time.time())}"
         _APP_VERSION = version
     return _APP_VERSION
 
@@ -171,6 +177,9 @@ app.add_middleware(CSRFMiddleware)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
+# Cache-buster for /static/ links: the SW serves them cache-first, so only a
+# changed URL guarantees a fresh asset on the first load after an update.
+templates.env.globals["app_version"] = get_app_version()
 templates.env.filters["md"] = _md_inline
 templates.env.filters["strip_md"] = lambda t: re.sub(r"\*\*(.+?)\*\*", r"\1", t)
 templates.env.filters["md_block"] = _md_block
