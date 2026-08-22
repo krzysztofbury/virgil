@@ -8,17 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Bricks (No Porn)** — `feniks_bricks` table, a Bricks tab and a hero counter
-  (migration 022). A brick = one urge survived, captured in Gola's structure:
-  memory hook (required), situation/trigger, craving 0-10, action taken, lesson.
-  Bricks — not clean-day streaks — are the visible progress unit; the streak
-  moves to a small line under the hero. Journal, pleasures and the weekly 75%
-  clean-rate stay unchanged.
-- **Daily log (No Porn)** — `feniks_daily` table + a 20-second form: used
-  (yes/no), total minutes, edging (yes/no). A day-based relapse counter cannot
-  see edging (hours of sustained use log as one event), so this is the honest
-  metric. `used=1` also records the day's relapse `pmo_event` once (idempotent),
-  keeping the existing streak / weekly clean-rate machinery working unchanged.
+- **No Porn rebuilt as a single flow** (migration 022). The page asks one
+  question — *Clean day* or *I watched* — and watching reveals minutes, an
+  edging toggle and an optional one-line note (`feniks_daily`, upsert per date).
+  A day-based relapse counter cannot see edging (hours of sustained use log as
+  one event), so this is the honest metric. `used=1` records the day's relapse
+  `pmo_event` once (idempotent); correcting the day back to clean removes only
+  that marker — the streak and weekly 75% clean-rate keep working unchanged.
+- **Bricks (No Porn)** — `feniks_bricks`: a brick = one urge survived, captured
+  in Gola's brick structure: memory hook (required), craving 0-10, story.
+  Bricks — not clean-day streaks — are the hero number; the streak and a
+  Monday-to-Sunday week strip show below it.
+- **Unified timeline (No Porn)** — days and their bricks in one feed, replacing
+  the Journal / Bricks / Pleasures tabs. The journal and pleasures tables (and
+  their historical data) remain in the DB and the API; only their forms are
+  retired from the UI, along with the separate relapse form.
 - **`GET /api/noporn` carries `daily`, `bricks`, `bricks_total`** (still gated
   behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
 

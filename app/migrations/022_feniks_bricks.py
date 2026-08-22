@@ -5,9 +5,9 @@ Two additive tables; nothing existing changes shape:
 - feniks_daily: one row per date — used (0/1), total minutes, edging (0/1).
   A day-based relapse counter under-measures prolonged sessions (hours log
   as one event), so the honest metric is a short daily log.
-- feniks_bricks: urges survived, in Gola's brick structure (situation,
-  craving 0-10, action taken, lesson, memory hook). Bricks — not clean-day
-  streaks — are the module's progress unit.
+- feniks_bricks: urges survived, in Gola's brick structure (memory hook,
+  craving 0-10, story). Bricks — not clean-day streaks — are the module's
+  progress unit.
 
 CREATE TABLE IF NOT EXISTS keeps this idempotent and safe to re-run; the same
 DDL lives in app/db.py for fresh installs (this migration covers existing DBs).
@@ -25,6 +25,7 @@ async def up(db: aiosqlite.Connection) -> None:
             used INTEGER NOT NULL DEFAULT 0 CHECK(used IN (0, 1)),
             minutes INTEGER,
             edging INTEGER NOT NULL DEFAULT 0 CHECK(edging IN (0, 1)),
+            note TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now'))
         )
         """
@@ -35,10 +36,8 @@ async def up(db: aiosqlite.Connection) -> None:
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             date TEXT NOT NULL,
             hook TEXT NOT NULL,
-            situation TEXT DEFAULT '',
             craving INTEGER CHECK(craving BETWEEN 0 AND 10),
-            action TEXT DEFAULT '',
-            lesson TEXT DEFAULT '',
+            story TEXT DEFAULT '',
             created_at TEXT DEFAULT (datetime('now'))
         )
         """

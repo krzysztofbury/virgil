@@ -97,6 +97,7 @@ CREATE TABLE IF NOT EXISTS feniks_daily (
     used INTEGER NOT NULL DEFAULT 0 CHECK(used IN (0, 1)),
     minutes INTEGER,
     edging INTEGER NOT NULL DEFAULT 0 CHECK(edging IN (0, 1)),
+    note TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -104,10 +105,8 @@ CREATE TABLE IF NOT EXISTS feniks_bricks (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,
     hook TEXT NOT NULL,
-    situation TEXT DEFAULT '',
     craving INTEGER CHECK(craving BETWEEN 0 AND 10),
-    action TEXT DEFAULT '',
-    lesson TEXT DEFAULT '',
+    story TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
 );
 
