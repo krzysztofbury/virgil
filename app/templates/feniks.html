@@ -6,10 +6,11 @@
     <h1>No Porn</h1>
 </div>
 
-<!-- Streak Hero -->
+<!-- Bricks Hero — progress unit is won urge episodes, not clean-day streaks -->
 <div class="streak-hero">
-    <div class="streak-number">{{ streak_days }}</div>
-    <div class="streak-label">days clean</div>
+    <div class="streak-number">{{ bricks_total }}</div>
+    <div class="streak-label">bricks (urges survived)</div>
+    <small class="text-muted" style="display:block;margin-top:0.25rem;">{{ streak_days }} days clean</small>
     <div class="streak-progress">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.35rem;">
             <small class="text-muted">This week: {{ week_clean }}/{{ week_elapsed }} clean</small>
@@ -23,9 +24,28 @@
     </div>
 </div>
 
-<!-- Relapse Button -->
+<!-- Daily log: 20 seconds — used / minutes / edging (a day counter cannot see edging) -->
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Daily Log</h3></div>
+    <form method="POST" action="/feniks/daily">
+        <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:end;">
+            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+            <label style="display:flex;align-items:center;gap:0.4rem;">
+                <input type="checkbox" name="used" value="1" {{ 'checked' if today_daily and today_daily.used else '' }}> Used
+            </label>
+            <label>Minutes <input type="number" name="minutes" min="0" max="1440" style="width:5.5rem;"
+                value="{{ today_daily.minutes if today_daily and today_daily.minutes is not none else '' }}"></label>
+            <label style="display:flex;align-items:center;gap:0.4rem;">
+                <input type="checkbox" name="edging" value="1" {{ 'checked' if today_daily and today_daily.edging else '' }}> Edging
+            </label>
+            <button type="submit" class="btn btn-primary">Save</button>
+        </div>
+    </form>
+</div>
+
+<!-- Relapse with notes (optional detail on top of the daily log) -->
 <details style="margin-bottom: 1.5rem;">
-    <summary>Report relapse</summary>
+    <summary>Report relapse with notes</summary>
     <form method="POST" action="/feniks/relapse">
         <div style="margin-bottom: 0.75rem;">
             <label>Date <input type="date" name="date" value="{{ today }}" required></label>
@@ -36,9 +56,10 @@
 </details>
 
 <!-- Tabs (client-side, no reload/scroll) -->
-<div x-data="{ tab: '{{ 'pleasures' if tab == 'pleasures' else 'journal' }}' }">
+<div x-data="{ tab: '{{ 'pleasures' if tab == 'pleasures' else ('bricks' if tab == 'bricks' else 'journal') }}' }">
 <div class="tabs">
     <a href="#" @click.prevent="tab = 'journal'" :class="{ active: tab === 'journal' }">Journal</a>
+    <a href="#" @click.prevent="tab = 'bricks'" :class="{ active: tab === 'bricks' }">Bricks</a>
     <a href="#" @click.prevent="tab = 'pleasures'" :class="{ active: tab === 'pleasures' }">Pleasures</a>
 </div>
 
@@ -110,6 +131,63 @@
 </div>
 {% endif %}
 </div><!-- /journal panel -->
+
+<!-- Bricks (Gola: wypalanie cegieł — corrective experiences) -->
+<div x-show="tab === 'bricks'" x-cloak>
+<div class="card">
+    <div class="card-header"><h3>New Brick — one urge survived</h3></div>
+    <form method="POST" action="/feniks/bricks">
+        <div style="margin-bottom: 0.75rem;">
+            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>Memory hook (name this brick)
+                <input type="text" name="hook" maxlength="200" required placeholder="e.g. Walk instead — urge gone in 20 min">
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>Situation / trigger
+                <textarea name="situation" rows="2"></textarea>
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>Craving (0-10) <input type="number" name="craving" min="0" max="10" style="width:5rem;"></label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>What did I do instead?
+                <textarea name="action" rows="2"></textarea>
+            </label>
+        </div>
+        <div style="margin-bottom: 0.75rem;">
+            <label>What did I learn about myself?
+                <textarea name="lesson" rows="2"></textarea>
+            </label>
+        </div>
+        <button type="submit" class="btn btn-primary">Save brick</button>
+    </form>
+</div>
+
+{% if bricks %}
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header"><h3>Wall ({{ bricks_total }})</h3></div>
+    <div class="overflow-x">
+        <table>
+            <thead><tr><th>Date</th><th>Hook</th><th>Craving</th><th>Situation</th></tr></thead>
+            <tbody>
+                {% for b in bricks %}
+                <tr>
+                    <td>{{ b.date }}</td>
+                    <td>{{ b.hook }}</td>
+                    <td>{{ b.craving if b.craving is not none else '' }}</td>
+                    <td>{{ (b.situation or '')[:50] }}{{ '...' if (b.situation or '')|length > 50 else '' }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endif %}
+</div><!-- /bricks panel -->
 
 <!-- Pleasures -->
 <div x-show="tab === 'pleasures'" x-cloak>

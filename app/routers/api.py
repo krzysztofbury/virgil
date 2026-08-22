@@ -416,6 +416,16 @@ async def api_noporn(
         "SELECT date, pleasure_1, pleasure_2 FROM feniks_pleasures WHERE date >= ? ORDER BY date DESC",
         (since,),
     )
+    daily = await db.execute_fetchall(
+        "SELECT date, used, minutes, edging FROM feniks_daily WHERE date >= ? ORDER BY date DESC",
+        (since,),
+    )
+    bricks = await db.execute_fetchall(
+        "SELECT date, hook, situation, craving, action, lesson FROM feniks_bricks "
+        "WHERE date >= ? ORDER BY date DESC, id DESC",
+        (since,),
+    )
+    bricks_total = (await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks"))[0]["c"]
     return {
         "range_days": days,
         "since": since,
@@ -426,6 +436,9 @@ async def api_noporn(
         "events": [dict(r) for r in events],
         "journal": [dict(r) for r in journal],
         "pleasures": [dict(r) for r in pleasures],
+        "daily": [dict(r) for r in daily],
+        "bricks": [dict(r) for r in bricks],
+        "bricks_total": bricks_total,
     }
 
 

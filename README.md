@@ -20,7 +20,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 <td width="50%"><img src="docs/screenshots/oura.png" alt="Oura Ring data"><br><sub><b>Oura</b> — daily & monthly trends (sleep, HRV, readiness, RHR)</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/no-porn.png" alt="No Porn tracker"><br><sub><b>No Porn</b> — weekly clean-rate, journal & pleasures</sub></td>
+<td width="50%"><img src="docs/screenshots/no-porn.png" alt="No Porn tracker"><br><sub><b>No Porn</b> — bricks, daily log, weekly clean-rate, journal & pleasures</sub></td>
 <td width="50%"><img src="docs/screenshots/experiments.png" alt="Experiments"><br><sub><b>Experiments</b> — metric-based protocols (minutes, counts, daily yes/no, 0-10 ratings) with one-tap logging</sub></td>
 </tr>
 </table>
@@ -241,7 +241,8 @@ history across two exercises and halve your Personal Bests.
 
 ### No Porn (`/feniks`)
 Recovery tracker (hidden by default — enable in Settings > General > Modules):
-- **Streak hero** — days clean counter with progress bar
+- **Bricks hero** — count of urges survived, each captured with a required memory hook, situation, craving (0-10), action taken and lesson (Gola's brick method); the days-clean streak shows below
+- **Daily log** — a few-second form: used (yes/no), total minutes, edging (yes/no); marking a day as used records its relapse event once, and correcting the day back to clean removes only that marker
 - **Weekly clean rate** — a slip doesn't erase the week
 - **Journal** — daily emotional processing (emotions, triggers, thoughts, desired feelings, coping strategies)
 - **Pleasures** — daily two-pleasures log

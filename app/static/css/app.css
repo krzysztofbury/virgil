@@ -314,7 +314,7 @@ main.container {
   }
   .tab-item.active { color: var(--accent); }
   .tab-item i { width: 20px; height: 20px; }
-  
+
   /* Dropup Menu */
   .tab-dropdown {
     position: absolute;

@@ -149,8 +149,10 @@ def get_training_detail(days: int = 7) -> dict:
 @mcp.tool()
 def get_noporn(days: int = 30) -> dict:
     """No-porn (Feniks) detail for the last N days (1-365): config, streak, current-week clean
-    rate, plus relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and
-    logged pleasures. Use this to see WHY relapses happened — get_streaks only gives the count."""
+    rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
+    pleasures, the daily log (used/minutes/edging — the honest metric, a day counter cannot
+    see edging) and bricks (won urge episodes: hook/situation/craving/action/lesson — the
+    progress unit). Use this to see WHY relapses happened — get_streaks only gives the count."""
     return _get("/api/noporn", params={"range": days})
 
 

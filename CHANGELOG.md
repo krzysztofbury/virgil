@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Bricks (No Porn)** — `feniks_bricks` table, a Bricks tab and a hero counter
+  (migration 022). A brick = one urge survived, captured in Gola's structure:
+  memory hook (required), situation/trigger, craving 0-10, action taken, lesson.
+  Bricks — not clean-day streaks — are the visible progress unit; the streak
+  moves to a small line under the hero. Journal, pleasures and the weekly 75%
+  clean-rate stay unchanged.
+- **Daily log (No Porn)** — `feniks_daily` table + a 20-second form: used
+  (yes/no), total minutes, edging (yes/no). A day-based relapse counter cannot
+  see edging (hours of sustained use log as one event), so this is the honest
+  metric. `used=1` also records the day's relapse `pmo_event` once (idempotent),
+  keeping the existing streak / weekly clean-rate machinery working unchanged.
+- **`GET /api/noporn` carries `daily`, `bricks`, `bricks_total`** (still gated
+  behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
+
+### Fixed
+- **JSON export honours its "every user-owned table" invariant again** -
+  `exercise_library_tags` (missing since migration 019) plus the new
+  `feniks_daily` and `feniks_bricks` are exported.
 - **Tags replace `exercise_library.category`** (migration 019, `exercise_library_tags`
   join table). A movement can carry several free-form tags (`kettlebell`, `warmup`, ...)
   or none — tags organise the Settings picker without gating what the WOD parser may
