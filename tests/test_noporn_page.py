@@ -1,5 +1,6 @@
-"""No Porn page redesign: weekly clean-rate bar (Gola 75%), no streak chart,
-no Milestones tab, client-side tabs. Regression guards for the redesign."""
+"""No Porn page layout guards (single-flow redesign): weekly clean-rate bar
+(Gola 75%) stays, retired elements stay gone (streak chart, Milestones — and
+since the single-flow redesign also the Journal/Pleasures tabs)."""
 
 import os
 import sqlite3
@@ -29,15 +30,8 @@ def test_weekly_bar_present(auth_client):
 def test_removed_elements_gone(auth_client):
     _enable_no_porn()
     html = auth_client.get("/feniks").text
-    assert "Streak Progress" not in html, "streak chart must be removed"
+    assert "Streak Progress" not in html, "streak chart must stay removed"
     assert "feniksTrendChart" not in html
-    assert "Milestones" not in html, "Milestones tab must be removed"
-
-
-def test_tabs_are_client_side(auth_client):
-    """Tab switches happen via Alpine, not a page navigation (no reload/scroll)."""
-    _enable_no_porn()
-    html = auth_client.get("/feniks").text
-    assert "@click.prevent=\"tab = 'journal'\"" in html, "Journal tab must switch client-side"
-    assert "@click.prevent=\"tab = 'pleasures'\"" in html, "Pleasures tab must switch client-side"
-    assert 'x-show="tab ===' in html
+    assert "Milestones" not in html, "Milestones tab must stay removed"
+    assert "tab = 'journal'" not in html, "tab navigation retired by the single-flow redesign"
+    assert "tab = 'pleasures'" not in html

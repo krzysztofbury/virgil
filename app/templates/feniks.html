@@ -6,230 +6,132 @@
     <h1>No Porn</h1>
 </div>
 
-<!-- Bricks Hero — progress unit is won urge episodes, not clean-day streaks -->
+<!-- Hero: bricks are the progress unit; streak is context, not the scoreboard -->
 <div class="streak-hero">
     <div class="streak-number">{{ bricks_total }}</div>
-    <div class="streak-label">bricks (urges survived)</div>
-    <small class="text-muted" style="display:block;margin-top:0.25rem;">{{ streak_days }} days clean</small>
+    <div class="streak-label">bricks &middot; urges survived</div>
+    <div class="week-dots" aria-label="this week, Monday to Sunday">
+        {% for d in week_days %}
+        <span class="week-dot {{ d.state }}" title="{{ d.date }}">{{ d.label }}</span>
+        {% endfor %}
+    </div>
     <div class="streak-progress">
         <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.35rem;">
-            <small class="text-muted">This week: {{ week_clean }}/{{ week_elapsed }} clean</small>
+            <small class="text-muted">This week: {{ week_clean }}/{{ week_elapsed }} clean &middot; {{ streak_days }} days since last</small>
             <small class="text-muted">{{ week_pct }}%</small>
         </div>
         <div class="progress-bar" style="position:relative;">
             <div class="fill" style="width: {{ week_pct }}%"></div>
             <div title="target 75%" style="position:absolute;top:0;bottom:0;left:75%;width:2px;background:var(--text-muted);opacity:0.55;"></div>
         </div>
-        <small class="text-muted" style="display:block;margin-top:0.35rem;">Target 75% / week — a slip lowers the rate, never resets it to 0</small>
+        <small class="text-muted" style="display:block;margin-top:0.35rem;">Target 75% / week &mdash; a slip lowers the rate, never resets it to 0</small>
     </div>
 </div>
 
-<!-- Daily log: 20 seconds — used / minutes / edging (a day counter cannot see edging) -->
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Daily Log</h3></div>
+<!-- The day: one question, one save -->
+<div class="card day-card"
+     x-data="{ used: {{ "'" ~ form_daily.used ~ "'" if form_daily else 'null' }} }">
     <form method="POST" action="/feniks/daily">
-        <div style="display:flex;flex-wrap:wrap;gap:1rem;align-items:end;">
-            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
-            <label style="display:flex;align-items:center;gap:0.4rem;">
-                <input type="checkbox" name="used" value="1" {{ 'checked' if today_daily and today_daily.used else '' }}> Used
-            </label>
-            <label>Minutes <input type="number" name="minutes" min="0" max="1440" style="width:5.5rem;"
-                value="{{ today_daily.minutes if today_daily and today_daily.minutes is not none else '' }}"></label>
-            <label style="display:flex;align-items:center;gap:0.4rem;">
-                <input type="checkbox" name="edging" value="1" {{ 'checked' if today_daily and today_daily.edging else '' }}> Edging
-            </label>
-            <button type="submit" class="btn btn-primary">Save</button>
+        <div class="day-card-head">
+            <h3>How was {{ 'today' if form_date == today else form_date }}?</h3>
+            <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required
+                   onchange="window.location='/feniks?date='+this.value">
         </div>
-    </form>
-</div>
-
-<!-- Relapse with notes (optional detail on top of the daily log) -->
-<details style="margin-bottom: 1.5rem;">
-    <summary>Report relapse with notes</summary>
-    <form method="POST" action="/feniks/relapse">
-        <div style="margin-bottom: 0.75rem;">
-            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+        <input type="hidden" name="used" :value="used">
+        <div class="day-choice">
+            <button type="button" class="day-choice-btn clean" :class="{ selected: used === '0' }" @click="used = '0'">
+                <span class="day-choice-mark">&#10003;</span> Clean day
+            </button>
+            <button type="button" class="day-choice-btn watched" :class="{ selected: used === '1' }" @click="used = '1'">
+                <span class="day-choice-mark">&#10007;</span> I watched
+            </button>
         </div>
-        <textarea name="notes" placeholder="What happened? (optional)" rows="2"></textarea>
-        <button type="submit" class="btn btn-danger" style="margin-top: 0.5rem;">Confirm relapse</button>
-    </form>
-</details>
-
-<!-- Tabs (client-side, no reload/scroll) -->
-<div x-data="{ tab: '{{ 'pleasures' if tab == 'pleasures' else ('bricks' if tab == 'bricks' else 'journal') }}' }">
-<div class="tabs">
-    <a href="#" @click.prevent="tab = 'journal'" :class="{ active: tab === 'journal' }">Journal</a>
-    <a href="#" @click.prevent="tab = 'bricks'" :class="{ active: tab === 'bricks' }">Bricks</a>
-    <a href="#" @click.prevent="tab = 'pleasures'" :class="{ active: tab === 'pleasures' }">Pleasures</a>
-</div>
-
-<!-- Journal (default panel — no x-cloak so it degrades visible if Alpine fails to load) -->
-<div x-show="tab === 'journal'">
-<div class="card">
-    <div class="card-header">
-        <h3>Journal Entry</h3>
-        {% if form_date != today %}<a href="/feniks/journal" class="btn btn-secondary btn-sm">Back to today</a>{% endif %}
-    </div>
-    <form method="POST" action="/feniks/journal">
-        <div style="margin-bottom: 0.75rem;">
-            <label>Date <input type="date" name="date" value="{{ form_date }}" required></label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>Emotions / Unmet Needs
-                <textarea name="emotions" rows="2">{{ today_journal.emotions if today_journal else '' }}</textarea>
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>Situation / Triggers
-                <textarea name="triggers" rows="2">{{ today_journal.triggers if today_journal else '' }}</textarea>
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>Thoughts / Beliefs
-                <textarea name="thoughts" rows="2">{{ today_journal.thoughts if today_journal else '' }}</textarea>
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>How do I want to feel?
-                <textarea name="desired_feelings" rows="2">{{ today_journal.desired_feelings if today_journal else '' }}</textarea>
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>What can I do for myself?
-                <textarea name="coping_strategies" rows="2">{{ today_journal.coping_strategies if today_journal else '' }}</textarea>
-            </label>
-        </div>
-        <button type="submit" class="btn btn-primary">Save</button>
-    </form>
-</div>
-
-{% if journal %}
-<div class="card" style="margin-top: 1rem;">
-    <div class="card-header"><h3>History</h3></div>
-    <div class="overflow-x">
-        <table>
-            <thead>
-                <tr>
-                    <th>Date</th>
-                    <th>Emotions</th>
-                    <th>Triggers</th>
-                    <th>Thoughts</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for j in journal %}
-                <tr style="cursor:pointer;" onclick="window.location='/feniks/journal?date={{ j.date }}'">
-                    <td>{{ j.date }}</td>
-                    <td>{{ j.emotions[:50] }}{{ '...' if j.emotions|length > 50 else '' }}</td>
-                    <td>{{ j.triggers[:50] }}{{ '...' if j.triggers|length > 50 else '' }}</td>
-                    <td>{{ j.thoughts[:50] }}{{ '...' if j.thoughts|length > 50 else '' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-</div><!-- /journal panel -->
-
-<!-- Bricks (Gola: wypalanie cegieł — corrective experiences) -->
-<div x-show="tab === 'bricks'" x-cloak>
-<div class="card">
-    <div class="card-header"><h3>New Brick — one urge survived</h3></div>
-    <form method="POST" action="/feniks/bricks">
-        <div style="margin-bottom: 0.75rem;">
-            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>Memory hook (name this brick)
-                <input type="text" name="hook" maxlength="200" required placeholder="e.g. Walk instead — urge gone in 20 min">
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>Situation / trigger
-                <textarea name="situation" rows="2"></textarea>
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>Craving (0-10) <input type="number" name="craving" min="0" max="10" style="width:5rem;"></label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>What did I do instead?
-                <textarea name="action" rows="2"></textarea>
-            </label>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label>What did I learn about myself?
-                <textarea name="lesson" rows="2"></textarea>
-            </label>
-        </div>
-        <button type="submit" class="btn btn-primary">Save brick</button>
-    </form>
-</div>
-
-{% if bricks %}
-<div class="card" style="margin-top: 1rem;">
-    <div class="card-header"><h3>Wall ({{ bricks_total }})</h3></div>
-    <div class="overflow-x">
-        <table>
-            <thead><tr><th>Date</th><th>Hook</th><th>Craving</th><th>Situation</th></tr></thead>
-            <tbody>
-                {% for b in bricks %}
-                <tr>
-                    <td>{{ b.date }}</td>
-                    <td>{{ b.hook }}</td>
-                    <td>{{ b.craving if b.craving is not none else '' }}</td>
-                    <td>{{ (b.situation or '')[:50] }}{{ '...' if (b.situation or '')|length > 50 else '' }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% endif %}
-</div><!-- /bricks panel -->
-
-<!-- Pleasures -->
-<div x-show="tab === 'pleasures'" x-cloak>
-<div class="card">
-    <div class="card-header"><h3>Two Pleasures</h3></div>
-    <form method="POST" action="/feniks/pleasures">
-        <div style="margin-bottom: 0.75rem;">
-            <label>Date <input type="date" name="date" value="{{ today }}" required></label>
-        </div>
-        <div class="grid">
-            <div>
-                <label>Pleasure 1
-                    <input type="text" name="pleasure_1" value="{{ today_pleasures.pleasure_1 if today_pleasures else '' }}">
+        <div class="day-detail" x-show="used === '1'" x-cloak>
+            <div class="day-detail-row">
+                <label class="field-inline">Minutes
+                    <input type="number" name="minutes" min="0" max="1440" inputmode="numeric" placeholder="~"
+                           value="{{ form_daily.minutes if form_daily and form_daily.minutes is not none else '' }}">
+                </label>
+                <label class="switch-label">
+                    <span class="switch">
+                        <input type="checkbox" name="edging" value="1"
+                               {{ 'checked' if form_daily and form_daily.edging else '' }}>
+                        <span class="switch-track"></span>
+                    </span>
+                    Edging <small class="text-muted">(no finish, kept it going)</small>
                 </label>
             </div>
-            <div>
-                <label>Pleasure 2
-                    <input type="text" name="pleasure_2" value="{{ today_pleasures.pleasure_2 if today_pleasures else '' }}">
-                </label>
-            </div>
+            <input type="text" name="note" maxlength="500" class="day-note"
+                   placeholder="One line: trigger &middot; feeling (optional)"
+                   value="{{ form_daily.note if form_daily and form_daily.note else '' }}">
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+        <button type="submit" class="btn btn-primary day-save" :disabled="used === null"
+                x-text="used === null ? 'Pick one above' : 'Save {{ 'today' if form_date == today else form_date }}'">Save</button>
     </form>
 </div>
 
-{% if pleasures %}
-<div class="card" style="margin-top: 1rem;">
-    <div class="card-header"><h3>History</h3></div>
-    <table>
-        <thead><tr><th>Date</th><th>Pleasure 1</th><th>Pleasure 2</th></tr></thead>
-        <tbody>
-            {% for p in pleasures %}
-            <tr>
-                <td>{{ p.date }}</td>
-                <td>{{ p.pleasure_1 }}</td>
-                <td>{{ p.pleasure_2 }}</td>
-            </tr>
+<!-- Brick: captured the moment an urge is survived -->
+<div class="card brick-card" x-data="{ open: false, craving: null }">
+    <button type="button" class="brick-card-summary" @click="open = !open" :aria-expanded="open">
+        <span><strong>Survived an urge?</strong> <span class="text-muted">Lay a brick &mdash; that's the win that counts.</span></span>
+        <span class="brick-plus" :class="{ open: open }">+</span>
+    </button>
+    <form method="POST" action="/feniks/bricks" x-show="open" x-cloak>
+        <input type="hidden" name="date" value="{{ today }}">
+        <input type="hidden" name="craving" :value="craving === null ? '' : craving">
+        <label>Name this brick <small class="text-muted">&mdash; the words you'll stand on next time</small>
+            <input type="text" name="hook" maxlength="200" required
+                   placeholder="e.g. Walked it off &mdash; urge gone in 20 min">
+        </label>
+        <div class="craving-row">
+            <span class="craving-label">How strong was it?</span>
+            <div class="craving-scale">
+                {% for i in range(11) %}
+                <button type="button" class="craving-chip" :class="{ selected: craving === {{ i }} }"
+                        @click="craving = craving === {{ i }} ? null : {{ i }}">{{ i }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        <label>What happened &mdash; and what did you learn?
+            <textarea name="story" rows="3"
+                      placeholder="Where were you, what did you do instead, what does it prove about you?"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Lay the brick</button>
+    </form>
+</div>
+
+<!-- One timeline: days and their bricks together -->
+{% if timeline %}
+<div class="timeline">
+    {% for t in timeline %}
+    <div class="timeline-day">
+        <a class="timeline-date" href="/feniks?date={{ t.date }}">{{ t.date }}</a>
+        <div class="timeline-body">
+            {% for b in t.bricks %}
+            <div class="timeline-entry brick">
+                <span class="timeline-badge brick">brick{{ ' · ' ~ b.craving ~ '/10' if b.craving is not none else '' }}</span>
+                <div>
+                    <strong>{{ b.hook }}</strong>
+                    {% if b.story %}<div class="timeline-note">{{ (b.story or '')[:120] }}{{ '...' if (b.story or '')|length > 120 else '' }}</div>{% endif %}
+                </div>
+            </div>
             {% endfor %}
-        </tbody>
-    </table>
+            {% if t.day %}
+            <div class="timeline-entry {{ 'used' if t.day.used else 'clean' }}">
+                <span class="timeline-badge {{ 'used' if t.day.used else 'clean' }}">
+                    {{ 'watched' if t.day.used else 'clean' }}</span>
+                <div>
+                    {% if t.day.used %}
+                    {{ (t.day.minutes ~ ' min') if t.day.minutes is not none else '' }}
+                    {{ '&middot; edging' | safe if t.day.edging else '' }}
+                    {% if t.day.note %}<div class="timeline-note">{{ t.day.note }}</div>{% endif %}
+                    {% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
 </div>
 {% endif %}
-</div><!-- /pleasures panel -->
-</div><!-- /tabs x-data -->
 {% endblock %}

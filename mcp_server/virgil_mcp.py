@@ -150,9 +150,9 @@ def get_training_detail(days: int = 7) -> dict:
 def get_noporn(days: int = 30) -> dict:
     """No-porn (Feniks) detail for the last N days (1-365): config, streak, current-week clean
     rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
-    pleasures, the daily log (used/minutes/edging — the honest metric, a day counter cannot
-    see edging) and bricks (won urge episodes: hook/situation/craving/action/lesson — the
-    progress unit). Use this to see WHY relapses happened — get_streaks only gives the count."""
+    pleasures, the daily log (used/minutes/edging/note — the honest metric, a day counter
+    cannot see edging) and bricks (urges survived: hook/craving/story — the progress unit).
+    Use this to see WHY relapses happened — get_streaks only gives the count."""
     return _get("/api/noporn", params={"range": days})
 
 

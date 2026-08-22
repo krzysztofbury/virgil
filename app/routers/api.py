@@ -417,12 +417,11 @@ async def api_noporn(
         (since,),
     )
     daily = await db.execute_fetchall(
-        "SELECT date, used, minutes, edging FROM feniks_daily WHERE date >= ? ORDER BY date DESC",
+        "SELECT date, used, minutes, edging, note FROM feniks_daily WHERE date >= ? ORDER BY date DESC",
         (since,),
     )
     bricks = await db.execute_fetchall(
-        "SELECT date, hook, situation, craving, action, lesson FROM feniks_bricks "
-        "WHERE date >= ? ORDER BY date DESC, id DESC",
+        "SELECT date, hook, craving, story FROM feniks_bricks WHERE date >= ? ORDER BY date DESC, id DESC",
         (since,),
     )
     bricks_total = (await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks"))[0]["c"]
