@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **No Porn rebuilt as a single flow** (migration 022). The page asks one
+- **No Porn rebuilt as a single flow** (migrations 022 + 023). The page asks one
   question — *Clean day* or *I watched* — and watching reveals minutes, an
   edging toggle and an optional one-line note (`feniks_daily`, upsert per date).
   A day-based relapse counter cannot see edging (hours of sustained use log as
