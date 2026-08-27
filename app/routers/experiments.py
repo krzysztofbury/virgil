@@ -347,7 +347,13 @@ async def experiments_list(request: Request):
         elapsed_weeks = max(0, (today - start).days // 7)
         exp["weeks_done"] = min(elapsed_weeks, exp["num_weeks"])
         exp["current_week"] = max(1, min(exp["num_weeks"], (today - start).days // 7 + 1))
-        exp["progress_pct"] = round(exp["weeks_done"] / exp["num_weeks"] * 100) if exp["num_weeks"] else 0
+        # Day-based on purpose. weeks_done/num_weeks rendered "0% elapsed" for the
+        # whole of week 1, right next to a "Week 1/4" label saying the opposite.
+        # The label the template prints is "% elapsed", so it has to measure
+        # elapsed time.
+        total_days = exp["num_weeks"] * 7
+        elapsed_days = min(max((today - start).days + 1, 0), total_days)
+        exp["progress_pct"] = round(elapsed_days / total_days * 100) if total_days else 0
         exp["activity_types"] = types_by_exp.get(exp["id"], [])
         has_duration = any(at["kind"] == "duration" for at in exp["activity_types"])
         if has_duration:
