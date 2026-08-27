@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Blood Work reads on a phone.** A `.bw-list` shows each marker's latest value,
   its H/L status and the signed change from the result before it, plus the chart
   link. The full date matrix stays: directly on a wide screen, and under
-  `Wszystkie wyniki` on a phone, where three metadata columns used to fill the
+  `All results` on a phone, where three metadata columns used to fill the
   viewport and push every value off-screen. One Jinja macro renders the matrix
   for both, and two utilities (`.on-mobile`, `.on-desktop`) switch the views
   with CSS alone. The change is reported only when both results are numeric: a

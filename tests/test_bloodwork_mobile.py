@@ -79,7 +79,7 @@ def test_bloodwork_page_renders_a_mobile_list(auth_client):
     assert "55.5" in html
     assert "+13.5" in html, "the change from the previous result must be shown"
     assert "on-desktop" in html, "the full matrix must stay, switched off on a phone"
-    assert "Wszystkie wyniki" in html, "the matrix must stay reachable on a phone"
+    assert "All results" in html, "the matrix must stay reachable on a phone"
     # One macro, two call sites: the table markup must not be copied.
     from pathlib import Path
 

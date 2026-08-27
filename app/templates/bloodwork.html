@@ -65,8 +65,8 @@
 {% endif %}
 
 <!-- Results: a phone gets the latest value per marker, a wide screen gets the
-     full date matrix. The matrix stays reachable on a phone under "Wszystkie
-     wyniki" - it is the only view that shows history at a glance. -->
+     full date matrix. The matrix stays reachable on a phone under "All
+     results" - it is the only view that shows history at a glance. -->
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header"><h3>Results</h3></div>
 
@@ -85,7 +85,7 @@
                 <span class="text-muted">-</span>
                 {% endif %}
             </div>
-            <a class="bw-chart" href="/bloodwork/{{ current_category }}?marker={{ m.id }}" aria-label="Wykres {{ m.name }}">
+            <a class="bw-chart" href="/bloodwork/{{ current_category }}?marker={{ m.id }}" aria-label="Chart for {{ m.name }}">
                 <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
             </a>
         </li>
@@ -93,7 +93,7 @@
     </ul>
 
     <details class="on-mobile" style="margin-top:0.75rem;">
-        <summary>Wszystkie wyniki</summary>
+        <summary>All results</summary>
         <div class="overflow-x">{{ results_matrix(markers, test_dates, results, current_category) }}</div>
     </details>
 
