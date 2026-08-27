@@ -81,8 +81,12 @@ def test_seed_rows_are_a_real_movement_picker(auth_client, monkeypatch):
     resp = _capture(auth_client)
     # Anchor inside the LAST seed row so this cannot pass on the first row alone.
     last = resp.text.split(f'name="entry_{SEED_ROWS_ON_PARSE_FAILURE - 1}_movement"')[1]
+    # The option tag now also carries data-tags and data-recent for the search
+    # box, so it no longer closes straight after the value. The property under
+    # test is unchanged: every movement is pickable in every row.
     for name in ("Air Squat", "Pull-up", "Row", "Snatch"):
-        assert f'<option value="{name}">' in last, f"{name} must be pickable in the last seed row"
+        assert f'<option value="{name}"' in last, f"{name} must be pickable in the last seed row"
+    assert "<optgroup" in last, "the last seed row must group by section too"
 
 
 def test_add_exercise_control_is_offered(auth_client, monkeypatch):

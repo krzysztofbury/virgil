@@ -2134,3 +2134,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   .timeline-date { padding-top: 0; }
   .day-save { align-self: stretch; }
 }
+
+/* WOD confirm: per-row movement search above the native select. */
+.movement-search {
+    width: 100%;
+    margin-bottom: 0.25rem;
+}

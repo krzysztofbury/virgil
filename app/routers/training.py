@@ -45,6 +45,103 @@ MAX_CONFIRM_ENTRIES = 200
 SEED_ROWS_ON_PARSE_FAILURE = 5
 
 
+# The picker puts recently logged movements on top. A flat library listing makes
+# the user scan 70 rows to find the movement they did last week.
+RECENT_MOVEMENT_DAYS = 60
+RECENT_MOVEMENT_LIMIT = 8
+
+
+async def movement_tags(db) -> dict[str, list[str]]:
+    """Library name -> its tags, for the picker only.
+
+    Deliberately not folded into canonical_movements(): that function builds the
+    parser's prompt vocabulary, it runs on every parse, and its test fixture
+    creates exercise_library without the tag table. A picker concern does not
+    belong on that path.
+    """
+    rows = await db.execute_fetchall(
+        "SELECT l.name, t.tag FROM exercise_library l "
+        "JOIN exercise_library_tags t ON t.library_id = l.id "
+        "WHERE l.archived = 0"
+    )
+    tags: dict[str, list[str]] = {}
+    for r in rows:
+        tags.setdefault(r["name"], []).append(r["tag"])
+    for names in tags.values():
+        names.sort()
+    return tags
+
+
+async def recent_movements(db, limit: int = RECENT_MOVEMENT_LIMIT) -> list[str]:
+    """Movement names the user logged most recently, newest first."""
+    assert limit > 0, f"limit must be positive, got {limit}"
+    since = (date.today() - timedelta(days=RECENT_MOVEMENT_DAYS)).isoformat()
+    rows = await db.execute_fetchall(
+        "SELECT tex.name AS name, MAX(ts.date) AS last_date "
+        "FROM training_entries te "
+        "JOIN training_sessions ts ON te.session_id = ts.id "
+        "JOIN training_exercises tex ON te.exercise_id = tex.id "
+        "WHERE ts.date >= ? GROUP BY tex.name ORDER BY last_date DESC LIMIT ?",
+        (since, limit),
+    )
+    return [r["name"] for r in rows]
+
+
+def _as_input(value) -> str:
+    """A stored value as an HTML input value: None becomes blank, never "None"."""
+    return "" if value is None else str(value)
+
+
+def _blank_row(index: int, unmatched_label: str = "") -> dict:
+    return {
+        "index": index,
+        "movement": "",
+        "set_number": "1",
+        "reps": "",
+        "weight": "",
+        "duration": "",
+        "note": "",
+        "unmatched_label": unmatched_label,
+    }
+
+
+def _confirm_rows(parsed: dict, seed_rows: int) -> list[dict]:
+    """The confirm screen's rows, in one list, numbered once.
+
+    The template used to build parsed rows, unmatched rows, seed rows and
+    Alpine rows from four copies of the same markup, each with its own index
+    arithmetic. One list with one index per row removes that duplication, and
+    it gives confirm_wod something to re-render a rejected submission from.
+
+    seed_rows is 0 when there is no vocabulary to pick from: a select whose only
+    option is "pomiń" is a manual-entry path that cannot write anything.
+    """
+    rows: list[dict] = []
+    for entry in parsed.get("entries") or []:
+        if not isinstance(entry, dict):
+            # Same reasoning as the parser's own guard: a non-object carries no
+            # movement name, so there is nothing to render or resolve.
+            logger.warning("confirm rows skipped a non-object entry: %r", entry)
+            continue
+        rows.append(
+            {
+                "index": len(rows),
+                "movement": _as_input(entry.get("movement")),
+                "set_number": _as_input(entry.get("set_number")) or "1",
+                "reps": _as_input(entry.get("reps")),
+                "weight": _as_input(entry.get("weight")),
+                "duration": _as_input(entry.get("duration")),
+                "note": _as_input(entry.get("note")),
+                "unmatched_label": "",
+            }
+        )
+    for name in parsed.get("unmatched") or []:
+        rows.append(_blank_row(len(rows), unmatched_label=str(name)))
+    if not rows:
+        rows = [_blank_row(i) for i in range(seed_rows)]
+    return rows
+
+
 def _parse_int_in_range(raw, minimum: int, maximum: int) -> int | None:
     """Parse a form value as int within [minimum, maximum]; None if invalid."""
     try:
@@ -392,17 +489,21 @@ async def wod_confirm_page(request: Request, session_id: int):
         movements = []
         library_error = str(exc)
 
+    parsed_row_count = len(parsed.get("entries") or []) + len(parsed.get("unmatched") or [])
+    rows = _confirm_rows(parsed, SEED_ROWS_ON_PARSE_FAILURE if movements else 0)
     return templates.TemplateResponse(
         "wod_confirm.html",
         {
             "request": request,
             "session_id": session_id,
             "session_date": session["date"],
-            "entries": parsed.get("entries", []),
-            "unmatched": parsed.get("unmatched", []),
+            "rows": rows,
+            "parsed_row_count": parsed_row_count,
             "parse_error": parsed.get("parse_error", ""),
             "dropped": parsed.get("dropped", 0),
             "movements": movements,
+            "tags": await movement_tags(db),
+            "recent": await recent_movements(db),
             "library_error": library_error,
             "seed_rows": SEED_ROWS_ON_PARSE_FAILURE,
             "max_entries": MAX_CONFIRM_ENTRIES,

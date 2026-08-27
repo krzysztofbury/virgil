@@ -1,0 +1,72 @@
+{# The WOD confirm form's rows, and the one movement picker they all share.
+
+   Four copies of this markup used to exist - a parsed row, an unmatched row, a
+   seed row and the Alpine template row - each with its own index arithmetic and
+   each rendering the WHOLE exercise library into a flat <select>. Two macros
+   remain here, and they are not copies of one another: `server_row` numbers its
+   fields from the row model, `alpine_row` binds its field names to an x-for
+   index. Both draw their options from `options` below, so the picker itself
+   exists once.
+
+   The submitted control is always the native <select>. It groups by section
+   with <optgroup>, so it stays usable when Alpine does not arrive from the CDN,
+   and it can only ever submit an exact library name - unlike a free-text input,
+   which would let a typo reach resolve_movement() and create a junk movement.
+   The search box above it is progressive enhancement: it hides options that
+   match neither the name nor a tag, and it submits nothing itself. #}
+
+{% macro options(movements, tags, recent, sections, selected='', skip_label='') %}
+  <option value="">{% if skip_label %}{{ skip_label }} - pomiń{% else %}- pomiń{% endif %}</option>
+  {% for section in sections %}
+    <optgroup label="{{ section }}">
+    {% for m in movements if m.section == section %}
+      {% set m_tags = tags.get(m.name, []) %}
+      <option value="{{ m.name }}"{% if selected and m.name == selected %} selected{% endif %} data-tags="{{ m_tags | join(' ') }}" data-recent="{{ 1 if m.name in recent else 0 }}">{{ m.name }}{% if m_tags %} · {{ m_tags | join(', ') }}{% endif %}</option>
+    {% endfor %}
+    </optgroup>
+  {% endfor %}
+{% endmacro %}
+
+{% macro search_box() %}
+    {# x-show="ready" keeps this hidden until Alpine initialises the row. A
+       search box that filters nothing is worse than no search box. #}
+    <input type="search" class="movement-search" placeholder="szukaj ruchu lub tagu"
+           x-model="query" @input="filter()" x-show="ready" x-cloak aria-label="Szukaj ruchu">
+{% endmacro %}
+
+{% macro server_row(r, movements, tags, recent, sections) %}
+          <tr x-data="movementRow()">
+            <td>
+              {% if r.unmatched_label %}
+              <div class="text-muted"><small>nierozpoznane: „{{ r.unmatched_label }}”</small></div>
+              {% endif %}
+              {{ search_box() }}
+              <select name="entry_{{ r.index }}_movement" x-ref="select" aria-label="Ruch">
+                {{ options(movements, tags, recent, sections, selected=r.movement, skip_label=r.unmatched_label) }}
+              </select>
+            </td>
+            <td><input type="number" name="entry_{{ r.index }}_set_number" value="{{ r.set_number }}" min="1"></td>
+            <td><input type="number" name="entry_{{ r.index }}_reps" value="{{ r.reps }}" min="0"></td>
+            <td><input type="number" step="0.5" name="entry_{{ r.index }}_weight" value="{{ r.weight }}" min="0"></td>
+            <td><input type="number" step="1" name="entry_{{ r.index }}_duration" value="{{ r.duration }}" min="0"></td>
+            <td><input type="text" name="entry_{{ r.index }}_note" value="{{ r.note }}" maxlength="200"></td>
+            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
+          </tr>
+{% endmacro %}
+
+{% macro alpine_row(movements, tags, recent, sections) %}
+          <tr x-data="movementRow()">
+            <td>
+              {{ search_box() }}
+              <select :name="'entry_' + row.index + '_movement'" x-model="row.movement" x-ref="select" aria-label="Ruch">
+                {{ options(movements, tags, recent, sections) }}
+              </select>
+            </td>
+            <td><input type="number" :name="'entry_' + row.index + '_set_number'" x-model="row.setNumber" min="1"></td>
+            <td><input type="number" :name="'entry_' + row.index + '_reps'" value="" min="0"></td>
+            <td><input type="number" step="0.5" :name="'entry_' + row.index + '_weight'" value="" min="0"></td>
+            <td><input type="number" step="1" :name="'entry_' + row.index + '_duration'" value="" min="0"></td>
+            <td><input type="text" :name="'entry_' + row.index + '_note'" value="" maxlength="200"></td>
+            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
+          </tr>
+{% endmacro %}
