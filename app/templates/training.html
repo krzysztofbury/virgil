@@ -36,14 +36,17 @@
                     </label>
                 </div>
                 <div>
-                    <label>Duration (min)
+                    <label>Czas (min, opcjonalnie)
                         <input type="number" name="duration_minutes" placeholder="minuty" min="1">
                     </label>
                 </div>
             </div>
             <textarea name="wod_text" rows="4" maxlength="4000"
                 placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42&#10;albo po prostu: basen 40 min"></textarea>
-            <button id="wod-submit" type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz i sparsuj</button>
+            {# The property that makes a parse failure harmless, said out loud. #}
+            <small class="text-muted">Notatka zapisuje się przed parsowaniem, więc nawet nieudane
+            parsowanie nie kasuje tego, co napisałeś.</small>
+            <button id="wod-submit" type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz trening</button>
         </form>
     </div>
 </div>
