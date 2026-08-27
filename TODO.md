@@ -498,35 +498,43 @@ Do not make every metric, form and historical view equally prominent.
 
 #### P2 - simplify secondary flows and interpretation
 
-- [ ] **Daily: make state changes explicit.** The circular tri-state toggle does
+- [x] **Daily: make state changes explicit.** The circular tri-state toggle does
       not explain pending/done/skipped and a yellow minus is ambiguous. Provide
       explicit `Done` / `Skip` affordances (or visible state labels and
       `aria-pressed`), show a compact `n/7 complete today` summary, and render
       completed A.N.D.Y. tasks as content rather than permanent text inputs with
       edit-on-demand. Move Habit Streaks and Completion Heatmap under `Your
       trends`. Add semantic anchors to energy (`Low`, `OK`, `High`).
-- [ ] **Training: keep the one-note capture, polish its language and feedback.**
+- [x] **Training: keep the one-note capture, polish its language and feedback.**
       Use one locale consistently, replace implementation copy `Zapisz i sparsuj`
       with user copy such as `Zapisz trening`, mark duration as optional, disable
       duplicate submit while parsing, and communicate that the raw note is saved
       before parsing. Show only new/recent PBs rather than a large grid of equal
       cards. Present history as a timeline with a useful session summary.
-- [ ] **Oura: add interpretation before charts.** Lead with readiness versus the
+- [x] **Oura: add interpretation before charts.** Lead with readiness versus the
       7-day baseline and a short actionable explanation. Group equal KPI cards
       into Sleep, Activity and Recovery. Show one default trend with a metric
       selector; move the four-series dual-axis comparison behind `Compare
       metrics`. Reduce mobile axis labels and avoid squeezing four series into a
       small chart.
-- [ ] **Settings → Exercise Library: design it as a management tool.** Add search
+- [x] **Settings → Exercise Library: design it as a management tool.** Add search
       and section/tag filters; move `Add exercise` to a dedicated expandable panel
       or modal; render mobile entries as cards with a compact action menu instead
       of an internally scrolling edit table. Move technical paths such as the DB
       filename under `Advanced`.
-- [ ] **Progressive disclosure consistency.** Introduce shared patterns for
+- [x] **Progressive disclosure consistency.** Introduce shared patterns for
       `Today`, `Insights`, `History`, secondary forms and destructive actions so
       Dashboard/Daily/Training/Oura/Experiments do not each invent a different
       hierarchy. Keep the primary action in the first mobile viewport where the
       domain permits it.
+
+**Pass 3 notes (2026-08-27):** Oura's interpretation is numbers and one
+rule-derived word (readiness against its 7-day baseline, tolerance 3), not a
+generated sentence - the same decision that kept the Dashboard hero free of a
+verdict. The 4-series comparison chart was reordered under `Compare metrics`
+rather than collapsed, because a Chart.js canvas inside a closed `<details>`
+renders at zero size. One locale for the whole app stays OPEN below: it is an
+app-wide decision, not a page fix, and it belongs with the i18n item.
 
 #### Recommended delivery order
 
@@ -534,7 +542,7 @@ Do not make every metric, form and historical view equally prominent.
       Blood Work mobile result cards, searchable/grouped WOD movement picker.
 - [x] **UI/UX pass 2:** Today-first Dashboard, focused Goals map, single-flow
       Experiment detail.
-- [ ] **UI/UX pass 3:** Daily progressive disclosure, Oura interpretation, mobile
+- [x] **UI/UX pass 3:** Daily progressive disclosure, Oura interpretation, mobile
       Exercise Library and shared interaction patterns.
 
 ## Onboarding
