@@ -116,40 +116,46 @@ def test_scheduled_day_is_named_as_such(tmp_path):
     path = _make_db(tmp_path)
     # 2026-08-03 is a Monday.
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: "mon,wed,fri", SETTING_SWIM: "1"})
-    assert "CrossFit days: Mon, Wed, Fri." in block
+    assert "Training days: Mon, Wed, Fri." in block
     assert "Swimming: 1x/week, any day." in block
-    assert "Today is Monday — a scheduled CrossFit day." in block
+    assert "Today is Monday - a scheduled training day." in block
 
 
 def test_unscheduled_day_is_named_as_such(tmp_path):
     path = _make_db(tmp_path)
     # 2026-08-04 is a Tuesday, absent from mon,wed,fri.
     block = _block(path, date(2026, 8, 4), {SETTING_DAYS: "mon,wed,fri"})
-    assert "Today is Tuesday — not a scheduled CrossFit day." in block
+    assert "Today is Tuesday - not a scheduled training day." in block
 
 
 def test_zero_swim_target_drops_the_swim_sentence(tmp_path):
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: "mon", SETTING_SWIM: "0"})
     assert "Swimming" not in block
-    assert "CrossFit days: Mon." in block, "the rest of the plan must survive"
+    assert "Training days: Mon." in block, "the rest of the plan must survive"
 
 
 def test_no_days_configured_still_produces_a_usable_block(tmp_path):
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: "", SETTING_SWIM: "1"})
-    assert "No fixed CrossFit days set." in block
-    assert "Today is Monday — not a scheduled CrossFit day." in block
+    assert "No fixed training days set." in block
+    assert "Today is Monday - not a scheduled training day." in block
 
 
-def test_defaults_apply_when_the_settings_row_is_absent(tmp_path):
-    """A fresh DB (or one predating the seed) must not yield an empty plan."""
+def test_unset_schedule_reports_nothing_configured(tmp_path):
+    """A new user has no schedule, and the planner must not read one.
+
+    The defaults used to be mon,wed,fri and one swim, so every fresh install
+    looked like it had chosen a CrossFit week and the planner reasoned about a
+    schedule nobody had set. normalize_days("") already renders the honest
+    sentence.
+    """
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {})
-    # Literal, not format_days(normalize_days(DEFAULT_DAYS)) — that fed the
-    # constant back to itself, so changing DEFAULT_DAYS to anything still passed.
-    assert "CrossFit days: Mon, Wed, Fri." in block
-    assert "Swimming: 1x/week, any day." in block, "DEFAULT_SWIM must apply too"
+    assert "No fixed training days set." in block
+    assert "Mon, Wed, Fri" not in block, "an unset schedule must not name days"
+    assert "Swimming:" not in block, "an unset swim target must not appear"
+    assert "CrossFit" not in block, "the block is sport-neutral copy now"
 
 
 def test_logged_sessions_are_listed_for_the_current_week(tmp_path):
@@ -233,7 +239,7 @@ def test_every_weekday_is_named_correctly(tmp_path, target, expected_full):
     """
     path = _make_db(tmp_path)
     block = _block(path, target, {SETTING_DAYS: "mon"})
-    assert f"Today is {expected_full} —" in block
+    assert f"Today is {expected_full} -" in block
 
 
 @pytest.mark.parametrize(
@@ -277,4 +283,4 @@ def test_blank_day_list_clears_the_schedule(tmp_path):
     rejected. Both semantics were green before this test existed."""
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: ""})
-    assert "No fixed CrossFit days set." in block
+    assert "No fixed training days set." in block

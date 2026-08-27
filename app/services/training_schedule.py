@@ -28,8 +28,11 @@ DAY_FULL = ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", 
 
 SETTING_DAYS = "training_days"
 SETTING_SWIM = "training_swim_per_week"
-DEFAULT_DAYS = "mon,wed,fri"
-DEFAULT_SWIM = "1"
+# Empty on purpose. A default of "mon,wed,fri" made every new user look like they
+# had chosen a CrossFit week, and the planner then reasoned about a schedule
+# nobody had set. normalize_days("") already renders the honest sentence.
+DEFAULT_DAYS = ""
+DEFAULT_SWIM = "0"
 SWIM_PER_WEEK_MAX = 7
 
 
@@ -71,14 +74,17 @@ async def schedule_block(db, target: date) -> str:
     days = normalize_days(await get_setting(db, SETTING_DAYS, DEFAULT_DAYS))
     swim = parse_swim_per_week(await get_setting(db, SETTING_SWIM, DEFAULT_SWIM))
 
-    plan = f"CrossFit days: {format_days(days)}." if days else "No fixed CrossFit days set."
+    # Sport-neutral wording. The schedule is a set of days, not a program: the
+    # box decides what the session is, and the sport can change without this
+    # block having to be edited around it.
+    plan = f"Training days: {format_days(days)}." if days else "No fixed training days set."
     if swim:
         plan += f" Swimming: {swim}x/week, any day."
     plan += " Everything else is optional."
 
     weekday = target.weekday()
-    on_plan = "a scheduled CrossFit day" if DAY_KEYS[weekday] in days else "not a scheduled CrossFit day"
-    lines = ["--- Training plan ---", plan, f"Today is {DAY_FULL[weekday]} — {on_plan}."]
+    on_plan = "a scheduled training day" if DAY_KEYS[weekday] in days else "not a scheduled training day"
+    lines = ["--- Training plan ---", plan, f"Today is {DAY_FULL[weekday]} - {on_plan}."]
 
     # Bounded at both ends: the planner can be run for a past date, and a
     # session logged after `target` is not something that day could know about.
