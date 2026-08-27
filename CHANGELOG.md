@@ -8,6 +8,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **A stranded session can still gain entries.** `POST /training/session/{id}/manual`
+  arms an empty parse, so a note left with no entries and no pending parse (a
+  container recreated between `capture_wod`'s two commits) gets the same manual
+  rows a failed parse does. `/training` offers the button on exactly those rows.
+- **Every unfinished capture is listed.** A `Niedokończone` card on `/training`
+  shows every session with a pending parse whatever its date, and the history
+  below it is paginated (`?page=`) instead of capped at the newest 20. A
+  backdated capture used to fall off that list together with the one link that
+  leads back to its confirm screen.
+- **One capture per click** (migration 024). The capture form carries a
+  `capture_token` and a partial unique index enforces one session per token, so
+  a double submit or an F5 costs one session and one paid parse. A reused page
+  submitting DIFFERENT text is treated as a new capture, not a replay, so the
+  back button cannot silently drop the note the user just wrote.
+- **The movement picker can be searched.** Options group by `<optgroup>` per
+  section, carry their tags, and mark recently logged movements, which Alpine
+  promotes into an `Ostatnio używane` group. A per-row search box filters on
+  name or tag. The submitted control stays a native `<select>`, so the screen
+  works without the CDN and can only ever submit an exact library name.
+- **The planner scores the swim target.** `schedule_block` labels each logged
+  session `swim` or `training`, derived from the `swim` tag on its movements,
+  and states `Swims this week: n of m`. The target was unscorable before.
+- **Per-set notes have readers.** The metcon result now reaches the `/training`
+  history table, `GET /api/training/detail`, the MCP `get_training_detail`
+  docstring and the markdown export.
 - **No Porn rebuilt as a single flow** (migrations 022 + 023). The page asks one
   question — *Clean day* or *I watched* — and watching reveals minutes, an
   edging toggle and an optional one-line note (`feniks_daily`, upsert per date).
@@ -27,6 +52,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
 
 ### Fixed
+- **A rejected field no longer discards the rest of the form.** `confirm_wod`
+  answered `_ConfirmRejected` with a redirect to a clean GET, which rebuilt the
+  form from the stored parse and threw away every other edit, rows the user had
+  added included. It re-renders the submitted rows instead, with the message
+  inline. That path answers a POST with 200: it writes nothing and leaves
+  `wod_parsed` armed, so a refresh earns the same refusal.
+- **A partial resolve says what it skipped.** Writing 1 of 2 rows redirected
+  with a success page and no message. `/training?msg=` now names the movements
+  that no longer resolve. A blank movement stays silent - that is the deliberate
+  skip.
+- **A big WOD can be saved.** The parser bounds its own output at
+  `MAX_PARSED_ENTRIES` (200, pinned to the confirm limit by a test) and the
+  confirm screen states how many rows it dropped. A note parsing to 250 entries
+  could previously only be discarded.
+- **The markdown export carries `duration` and per-set `notes`.** It dropped the
+  one column that had just gained a canonical unit (seconds, migration 020).
+- **An unset training schedule reads as unset.** `DEFAULT_DAYS` and
+  `DEFAULT_SWIM` are empty, so a new user's planner is told "No fixed training
+  days set." instead of a Mon/Wed/Fri week nobody chose.
+- **A backslash in an error toast no longer truncates the message.** The `?err=`
+  value went into a JavaScript string literal; both toasts use `|tojson`.
 - **JSON export honours its "every user-owned table" invariant again** -
   `exercise_library_tags` (missing since migration 019) plus the new
   `feniks_daily` and `feniks_bricks` are exported.
@@ -48,6 +94,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   folding, so `siłowy` becomes the tag `silowy` instead of vanishing to `siowy`.
 
 ### Changed
+- **The WOD confirm screen renders one row contract.** Parsed entries, unmatched
+  names and blank seed rows come from one numbered list built in the router
+  (`_confirm_rows`), and `app/templates/partials/wod_row.html` owns the row and
+  the picker. Four copies of that markup used to exist, each with its own index
+  arithmetic and its own flat option list.
+- **The schedule block is sport-neutral.** `Training days:` rather than
+  `CrossFit days:`, so the copy survives a change of sport.
 - **The A.N.D.Y. planner is given a weekly schedule instead of an exercise
   prescription.** The prompt used to list every non-archived, non-ad_hoc row of
   `training_exercises` as `- <name>: <sets>x<reps>`. Those rows outlive the

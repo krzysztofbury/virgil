@@ -48,6 +48,10 @@ parked; revisit if a bad deploy actually bites.
 
 ## Training page simplified — 2026-08-01 (branch `feat/training-page-simplify`)
 
+**Closed 2026-08-27** by v0.6.0 Phase A (branch `feat/v0.6.0-training-wod-ui`,
+13 commits, plan in `docs/superpowers/plans/2026-08-27-v0.6.0-training-wod-blockers.md`).
+Every item below is ticked or carries a written decision in the code.
+
 Raised by the final whole-branch review (5 rounds; each earlier round was scoped
 to the fix commits, which is why every defect kept turning up at a seam with code
 the reviewer had not been given). Ranked, none blocking:
@@ -56,39 +60,39 @@ the reviewer had not been given). Ranked, none blocking:
       Migration 020 converts the legacy minute rows by a structural rule (which
       branch of the deleted log form wrote them), verified row by row against the
       deployed database. `format_duration_seconds` renders the column.
-- [ ] The markdown export still drops `duration` entirely (`_section_training`
+- [x] The markdown export still drops `duration` entirely (`_section_training`
       renders Exercise/Set/Reps/Weight), so it now omits the one column that just
       got a canonical unit.
-- [ ] **A partial resolve consumes the session silently.** `confirm_wod` skips
+- [x] **A partial resolve consumes the session silently.** `confirm_wod` skips
       rows whose movement no longer resolves and the `if not rows:` guard is
       all-or-nothing, so 1-of-2 rows can be written with no message and no route
       back. Same family as the four blockers, narrower trigger.
-- [ ] **A crash between `capture_wod`'s two commits leaves a session that can
+- [x] **A crash between `capture_wod`'s two commits leaves a session that can
       never gain entries** — note saved, `wod_parsed` NULL, no form, no `dokończ`.
       Not a regression (the deleted log form always INSERTed a new session), and
       Watchtower recreating the container mid-parse is the realistic trigger. Fix
       is read-side: offer manual entry for an entry-less session with notes.
-- [ ] **A parse over 200 entries can never be saved** — `entry_count` is capped at
+- [x] **A parse over 200 entries can never be saved** — `entry_count` is capped at
       200 and the parser bounds nothing. Only exit is discarding the parse.
-- [ ] **A rejected field silently discards every other edit in the form,**
+- [x] **A rejected field silently discards every other edit in the form,**
       including rows added with „+ dodaj serię". The toast names one field and
       says nothing about the rest.
-- [ ] **Double-click on „Zapisz i sparsuj" creates two sessions and two paid LLM
+- [x] **Double-click on „Zapisz i sparsuj" creates two sessions and two paid LLM
       calls.** PRG protects the confirm page, not capture.
-- [ ] **Sessions outside the newest 20 by date are unreachable** — `/training` is
+- [x] **Sessions outside the newest 20 by date are unreachable** — `/training` is
       `ORDER BY date DESC LIMIT 20`, so backdating a capture hides it and its
       `dokończ` immediately, while the confirm screen promises it is visible there.
-- [ ] **`training_entries.notes` has no reader.** The confirm screen collects it
+- [x] **`training_entries.notes` has no reader.** The confirm screen collects it
       and the parser prompt designates it for the metcon result; history, the API,
       MCP and the markdown export all drop it.
-- [ ] **The planner is given a swim target it cannot score.** Nothing distinguishes
+- [x] **The planner is given a swim target it cannot score.** Nothing distinguishes
       a swim from a WOD in the logged sessions it reads.
-- [ ] **`DEFAULT_DAYS`/`DEFAULT_SWIM` make "never configured" look like a
+- [x] **`DEFAULT_DAYS`/`DEFAULT_SWIM` make "never configured" look like a
       configured CrossFit week** for any new user. `normalize_days("")` already
       renders "No fixed CrossFit days set." — the honest default is `""`.
-- [ ] `training_exercises.ad_hoc` now has no reader, and `archived` there can only
+- [x] `training_exercises.ad_hoc` now has no reader, and `archived` there can only
       be cleared, never set. Neither is a bug; both will mislead the next reader.
-- [ ] The `?err=` toast is interpolated into a JS string literal — no XSS
+- [x] The `?err=` toast is interpolated into a JS string literal — no XSS
       (autoescape holds), but a backslash silently truncates the message. `|tojson`.
 
 
@@ -99,11 +103,11 @@ per-exercise prescription drawn from `training_exercises` — those rows outlive
 the program that created them, so deleting only the UI would have hidden the
 staleness rather than fixed it.
 
-- [ ] `exercise_library.sets` / `reps` / `display_order` fed the deleted
+- [x] `exercise_library.sets` / `reps` / `display_order` fed the deleted
       protocol form. They still populate the parser's fallback values and the
       Settings listing, but nothing consumes them as a prescription any more.
       Worth deciding whether they stay or go before the next library change.
-- [ ] The schedule is CrossFit/swim-shaped in its wording (`CrossFit days:`).
+- [x] The schedule is CrossFit/swim-shaped in its wording (`CrossFit days:`).
       Fine while that is the training, but it is copy, not data — generalise it
       if the sport changes rather than editing the day list around it.
 
@@ -127,7 +131,7 @@ recorded here so it isn't rediscovered from scratch:
 - [x] `/settings/library/archive` routed through `validate_library_write`
       (PR #9) — an unknown id now redirects with an error instead of silently
       no-opping, matching `PATCH /api/library/{id}`.
-- [ ] A parse yielding more than 200 entries produces a confirmation screen that
+- [x] A parse yielding more than 200 entries produces a confirmation screen that
       rejects on every submit, with no user-adjustable input. Not a regression
       (the previous behaviour discarded them silently) but it is an
       unrecoverable loop. Either cap the parse or let the screen paginate.
@@ -409,6 +413,124 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
   - Simple JSON-based translation dict loaded per locale, injected into template context
   - Language selector in Settings, stored in DB or cookie
   - Translate seed data (goal area names, milestone titles) — these are currently Polish in DB seeds
+
+### UI/UX audit - 2026-08-27
+
+Browser audit on fictional demo data: 11 primary routes captured at 1440x1000 and
+390x844 (22 screenshots total). No page-wide horizontal overflow, console errors
+or JavaScript errors. Visual inspection still found content clipped inside
+containers with `overflow: hidden`, controls hidden in internally scrolling
+tables, and several mobile flows whose primary action is buried below analytics.
+
+**Product direction:** use the redesigned Feniks page as the interaction model
+for the rest of Virgil: show the meaningful outcome first, ask one current
+question, reveal conditional details only when needed, and put history last.
+Do not make every metric, form and historical view equally prominent.
+
+#### P0 - mobile usability defects
+
+- [ ] **Training weekly KPIs are clipped on mobile.** The template forces three
+      columns inline while `.card` hides overflow, so the left/right cards and
+      values are visibly cut even though the document itself reports no
+      horizontal overflow (`app/templates/training.html`, `.stat-grid`). Use one
+      primary KPI plus two secondary KPIs, or a responsive 2+1 grid. Acceptance:
+      all three labels and values fit at 320/390/430 px without clipping or
+      horizontal scrolling.
+- [ ] **Settings → App Config card headers collapse into narrow columns on
+      mobile.** `Training Schedule` / `Exercise Library` titles and their long
+      descriptions share one horizontal `.card-header`. Stack title and helper
+      copy vertically below 768 px, left-align both, and keep controls below the
+      explanation. Acceptance: no word-by-word wrapping at 320/390 px.
+- [ ] **Blood Work hides the useful result columns on mobile.** The wide table
+      leaves marker/unit/reference visible while dates, latest values and chart
+      actions sit off-screen with no scroll affordance. Render a mobile result
+      list/card with marker, latest value, status and change from previous;
+      retain the full matrix as a desktop or explicit “All results” view.
+- [x] **WOD confirmation movement picker is an unsearchable flat list.** When the
+      LLM does not recognise a movement, assigning its equivalent means scanning
+      one native `<select>` containing the entire exercise library. It has no
+      section grouping, tags, search, recent choices or other context. The same
+      flat options loop is duplicated for parsed, unmatched, seed and Alpine-
+      added rows in `app/templates/wod_confirm.html`.
+      Replace it with one shared movement-picker contract used by every row:
+      search by movement name and tags; group results by section; show tags and
+      metric in each result; put recently used movements first; support keyboard
+      navigation; keep the unmatched LLM text visible while resolving it. The
+      submitted value must remain the exact movement name expected by the current
+      backend. Progressive enhancement is required: without Alpine/CDN JavaScript,
+      render a usable native `<select>` grouped with `<optgroup>` rather than a
+      dead custom widget. Acceptance: a movement can be found by partial name or
+      tag in at most a few keystrokes, and the picker behaves identically for
+      recognised rows, unmatched rows, manual seed rows and `+ dodaj ćwiczenie`.
+
+#### P1 - make primary routes action-first
+
+- [ ] **Dashboard: redesign around “what matters today”.** Current mobile page is
+      ~3413 px and gives Week, A.N.D.Y., six Oura KPIs, five measurements,
+      experiments, Life Scores and a full-year calendar similar visual weight.
+      Proposed order: Today hero (readiness + energy + one interpretation), one
+      CTA (`Finish today's check-in`), compact A.N.D.Y. list, one weekly outcome,
+      then Oura/measurements/Life Scores/calendar under `Insights` or progressive
+      disclosure. The first viewport must contain orientation and the next action,
+      not just the week strip.
+- [ ] **Goals: replace 8 areas × 3 always-open horizons with a focused map.** The
+      empty state currently renders 24 identical `New goal...` inputs and is
+      ~3356 px on mobile. Add a `Current focus` area (maximum three active goals),
+      a horizon switch (`Now`, `1 year`, `3 years`, `10 years`), show populated
+      areas by default, and use one clear `Add goal` flow that asks for area and
+      horizon. Empty areas should be compact, not full-height cards.
+- [ ] **Experiment detail: remove duplicate logging paths.** Quick-log at the top
+      and generic `Log Entry` below ask for the same data in different forms.
+      Follow the Feniks flow: hero with one success criterion, one `Today`
+      question generated from metric kinds, and `Different date or add details`
+      to reveal the full form. Reduce the seven equal stats to outcome, target and
+      time remaining. Move Complete/Abandon/Delete into secondary actions.
+- [ ] **Experiment progress language must match the calculation.** `0% elapsed`
+      while the experiment is already in week 1/4 is technically derivable but
+      reads as contradictory. Use real day-based elapsed progress or label the
+      current semantics explicitly as `Week 1 of 4`; never call it elapsed time
+      unless it measures elapsed time.
+
+#### P2 - simplify secondary flows and interpretation
+
+- [ ] **Daily: make state changes explicit.** The circular tri-state toggle does
+      not explain pending/done/skipped and a yellow minus is ambiguous. Provide
+      explicit `Done` / `Skip` affordances (or visible state labels and
+      `aria-pressed`), show a compact `n/7 complete today` summary, and render
+      completed A.N.D.Y. tasks as content rather than permanent text inputs with
+      edit-on-demand. Move Habit Streaks and Completion Heatmap under `Your
+      trends`. Add semantic anchors to energy (`Low`, `OK`, `High`).
+- [ ] **Training: keep the one-note capture, polish its language and feedback.**
+      Use one locale consistently, replace implementation copy `Zapisz i sparsuj`
+      with user copy such as `Zapisz trening`, mark duration as optional, disable
+      duplicate submit while parsing, and communicate that the raw note is saved
+      before parsing. Show only new/recent PBs rather than a large grid of equal
+      cards. Present history as a timeline with a useful session summary.
+- [ ] **Oura: add interpretation before charts.** Lead with readiness versus the
+      7-day baseline and a short actionable explanation. Group equal KPI cards
+      into Sleep, Activity and Recovery. Show one default trend with a metric
+      selector; move the four-series dual-axis comparison behind `Compare
+      metrics`. Reduce mobile axis labels and avoid squeezing four series into a
+      small chart.
+- [ ] **Settings → Exercise Library: design it as a management tool.** Add search
+      and section/tag filters; move `Add exercise` to a dedicated expandable panel
+      or modal; render mobile entries as cards with a compact action menu instead
+      of an internally scrolling edit table. Move technical paths such as the DB
+      filename under `Advanced`.
+- [ ] **Progressive disclosure consistency.** Introduce shared patterns for
+      `Today`, `Insights`, `History`, secondary forms and destructive actions so
+      Dashboard/Daily/Training/Oura/Experiments do not each invent a different
+      hierarchy. Keep the primary action in the first mobile viewport where the
+      domain permits it.
+
+#### Recommended delivery order
+
+- [ ] **UI/UX pass 1:** Training KPI responsiveness, App Config mobile headers,
+      Blood Work mobile result cards, searchable/grouped WOD movement picker.
+- [ ] **UI/UX pass 2:** Today-first Dashboard, focused Goals map, single-flow
+      Experiment detail.
+- [ ] **UI/UX pass 3:** Daily progressive disclosure, Oura interpretation, mobile
+      Exercise Library and shared interaction patterns.
 
 ## Onboarding
 - [x] **6-step onboarding wizard** — LLM-assisted setup at `/onboarding` with profile, ideal day, goals, habits, medical records

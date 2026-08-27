@@ -72,7 +72,8 @@ app/
 3. **Numbered migrations instead of `CREATE TABLE IF NOT EXISTS`.** Each migration is a Python file with an `async def up(db)` function. Applied sequentially on startup, tracked in `schema_migrations`.
 4. **Fernet encryption for secrets at rest.** OAuth tokens, LLM API keys, and webhook secrets are encrypted in the database. Key is auto-generated or provided via env var.
 5. **Multi-user model.** Central `virgil-central.db` user registry; one isolated SQLite database per user (`data/users/{uuid}.db`), opened per request by the auth middleware.
-6. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
+6. **Training data model.** The WOD confirm screen (`POST /training/wod/confirm`) is the only writer of `training_entries`. `training_entries.duration` is SECONDS (migration 020) and renders through `app.formatting.format_duration_seconds`. `training_entries.notes` holds the metcon result for that movement: a finishing time, or rounds plus reps. A `training_sessions` row with a non-NULL `wod_parsed` has a parse waiting for review, and `/training` lists every one of them. `training_sessions.capture_token` (migration 024) makes one rendered capture form write one session. `exercise_library.sets` / `reps` are parser fallbacks, not a prescription; `training_exercises.ad_hoc` is provenance with no reader.
+7. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
 
 ## Middleware Stack (Processing Order)
 

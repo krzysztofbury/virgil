@@ -65,6 +65,17 @@ async def resolve_movement(db, name: str) -> int | None:
         return None
 
     row = lib[0]
+    # ad_hoc = 1 below has no reader today, and that is a decision, not an
+    # oversight. It records provenance: this training_exercises row came from a
+    # note, not from the user's curated dictionary. The Settings listing reads
+    # exercise_library, not this table, so nothing surfaces the flag - do not
+    # read that as dead weight and drop the column without deciding how
+    # provenance gets recorded instead.
+    #
+    # `archived` on this table is the same shape in reverse: this module only
+    # ever CLEARS it (above, when a logged movement turns out to be archived).
+    # Setting it happens in Settings, on the exercise_library row. Two tables,
+    # two flags, one direction each.
     order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) as m FROM training_exercises")
     next_order = (order_row[0]["m"] if order_row else 0) + 1
     cursor = await db.execute(
