@@ -403,6 +403,9 @@ a.card:hover, .card-interactive:hover {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 1.25rem;
+  /* A grid item defaults to min-width:auto, so a long value widens its own track
+     past the card, and .card hides overflow - the value is cut, not wrapped. */
+  min-width: 0;
   text-align: center;
   transition: all 0.2s;
   display: flex;
@@ -1774,6 +1777,13 @@ kbd {
 @media (max-width: 768px) {
   .grid { grid-template-columns: 1fr; }
   .stat-grid { grid-template-columns: repeat(2, 1fr); }
+
+  /* Two-up at 320px leaves a 128px column. The desktop padding plus a 1.75rem
+     mono value overflow that, and .card hides overflow, so the value was cut
+     rather than wrapped. Training forced three columns inline on top of it. */
+  .stat-card { padding: 0.875rem 0.5rem; }
+  .stat-value { font-size: 1.375rem; }
+  .stat-label { font-size: 0.625rem; letter-spacing: 0.04em; }
 
   .week-grid { gap: 0.25rem; }
   .day-cell { padding: 0.4rem 0.15rem; }
