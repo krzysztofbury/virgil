@@ -48,6 +48,18 @@ SEED_ROWS_ON_PARSE_FAILURE = 5
 # parse from building a redirect URL nothing will accept.
 MAX_SKIPPED_NAMED = 5
 
+# History is paginated rather than capped. A capped list silently hid a
+# backdated session and every route to it, including the "dokończ" link the
+# confirm screen promises is there.
+SESSIONS_PER_PAGE = 20
+
+# Both remaining lists are bounded too: MAX_HISTORY_PAGES bounds the OFFSET a
+# hand-typed page number can ask for, and MAX_PENDING_LISTED bounds the pending
+# card. A pending list longer than that means something upstream is wrong, so the
+# page says so instead of growing without limit.
+MAX_HISTORY_PAGES = 500
+MAX_PENDING_LISTED = 50
+
 
 # The picker puts recently logged movements on top. A flat library listing makes
 # the user scan 70 rows to find the movement they did last week.
@@ -203,15 +215,34 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
 
 
 @router.get("/training", response_class=HTMLResponse)
-async def training_page(request: Request):
+async def training_page(request: Request, page: int = 1):
     db = get_user_db_from_request(request)
+
+    # Sessions with a pending parse come first, and independently of the history
+    # window: a backdated capture used to fall off the newest-20 list together
+    # with the one link that leads back to its confirm screen.
+    pending_rows = await db.execute_fetchall(
+        "SELECT id, date, notes FROM training_sessions WHERE wod_parsed IS NOT NULL ORDER BY date DESC LIMIT ?",
+        (MAX_PENDING_LISTED + 1,),
+    )
+    pending_sessions = [dict(p) for p in pending_rows]
+    pending_overflow = len(pending_sessions) > MAX_PENDING_LISTED
+    pending_sessions = pending_sessions[:MAX_PENDING_LISTED]
 
     # training_exercises is no longer read here: the page has no protocol list
     # and no per-exercise log form. The table itself stays — training_entries
     # references it, so every logged set (past and future) hangs off it, and the
     # WOD parser keeps creating rows there via resolve_movement().
-    sessions = await db.execute_fetchall("SELECT * FROM training_sessions ORDER BY date DESC LIMIT 20")
+    #
+    # One row past the page size, so "is there a next page" needs no COUNT(*).
+    page = min(max(page, 1), MAX_HISTORY_PAGES)
+    sessions = await db.execute_fetchall(
+        "SELECT * FROM training_sessions ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+        (SESSIONS_PER_PAGE + 1, (page - 1) * SESSIONS_PER_PAGE),
+    )
     sessions = [dict(s) for s in sessions]
+    has_next = len(sessions) > SESSIONS_PER_PAGE
+    sessions = sessions[:SESSIONS_PER_PAGE]
 
     # Load all entries for visible sessions in one query
     if sessions:
@@ -302,6 +333,11 @@ async def training_page(request: Request):
             # One token per rendered page. capture_wod uses it to tell a replay
             # of THIS page's submission from a genuine second capture.
             "capture_token": uuid4().hex,
+            "pending_sessions": pending_sessions,
+            "pending_overflow": pending_overflow,
+            "page": page,
+            "has_prev": page > 1,
+            "has_next": has_next,
         },
     )
 

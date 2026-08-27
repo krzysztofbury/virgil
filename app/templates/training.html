@@ -82,7 +82,28 @@
 </div>
 {% endif %}
 
-<!-- 4. Workout History -->
+<!-- 4. Unfinished captures — listed in full, whatever their date -->
+{% if pending_sessions %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Niedokończone</h3></div>
+    <div class="card-body">
+        <ul style="margin:0;padding-left:1.1rem;">
+        {% for p in pending_sessions %}
+            <li><strong>{{ p.date }}</strong>
+                <a href="/training/wod/confirm/{{ p.id }}">dokończ</a>
+                {% if p.notes %}<span class="text-muted"><small>{{ p.notes[:60] }}</small></span>{% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+        {% if pending_overflow %}
+        <p class="text-muted"><small>Pokazano pierwsze {{ pending_sessions | length }}.
+        Niedokończonych sesji jest więcej - dokończ te, żeby zobaczyć kolejne.</small></p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 5. Workout History -->
 <div class="card">
     <div class="card-header"><h3>Workout History</h3></div>
     {% if sessions %}
@@ -138,6 +159,13 @@
     {% endfor %}
     {% else %}
     <p class="text-muted">No workouts recorded.</p>
+    {% endif %}
+    {% if has_prev or has_next %}
+    <div style="margin-top:0.5rem;">
+        {% if has_prev %}<a href="/training?page={{ page - 1 }}">nowsze</a>{% endif %}
+        {% if has_prev and has_next %} · {% endif %}
+        {% if has_next %}<a href="/training?page={{ page + 1 }}">starsze</a>{% endif %}
+    </div>
     {% endif %}
 </div>
 {% endblock %}
