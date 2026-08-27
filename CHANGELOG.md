@@ -7,7 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-27
+
 ### Added
+- **Daily states read as words.** Each toggle carries `Done`, `Skipped` or
+  `Pending` beside it and an `aria-pressed` state, the card states
+  `n/7 complete today` (three routines plus four A.N.D.Y. tasks) and keeps that
+  count in step as toggles change, the energy slider has `Low / OK / High`
+  anchors, and a finished A.N.D.Y. task reads as content with an `Edit`
+  disclosure instead of a permanent text input. Habit Streaks and the Completion
+  Heatmap moved into one `Your trends` disclosure.
+- **Oura leads with the baseline.** Today's readiness against the mean of the
+  previous 7 days, with the delta and one word (`above`, `steady`, `below`, at a
+  tolerance of 3 points). By decision this is a rule over stored numbers: no
+  generated sentence and no LLM call. Today's Vitals group into Sleep, Activity
+  and Recovery, and the four-series comparison chart moved last under
+  `Compare metrics` - reordered rather than collapsed, because a Chart.js canvas
+  inside a closed `<details>` renders at zero size.
+- **The exercise library can be searched.** A search box matches on movement name
+  and tags and opens the section holding a hit; a section filter narrows to one
+  group; `Add exercise` moved into its own disclosure. Every row stays
+  server-rendered and visible, so the filter is an enhancement rather than the
+  only way to see the list.
 - **The dashboard leads with today.** The first block is the check-in CTA and the
   A.N.D.Y. list with an explicit `n/4 done` count; Oura, measurements and Life
   Scores moved under an `Insights` heading, and the year calendar collapsed. The
@@ -79,6 +100,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
 
 ### Fixed
+- **Training capture copy describes the action.** `Zapisz i sparsuj` became
+  `Zapisz trening`, duration is marked optional, and a line states that the note
+  is saved before parsing - the property that makes a failed parse harmless.
 - **`% elapsed` measures elapsed time.** The experiments list divided completed
   WEEKS by total weeks, so the whole of week 1 read `0% elapsed` next to a
   `Week 1/4` label saying the opposite. It counts days now.
