@@ -44,6 +44,10 @@ MAX_CONFIRM_ENTRIES = 200
 # None and skips the row, the same way it treats the skip option.
 SEED_ROWS_ON_PARSE_FAILURE = 5
 
+# Skipped movement names listed in the message. A bounded list keeps one bad
+# parse from building a redirect URL nothing will accept.
+MAX_SKIPPED_NAMED = 5
+
 
 # The picker puts recently logged movements on top. A flat library listing makes
 # the user scan 70 rows to find the movement they did last week.
@@ -707,11 +711,16 @@ async def confirm_wod(request: Request):
         return RedirectResponse("/training", status_code=303)
 
     rows: list[tuple] = []
+    skipped: list[str] = []
     for movement, set_number, reps, weight, duration, note in parsed_rows:
         exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
-            # Blank movement ("— pomiń", I4) or one that no longer resolves —
-            # not an error, just nothing to write for this row.
+            # A blank movement is the deliberate skip ("- pomiń", I4) and needs
+            # no report. A NAMED movement that does not resolve is a different
+            # thing: the user reviewed that row and it vanished anyway, with no
+            # message, because the guard below only fires when NOTHING resolved.
+            if movement:
+                skipped.append(movement)
             continue
         rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
 
@@ -762,6 +771,16 @@ async def confirm_wod(request: Request):
         rows,
     )
     await db.commit()
+
+    if skipped:
+        names = ", ".join(sorted(set(skipped))[:MAX_SKIPPED_NAMED])
+        message = (
+            f"Zapisano {len(rows)} z {len(rows) + len(skipped)} wierszy. "
+            f"Pominięto ruchy, których nie ma w bibliotece: {names}. "
+            "Dodaj je w Ustawieniach i dopisz kolejną notatką."
+        )
+        logger.warning("WOD confirm skipped unresolved movements for session %s: %s", session_id, names)
+        return RedirectResponse(f"/training?msg={quote(message)}", status_code=303)
     return RedirectResponse("/training", status_code=303)
 
 

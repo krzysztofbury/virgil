@@ -6,6 +6,13 @@
     <h1>Training</h1>
 </div>
 
+{# A confirmed submission can write some rows and skip others. Reporting that
+   here is the only place the user sees it: the confirm screen is gone by then. #}
+{% if request.query_params.get('msg') %}
+<p class="text-muted" role="status">{{ request.query_params.get('msg') }}</p>
+<script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ request.query_params.get('msg') | tojson }}); });</script>
+{% endif %}
+
 <!-- 1. Capture — the only way in. Free text goes to the parser, which resolves
      movements against the whole exercise library (managed in Settings →
      Exercise Library) and hands back an editable confirm screen. The raw note is
