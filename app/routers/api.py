@@ -344,7 +344,7 @@ async def api_training_detail(
         placeholders = ",".join("?" * len(session_ids))
         all_entries = await db.execute_fetchall(
             f"SELECT e.session_id, ex.id AS exercise_id, ex.name, ex.section, ex.metric, "
-            f"e.set_number, e.reps, e.weight, e.duration "
+            f"e.set_number, e.reps, e.weight, e.duration, e.notes "
             f"FROM training_entries e JOIN training_exercises ex ON e.exercise_id = ex.id "
             f"WHERE e.session_id IN ({placeholders}) ORDER BY ex.display_order, ex.name, e.set_number",
             session_ids,
@@ -371,7 +371,17 @@ async def api_training_detail(
                 }
                 order.append(ex_id)
             exercises[ex_id]["sets"].append(
-                {"set": r["set_number"], "reps": r["reps"], "weight": r["weight"], "duration": r["duration"]}
+                {
+                    "set": r["set_number"],
+                    "reps": r["reps"],
+                    "weight": r["weight"],
+                    "duration": r["duration"],
+                    # The metcon result the parser puts on the first entry of a
+                    # movement: a finishing time, or rounds plus reps. Nothing
+                    # read it, so an LLM asked "how did the WOD go" saw the
+                    # sets and never the score.
+                    "notes": r["notes"] or "",
+                }
             )
         sess["exercises"] = [exercises[i] for i in order]
         result.append(sess)

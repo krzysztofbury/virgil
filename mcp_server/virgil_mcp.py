@@ -142,6 +142,9 @@ def get_training(days: int = 7) -> dict:
 def get_training_detail(days: int = 7) -> dict:
     """Full per-set training detail for the last N days (1-90): every session broken into
     exercises and sets (reps+weight, or weight+seconds for timed lifts like carries/holds).
+    Each set carries `notes`, which holds the metcon result the athlete recorded for that
+    movement (a finishing time, or rounds plus reps for an AMRAP) - read it before judging
+    a session by volume alone.
     Use when the volume summary from get_training isn't enough and you need what was actually done."""
     return _get("/api/training/detail", params={"range": days})
 

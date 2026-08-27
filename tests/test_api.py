@@ -344,3 +344,41 @@ def test_api_post_entry_validation(auth_client):
         assert resp.status_code == 409
     finally:
         _delete_api_experiment(exp_id)
+
+
+def test_training_detail_carries_set_notes(auth_client):
+    """The metcon result lives in the set note, so the API must carry it.
+
+    The confirm screen collects it and the parser prompt designates it for the
+    finishing time. Every reader dropped it: history, the API, MCP and the
+    markdown export.
+    """
+    import sqlite3
+
+    from conftest import user_db_path
+
+    conn = sqlite3.connect(user_db_path())
+    try:
+        session_id = conn.execute("INSERT INTO training_sessions (date, notes) VALUES (date('now'), 'raw')").lastrowid
+        exercise_id = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, display_order) "
+            "VALUES ('Notes Probe', 'Core', 'reps', 301)"
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, notes) "
+            "VALUES (?, ?, 1, 21, '21-15-9 8:42')",
+            (session_id, exercise_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resp = auth_client.get("/api/training/detail?range=7", headers={"X-API-Key": "test-key-123"})
+    assert resp.status_code == 200
+    sets = [
+        one_set
+        for session in resp.json()["sessions"]
+        for exercise in session["exercises"]
+        for one_set in exercise["sets"]
+    ]
+    assert any(one_set.get("notes") == "21-15-9 8:42" for one_set in sets), sets

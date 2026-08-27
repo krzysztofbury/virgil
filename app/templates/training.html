@@ -90,7 +90,7 @@
             {% if s.entries %}
             <div class="overflow-x">
                 <table>
-                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th></tr></thead>
+                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Notatka</th></tr></thead>
                     <tbody>
                         {% for e in s.entries %}
                         <tr>
@@ -99,6 +99,7 @@
                             <td>{{ e.reps or '-' }}</td>
                             <td>{% if e.weight %}{{ e.weight }} kg{% else %}-{% endif %}</td>
                             <td>{{ e.duration | duration or "-" }}</td>
+                            <td><small>{{ e.notes or '-' }}</small></td>
                         </tr>
                         {% endfor %}
                     </tbody>
