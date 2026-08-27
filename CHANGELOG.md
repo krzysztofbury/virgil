@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Blood Work reads on a phone.** A `.bw-list` shows each marker's latest value,
+  its H/L status and the signed change from the result before it, plus the chart
+  link. The full date matrix stays: directly on a wide screen, and under
+  `Wszystkie wyniki` on a phone, where three metadata columns used to fill the
+  viewport and push every value off-screen. One Jinja macro renders the matrix
+  for both, and two utilities (`.on-mobile`, `.on-desktop`) switch the views
+  with CSS alone. The change is reported only when both results are numeric: a
+  text result such as "negative" has no direction.
 - **A stranded session can still gain entries.** `POST /training/session/{id}/manual`
   arms an empty parse, so a note left with no entries and no pending parse (a
   container recreated between `capture_wod`'s two commits) gets the same manual
@@ -52,6 +60,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
 
 ### Fixed
+- **Training weekly KPIs and PBs fit a phone.** `training.html` pinned three
+  columns in an inline style, which outranks the stylesheet's own two-column
+  mobile rule, so the values were cut by the card's `overflow: hidden`. The
+  stylesheet owns the column count again, `.stat-card` may shrink below its
+  content (`min-width: 0`), and padding and the mono value scale down below
+  768 px. A test refuses a fixed inline column count in any template.
+- **Card headers stack below 768 px.** A title and a long helper sentence shared
+  one flex row, which squeezed the title into a one-word-per-line column in
+  Settings App Config.
 - **A rejected field no longer discards the rest of the form.** `confirm_wod`
   answered `_ConfirmRejected` with a redirect to a clean GET, which rebuilt the
   form from the stored parse and threw away every other edit, rows the user had

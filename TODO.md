@@ -429,19 +429,19 @@ Do not make every metric, form and historical view equally prominent.
 
 #### P0 - mobile usability defects
 
-- [ ] **Training weekly KPIs are clipped on mobile.** The template forces three
+- [x] **Training weekly KPIs are clipped on mobile.** The template forces three
       columns inline while `.card` hides overflow, so the left/right cards and
       values are visibly cut even though the document itself reports no
       horizontal overflow (`app/templates/training.html`, `.stat-grid`). Use one
       primary KPI plus two secondary KPIs, or a responsive 2+1 grid. Acceptance:
       all three labels and values fit at 320/390/430 px without clipping or
       horizontal scrolling.
-- [ ] **Settings → App Config card headers collapse into narrow columns on
+- [x] **Settings → App Config card headers collapse into narrow columns on
       mobile.** `Training Schedule` / `Exercise Library` titles and their long
       descriptions share one horizontal `.card-header`. Stack title and helper
       copy vertically below 768 px, left-align both, and keep controls below the
       explanation. Acceptance: no word-by-word wrapping at 320/390 px.
-- [ ] **Blood Work hides the useful result columns on mobile.** The wide table
+- [x] **Blood Work hides the useful result columns on mobile.** The wide table
       leaves marker/unit/reference visible while dates, latest values and chart
       actions sit off-screen with no scroll affordance. Render a mobile result
       list/card with marker, latest value, status and change from previous;
@@ -525,7 +525,7 @@ Do not make every metric, form and historical view equally prominent.
 
 #### Recommended delivery order
 
-- [ ] **UI/UX pass 1:** Training KPI responsiveness, App Config mobile headers,
+- [x] **UI/UX pass 1:** Training KPI responsiveness, App Config mobile headers,
       Blood Work mobile result cards, searchable/grouped WOD movement picker.
 - [ ] **UI/UX pass 2:** Today-first Dashboard, focused Goals map, single-flow
       Experiment detail.
