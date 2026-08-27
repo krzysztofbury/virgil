@@ -3,6 +3,45 @@
 
 {% block content %}
 
+<!-- Today: the one block that must sit in the first mobile viewport.
+     Orientation (what is left today) and the next action (the check-in), before
+     any analytics. The page used to open on the week strip, which says where you
+     have been and nothing about what to do now. -->
+<div class="section" id="today-block">
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+        <span>Today &middot; {{ andy_done }}/{{ andy_total }} done</span>
+        <a href="/daily/{{ today }}" class="btn btn-sm btn-primary">
+            {% if today_log %}Edit today's log{% else %}Finish today's check-in{% endif %}
+            <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
+        </a>
+    </div>
+    <div class="card">
+        {% if today_log %}
+        {% set andy_icons = {'body': 'andy-body', 'spirit': 'andy-spirit', 'account': 'andy-self', 'relations': 'andy-relations'} %}
+        <div class="andy-grid">
+            {% for name, label in [('body', 'Body'), ('spirit', 'Spirit'), ('account', 'Self'), ('relations', 'Relations')] %}
+            {% set status = today_log['andy_' ~ name ~ '_status'] %}
+            {% set desc = today_log['andy_' ~ name ~ '_desc'] %}
+            <div class="andy-item andy-item--task">
+                <div class="andy-item-header">
+                    <img src="/static/img/{{ andy_icons[name] }}.png" alt="{{ label }}" class="andy-icon">
+                    <span class="andy-label">{{ label }}</span>
+                    <span class="{{ 'text-green' if status == 'done' else 'text-yellow' if status == 'skipped' else 'text-muted' }}">
+                        {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
+                        {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
+                        {% else %}<i data-lucide="circle" style="width:16px;height:16px;"></i>{% endif %}
+                    </span>
+                </div>
+                {% if desc %}<small class="text-muted">{{ desc }}</small>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-muted">No entry for today.</p>
+        {% endif %}
+    </div>
+</div>
+
 <!-- Morning Briefing -->
 {% if briefing_enabled %}
 <div class="card" style="margin-bottom: 1.5rem;">
@@ -56,41 +95,34 @@
     </div>
 </div>
 
-<!-- A.N.D.Y. Summary -->
+<!-- Active Experiments -->
+{% if active_experiments %}
 <div class="section">
-    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;">
-        Today's A.N.D.Y.
-        <a href="/daily/{{ today }}" class="btn btn-sm btn-outline">
-            {% if today_log %}Edit today's log{% else %}Log today{% endif %}
-            <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
-        </a>
-    </div>
-    <div class="card">
-        {% if today_log %}
-        {% set andy_icons = {'body': 'andy-body', 'spirit': 'andy-spirit', 'account': 'andy-self', 'relations': 'andy-relations'} %}
-        <div class="andy-grid">
-            {% for name, label in [('body', 'Body'), ('spirit', 'Spirit'), ('account', 'Self'), ('relations', 'Relations')] %}
-            {% set status = today_log['andy_' ~ name ~ '_status'] %}
-            {% set desc = today_log['andy_' ~ name ~ '_desc'] %}
-            <div class="andy-item andy-item--task">
-                <div class="andy-item-header">
-                    <img src="/static/img/{{ andy_icons[name] }}.png" alt="{{ label }}" class="andy-icon">
-                    <span class="andy-label">{{ label }}</span>
-                    <span class="{{ 'text-green' if status == 'done' else 'text-yellow' if status == 'skipped' else 'text-muted' }}">
-                        {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
-                        {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
-                        {% else %}<i data-lucide="circle" style="width:16px;height:16px;"></i>{% endif %}
-                    </span>
-                </div>
-                {% if desc %}<small class="text-muted">{{ desc }}</small>{% endif %}
-            </div>
-            {% endfor %}
+    <div class="section-title">Active Experiments</div>
+    {% for exp in active_experiments %}
+    <div class="card" style="margin-bottom: 0.75rem;">
+        <div class="flex-between">
+            <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
+            {% if exp.not_started %}
+            <small class="text-muted">Starts {{ exp.start_date }}</small>
+            {% else %}
+            <small class="text-muted">Week {{ exp.current_week }}/{{ exp.num_weeks }}</small>
+            {% endif %}
         </div>
-        {% else %}
-        <p class="text-muted">No entry for today.</p>
-        {% endif %}
+        <div class="exp-widget-bar">
+            <div class="progress-bar" style="height: 6px; flex: 1;">
+                <div class="fill" style="width: {{ (exp.current_week / exp.num_weeks * 100)|round if not exp.not_started else 0 }}%;"></div>
+            </div>
+            <small class="text-muted">{{ exp.logged_label }}</small>
+        </div>
     </div>
+    {% endfor %}
 </div>
+{% endif %}
+
+<!-- Insights: everything that describes the past. Below the day's action on
+     purpose - the audit found these carrying the same weight as the check-in. -->
+<div class="section-title">Insights</div>
 
 <!-- Oura -->
 <div class="section">
@@ -215,31 +247,6 @@
     </div>
 </div>
 
-<!-- Active Experiments -->
-{% if active_experiments %}
-<div class="section">
-    <div class="section-title">Active Experiments</div>
-    {% for exp in active_experiments %}
-    <div class="card" style="margin-bottom: 0.75rem;">
-        <div class="flex-between">
-            <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
-            {% if exp.not_started %}
-            <small class="text-muted">Starts {{ exp.start_date }}</small>
-            {% else %}
-            <small class="text-muted">Week {{ exp.current_week }}/{{ exp.num_weeks }}</small>
-            {% endif %}
-        </div>
-        <div class="exp-widget-bar">
-            <div class="progress-bar" style="height: 6px; flex: 1;">
-                <div class="fill" style="width: {{ (exp.current_week / exp.num_weeks * 100)|round if not exp.not_started else 0 }}%;"></div>
-            </div>
-            <small class="text-muted">{{ exp.logged_label }}</small>
-        </div>
-    </div>
-    {% endfor %}
-</div>
-{% endif %}
-
 <!-- Life Scores -->
 <div class="section">
     <div class="section-title">Life Scores</div>
@@ -340,9 +347,11 @@
     {% endif %}
 </div>
 
-<!-- Year Calendar -->
-<div class="section">
-    <div class="section-title">{{ current_year }}</div>
+<!-- Year Calendar: collapsed, because it is a reference view rather than
+     something to act on. Safe to collapse - it holds spans, no canvas. A
+     Chart.js canvas inside a closed details renders at zero size. -->
+<details class="card" id="year-calendar">
+    <summary>{{ current_year }}</summary>
     <div class="year-cal-grid">
         {% for month in year_months %}
         <div class="year-cal-month">
@@ -362,7 +371,8 @@
     <div class="year-cal-footer">
         <span class="year-cal-today-marker"></span> today &nbsp;&middot;&nbsp; {{ days_left }}d left &middot; {{ year_pct }}%
     </div>
-</div>
+</details>
+
 {% endblock %}
 
 {% block scripts %}
