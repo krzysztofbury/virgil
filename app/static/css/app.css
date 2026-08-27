@@ -1718,6 +1718,24 @@ input.flatpickr-input:hover {
 .bw-value span { font-family: var(--font-mono); font-weight: 700; }
 .bw-chart { color: var(--accent); display: flex; align-items: center; }
 
+/* Goals: the focus star, and an area that holds nothing in the selected
+   horizon. The empty area is one line, not a card with a full-height form. */
+.goal-focus-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  padding: 0 0.25rem;
+}
+.goal-focus-btn.is-active { color: var(--accent); }
+.goal-focus-item { margin-bottom: 0.5rem; }
+.goal-area-empty {
+  padding: 0.35rem 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
 /* Alpine: hide until initialised. Used by onboarding.html and feniks.html —
    this rule lived inside the Rest Timer block and is NOT part of it. */
 [x-cloak] { display: none !important; }
