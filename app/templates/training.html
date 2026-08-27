@@ -14,8 +14,14 @@
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Zapisz trening</h3></div>
     <div class="card-body">
-        <form method="post" action="/training/wod">
+        {# onsubmit disables the button on the next tick, AFTER the submission has
+           started - disabling it inside the click handler cancels the submit in
+           some browsers. This is the fast half of the double-click fix; the
+           capture_token below is the half that holds without JavaScript. #}
+        <form method="post" action="/training/wod"
+              onsubmit="setTimeout(function(){ document.getElementById('wod-submit').disabled = true; }, 0);">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="capture_token" value="{{ capture_token }}">
             <div class="grid" style="margin-bottom: 0.75rem;">
                 <div>
                     <label>Date
@@ -30,7 +36,7 @@
             </div>
             <textarea name="wod_text" rows="4" maxlength="4000"
                 placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42&#10;albo po prostu: basen 40 min"></textarea>
-            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz i sparsuj</button>
+            <button id="wod-submit" type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz i sparsuj</button>
         </form>
     </div>
 </div>

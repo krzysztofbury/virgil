@@ -1,8 +1,10 @@
 import json
 import logging
+import sqlite3
 from dataclasses import asdict
 from datetime import date, timedelta
 from urllib.parse import quote
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -190,8 +192,53 @@ async def training_page(request: Request):
             "kpi_volume": kpi_volume,
             "kpi_reps": kpi_reps,
             "personal_bests": personal_bests,
+            # One token per rendered page. capture_wod uses it to tell a replay
+            # of THIS page's submission from a genuine second capture.
+            "capture_token": uuid4().hex,
         },
     )
+
+
+async def _resolve_capture_replay(db, capture_token, session_date, wod_text, duration_int):
+    """Decide what a refused capture_token means, and act on it.
+
+    Returns `(replay_id, session_id)`. Exactly one is set: `replay_id` for a
+    true replay, whose parse already exists, and `session_id` for a fresh row
+    that still needs one. `(None, None)` means the claim failed for a reason
+    this function must not guess at.
+
+    The token is minted by GET /training, so ONE rendered page can submit it
+    more than once. A double click carries the same token AND the same note:
+    that is a replay, and the first session is the right destination. The back
+    button is different. It restores the same page from the bfcache with the
+    same token, and the user then types a DIFFERENT note. Treating that as a
+    replay would redirect them to another session's confirm screen and drop the
+    note they just wrote, silently. So the payload decides, not the token: same
+    date and same text means replay, anything else is a new capture that gets
+    its own row with no token to collide with.
+    """
+    owner = await db.execute_fetchall(
+        "SELECT id, date, notes FROM training_sessions WHERE capture_token = ?", (capture_token,)
+    )
+    if not owner:
+        # The unique index refused the row but no session owns the token, so the
+        # cause is something else entirely. Do not write a second session on a
+        # guess.
+        logger.warning("capture claim for token %r failed and matched no session", capture_token)
+        return None, None
+
+    row = owner[0]
+    if row["date"] == session_date and (row["notes"] or "") == wod_text:
+        logger.info("capture replay for token %r -> session %s", capture_token, row["id"])
+        return row["id"], None
+
+    logger.info("capture token %r reused with a new note - writing a fresh session", capture_token)
+    cursor = await db.execute(
+        "INSERT INTO training_sessions (date, duration_minutes, notes, capture_token) VALUES (?, ?, ?, NULL)",
+        (session_date, duration_int, wod_text),
+    )
+    await db.commit()
+    return None, cursor.lastrowid
 
 
 @router.post("/training/wod")
@@ -221,12 +268,26 @@ async def capture_wod(request: Request):
 
     duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
 
-    cursor = await db.execute(
-        "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, ?, ?)",
-        (session_date, duration_int, wod_text),
-    )
-    session_id = cursor.lastrowid
-    await db.commit()
+    # One capture per click. The token is minted by the form GET /training
+    # rendered, so a double submit, an F5 or a bfcache replay all carry the same
+    # value and the unique index refuses the second row. That refusal is a
+    # decision, not an error: see _resolve_capture_replay.
+    capture_token = truncate(form.get("capture_token", "").strip(), 64) or None
+    try:
+        cursor = await db.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, capture_token) VALUES (?, ?, ?, ?)",
+            (session_date, duration_int, wod_text, capture_token),
+        )
+        session_id = cursor.lastrowid
+        await db.commit()
+    except sqlite3.IntegrityError:
+        await db.rollback()
+        replay_id, session_id = await _resolve_capture_replay(db, capture_token, session_date, wod_text, duration_int)
+        if replay_id is not None:
+            # Same token, same note: the first request already stored the parse.
+            return RedirectResponse(f"/training/wod/confirm/{replay_id}", status_code=303)
+        if session_id is None:
+            return RedirectResponse("/training", status_code=303)
 
     entries: list = []
     unmatched: list[str] = []
