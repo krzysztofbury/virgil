@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [options]
-exclude-newer = "2026-07-01T09:29:08.96853Z"
+exclude-newer = "2026-07-28T13:47:49.23161Z"
 exclude-newer-span = "P30D"
 
 [[package]]
@@ -2030,7 +2030,7 @@ wheels = [
 
 [[package]]
 name = "virgil"
-version = "0.5.0"
+version = "0.6.0"
 source = { virtual = "." }
 dependencies = [
     { name = "aiosqlite" },
