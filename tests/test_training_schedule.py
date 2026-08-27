@@ -79,6 +79,29 @@ def _make_db(tmp_path):
             date TEXT NOT NULL,
             duration_minutes INTEGER
         );
+        CREATE TABLE training_exercises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            section TEXT NOT NULL DEFAULT 'Core',
+            display_order INTEGER DEFAULT 0
+        );
+        CREATE TABLE training_entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id INTEGER NOT NULL,
+            exercise_id INTEGER NOT NULL,
+            set_number INTEGER NOT NULL DEFAULT 1
+        );
+        CREATE TABLE exercise_library (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            section TEXT NOT NULL DEFAULT 'Core',
+            archived INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE exercise_library_tags (
+            library_id INTEGER NOT NULL,
+            tag TEXT NOT NULL,
+            PRIMARY KEY (library_id, tag)
+        );
         """
     )
     conn.commit()
@@ -86,16 +109,37 @@ def _make_db(tmp_path):
     return path
 
 
-def _block(path, target, settings=None, sessions=()):
+def _block(path, target, settings=None, sessions=(), entries=()):
+    """Render the block. `entries` attaches one logged movement, with its library
+    tags, to the session on that date - that is what gives a session its kind."""
     conn = sqlite3.connect(path)
     try:
         conn.execute("DELETE FROM app_settings")
         conn.execute("DELETE FROM training_sessions")
+        conn.execute("DELETE FROM training_entries")
+        conn.execute("DELETE FROM training_exercises")
+        conn.execute("DELETE FROM exercise_library")
+        conn.execute("DELETE FROM exercise_library_tags")
         for key, value in (settings or {}).items():
             conn.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, value))
+        session_ids = {}
         for session_date, duration in sessions:
-            conn.execute(
+            cur = conn.execute(
                 "INSERT INTO training_sessions (date, duration_minutes) VALUES (?, ?)", (session_date, duration)
+            )
+            session_ids[session_date] = cur.lastrowid
+        for session_date, movement, tags in entries:
+            exercise_id = conn.execute(
+                "INSERT INTO training_exercises (name) VALUES (?)", (movement,)
+            ).lastrowid
+            library_id = conn.execute("INSERT INTO exercise_library (name) VALUES (?)", (movement,)).lastrowid
+            for tag in tags:
+                conn.execute(
+                    "INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (library_id, tag)
+                )
+            conn.execute(
+                "INSERT INTO training_entries (session_id, exercise_id) VALUES (?, ?)",
+                (session_ids[session_date], exercise_id),
             )
         conn.commit()
     finally:
@@ -284,3 +328,62 @@ def test_blank_day_list_clears_the_schedule(tmp_path):
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: ""})
     assert "No fixed training days set." in block
+
+
+def test_planner_counts_swims_against_the_target(tmp_path):
+    """A swim target the planner cannot score is a target it cannot use.
+
+    The session list carried date and duration only, so nothing distinguished a
+    swim from a WOD. The kind comes from the library tag on the session's own
+    movements - the user's vocabulary, no new column.
+    """
+    path = _make_db(tmp_path)
+    block = _block(
+        path,
+        date(2026, 8, 26),  # Wednesday
+        {SETTING_DAYS: "mon,wed,fri", SETTING_SWIM: "1"},
+        sessions=[("2026-08-24", 40)],
+        entries=[("2026-08-24", "Swim Freestyle", ["swim"])],
+    )
+    assert "2026-08-24 (40 min, swim)" in block
+    assert "Swims this week: 1 of 1." in block
+
+
+def test_a_logged_wod_is_not_counted_as_a_swim(tmp_path):
+    path = _make_db(tmp_path)
+    block = _block(
+        path,
+        date(2026, 8, 26),
+        {SETTING_DAYS: "mon,wed,fri", SETTING_SWIM: "1"},
+        sessions=[("2026-08-24", 55)],
+        entries=[("2026-08-24", "Thruster", ["crossfit"])],
+    )
+    assert "2026-08-24 (55 min, training)" in block
+    assert "Swims this week: 0 of 1." in block
+
+
+def test_several_tags_on_one_movement_count_the_session_once(tmp_path):
+    """The tag join multiplies rows. COUNT(DISTINCT) is what keeps entry_count
+    honest, and one session must not read as several."""
+    path = _make_db(tmp_path)
+    block = _block(
+        path,
+        date(2026, 8, 26),
+        {SETTING_DAYS: "mon", SETTING_SWIM: "2"},
+        sessions=[("2026-08-24", 40)],
+        entries=[("2026-08-24", "Swim Freestyle", ["swim", "cardio", "technique"])],
+    )
+    assert "Swims this week: 1 of 2." in block
+    assert block.count("2026-08-24") == 1
+
+
+def test_swim_count_is_absent_without_a_target(tmp_path):
+    path = _make_db(tmp_path)
+    block = _block(
+        path,
+        date(2026, 8, 26),
+        {SETTING_DAYS: "mon", SETTING_SWIM: "0"},
+        sessions=[("2026-08-24", 40)],
+        entries=[("2026-08-24", "Swim Freestyle", ["swim"])],
+    )
+    assert "Swims this week" not in block, "no target means nothing to score against"

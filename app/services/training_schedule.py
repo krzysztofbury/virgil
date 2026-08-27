@@ -60,9 +60,63 @@ def format_days(days: list[str]) -> str:
     return ", ".join(DAY_SHORT[DAY_KEYS.index(day)] for day in days)
 
 
+# A session counts as a swim when any of its movements carries this library tag.
+# Tags are the user's own vocabulary (migration 019), so this needs no second
+# place to configure and no column of its own.
+SWIM_TAG = "swim"
+
+# COUNT(DISTINCT te.id), not COUNT(te.id): the tag join multiplies rows, so a
+# single entry whose movement carries three tags would otherwise count as three.
+# {order} is a template slot with two literal callers below, never a value. A
+# str.replace() on the ORDER BY text would break the moment another column in
+# this list is called "date".
+_SESSIONS_SQL = """
+    SELECT ts.date AS date,
+           ts.duration_minutes AS duration_minutes,
+           COUNT(DISTINCT te.id) AS entry_count,
+           MAX(CASE WHEN t.tag = ? THEN 1 ELSE 0 END) AS has_swim
+    FROM training_sessions ts
+    LEFT JOIN training_entries te ON te.session_id = ts.id
+    LEFT JOIN training_exercises tex ON te.exercise_id = tex.id
+    LEFT JOIN exercise_library l ON lower(l.name) = lower(tex.name)
+    LEFT JOIN exercise_library_tags t ON t.library_id = l.id
+    WHERE ts.date >= ? AND ts.date <= ?
+    GROUP BY ts.id
+    ORDER BY ts.date {order}
+"""
+
+
+async def _labelled_sessions(db, start: str, end: str, *, newest_first: bool = False, limit: int | None = None):
+    """Sessions in [start, end] with the columns _session_label needs.
+
+    One query shape for the week list and for the previous session. A second
+    copy of this SQL would drift, and _session_label would then be handed a row
+    without has_swim on a path that only runs for an empty week.
+    """
+    sql = _SESSIONS_SQL.format(order="DESC" if newest_first else "ASC")
+    if limit is not None:
+        assert limit > 0, f"limit must be positive, got {limit}"
+        sql += f" LIMIT {int(limit)}"
+    return await db.execute_fetchall(sql, (SWIM_TAG, start, end))
+
+
+def _session_kind(row) -> str:
+    """swim, training, or nothing at all.
+
+    A session with no entries holds only the raw note. It did happen, so calling
+    it "training" would be a guess about what it was - the honest label is no
+    label, exactly as before this function existed.
+    """
+    if not row["entry_count"]:
+        return ""
+    return "swim" if row["has_swim"] else "training"
+
+
 def _session_label(row) -> str:
     duration = row["duration_minutes"]
-    return f"{row['date']} ({duration} min)" if duration else str(row["date"])
+    kind = _session_kind(row)
+    inner = ", ".join(part for part in (f"{duration} min" if duration else "", kind) if part)
+    return f"{row['date']} ({inner})" if inner else str(row["date"])
 
 
 async def schedule_block(db, target: date) -> str:
@@ -89,21 +143,27 @@ async def schedule_block(db, target: date) -> str:
     # Bounded at both ends: the planner can be run for a past date, and a
     # session logged after `target` is not something that day could know about.
     monday = target - timedelta(days=weekday)
-    week_rows = await db.execute_fetchall(
-        "SELECT date, duration_minutes FROM training_sessions WHERE date >= ? AND date <= ? ORDER BY date",
-        (monday.isoformat(), target.isoformat()),
-    )
+    week_rows = await _labelled_sessions(db, monday.isoformat(), target.isoformat())
     if week_rows:
         lines.append("Logged this week (since Monday): " + ", ".join(_session_label(r) for r in week_rows) + ".")
     else:
         lines.append("Logged this week (since Monday): nothing yet.")
         # Only worth naming the previous session when the week is still empty —
         # otherwise it is noise the planner has to reason past.
-        last_rows = await db.execute_fetchall(
-            "SELECT date, duration_minutes FROM training_sessions WHERE date < ? ORDER BY date DESC LIMIT 1",
-            (monday.isoformat(),),
+        last_rows = await _labelled_sessions(
+            db,
+            "0000-01-01",
+            (monday - timedelta(days=1)).isoformat(),
+            newest_first=True,
+            limit=1,
         )
         if last_rows:
             lines.append(f"Last session before this week: {_session_label(last_rows[0])}.")
+
+    if swim:
+        # The target was unscorable before: nothing in the session list said
+        # which of them was a swim.
+        swims = sum(1 for r in week_rows if r["has_swim"])
+        lines.append(f"Swims this week: {swims} of {swim}.")
 
     return "\n".join(lines)
