@@ -1785,6 +1785,16 @@ kbd {
   .stat-value { font-size: 1.375rem; }
   .stat-label { font-size: 0.625rem; letter-spacing: 0.04em; }
 
+  /* Title above its helper copy. Sharing one flex row made a long description
+     squeeze the title into a one-word-per-line column. No card header carries a
+     control, so this is safe for every card. */
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+  .card-header small { line-height: 1.4; }
+
   .week-grid { gap: 0.25rem; }
   .day-cell { padding: 0.4rem 0.15rem; }
 

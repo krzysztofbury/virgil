@@ -68,3 +68,17 @@ def test_stat_cards_may_shrink_below_their_content():
     css = CSS.read_text(encoding="utf-8")
     stat_card = css[css.index(".stat-card {") : css.index(".stat-card:hover")]
     assert "min-width: 0" in stat_card
+
+
+def test_card_headers_stack_on_mobile():
+    """A title and a long helper sentence cannot share one flex row at 390px.
+
+    Settings App Config puts both in one `.card-header`, so the title collapsed
+    into a one-word-per-line column. No card header carries a control, so
+    stacking is safe everywhere.
+    """
+    block = _mobile_block()
+    start = block.index(".card-header {")
+    header_rule = block[start : block.index("}", start)]
+    assert "flex-direction: column" in header_rule
+    assert "align-items: flex-start" in header_rule
