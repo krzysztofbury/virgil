@@ -180,8 +180,24 @@
         {% for t in library_all_tags %}<option value="{{ t }}">{% endfor %}
     </datalist>
 
+    {# Search and filter over the rows already on the page: no request, no new
+       endpoint. Progressive enhancement - with Alpine absent every row stays
+       visible, because nothing starts hidden. #}
+    <div class="library-controls" x-data="libraryFilter()">
+        <input type="search" placeholder="search name or tag" x-model="query" @input="apply()"
+               aria-label="Search the exercise library">
+        <select x-model="section" @change="apply()" aria-label="Section">
+            <option value="">All sections</option>
+            {% for s in section_order %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
+        </select>
+    </div>
+
+    {# The add form was permanently open above a long table. It is one action
+       among several now, so it sits behind its own disclosure. #}
+    <details style="margin-bottom: 1.25rem;">
+        <summary style="cursor:pointer;font-weight:600;">Add exercise</summary>
     <form action="/settings/library/add" method="post"
-          style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 1.25rem;">
+          style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
         <input type="text" name="name" placeholder="Exercise name" required style="width: 12rem; margin: 0;">
         <select name="section" style="width: auto; margin: 0;">
             {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == 'Core' else '' }}>{{ s }}</option>{% endfor %}
@@ -196,9 +212,11 @@
         <input type="text" name="tags" placeholder="Tags (comma-separated)" list="lib-tags" style="width: 10rem; margin: 0;">
         <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
     </form>
+    </details>
 
     {% for section in section_order %}
-    <details {{ 'open' if loop.first else '' }} style="margin-bottom: 0.75rem;">
+    <details {{ 'open' if loop.first else '' }} style="margin-bottom: 0.75rem;"
+             data-library-block="{{ section }}">
         <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">{{ section }}
             <small class="text-muted">({{ library_by_section[section]|length }})</small>
         </summary>
@@ -207,7 +225,9 @@
             <thead><tr><th>Name</th><th>Section</th><th>Sets</th><th>Reps</th><th>Metric</th><th>Notes</th><th>Tags</th><th></th></tr></thead>
             <tbody>
                 {% for ex in library_by_section[section] %}
-                <tr {% if ex.archived %}style="opacity: 0.45;"{% endif %}>
+                <tr {% if ex.archived %}style="opacity: 0.45;"{% endif %}
+                    data-library-name="{{ ex.name }}" data-library-tags="{{ ex.tags | join(' ') }}"
+                    data-library-section="{{ ex.section }}">
                     {% if ex.builtin %}
                     <td>{{ ex.name }} <span class="badge" style="font-size: 0.6rem; opacity: 0.7;">built-in</span></td>
                     <td>{{ ex.section }}</td>
@@ -630,4 +650,37 @@
 {% endif %}
 
 </div><!-- #settings-content -->
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Filters the library rows already rendered on the page. It adds no request and
+// owns no state the server needs. A section is opened when it holds a match, or
+// a hit inside a collapsed section would look like no hit at all.
+function libraryFilter() {
+    return {
+        query: '',
+        section: '',
+        apply() {
+            const needle = this.query.trim().toLowerCase();
+            const section = this.section;
+            document.querySelectorAll('[data-library-block]').forEach(function (block) {
+                if (section !== '' && block.dataset.libraryBlock !== section) {
+                    block.hidden = true;
+                    return;
+                }
+                block.hidden = false;
+                let matches = 0;
+                block.querySelectorAll('[data-library-name]').forEach(function (row) {
+                    const haystack = (row.dataset.libraryName + ' ' + (row.dataset.libraryTags || '')).toLowerCase();
+                    const hit = needle === '' || haystack.indexOf(needle) !== -1;
+                    row.hidden = !hit;
+                    if (hit) matches += 1;
+                });
+                if (needle !== '') block.open = matches > 0;
+            });
+        }
+    };
+}
+</script>
 {% endblock %}
