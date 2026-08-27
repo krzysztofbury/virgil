@@ -489,14 +489,69 @@ async def wod_confirm_page(request: Request, session_id: int):
         movements = []
         library_error = str(exc)
 
-    parsed_row_count = len(parsed.get("entries") or []) + len(parsed.get("unmatched") or [])
-    rows = _confirm_rows(parsed, SEED_ROWS_ON_PARSE_FAILURE if movements else 0)
+    return await _render_confirm(
+        request,
+        session_id,
+        session["date"],
+        parsed=parsed,
+        movements=movements,
+        library_error=library_error,
+        error=request.query_params.get("err", ""),
+    )
+
+
+async def _render_confirm(
+    request: Request,
+    session_id: int,
+    session_date: str,
+    *,
+    parsed: dict | None = None,
+    rows: list[dict] | None = None,
+    movements: list[dict] | None = None,
+    library_error: str = "",
+    error: str = "",
+) -> HTMLResponse:
+    """Render the confirm screen. One renderer for the GET and for a refusal.
+
+    Pass `parsed` for the GET and `rows` for a refusal, never both. A refusal
+    renders the SUBMITTED rows: answering it with a redirect to this page's own
+    GET rebuilt the form from the stored parse and threw away every edit the
+    user had made, rows they had added included.
+
+    A refusal therefore answers a POST with 200, which drops Post/Redirect/Get
+    on that path alone. That is safe here: a refusal writes nothing and leaves
+    wod_parsed armed, so a refresh re-posts the same values and earns the same
+    refusal. The success path keeps its 303.
+    """
+    assert (parsed is None) != (rows is None), "pass parsed for the GET or rows for a refusal, never both"
+    db = get_user_db_from_request(request)
+
+    if movements is None:
+        try:
+            movements = await canonical_movements(db)
+            library_error = ""
+        except AssertionError as exc:
+            logger.warning("WOD confirm movements list unavailable for session %s: %s", session_id, exc)
+            movements = []
+            library_error = str(exc)
+
+    parsed = parsed or {}
+    if rows is None:
+        # No vocabulary means no seed rows: a picker whose only option is
+        # "pomiń" is a manual-entry path that cannot write anything.
+        rows = _confirm_rows(parsed, SEED_ROWS_ON_PARSE_FAILURE if movements else 0)
+        parsed_row_count = len(parsed.get("entries") or []) + len(parsed.get("unmatched") or [])
+    else:
+        # A re-render always has rows on screen, so the "nothing parsed" prose
+        # below is not the message this screen needs to carry.
+        parsed_row_count = len(rows)
+
     return templates.TemplateResponse(
         "wod_confirm.html",
         {
             "request": request,
             "session_id": session_id,
-            "session_date": session["date"],
+            "session_date": session_date,
             "rows": rows,
             "parsed_row_count": parsed_row_count,
             "parse_error": parsed.get("parse_error", ""),
@@ -507,8 +562,32 @@ async def wod_confirm_page(request: Request, session_id: int):
             "library_error": library_error,
             "seed_rows": SEED_ROWS_ON_PARSE_FAILURE,
             "max_entries": MAX_CONFIRM_ENTRIES,
+            "error": error,
         },
     )
+
+
+def _rows_from_form(form, entry_count: int) -> list[dict]:
+    """The submitted rows, in the shape the template renders.
+
+    Raw strings on purpose: the rejected value must come back on screen exactly
+    as the user typed it, so they can see what the message is about.
+    """
+    rows: list[dict] = []
+    for i in range(entry_count):
+        rows.append(
+            {
+                "index": i,
+                "movement": (form.get(f"entry_{i}_movement") or "").strip(),
+                "set_number": str(form.get(f"entry_{i}_set_number") or "1"),
+                "reps": str(form.get(f"entry_{i}_reps") or ""),
+                "weight": str(form.get(f"entry_{i}_weight") or ""),
+                "duration": str(form.get(f"entry_{i}_duration") or ""),
+                "note": truncate(form.get(f"entry_{i}_note", ""), 200),
+                "unmatched_label": "",
+            }
+        )
+    return rows
 
 
 @router.post("/training/wod/confirm")
@@ -601,7 +680,15 @@ async def confirm_wod(request: Request):
             parsed_rows.append((movement, set_number if set_number is not None else 1, reps, weight, duration, note))
     except _ConfirmRejected as exc:
         logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
-        return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
+        date_rows = await db.execute_fetchall("SELECT date FROM training_sessions WHERE id = ?", (session_id,))
+        session_date = date_rows[0]["date"] if date_rows else date.today().isoformat()
+        return await _render_confirm(
+            request,
+            session_id,
+            session_date,
+            rows=_rows_from_form(form, entry_count),
+            error=f"{exc}. Reszta formularza jest zachowana - popraw to jedno pole i zapisz ponownie.",
+        )
 
     # B1: atomically consume the pending parse result. rowcount != 1 means
     # "unknown session" or "already confirmed" (replay) — either way, redirect

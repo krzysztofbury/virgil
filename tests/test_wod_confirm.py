@@ -268,8 +268,13 @@ def test_out_of_range_reps_rejects_the_whole_submission(auth_client):
         data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_reps="1500")},
         follow_redirects=False,
     )
-    assert resp.status_code == 303
-    assert "err=" in resp.headers["location"]
+    # A rejection re-renders the submitted rows (200) instead of redirecting to a
+    # clean form, so the user keeps every other edit. The properties under test
+    # are unchanged: the message is surfaced, nothing is written, and the parse
+    # stays armed for the retry.
+    assert resp.status_code == 200
+    assert "poza zakresem" in resp.text, "the rejection must be surfaced, not swallowed"
+    assert 'value="1500"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
     assert row["wod_parsed"] is not None
@@ -285,8 +290,9 @@ def test_out_of_range_set_number_rejects_the_whole_submission(auth_client):
         data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_set_number="150")},
         follow_redirects=False,
     )
-    assert resp.status_code == 303
-    assert "err=" in resp.headers["location"]
+    assert resp.status_code == 200
+    assert "poza zakresem" in resp.text
+    assert 'value="150"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
 
 
@@ -305,8 +311,9 @@ def test_out_of_range_weight_rejects_the_whole_submission(auth_client):
         data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_weight="1500")},
         follow_redirects=False,
     )
-    assert resp.status_code == 303
-    assert "err=" in resp.headers["location"]
+    assert resp.status_code == 200
+    assert "poza zakresem" in resp.text
+    assert 'value="1500"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
     assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
@@ -437,8 +444,9 @@ def test_out_of_range_duration_rejects_the_whole_submission(auth_client):
         data={"_csrf_token": token, **_confirm_thruster_payload(session_id, entry_0_duration="100000")},
         follow_redirects=False,
     )
-    assert resp.status_code == 303
-    assert "err=" in resp.headers["location"]
+    assert resp.status_code == 200
+    assert "poza zakresem" in resp.text
+    assert 'value="100000"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
     assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
@@ -503,8 +511,9 @@ def test_a_rejected_field_never_reaches_the_consume(auth_client, monkeypatch, ca
             },
             follow_redirects=False,
         )
-    assert resp.status_code == 303
-    assert "poza zakresem" in unquote(resp.headers["location"]), "the rejection names the offending field"
+    assert resp.status_code == 200, "a rejection re-renders the submitted rows"
+    assert "poza zakresem" in resp.text, "the rejection names the offending field"
+    assert 'value="21"' in resp.text, "the valid row's values must survive its sibling's rejection"
     assert "parse re-armed" not in caplog.text, (
         "a rejected submission must never reach the consume — re-arming means it did"
     )

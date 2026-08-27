@@ -2140,3 +2140,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     width: 100%;
     margin-bottom: 0.25rem;
 }
+
+/* Inline form error, beside the toast: a toast disappears, this does not. */
+.form-error {
+    color: var(--flag-h);
+    margin-bottom: 0.5rem;
+}
