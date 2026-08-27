@@ -289,8 +289,7 @@ def test_stranded_session_offers_manual_entry(auth_client):
     conn = sqlite3.connect(user_db_path())
     try:
         session_id = conn.execute(
-            "INSERT INTO training_sessions (date, notes, wod_parsed) "
-            "VALUES ('2026-08-24', 'ZZ stranded note', NULL)"
+            "INSERT INTO training_sessions (date, notes, wod_parsed) VALUES ('2026-08-24', 'ZZ stranded note', NULL)"
         ).lastrowid
         conn.commit()
     finally:
@@ -340,9 +339,7 @@ def test_manual_entry_refuses_a_session_that_already_has_entries(auth_client):
 
     conn = sqlite3.connect(user_db_path())
     try:
-        pending = conn.execute(
-            "SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,)
-        ).fetchone()[0]
+        pending = conn.execute("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,)).fetchone()[0]
     finally:
         conn.close()
     assert pending is None, "a session with entries must not be re-armed"

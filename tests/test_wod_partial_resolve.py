@@ -28,15 +28,13 @@ def _new_session():
 def _entry_count(session_id):
     conn = sqlite3.connect(user_db_path())
     try:
-        return conn.execute(
-            "SELECT COUNT(*) FROM training_entries WHERE session_id = ?", (session_id,)
-        ).fetchone()[0]
+        return conn.execute("SELECT COUNT(*) FROM training_entries WHERE session_id = ?", (session_id,)).fetchone()[0]
     finally:
         conn.close()
 
 
 def test_partial_resolve_names_the_skipped_movement(auth_client):
-    """"Ghost Movement" is outside the exercise library, so resolve_movement
+    """ "Ghost Movement" is outside the exercise library, so resolve_movement
     returns None for it and creates nothing - the real trigger, no stubbing."""
     session_id = _new_session()
     resp = auth_client.post(

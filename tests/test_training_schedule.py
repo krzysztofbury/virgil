@@ -129,14 +129,10 @@ def _block(path, target, settings=None, sessions=(), entries=()):
             )
             session_ids[session_date] = cur.lastrowid
         for session_date, movement, tags in entries:
-            exercise_id = conn.execute(
-                "INSERT INTO training_exercises (name) VALUES (?)", (movement,)
-            ).lastrowid
+            exercise_id = conn.execute("INSERT INTO training_exercises (name) VALUES (?)", (movement,)).lastrowid
             library_id = conn.execute("INSERT INTO exercise_library (name) VALUES (?)", (movement,)).lastrowid
             for tag in tags:
-                conn.execute(
-                    "INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (library_id, tag)
-                )
+                conn.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (library_id, tag))
             conn.execute(
                 "INSERT INTO training_entries (session_id, exercise_id) VALUES (?, ?)",
                 (session_ids[session_date], exercise_id),
