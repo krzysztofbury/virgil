@@ -683,3 +683,17 @@ def test_rendered_confirm_form_carries_every_field_the_route_needs(auth_client, 
         f"the rendered form must carry every field confirm_wod reads, got {sorted(hidden)}"
     )
     assert _re.search(r'name="session_id"[^>]*\svalue="\d+"', form), "session_id must carry a server-rendered value"
+
+
+def test_err_toast_is_json_escaped(auth_client):
+    """A backslash in ?err= must reach showToast intact, not truncate the message.
+
+    The value used to be interpolated straight into a JavaScript string literal.
+    Autoescape stops XSS there, but it does not stop a backslash from starting an
+    escape sequence and eating the rest of the message.
+    """
+    session_id = _new_session()
+    resp = auth_client.get(f"/training/wod/confirm/{session_id}?err=path%20C%3A%5Ctmp%20failed")
+    assert resp.status_code == 200
+    assert r"C:\\tmp failed" in resp.text
+    assert r'showToast("path C:\tmp' not in resp.text

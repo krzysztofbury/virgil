@@ -6,7 +6,7 @@
 <script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('msg') }}"); });</script>
 {% endif %}
 {% if request.query_params.get('err') %}
-<script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('err') }}", true); });</script>
+<script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ request.query_params.get('err') | tojson }}, true); });</script>
 {% endif %}
 <div class="page-header">
     <h1>Settings</h1>

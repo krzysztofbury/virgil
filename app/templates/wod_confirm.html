@@ -6,7 +6,7 @@
   <div class="card-body">
 
     {% if request.query_params.get('err') %}
-    <script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('err') }}", true); });</script>
+    <script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ request.query_params.get('err') | tojson }}, true); });</script>
     {% endif %}
 
     {% set total_rows = entries|length + unmatched|length %}
