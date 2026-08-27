@@ -17,35 +17,54 @@
     </p>
 </div>
 
-<!-- Stats Bar -->
+<!-- Outcome, target, time left. Seven equal stats said nothing about whether
+     the experiment is working; the rest moved under All metrics below. -->
+{% set outcome = stats.type_stats[0] if stats.type_stats else none %}
+{% set target = stats.metric_progress[0] if stats.metric_progress else none %}
 <div class="exp-stats-bar">
-    {% for ts in stats.type_stats %}
+    {% if outcome %}
     <div class="exp-stat">
-        <span class="exp-stat-value" style="color: {{ ts.color }};">{{ ts.display }}</span>
-        <span class="exp-stat-label">TOTAL {{ ts.name|upper }}</span>
+        <span class="exp-stat-value" style="color: {{ outcome.color }};">{{ outcome.display }}</span>
+        <span class="exp-stat-label">{{ outcome.name|upper }}</span>
     </div>
-    {% endfor %}
-    {% for mp in stats.metric_progress %}
+    {% endif %}
+    {% if target %}
     <div class="exp-stat">
-        <span class="exp-stat-value" style="color: {{ '#22c55e' if mp.met else mp.color }};">{{ mp.label }}</span>
-        <span class="exp-stat-label">TARGET {{ mp.name|upper }}</span>
+        <span class="exp-stat-value" style="color: {{ '#22c55e' if target.met else target.color }};">{{ target.label }}</span>
+        <span class="exp-stat-label">TARGET {{ target.name|upper }}</span>
     </div>
-    {% endfor %}
-    {% if stats.has_duration %}
+    {% elif stats.has_duration %}
     <div class="exp-stat">
         <span class="exp-stat-value">{{ stats.target_total }}m</span>
         <span class="exp-stat-label">TARGET</span>
     </div>
     {% endif %}
     <div class="exp-stat">
-        <span class="exp-stat-value">{{ stats.weeks_done }} <small>/ {{ experiment.num_weeks }}</small></span>
-        <span class="exp-stat-label">WEEKS DONE</span>
-    </div>
-    <div class="exp-stat">
-        <span class="exp-stat-value">{{ stats.current_week }} <small>of {{ experiment.num_weeks }}</small></span>
-        <span class="exp-stat-label">WEEK</span>
+        <span class="exp-stat-value">{{ stats.days_left }}</span>
+        <span class="exp-stat-label">DAYS LEFT</span>
     </div>
 </div>
+<p class="text-muted" style="margin-bottom:0.75rem;">Week {{ stats.current_week }} of {{ experiment.num_weeks }}</p>
+
+{% if stats.type_stats | length > 1 or stats.metric_progress | length > 1 %}
+<details class="exp-all-metrics" style="margin-bottom:0.75rem;">
+    <summary>All metrics</summary>
+    <div class="exp-stats-bar">
+        {% for ts in stats.type_stats %}
+        <div class="exp-stat">
+            <span class="exp-stat-value" style="color: {{ ts.color }};">{{ ts.display }}</span>
+            <span class="exp-stat-label">TOTAL {{ ts.name|upper }}</span>
+        </div>
+        {% endfor %}
+        {% for mp in stats.metric_progress %}
+        <div class="exp-stat">
+            <span class="exp-stat-value" style="color: {{ '#22c55e' if mp.met else mp.color }};">{{ mp.label }}</span>
+            <span class="exp-stat-label">TARGET {{ mp.name|upper }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
 
 {% set quick_metrics = activity_types | rejectattr("kind", "equalto", "duration") | list %}
 {% if experiment.status == 'active' and quick_metrics %}
@@ -192,7 +211,12 @@
 </form>
 {% endif %}
 
-<!-- Log Entry Form -->
+<!-- The full form: another date, or a value the one-tap question cannot carry.
+     Both used to be on screen at once, asking for the same data in two shapes.
+     Open when there is no quick-log at all (a duration-only experiment), because
+     then this is the only way in. -->
+<details class="exp-log-details" {% if not quick_metrics %}open{% endif %} style="margin-bottom:0.75rem;">
+    <summary>Different date or more detail</summary>
 <div class="exp-log-form"
      x-data='{ kinds: { {% for at in activity_types %}"{{ at.id }}": "{{ at.kind }}"{{ "," if not loop.last }}{% endfor %} },
                sel: "{{ activity_types[0].id if activity_types else '' }}",
@@ -225,6 +249,7 @@
         <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Log Entry</button>
     </form>
 </div>
+</details>
 
 <!-- Recent Entries -->
 {% if entries %}
@@ -265,7 +290,10 @@
 </details>
 {% endif %}
 
-<!-- Actions -->
+<!-- Actions: secondary by design. Complete, Abandon and Delete used to sit at
+     the same level as logging an entry. -->
+<details class="exp-actions-details">
+    <summary>Actions</summary>
 <div class="exp-actions">
     <form action="/experiments/{{ experiment.id }}/complete" method="post" onsubmit="return confirm('Mark this experiment as completed? You can reopen it later.')">
         <input type="hidden" name="new_status" value="completed">
@@ -279,8 +307,11 @@
         <button type="submit" class="btn btn-danger">Delete</button>
     </form>
 </div>
+</details>
 {% else %}
 <!-- Non-active experiments can be reopened (undo a mistaken Complete/Abandon) -->
+<details class="exp-actions-details">
+    <summary>Actions</summary>
 <div class="exp-actions">
     <form action="/experiments/{{ experiment.id }}/complete" method="post">
         <input type="hidden" name="new_status" value="active">
@@ -290,6 +321,7 @@
         <button type="submit" class="btn btn-danger">Delete</button>
     </form>
 </div>
+</details>
 {% endif %}
 
 {% endblock %}

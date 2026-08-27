@@ -527,11 +527,18 @@ async def experiment_detail(request: Request, experiment_id: int):
         if progress:
             metric_progress.append(progress)
 
+    # Days left, not weeks done: "0 weeks done" through the whole of week 1 reads
+    # as no progress, next to a "Week 1 of 4" label that says the opposite.
+    total_days = experiment["num_weeks"] * 7
+    days_left = max(0, total_days - max(0, (today - start).days + 1))
+
     stats = {
         "total_minutes": total_minutes,
         "target_total": target_total,
         "weeks_done": elapsed_weeks,
         "current_week": current_week,
+        "total_days": total_days,
+        "days_left": days_left,
         "type_stats": type_stats,
         "metric_progress": metric_progress,
         "has_duration": has_duration,
