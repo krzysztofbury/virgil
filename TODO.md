@@ -422,6 +422,11 @@ or JavaScript errors. Visual inspection still found content clipped inside
 containers with `overflow: hidden`, controls hidden in internally scrolling
 tables, and several mobile flows whose primary action is buried below analytics.
 
+**Decisions (2026-08-27, user):** the Goals focus set is SOFT - it warns above
+three starred goals and blocks nothing, so no goal can be lost to a cap. The
+Dashboard hero is the next action (check-in CTA plus the A.N.D.Y. list), not a
+readiness-versus-baseline interpretation.
+
 **Product direction:** use the redesigned Feniks page as the interaction model
 for the rest of Virgil: show the meaningful outcome first, ask one current
 question, reveal conditional details only when needed, and put history last.
@@ -465,7 +470,7 @@ Do not make every metric, form and historical view equally prominent.
 
 #### P1 - make primary routes action-first
 
-- [ ] **Dashboard: redesign around “what matters today”.** Current mobile page is
+- [x] **Dashboard: redesign around “what matters today”.** Current mobile page is
       ~3413 px and gives Week, A.N.D.Y., six Oura KPIs, five measurements,
       experiments, Life Scores and a full-year calendar similar visual weight.
       Proposed order: Today hero (readiness + energy + one interpretation), one
@@ -473,19 +478,19 @@ Do not make every metric, form and historical view equally prominent.
       then Oura/measurements/Life Scores/calendar under `Insights` or progressive
       disclosure. The first viewport must contain orientation and the next action,
       not just the week strip.
-- [ ] **Goals: replace 8 areas × 3 always-open horizons with a focused map.** The
+- [x] **Goals: replace 8 areas × 3 always-open horizons with a focused map.** The
       empty state currently renders 24 identical `New goal...` inputs and is
       ~3356 px on mobile. Add a `Current focus` area (maximum three active goals),
       a horizon switch (`Now`, `1 year`, `3 years`, `10 years`), show populated
       areas by default, and use one clear `Add goal` flow that asks for area and
       horizon. Empty areas should be compact, not full-height cards.
-- [ ] **Experiment detail: remove duplicate logging paths.** Quick-log at the top
+- [x] **Experiment detail: remove duplicate logging paths.** Quick-log at the top
       and generic `Log Entry` below ask for the same data in different forms.
       Follow the Feniks flow: hero with one success criterion, one `Today`
       question generated from metric kinds, and `Different date or add details`
       to reveal the full form. Reduce the seven equal stats to outcome, target and
       time remaining. Move Complete/Abandon/Delete into secondary actions.
-- [ ] **Experiment progress language must match the calculation.** `0% elapsed`
+- [x] **Experiment progress language must match the calculation.** `0% elapsed`
       while the experiment is already in week 1/4 is technically derivable but
       reads as contradictory. Use real day-based elapsed progress or label the
       current semantics explicitly as `Week 1 of 4`; never call it elapsed time
@@ -527,7 +532,7 @@ Do not make every metric, form and historical view equally prominent.
 
 - [x] **UI/UX pass 1:** Training KPI responsiveness, App Config mobile headers,
       Blood Work mobile result cards, searchable/grouped WOD movement picker.
-- [ ] **UI/UX pass 2:** Today-first Dashboard, focused Goals map, single-flow
+- [x] **UI/UX pass 2:** Today-first Dashboard, focused Goals map, single-flow
       Experiment detail.
 - [ ] **UI/UX pass 3:** Daily progressive disclosure, Oura interpretation, mobile
       Exercise Library and shared interaction patterns.

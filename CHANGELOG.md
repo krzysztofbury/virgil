@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **The dashboard leads with today.** The first block is the check-in CTA and the
+  A.N.D.Y. list with an explicit `n/4 done` count; Oura, measurements and Life
+  Scores moved under an `Insights` heading, and the year calendar collapsed. The
+  page used to open on the week strip, which says where you have been and nothing
+  about what to do now. By decision there is no interpretation sentence: the hero
+  is the next action, not a readiness verdict.
+- **Goals has a current-focus set** (migration 025, `goals.active`). Starring a
+  goal brings it into `Current focus`, whatever its area or horizon. The limit is
+  advisory: above three the page says so and still saves the fourth, so no goal
+  can be lost to a cap. The page now shows one horizon at a time behind a switch,
+  areas with nothing in that horizon render as one compact line each, and a
+  single `Add goal` flow asks for area and horizon. The empty state used to be 24
+  identical inputs and about 3356 px on a phone.
+- **The experiment detail page asks one question.** The one-tap today log stays on
+  screen; the generic form moved behind `Different date or more detail`, and it
+  renders open when a duration-only experiment has no one-tap path. The stats bar
+  is outcome, target and `DAYS LEFT`, with `Week n of m` in words below and the
+  remaining metrics under `All metrics`. Complete, Abandon and Delete moved behind
+  an `Actions` disclosure.
 - **Blood Work reads on a phone.** A `.bw-list` shows each marker's latest value,
   its H/L status and the signed change from the result before it, plus the chart
   link. The full date matrix stays: directly on a wide screen, and under
@@ -60,6 +79,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
 
 ### Fixed
+- **`% elapsed` measures elapsed time.** The experiments list divided completed
+  WEEKS by total weeks, so the whole of week 1 read `0% elapsed` next to a
+  `Week 1/4` label saying the opposite. It counts days now.
 - **Training weekly KPIs and PBs fit a phone.** `training.html` pinned three
   columns in an inline style, which outranks the stylesheet's own two-column
   mobile rule, so the values were cut by the card's `overflow: hidden`. The
