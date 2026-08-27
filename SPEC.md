@@ -30,7 +30,7 @@ app/
 
   migrations/           - Numbered database schema migrations
     runner.py           - Migration discovery + execution engine
-    001_*.py ... 013_*.py
+    001_*.py ... 025_*.py
 
   models/               - Data models (query helpers, not ORMs)
     daily.py, bloodwork.py, experiments.py, feniks.py,
@@ -53,9 +53,10 @@ app/
     experiment_summary.py - AI weekly summaries
     streak.py           - Feniks streak calculation
 
-  templates/            - Jinja2 HTML templates (19 files)
+  templates/            - Jinja2 HTML templates (24 files)
     base.html           - Layout, nav, theme toggle, SW registration
-    partials/           - HTMX partial response templates
+    partials/           - HTMX partial responses and shared macros
+                          (wod_row.html holds the WOD confirm row and its picker)
 
   static/               - Frontend assets
     css/app.css         - Design system, dark/light theme via CSS vars

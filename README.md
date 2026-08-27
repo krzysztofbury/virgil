@@ -8,12 +8,12 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 ## Screenshots
 
-<sub>All screenshots use the built-in demo seeder (`scripts/seed_demo.py`) — fictional data, no real user information.</sub>
+<sub>All screenshots use the built-in demo seeder (`scripts/seed_demo.py`) — fictional data, no real user information. They predate the v0.6.0 layout pass, so the arrangement they show is one release behind.</sub>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> — daily rollup, Oura vitals, measurements, life-scores radar</sub></td>
-<td width="50%"><img src="docs/screenshots/daily.png" alt="Daily log"><br><sub><b>Daily</b> — energy, routines & A.N.D.Y. tasks (AI-suggested)</sub></td>
+<td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> - today's check-in first, then Insights (Oura, measurements, life-scores radar)</sub></td>
+<td width="50%"><img src="docs/screenshots/daily.png" alt="Daily log"><br><sub><b>Daily</b> - energy, routines and A.N.D.Y. tasks (AI-suggested), with a stated n/7 count</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> — free-text capture, weekly volume & PBs</sub></td>
@@ -173,16 +173,25 @@ Port is always **8123**.
 ## Features
 
 ### Dashboard (`/`)
-Overview with weekly completion stats, life score radar chart, Oura vitals, 7-day sparklines (HRV, sleep score, energy), year calendar dot-matrix, active experiments summary, and optional AI morning briefing.
+
+Action first, analytics after. The first block is **Today**: how much of the
+check-in is done (`n/4`) and one button into it. Then the morning briefing (if
+enabled), the week strip and active experiments. Everything that describes the
+past sits under **Insights** - Oura vitals, body measurements, the life-score
+radar - with the year calendar dot-matrix collapsed at the end.
+
+There is deliberately no interpretation sentence here: the page states the next
+action and the numbers, and leaves the verdict to you.
 
 ### Daily Log (`/daily`)
-- Energy level (1-10 slider)
-- Morning/evening routine toggles (three-state: done/skipped/pending)
-- A.N.D.Y. task system — 4 life areas (Body, Spirit, Self, Relations) with toggle + description
+- Energy level (1-10 slider) with `Low / OK / High` anchors
+- `n/7 complete today` stated in the card header (three routines plus four A.N.D.Y. tasks), kept in step as you toggle
+- Morning/evening routine toggles (three-state: done/skipped/pending) - each shows its state as a word and carries `aria-pressed`
+- A.N.D.Y. task system — 4 life areas (Body, Spirit, Self, Relations) with toggle + description; a finished task with a description reads as content, with editing behind `Edit`
 - A.N.D.Y. AI generation — uses configured LLM to suggest daily tasks based on goals, training, and weekly context
 - Saturday body measurements (weight, arm, waist, hips, thighs)
 - Markdown notes with edit/preview toggle
-- Per-habit streak counters and 7-day completion heatmap
+- Per-habit streak counters and the 7-day completion heatmap, together under `Your trends`
 - Swipe left/right to navigate between days (mobile)
 - Arrow keys to navigate between days (desktop)
 
@@ -194,7 +203,9 @@ reads back what was logged:
 - Capture form — date, optional duration, and the note itself
 - This Week KPIs — sessions count, total volume (Core, kg), total reps
 - Personal Bests — max weight per Core exercise (12-week window)
-- Session history with expandable details (including duration column)
+- `Niedokończone` - every session whose parse is still waiting, whatever its date
+- Session history with expandable details (duration and per-set notes), paginated
+  rather than capped, so a backdated session keeps its route back
 
 The page previously carried a protocol table, a per-set log form generated from
 it, and a rest timer. All three assumed a fixed prescription followed at home;
@@ -223,9 +234,25 @@ Write one free-text note from memory after training and let it be parsed:
   two-categories ambiguity left to resolve.
 - **Nothing is written until you confirm.** The confirmation screen is editable:
   fix a misread weight, skip an entry you did not mean to log, or assign an
-  unrecognised movement from a dropdown. Refreshing it never re-invokes the LLM
+  unrecognised movement. The picker groups movements by section, shows their
+  tags, puts what you logged recently first and can be filtered by name or tag;
+  it stays a native `<select>`, so it works with no JavaScript and can only ever
+  submit an exact library name. Refreshing the screen never re-invokes the LLM
   (the parse result is cached in `training_sessions.wod_parsed`), and
   re-submitting a confirmed session cannot double-count it.
+- **A rejected field costs you that field, not the form.** An out-of-range value
+  re-renders the screen with every other value you typed, the message naming the
+  row and the field. Nothing is written and the parse stays armed for the retry.
+- **A partial save says so.** If a movement no longer resolves, the rows that do
+  are written and `/training` names what was skipped. A blank movement stays
+  silent - that is the deliberate skip.
+- **One capture per click** (`training_sessions.capture_token`, migration 024). A
+  double submit, an F5 or a back-then-resubmit claims the same session and pays
+  for one parse. A reused page carrying different text is a new capture, not a
+  replay, so the back button cannot drop a note you just wrote.
+- **A note that lost its parse can still gain entries.** A session left with only
+  its text - a container recreated mid-parse, say - offers `Wpisz serie ręcznie`,
+  which arms an empty parse and gives you the manual rows.
 - **Movements you don't already train** are created with `ad_hoc = 1`: they count
   toward session history, weekly volume and Personal Bests. The flag is what keeps
   the daily-planner context clean of one-off movements.
@@ -251,8 +278,9 @@ Daily and monthly Oura Ring metrics — sleep, readiness, activity, HRV, stress,
 
 - **API Integration**: OAuth2 connection to Oura Cloud for automatic data sync
 - **Webhook Support**: Real-time data push from Oura with HMAC-SHA256 signature verification
-- **Today's Vitals**: Real-time card with sleep score, readiness, HRV, RHR, steps, stress/recovery minutes. Activity and steps fall back to yesterday's values (with label) when today's data isn't yet available from the API
-- **Daily Trends**: 10-day dual-axis chart (HRV/RHR + sleep/readiness scores)
+- **Readiness vs baseline**: the page opens on today's readiness against the mean of the previous 7 days, the signed delta and one word (`above`, `steady`, `below`, at a 3-point tolerance). A rule over stored numbers - no generated advice and no LLM call
+- **Today's Vitals**: grouped into Sleep, Activity and Recovery - sleep score, activity, steps, readiness, HRV, RHR, stress/recovery minutes. Activity and steps fall back to yesterday's values (with label) when today's data isn't yet available from the API
+- **Compare metrics**: the 10-day dual-axis chart (HRV/RHR + sleep/readiness scores), last on the page because it answers a different question from the default trend
 - **Daily History**: Browsable 30-day table
 - **Monthly Trends**: Aggregated averages with Chart.js trend charts
 - **Manual Entry**: Fallback form for entering monthly averages
@@ -261,11 +289,24 @@ Daily and monthly Oura Ring metrics — sleep, readiness, activity, HRV, stress,
 ### Bloodwork (`/bloodwork`)
 Blood test results organized by marker category with reference ranges, flag indicators, and per-marker trend charts.
 
+On a phone each marker is one row - latest value, H/L status and the signed
+change from the result before it - with the full date matrix under `All results`.
+A wide screen gets the matrix directly. One Jinja macro renders both, so the two
+views cannot drift apart.
+
 ### Life Scores (`/life-scores`)
 Periodic self-assessment across 8 life areas with power level composite score and radar chart visualization.
 
 ### Goals (`/goals`)
 Goal mapping across 8 life areas with 1yr/3yr/10yr horizons. Inline editing support.
+
+- **Current focus** - star a goal from any area or any horizon to bring it here.
+  The limit is advisory: above three the page says so and still saves the fourth,
+  because a cap that refuses a write is worse than a crowded list
+- **One horizon at a time** behind a switch, instead of all three at once
+- Areas with nothing in the selected horizon render as one compact line each
+- **One `Add goal` flow** that asks for the area and the horizon, replacing the
+  24 always-open inputs the empty state used to render
 
 ### Experiments (`/experiments`)
 Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
@@ -281,6 +322,12 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 - Per-metric targets for count/yes-no metrics: value per day / week / whole experiment
 - One-tap **Today** quick-log bar; day-grid shows minutes fills plus per-metric markers
 - Full **edit** page (any status — active/completed/abandoned): basics, status, metrics
+- Detail page asks one question: the one-tap `Today` log stays on screen and the
+  full form sits behind `Different date or more detail` (open when a
+  duration-only experiment has no one-tap path). The stats bar is outcome, target
+  and `DAYS LEFT`, with `Week n of m` below it; Complete/Abandon/Delete live
+  behind `Actions`
+- `% elapsed` on the list counts days, not completed weeks
 - AI-generated weekly summaries (kind-aware)
 - Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`; exercise
   dictionary CRUD via `get_exercise_library`, `add_exercise`, `update_exercise`, `delete_exercise`
