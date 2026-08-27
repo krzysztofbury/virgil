@@ -1730,6 +1730,18 @@ input.flatpickr-input:hover {
 }
 .goal-focus-btn.is-active { color: var(--accent); }
 .goal-focus-item { margin-bottom: 0.5rem; }
+/* Daily: the state word beside each toggle, a finished task as content, and
+   anchors on the energy scale. */
+.toggle-state { font-size: 0.7rem; color: var(--text-secondary); margin-left: 0.4rem; }
+.andy-desc-done { margin: 0.25rem 0; color: var(--text-primary); }
+.energy-anchors {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+  margin-bottom: 0.75rem;
+}
+
 .goal-area-empty {
   padding: 0.35rem 0;
   color: var(--text-secondary);
