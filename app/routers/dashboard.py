@@ -14,6 +14,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
+ANDY_KEYS = ("body", "spirit", "account", "relations")
+
 AREAS = LIFE_AREAS
 AREA_LABELS = LIFE_AREA_LABELS
 
@@ -26,6 +28,10 @@ async def dashboard(request: Request):
     # Today's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (today.isoformat(),))
     today_log = dict(row[0]) if row else None
+    # Stated, not counted by eye: four icons with three states each are not a
+    # progress report, and the audit found nothing on the page saying what is
+    # left today.
+    andy_done = sum(1 for key in ANDY_KEYS if today_log and today_log[f"andy_{key}_status"] == "done")
 
     # Week overview (Mon-Sun of current week)
     monday = today - timedelta(days=today.weekday())
@@ -242,6 +248,8 @@ async def dashboard(request: Request):
             "briefing_enabled": briefing_enabled,
             "briefing_text": briefing_text,
             "today_log": today_log,
+            "andy_done": andy_done,
+            "andy_total": len(ANDY_KEYS),
             "week_logs": week_logs,
             "day_names": day_names,
             "week_dates": [d.isoformat() for d in week_dates],

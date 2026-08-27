@@ -1070,7 +1070,10 @@ def test_discard_works_when_the_parse_holds_an_out_of_range_value(auth_client, m
         },
         follow_redirects=False,
     )
-    assert "err=" in blocked.headers["location"], "control: an out-of-range reps value must be refused on save"
+    # A refusal now re-renders the submitted rows (200) rather than redirecting.
+    # The control still holds: saving is refused and the reason is on screen.
+    assert blocked.status_code == 200, "control: an out-of-range reps value must be refused on save"
+    assert "poza zakresem" in blocked.text
 
     resp = auth_client.post(
         "/training/wod/confirm",

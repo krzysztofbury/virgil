@@ -28,6 +28,38 @@ METRICS = [
 ]
 
 
+BASELINE_DAYS = 7
+# Oura's own scores move a few points day to day without meaning anything. Below
+# this the honest word is "steady", which is why a threshold exists rather than a
+# strict comparison.
+BASELINE_TOLERANCE = 3
+
+
+def readiness_baseline(rows: list[dict], today_score: int | None) -> dict:
+    """Today's readiness against the mean of the previous BASELINE_DAYS days.
+
+    A rule, not an interpretation: the page states the two numbers, their
+    difference and one word. Nothing here generates advice and nothing calls an
+    LLM - a page that states a verdict was explicitly not wanted.
+
+    `rows` must exclude today and be newest first. A day with no readiness score
+    is skipped, so a gap shortens the window instead of padding it with zero.
+    """
+    scores = [r["readiness_score"] for r in rows if r.get("readiness_score") is not None][:BASELINE_DAYS]
+    if not scores or today_score is None:
+        return {"today": today_score, "baseline": None, "delta": None, "status": "", "days": len(scores)}
+
+    baseline = round(sum(scores) / len(scores))
+    delta = today_score - baseline
+    if delta >= BASELINE_TOLERANCE:
+        status = "above"
+    elif delta <= -BASELINE_TOLERANCE:
+        status = "below"
+    else:
+        status = "steady"
+    return {"today": today_score, "baseline": baseline, "delta": delta, "status": status, "days": len(scores)}
+
+
 @router.get("/oura", response_class=HTMLResponse)
 @router.get("/oura/{metric}", response_class=HTMLResponse)
 async def oura_page(request: Request, metric: str = "sleep_score"):
@@ -65,6 +97,13 @@ async def oura_page(request: Request, metric: str = "sleep_score"):
     daily_rows = await db.execute_fetchall("SELECT * FROM oura_daily ORDER BY date DESC LIMIT 30")
     daily_data = [dict(r) for r in daily_rows]
 
+    # daily_data is newest first and includes today; the baseline compares against
+    # the days BEFORE today, so today's row is dropped.
+    baseline = readiness_baseline(
+        [r for r in daily_data if r["date"] != today_str],
+        oura_today.get("readiness_score") if oura_today else None,
+    )
+
     # Daily trends (last 10 days)
     ten_days_ago = (date.today() - timedelta(days=10)).isoformat()
     trend_rows = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date >= ? ORDER BY date", (ten_days_ago,))
@@ -88,6 +127,7 @@ async def oura_page(request: Request, metric: str = "sleep_score"):
             "data": data,
             "oura_connected": oura_connected,
             "oura_today": oura_today,
+            "baseline": baseline,
             "yesterday_fallback": yesterday_fallback,
             "daily_data": daily_data,
             "trend_labels": trend_labels,

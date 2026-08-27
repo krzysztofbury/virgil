@@ -30,7 +30,7 @@ app/
 
   migrations/           - Numbered database schema migrations
     runner.py           - Migration discovery + execution engine
-    001_*.py ... 013_*.py
+    001_*.py ... 025_*.py
 
   models/               - Data models (query helpers, not ORMs)
     daily.py, bloodwork.py, experiments.py, feniks.py,
@@ -53,9 +53,10 @@ app/
     experiment_summary.py - AI weekly summaries
     streak.py           - Feniks streak calculation
 
-  templates/            - Jinja2 HTML templates (19 files)
+  templates/            - Jinja2 HTML templates (24 files)
     base.html           - Layout, nav, theme toggle, SW registration
-    partials/           - HTMX partial response templates
+    partials/           - HTMX partial responses and shared macros
+                          (wod_row.html holds the WOD confirm row and its picker)
 
   static/               - Frontend assets
     css/app.css         - Design system, dark/light theme via CSS vars
@@ -72,7 +73,9 @@ app/
 3. **Numbered migrations instead of `CREATE TABLE IF NOT EXISTS`.** Each migration is a Python file with an `async def up(db)` function. Applied sequentially on startup, tracked in `schema_migrations`.
 4. **Fernet encryption for secrets at rest.** OAuth tokens, LLM API keys, and webhook secrets are encrypted in the database. Key is auto-generated or provided via env var.
 5. **Multi-user model.** Central `virgil-central.db` user registry; one isolated SQLite database per user (`data/users/{uuid}.db`), opened per request by the auth middleware.
-6. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
+6. **Training data model.** The WOD confirm screen (`POST /training/wod/confirm`) is the only writer of `training_entries`. `training_entries.duration` is SECONDS (migration 020) and renders through `app.formatting.format_duration_seconds`. `training_entries.notes` holds the metcon result for that movement: a finishing time, or rounds plus reps. A `training_sessions` row with a non-NULL `wod_parsed` has a parse waiting for review, and `/training` lists every one of them. `training_sessions.capture_token` (migration 024) makes one rendered capture form write one session. `exercise_library.sets` / `reps` are parser fallbacks, not a prescription; `training_exercises.ad_hoc` is provenance with no reader.
+7. **Page shape.** Five pages converged on one shape in v0.6.0, and a sixth should not invent another. The first block is what to do now: the current state stated in words or numbers, plus one primary action. Reference and analytics follow, under an `Insights` or `Your trends` heading. History is last. A secondary form and every destructive action live behind a `<details>`; an input inside a closed `<details>` still submits, so nothing is lost by collapsing one. A `<details>` never contains a Chart.js canvas: a canvas with no layout renders at zero size and stays wrong after opening, so charts get reordered instead. A mobile-only view pairs `.on-mobile` with `.on-desktop` and never duplicates markup - one Jinja macro renders both. Layout lives in `app/static/css/app.css`; a page-level inline `grid-template-columns: repeat(<n>, ...)` outranks every media query and `tests/test_mobile_layout.py` refuses it.
+8. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
 
 ## Middleware Stack (Processing Order)
 

@@ -1,6 +1,46 @@
 {% extends "base.html" %}
 {% block title %}Virgil - Blood Work{% endblock %}
 
+{# The full date matrix, defined once and called twice: a phone gets it inside a
+   disclosure, a wide screen gets it directly. Two copies of this table would
+   drift apart the first time a column changed. #}
+{% macro results_matrix(markers, test_dates, results, current_category) %}
+<table>
+    <thead>
+        <tr>
+            <th>Marker</th>
+            <th>Unit</th>
+            <th>Ref.</th>
+            {% for d in test_dates %}
+            <th>{{ d }}</th>
+            {% endfor %}
+            <th>Chart</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for m in markers %}
+        <tr>
+            <td><strong>{{ m.name }}</strong></td>
+            <td><small>{{ m.unit }}</small></td>
+            <td><small>{{ m.ref_low or '' }}-{{ m.ref_high or '' }}</small></td>
+            {% for d in test_dates %}
+            {% set r = results.get(m.id, {}).get(d) %}
+            <td class="{{ 'flag-h' if r and r.flag == 'H' else 'flag-l' if r and r.flag == 'L' else 'flag-normal' if r else '' }}">
+                {% if r %}
+                    {{ r.value_text if r.value_text else r.value }}
+                    {% if r.flag %}<sup>{{ r.flag }}</sup>{% endif %}
+                {% else %}-{% endif %}
+            </td>
+            {% endfor %}
+            <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);">
+                <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
+            </a></td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
     <h1>Blood Work</h1>
@@ -24,45 +64,40 @@
 </div>
 {% endif %}
 
-<!-- Results Table -->
+<!-- Results: a phone gets the latest value per marker, a wide screen gets the
+     full date matrix. The matrix stays reachable on a phone under "All
+     results" - it is the only view that shows history at a glance. -->
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header"><h3>Results</h3></div>
-    <div class="overflow-x">
-        <table>
-            <thead>
-                <tr>
-                    <th>Marker</th>
-                    <th>Unit</th>
-                    <th>Ref.</th>
-                    {% for d in test_dates %}
-                    <th>{{ d }}</th>
-                    {% endfor %}
-                    <th>Chart</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for m in markers %}
-                <tr>
-                    <td><strong>{{ m.name }}</strong></td>
-                    <td><small>{{ m.unit }}</small></td>
-                    <td><small>{{ m.ref_low or '' }}-{{ m.ref_high or '' }}</small></td>
-                    {% for d in test_dates %}
-                    {% set r = results.get(m.id, {}).get(d) %}
-                    <td class="{{ 'flag-h' if r and r.flag == 'H' else 'flag-l' if r and r.flag == 'L' else 'flag-normal' if r else '' }}">
-                        {% if r %}
-                            {{ r.value_text if r.value_text else r.value }}
-                            {% if r.flag %}<sup>{{ r.flag }}</sup>{% endif %}
-                        {% else %}-{% endif %}
-                    </td>
-                    {% endfor %}
-                    <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);">
-                        <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
-                    </a></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+
+    <ul class="bw-list on-mobile">
+        {% for m in markers %}
+        <li class="bw-row">
+            <div class="bw-marker">
+                <strong>{{ m.name }}</strong>
+                <small class="text-muted">{{ m.unit }}{% if m.ref_low is not none or m.ref_high is not none %} · ref {{ m.ref_low or '' }}-{{ m.ref_high or '' }}{% endif %}</small>
+            </div>
+            <div class="bw-value">
+                {% if m.summary.value %}
+                <span class="{{ 'flag-h' if m.summary.flag == 'H' else 'flag-l' if m.summary.flag == 'L' else 'flag-normal' }}">{{ m.summary.value }}{% if m.summary.flag %}<sup>{{ m.summary.flag }}</sup>{% endif %}</span>
+                <small class="text-muted">{{ m.summary.date }}{% if m.summary.change %} · {{ m.summary.change }}{% endif %}</small>
+                {% else %}
+                <span class="text-muted">-</span>
+                {% endif %}
+            </div>
+            <a class="bw-chart" href="/bloodwork/{{ current_category }}?marker={{ m.id }}" aria-label="Chart for {{ m.name }}">
+                <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
+            </a>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <details class="on-mobile" style="margin-top:0.75rem;">
+        <summary>All results</summary>
+        <div class="overflow-x">{{ results_matrix(markers, test_dates, results, current_category) }}</div>
+    </details>
+
+    <div class="on-desktop overflow-x">{{ results_matrix(markers, test_dates, results, current_category) }}</div>
 </div>
 
 <!-- Add Result -->

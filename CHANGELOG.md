@@ -7,7 +7,80 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-08-27
+
 ### Added
+- **Daily states read as words.** Each toggle carries `Done`, `Skipped` or
+  `Pending` beside it and an `aria-pressed` state, the card states
+  `n/7 complete today` (three routines plus four A.N.D.Y. tasks) and keeps that
+  count in step as toggles change, the energy slider has `Low / OK / High`
+  anchors, and a finished A.N.D.Y. task reads as content with an `Edit`
+  disclosure instead of a permanent text input. Habit Streaks and the Completion
+  Heatmap moved into one `Your trends` disclosure.
+- **Oura leads with the baseline.** Today's readiness against the mean of the
+  previous 7 days, with the delta and one word (`above`, `steady`, `below`, at a
+  tolerance of 3 points). By decision this is a rule over stored numbers: no
+  generated sentence and no LLM call. Today's Vitals group into Sleep, Activity
+  and Recovery, and the four-series comparison chart moved last under
+  `Compare metrics` - reordered rather than collapsed, because a Chart.js canvas
+  inside a closed `<details>` renders at zero size.
+- **The exercise library can be searched.** A search box matches on movement name
+  and tags and opens the section holding a hit; a section filter narrows to one
+  group; `Add exercise` moved into its own disclosure. Every row stays
+  server-rendered and visible, so the filter is an enhancement rather than the
+  only way to see the list.
+- **The dashboard leads with today.** The first block is the check-in CTA and the
+  A.N.D.Y. list with an explicit `n/4 done` count; Oura, measurements and Life
+  Scores moved under an `Insights` heading, and the year calendar collapsed. The
+  page used to open on the week strip, which says where you have been and nothing
+  about what to do now. By decision there is no interpretation sentence: the hero
+  is the next action, not a readiness verdict.
+- **Goals has a current-focus set** (migration 025, `goals.active`). Starring a
+  goal brings it into `Current focus`, whatever its area or horizon. The limit is
+  advisory: above three the page says so and still saves the fourth, so no goal
+  can be lost to a cap. The page now shows one horizon at a time behind a switch,
+  areas with nothing in that horizon render as one compact line each, and a
+  single `Add goal` flow asks for area and horizon. The empty state used to be 24
+  identical inputs and about 3356 px on a phone.
+- **The experiment detail page asks one question.** The one-tap today log stays on
+  screen; the generic form moved behind `Different date or more detail`, and it
+  renders open when a duration-only experiment has no one-tap path. The stats bar
+  is outcome, target and `DAYS LEFT`, with `Week n of m` in words below and the
+  remaining metrics under `All metrics`. Complete, Abandon and Delete moved behind
+  an `Actions` disclosure.
+- **Blood Work reads on a phone.** A `.bw-list` shows each marker's latest value,
+  its H/L status and the signed change from the result before it, plus the chart
+  link. The full date matrix stays: directly on a wide screen, and under
+  `All results` on a phone, where three metadata columns used to fill the
+  viewport and push every value off-screen. One Jinja macro renders the matrix
+  for both, and two utilities (`.on-mobile`, `.on-desktop`) switch the views
+  with CSS alone. The change is reported only when both results are numeric: a
+  text result such as "negative" has no direction.
+- **A stranded session can still gain entries.** `POST /training/session/{id}/manual`
+  arms an empty parse, so a note left with no entries and no pending parse (a
+  container recreated between `capture_wod`'s two commits) gets the same manual
+  rows a failed parse does. `/training` offers the button on exactly those rows.
+- **Every unfinished capture is listed.** A `Niedokończone` card on `/training`
+  shows every session with a pending parse whatever its date, and the history
+  below it is paginated (`?page=`) instead of capped at the newest 20. A
+  backdated capture used to fall off that list together with the one link that
+  leads back to its confirm screen.
+- **One capture per click** (migration 024). The capture form carries a
+  `capture_token` and a partial unique index enforces one session per token, so
+  a double submit or an F5 costs one session and one paid parse. A reused page
+  submitting DIFFERENT text is treated as a new capture, not a replay, so the
+  back button cannot silently drop the note the user just wrote.
+- **The movement picker can be searched.** Options group by `<optgroup>` per
+  section, carry their tags, and mark recently logged movements, which Alpine
+  promotes into an `Ostatnio używane` group. A per-row search box filters on
+  name or tag. The submitted control stays a native `<select>`, so the screen
+  works without the CDN and can only ever submit an exact library name.
+- **The planner scores the swim target.** `schedule_block` labels each logged
+  session `swim` or `training`, derived from the `swim` tag on its movements,
+  and states `Swims this week: n of m`. The target was unscorable before.
+- **Per-set notes have readers.** The metcon result now reaches the `/training`
+  history table, `GET /api/training/detail`, the MCP `get_training_detail`
+  docstring and the markdown export.
 - **No Porn rebuilt as a single flow** (migrations 022 + 023). The page asks one
   question — *Clean day* or *I watched* — and watching reveals minutes, an
   edging toggle and an optional one-line note (`feniks_daily`, upsert per date).
@@ -27,6 +100,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   behind `VIRGIL_API_SENSITIVE`); the MCP `get_noporn` docstring documents both.
 
 ### Fixed
+- **Training capture copy describes the action.** `Zapisz i sparsuj` became
+  `Zapisz trening`, duration is marked optional, and a line states that the note
+  is saved before parsing - the property that makes a failed parse harmless.
+- **`% elapsed` measures elapsed time.** The experiments list divided completed
+  WEEKS by total weeks, so the whole of week 1 read `0% elapsed` next to a
+  `Week 1/4` label saying the opposite. It counts days now.
+- **Training weekly KPIs and PBs fit a phone.** `training.html` pinned three
+  columns in an inline style, which outranks the stylesheet's own two-column
+  mobile rule, so the values were cut by the card's `overflow: hidden`. The
+  stylesheet owns the column count again, `.stat-card` may shrink below its
+  content (`min-width: 0`), and padding and the mono value scale down below
+  768 px. A test refuses a fixed inline column count in any template.
+- **Card headers stack below 768 px.** A title and a long helper sentence shared
+  one flex row, which squeezed the title into a one-word-per-line column in
+  Settings App Config.
+- **A rejected field no longer discards the rest of the form.** `confirm_wod`
+  answered `_ConfirmRejected` with a redirect to a clean GET, which rebuilt the
+  form from the stored parse and threw away every other edit, rows the user had
+  added included. It re-renders the submitted rows instead, with the message
+  inline. That path answers a POST with 200: it writes nothing and leaves
+  `wod_parsed` armed, so a refresh earns the same refusal.
+- **A partial resolve says what it skipped.** Writing 1 of 2 rows redirected
+  with a success page and no message. `/training?msg=` now names the movements
+  that no longer resolve. A blank movement stays silent - that is the deliberate
+  skip.
+- **A big WOD can be saved.** The parser bounds its own output at
+  `MAX_PARSED_ENTRIES` (200, pinned to the confirm limit by a test) and the
+  confirm screen states how many rows it dropped. A note parsing to 250 entries
+  could previously only be discarded.
+- **The markdown export carries `duration` and per-set `notes`.** It dropped the
+  one column that had just gained a canonical unit (seconds, migration 020).
+- **An unset training schedule reads as unset.** `DEFAULT_DAYS` and
+  `DEFAULT_SWIM` are empty, so a new user's planner is told "No fixed training
+  days set." instead of a Mon/Wed/Fri week nobody chose.
+- **A backslash in an error toast no longer truncates the message.** The `?err=`
+  value went into a JavaScript string literal; both toasts use `|tojson`.
 - **JSON export honours its "every user-owned table" invariant again** -
   `exercise_library_tags` (missing since migration 019) plus the new
   `feniks_daily` and `feniks_bricks` are exported.
@@ -48,6 +157,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   folding, so `siłowy` becomes the tag `silowy` instead of vanishing to `siowy`.
 
 ### Changed
+- **The WOD confirm screen renders one row contract.** Parsed entries, unmatched
+  names and blank seed rows come from one numbered list built in the router
+  (`_confirm_rows`), and `app/templates/partials/wod_row.html` owns the row and
+  the picker. Four copies of that markup used to exist, each with its own index
+  arithmetic and its own flat option list.
+- **The schedule block is sport-neutral.** `Training days:` rather than
+  `CrossFit days:`, so the copy survives a change of sport.
 - **The A.N.D.Y. planner is given a weekly schedule instead of an exercise
   prescription.** The prompt used to list every non-archived, non-ad_hoc row of
   `training_exercises` as `- <name>: <sets>x<reps>`. Those rows outlive the

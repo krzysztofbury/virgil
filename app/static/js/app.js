@@ -84,6 +84,20 @@ function cycleStatus(btn) {
     var next = states[(states.indexOf(current) + 1) % 3];
     input.value = next;
     btn.innerHTML = icons[next];
+    btn.setAttribute('aria-pressed', next === 'done' ? 'true' : 'false');
+    var stateLabel = btn.parentElement.querySelector('.toggle-state');
+    if (stateLabel) stateLabel.textContent = {pending: 'Pending', done: 'Done', skipped: 'Skipped'}[next];
+    // Keep the stated count in step with the toggles, or it reads as stale until
+    // the page is saved. Read el.value (the live property), never the value
+    // ATTRIBUTE, which still holds whatever the server rendered.
+    var counter = document.getElementById('done-count');
+    if (counter) {
+        var done = 0;
+        document.querySelectorAll('.toggle-group input[type="hidden"]').forEach(function (el) {
+            if (el.value === 'done') done += 1;
+        });
+        counter.textContent = done + counter.textContent.slice(counter.textContent.indexOf('/'));
+    }
     btn.className = 'toggle-btn ' + classes[next];
     if (typeof lucide !== 'undefined') {
         lucide.createIcons({ nodes: [btn] });

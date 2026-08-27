@@ -31,6 +31,12 @@ MAX_WOD_CHARS = 4000
 # before that happens.
 MAX_LIBRARY_MOVEMENTS = 500
 
+# The confirm screen refuses a submission above this row count, and that refusal
+# costs the user the whole form (app.routers.training.MAX_CONFIRM_ENTRIES, which
+# a test pins to this value). So the parser truncates here instead: 200 rows the
+# user can save beat 250 rows the user can only discard.
+MAX_PARSED_ENTRIES = 200
+
 _SYSTEM_PROMPT = """You extract structured training data from a short, messy \
 note a CrossFit athlete wrote from memory after a session. The note may be in \
 Polish or English and may mix both.
@@ -70,6 +76,9 @@ class ParsedEntry:
 class ParsedWod:
     entries: list[ParsedEntry] = field(default_factory=list)
     unmatched: list[str] = field(default_factory=list)
+    # Rows cut to stay inside MAX_PARSED_ENTRIES. The confirm screen states the
+    # number: a silent truncation reads as "this is everything you did".
+    dropped: int = 0
 
 
 async def canonical_movements(db) -> list[dict]:
@@ -233,4 +242,22 @@ async def parse_wod(db, text: str) -> ParsedWod:
             continue
         entries.append(entry)
 
-    return ParsedWod(entries=entries, unmatched=unmatched)
+    # Both lists occupy confirm rows, so both are bounded. unmatched is cut
+    # first: an unmatched name carries no numbers, so it is the cheaper row to
+    # lose. Bounding entries alone left the total unbounded, which is the same
+    # unsavable form with a different cause.
+    dropped = 0
+    if len(unmatched) > MAX_PARSED_ENTRIES:
+        dropped += len(unmatched) - MAX_PARSED_ENTRIES
+        unmatched = unmatched[:MAX_PARSED_ENTRIES]
+    room = MAX_PARSED_ENTRIES - len(unmatched)
+    if len(entries) > room:
+        dropped += len(entries) - room
+        entries = entries[:room]
+    if dropped:
+        logger.warning("WOD parser truncated %s rows past the confirm limit of %s", dropped, MAX_PARSED_ENTRIES)
+
+    assert len(entries) + len(unmatched) <= MAX_PARSED_ENTRIES, (
+        f"parser returned {len(entries) + len(unmatched)} confirm rows, above {MAX_PARSED_ENTRIES}"
+    )
+    return ParsedWod(entries=entries, unmatched=unmatched, dropped=dropped)

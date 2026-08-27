@@ -8,6 +8,56 @@ from app.validation import OptionalFormFloat, truncate, valid_date
 router = APIRouter()
 
 
+def _as_display(row) -> str:
+    """A result as the page prints it: the text form wins over the number."""
+    if row.get("value_text"):
+        return str(row["value_text"])
+    value = row.get("value")
+    if value is None:
+        return ""
+    # Trim a trailing .0 so 5.0 reads as 5, the way the matrix already does.
+    return f"{value:g}"
+
+
+def marker_summary(marker_results: dict) -> dict:
+    """Latest value, its flag, and the change from the result before it.
+
+    The mobile list answers one question - "where is this marker now, and which
+    way did it move" - which the full date matrix can only answer by scrolling
+    sideways past three columns of metadata.
+
+    `change` stays empty unless both results are numeric. blood_results.value is
+    REAL NOT NULL, so a text result ("negative", "traces") still stores a number;
+    value_text is what says the number is not the result, and subtracting those
+    numbers would report a direction the user never recorded.
+    """
+    empty = {"date": "", "value": "", "flag": "", "previous": "", "change": ""}
+    if not marker_results:
+        return empty
+
+    dates = sorted(marker_results)
+    latest = marker_results[dates[-1]]
+    previous = marker_results[dates[-2]] if len(dates) > 1 else None
+
+    summary = {
+        "date": dates[-1],
+        "value": _as_display(latest),
+        "flag": latest.get("flag") or "",
+        "previous": _as_display(previous) if previous else "",
+        "change": "",
+    }
+    numeric = (
+        previous is not None
+        and not latest.get("value_text")
+        and not previous.get("value_text")
+        and latest.get("value") is not None
+        and previous.get("value") is not None
+    )
+    if numeric:
+        summary["change"] = f"{float(latest['value']) - float(previous['value']):+.1f}"
+    return summary
+
+
 @router.get("/bloodwork", response_class=HTMLResponse)
 @router.get("/bloodwork/{category}", response_class=HTMLResponse)
 async def bloodwork_page(request: Request, category: str = "all"):
@@ -41,6 +91,9 @@ async def bloodwork_page(request: Request, category: str = "all"):
         )
         for r in all_results:
             results[r["marker_id"]][r["date"]] = dict(r)
+
+    for m in markers:
+        m["summary"] = marker_summary(results.get(m["id"], {}))
 
     # Selected marker for chart (first one or from query param)
     chart_marker_id = request.query_params.get("marker")

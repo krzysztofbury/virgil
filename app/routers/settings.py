@@ -238,6 +238,10 @@ async def library_update(
         fields["section"] = section
     if sets is not None:
         try:
+            # sets / reps stopped being a prescription when the protocol form was
+            # deleted (2026-08-01). They survive as the WOD parser's fallback
+            # values and as columns in this listing. Nothing reads them as
+            # "do 4 sets of 10" any more, so do not reintroduce that meaning.
             fields["sets"] = int(sets) if sets.strip() else None
         except ValueError:
             fields["sets"] = None

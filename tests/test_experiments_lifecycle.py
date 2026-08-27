@@ -70,3 +70,33 @@ def test_inverted_targets_normalized_and_reopen_allowed(auth_client):
         conn.commit()
     finally:
         conn.close()
+
+
+def test_elapsed_percent_is_day_based(auth_client):
+    """0% elapsed in week 1 of 4 is derivable but reads as a contradiction.
+
+    progress_pct was completed WEEKS over total weeks, so the whole of week 1
+    rendered "0% elapsed" beside a "Week 1/4" label.
+    """
+    import sqlite3
+    from datetime import date, timedelta
+
+    from conftest import user_db_path
+
+    start = (date.today() - timedelta(days=3)).isoformat()
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute(
+            "INSERT INTO experiments (title, description, start_date, num_weeks, status) "
+            "VALUES ('ZZ Elapsed Probe', '', ?, 4, 'active')",
+            (start,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    html = auth_client.get("/experiments").text
+    block = html[html.index("ZZ Elapsed Probe") :]
+    percent = block[: block.index("% elapsed")].split(">")[-1].strip()
+    assert percent != "0", "four days into a 28-day experiment is not 0% elapsed"
+    assert int(percent) == round(4 / 28 * 100)

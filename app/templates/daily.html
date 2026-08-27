@@ -20,7 +20,11 @@
 
     <!-- Routines & Energy -->
     <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Routines & Energy</h3></div>
+        <div class="card-header">
+            <h3>Routines &amp; Energy</h3>
+            {# Stated, not counted off the icons. #}
+            <small class="text-muted"><span id="done-count">{{ done_count }}/{{ done_total }}</span> complete today</small>
+        </div>
 
         {% set energy_val = log.energy if log and log.energy else 5 %}
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
@@ -30,19 +34,26 @@
                    oninput="this.style.setProperty('--pct', ((this.value - 1) / 9 * 100) + '%'); document.getElementById('energy-val').textContent = this.value;">
             <span class="text-muted">/10</span>
         </div>
+        {# A bare 1-10 scale says nothing about what 4 means. #}
+        <div class="energy-anchors"><span>Low</span><span>OK</span><span>High</span></div>
 
         {% macro toggle(name, label, value) %}
         <div class="andy-item">
             <span class="andy-label">{{ label }}</span>
             <div class="toggle-group">
                 <input type="hidden" name="{{ name }}" value="{{ value or 'pending' }}">
+                {# The word, not just a colour and a shape: a yellow minus does
+                   not say "skipped". aria-pressed carries the same fact to a
+                   screen reader. #}
                 <button type="button"
                     class="toggle-btn {{ 'active-done' if value == 'done' else 'active-skipped' if value == 'skipped' else 'active-pending' }}"
+                    aria-pressed="{{ 'true' if value == 'done' else 'false' }}"
                     onclick="cycleStatus(this)">
                     {% if value == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                     {% elif value == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                     {% endif %}
                 </button>
+                <span class="toggle-state">{{ 'Done' if value == 'done' else 'Skipped' if value == 'skipped' else 'Pending' }}</span>
             </div>
         </div>
         {% endmacro %}
@@ -82,15 +93,26 @@
                     <input type="hidden" name="{{ name }}_status" value="{{ status or 'pending' }}">
                     <button type="button"
                         class="toggle-btn {{ 'active-done' if status == 'done' else 'active-skipped' if status == 'skipped' else 'active-pending' }}"
+                        aria-pressed="{{ 'true' if status == 'done' else 'false' }}"
                         onclick="cycleStatus(this)">
                         {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                         {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                         {% endif %}
                     </button>
+                    <span class="toggle-state">{{ 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' }}</span>
                 </div>
             </div>
+            {% if status == 'done' and desc %}
+            {# Done work is a record, not a field to look past. The input stays in
+               the form inside the closed disclosure, so it still submits. #}
+            <p class="andy-desc-done">{{ desc }}</p>
+            <details><summary>Edit</summary>
+                <input type="text" name="{{ name }}_desc" value="{{ desc }}" class="andy-desc">
+            </details>
+            {% else %}
             <input type="text" name="{{ name }}_desc" value="{{ desc or '' }}" placeholder="Description..."
                    class="andy-desc">
+            {% endif %}
         </div>
         {% endmacro %}
 
@@ -126,9 +148,13 @@
     </div>
 </form>
 
+<!-- Your trends: reference, not today's work. Safe to collapse - streaks and
+     the heatmap are divs, no canvas. -->
+<details class="card" id="daily-trends" style="margin-bottom:1rem;">
+    <summary>Your trends</summary>
 <!-- Habit Streaks -->
 {% if habit_streaks %}
-<div class="card" style="margin-top: 1rem; margin-bottom: 1rem;">
+<div>
     <div class="card-header"><h3>Habit Streaks</h3></div>
     <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
         {% for field, info in habit_streaks.items() %}
@@ -143,7 +169,7 @@
 
 <!-- Habit Completion Heatmap (7 days) -->
 {% if heatmap_data %}
-<div class="card" style="margin-bottom: 1rem;">
+<div>
     <div class="card-header"><h3>Completion Heatmap</h3></div>
     <div class="heatmap-grid heatmap-grid--week">
         {% for d in heatmap_data %}
@@ -155,6 +181,7 @@
     </div>
 </div>
 {% endif %}
+</details>
 
 <!-- Saturday Measurements -->
 {% if is_saturday %}

@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 from app.config import SECOND_BRAIN_PATH
 from app.db import get_setting
+from app.formatting import format_duration_seconds
 
 
 def _status_to_checkbox(status: str) -> str:
@@ -102,11 +103,21 @@ async def _section_training(db, start: str, end: str) -> list[str]:
             lines.append(f"> {s['notes']}")
         entries = entries_by_session.get(s["id"], [])
         if entries:
-            lines.append("| Exercise | Set | Reps | Weight |")
-            lines.append("|----------|-----|------|--------|")
+            lines.append("| Exercise | Set | Reps | Weight | Duration | Notes |")
+            lines.append("|----------|-----|------|--------|----------|-------|")
             for e in entries:
                 w = f"{_fmt_val(e['weight'])} kg" if e["weight"] else "-"
-                lines.append(f"| {e['exercise_name']} | {e['set_number']} | {e['reps'] or '-'} | {w} |")
+                # duration is seconds (migration 020). This table dropped the
+                # column entirely, so the export omitted the one value that had
+                # just gained a canonical unit.
+                dur = format_duration_seconds(e["duration"]) or "-"
+                # notes carries the metcon result the parser prompt designates
+                # (a finishing time, or rounds plus reps). Escape the pipe and
+                # fold newlines so one note cannot break the table.
+                note = (e["notes"] or "-").replace("|", "\\|").replace("\n", " ")
+                lines.append(
+                    f"| {e['exercise_name']} | {e['set_number']} | {e['reps'] or '-'} | {w} | {dur} | {note} |"
+                )
         lines.append("")
     return lines
 

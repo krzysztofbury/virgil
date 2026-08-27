@@ -81,6 +81,10 @@ def test_generate_andy_sends_the_schedule_not_a_prescription(auth_client, monkey
             "VALUES (?, 'Core', 3, '10', 0, 1)",
             ("ZZTestArchivedPromptMovement",),
         )
+        # The schedule has no default any more: an unset one reports "no fixed
+        # training days set", which is the honest thing for a new user and the
+        # wrong fixture for this test. Configure it explicitly.
+        conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES ('training_days', 'mon,wed,fri')")
         conn.commit()
     finally:
         conn.close()
@@ -107,7 +111,7 @@ def test_generate_andy_sends_the_schedule_not_a_prescription(auth_client, monkey
         prompt = captured["user_prompt"]
 
         assert "--- Training plan ---" in prompt, "the schedule block must reach the planner"
-        assert "CrossFit days:" in prompt, "the schedule must name the configured days"
+        assert "Training days:" in prompt, "the schedule must name the configured days"
         # 2026-07-08 is a Wednesday. Without this, passing schedule_block the
         # wrong date — or a date offset by days — changed nothing observable.
         assert "Today is Wednesday" in prompt, "the block must describe the date actually being planned"

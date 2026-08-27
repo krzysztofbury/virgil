@@ -1,45 +1,119 @@
 {% extends "base.html" %}
 {% block title %}Virgil - Goals{% endblock %}
 
+{# One goal row, used by the focus set and by every area listing. The star is a
+   form, not a link: it changes state. #}
+{% macro goal_row(g, horizon) %}
+<div class="goal-row">
+    <form method="POST" action="/goals/toggle-focus" style="margin:0;flex-shrink:0;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="goal_id" value="{{ g.id }}">
+        <input type="hidden" name="horizon" value="{{ horizon }}">
+        <button type="submit" class="goal-focus-btn{{ ' is-active' if g.active else '' }}"
+                title="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
+                aria-pressed="{{ 'true' if g.active else 'false' }}">&#9733;</button>
+    </form>
+    <input type="text" class="goal-input" value="{{ g.content|strip_md }}"
+           hx-post="/goals/update-inline"
+           hx-trigger="blur changed, keydown[key=='Enter'] changed"
+           hx-vals='{"goal_id": "{{ g.id }}"}'
+           hx-swap="none"
+           hx-indicator="closest .goal-row"
+           name="content">
+    <form method="POST" action="/goals/delete" style="margin: 0; flex-shrink: 0;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="goal_id" value="{{ g.id }}">
+        <input type="hidden" name="horizon" value="{{ horizon }}">
+        <button type="submit" class="goal-delete-btn">&times;</button>
+    </form>
+</div>
+{% endmacro %}
+
 {% block content %}
 <div class="page-header">
     <h1>Life Goals Map</h1>
 </div>
 
-{% for area in areas %}
-<div class="card" style="margin-bottom: 1.5rem;">
+<!-- Current focus: the answer to "what am I working on now", which a grid of 8
+     areas by 3 horizons cannot give. Advisory by decision - the page warns above
+     the limit and blocks nothing, so no goal is ever refused to satisfy a cap. -->
+<div class="card" style="margin-bottom: 1.25rem;">
     <div class="card-header">
-        <h3>{{ area.icon }} {{ area.name }}</h3>
+        <h3>Current focus</h3>
+        <small class="text-muted">Up to {{ focus_limit }} goals, any area or horizon. Star a goal to bring it here.</small>
     </div>
-    {% for h_key, h_label in horizons %}
-    <div style="margin-bottom: 1.25rem;">
-        <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">{{ h_label }}</h4>
-        {% set goals = goals_map.get((area.id, h_key), []) %}
-        {% for g in goals %}
-        <div class="goal-row">
-            <input type="text" class="goal-input" value="{{ g.content|strip_md }}"
-                   hx-post="/goals/update-inline"
-                   hx-trigger="blur changed, keydown[key=='Enter'] changed"
-                   hx-vals='{"goal_id": "{{ g.id }}"}'
-                   hx-swap="none"
-                   hx-indicator="closest .goal-row"
-                   name="content">
-            <form method="POST" action="/goals/delete" style="margin: 0; flex-shrink: 0;">
-                <input type="hidden" name="goal_id" value="{{ g.id }}">
-                <button type="submit" class="goal-delete-btn">&times;</button>
-            </form>
+    {% if focus %}
+        {% if focus_over %}
+        <p class="form-error" role="status">{{ focus | length }} goals starred. Focus works best at
+        {{ focus_limit }} or fewer - nothing is blocked, this is a nudge.</p>
+        {% endif %}
+        {% for g in focus %}
+        <div class="goal-focus-item">
+            <small class="text-muted">{{ g.area_icon }} {{ g.area_name }} &middot; {{ g.horizon }}</small>
+            {{ goal_row(g, horizon) }}
         </div>
         {% endfor %}
+    {% else %}
+    <p class="text-muted">Nothing starred yet. Star a goal below to bring it here.</p>
+    {% endif %}
+</div>
 
-        <!-- Add goal -->
-        <form method="POST" action="/goals/save" class="goal-add-form">
-            <input type="hidden" name="area_id" value="{{ area.id }}">
-            <input type="hidden" name="horizon" value="{{ h_key }}">
-            <input type="text" name="content" placeholder="New goal..." class="goal-input goal-add-input" required>
-            <button type="submit" class="goal-add-btn">+</button>
-        </form>
-    </div>
+<!-- Horizon switch: one at a time. All three at once is what made this page
+     3356 px of identical inputs on a phone. -->
+<div class="tabs">
+    {% for h_key, h_label in horizons %}
+    <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}">{{ h_label }}</a>
+    {% endfor %}
+</div>
+
+<!-- One add flow, which asks for the area and the horizon, instead of one input
+     per area-horizon pair. The empty state used to render 24 of those. -->
+<details style="margin-bottom: 1.25rem;">
+    <summary>Add goal</summary>
+    <form method="POST" action="/goals/save" style="margin-top: 0.5rem;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <div class="grid">
+            <div>
+                <label>Area
+                    <select name="area_id" required>
+                        {% for area in areas %}<option value="{{ area.id }}">{{ area.name }}</option>{% endfor %}
+                    </select>
+                </label>
+            </div>
+            <div>
+                <label>Horizon
+                    <select name="horizon" required>
+                        {% for h_key, h_label in horizons %}
+                        <option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+            </div>
+        </div>
+        <input type="text" name="content" placeholder="New goal..." class="goal-input" required
+               style="margin-top: 0.5rem;">
+        <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Add goal</button>
+    </form>
+</details>
+
+{% for area in areas_with_goals %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>{{ area.icon }} {{ area.name }}</h3></div>
+    {% for g in goals_by_area.get(area.id, []) %}
+    {{ goal_row(g, horizon) }}
     {% endfor %}
 </div>
 {% endfor %}
+
+{% if areas_without_goals %}
+<div class="card">
+    <div class="card-header">
+        <h3>Nothing in this horizon</h3>
+        <small class="text-muted">Use Add goal above to fill one of these.</small>
+    </div>
+    {% for area in areas_without_goals %}
+    <div class="goal-area-empty">{{ area.icon }} {{ area.name }}</div>
+    {% endfor %}
+</div>
+{% endif %}
 {% endblock %}

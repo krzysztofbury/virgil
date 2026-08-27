@@ -6,6 +6,13 @@
     <h1>Training</h1>
 </div>
 
+{# A confirmed submission can write some rows and skip others. Reporting that
+   here is the only place the user sees it: the confirm screen is gone by then. #}
+{% if request.query_params.get('msg') %}
+<p class="text-muted" role="status">{{ request.query_params.get('msg') }}</p>
+<script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ request.query_params.get('msg') | tojson }}); });</script>
+{% endif %}
+
 <!-- 1. Capture — the only way in. Free text goes to the parser, which resolves
      movements against the whole exercise library (managed in Settings →
      Exercise Library) and hands back an editable confirm screen. The raw note is
@@ -14,8 +21,14 @@
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Zapisz trening</h3></div>
     <div class="card-body">
-        <form method="post" action="/training/wod">
+        {# onsubmit disables the button on the next tick, AFTER the submission has
+           started - disabling it inside the click handler cancels the submit in
+           some browsers. This is the fast half of the double-click fix; the
+           capture_token below is the half that holds without JavaScript. #}
+        <form method="post" action="/training/wod"
+              onsubmit="setTimeout(function(){ document.getElementById('wod-submit').disabled = true; }, 0);">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="capture_token" value="{{ capture_token }}">
             <div class="grid" style="margin-bottom: 0.75rem;">
                 <div>
                     <label>Date
@@ -23,14 +36,17 @@
                     </label>
                 </div>
                 <div>
-                    <label>Duration (min)
+                    <label>Czas (min, opcjonalnie)
                         <input type="number" name="duration_minutes" placeholder="minuty" min="1">
                     </label>
                 </div>
             </div>
             <textarea name="wod_text" rows="4" maxlength="4000"
                 placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42&#10;albo po prostu: basen 40 min"></textarea>
-            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz i sparsuj</button>
+            {# The property that makes a parse failure harmless, said out loud. #}
+            <small class="text-muted">Notatka zapisuje się przed parsowaniem, więc nawet nieudane
+            parsowanie nie kasuje tego, co napisałeś.</small>
+            <button id="wod-submit" type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz trening</button>
         </form>
     </div>
 </div>
@@ -38,7 +54,7 @@
 <!-- 2. This Week KPIs -->
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>This Week</h3></div>
-    <div class="stat-grid" style="grid-template-columns: repeat(3, 1fr);">
+    <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-value">{{ kpi_sessions }}</div>
             <div class="stat-label">Sessions</div>
@@ -58,7 +74,7 @@
 {% if personal_bests %}
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Personal Bests <small class="text-muted" style="font-weight:400;">(12 weeks)</small></h3></div>
-    <div class="stat-grid" style="grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));">
+    <div class="stat-grid">
         {% for pb in personal_bests %}
         <div class="stat-card">
             <div class="stat-value">{{ pb.max_weight }} <small style="font-size:0.6em;font-weight:400;">kg</small></div>
@@ -69,7 +85,28 @@
 </div>
 {% endif %}
 
-<!-- 4. Workout History -->
+<!-- 4. Unfinished captures — listed in full, whatever their date -->
+{% if pending_sessions %}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Niedokończone</h3></div>
+    <div class="card-body">
+        <ul style="margin:0;padding-left:1.1rem;">
+        {% for p in pending_sessions %}
+            <li><strong>{{ p.date }}</strong>
+                <a href="/training/wod/confirm/{{ p.id }}">dokończ</a>
+                {% if p.notes %}<span class="text-muted"><small>{{ p.notes[:60] }}</small></span>{% endif %}
+            </li>
+        {% endfor %}
+        </ul>
+        {% if pending_overflow %}
+        <p class="text-muted"><small>Pokazano pierwsze {{ pending_sessions | length }}.
+        Niedokończonych sesji jest więcej - dokończ te, żeby zobaczyć kolejne.</small></p>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+
+<!-- 5. Workout History -->
 <div class="card">
     <div class="card-header"><h3>Workout History</h3></div>
     {% if sessions %}
@@ -87,10 +124,18 @@
         </summary>
         <div style="padding: 0.5rem 0;">
             {% if s.notes %}<p style="margin-bottom:0.5rem;"><small>{{ s.notes }}</small></p>{% endif %}
+            {% if s.stranded %}
+            {# The note is here and nothing else is. Without this the session had
+               no form, no "dokończ" link and no way to ever gain a set. #}
+            <form method="POST" action="/training/session/{{ s.id }}/manual" style="margin-bottom:0.5rem;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline">Wpisz serie ręcznie</button>
+            </form>
+            {% endif %}
             {% if s.entries %}
             <div class="overflow-x">
                 <table>
-                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th></tr></thead>
+                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Notatka</th></tr></thead>
                     <tbody>
                         {% for e in s.entries %}
                         <tr>
@@ -99,6 +144,7 @@
                             <td>{{ e.reps or '-' }}</td>
                             <td>{% if e.weight %}{{ e.weight }} kg{% else %}-{% endif %}</td>
                             <td>{{ e.duration | duration or "-" }}</td>
+                            <td><small>{{ e.notes or '-' }}</small></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -116,6 +162,13 @@
     {% endfor %}
     {% else %}
     <p class="text-muted">No workouts recorded.</p>
+    {% endif %}
+    {% if has_prev or has_next %}
+    <div style="margin-top:0.5rem;">
+        {% if has_prev %}<a href="/training?page={{ page - 1 }}">nowsze</a>{% endif %}
+        {% if has_prev and has_next %} · {% endif %}
+        {% if has_next %}<a href="/training?page={{ page + 1 }}">starsze</a>{% endif %}
+    </div>
     {% endif %}
 </div>
 {% endblock %}

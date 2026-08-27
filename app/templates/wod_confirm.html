@@ -1,52 +1,57 @@
 {% extends "base.html" %}
+{% from "partials/wod_row.html" import server_row, alpine_row %}
 {% block title %}Virgil - WOD{% endblock %}
 {% block content %}
 <div class="card">
-  <div class="card-header"><h3>WOD — {{ session_date }}</h3></div>
+  <div class="card-header"><h3>WOD - {{ session_date }}</h3></div>
   <div class="card-body">
 
-    {% if request.query_params.get('err') %}
-    <script>document.addEventListener('DOMContentLoaded', function(){ showToast("{{ request.query_params.get('err') }}", true); });</script>
+    {# One variable for both paths: the route passes the ?err= value through as
+       `error`, and a refusal renders here without any redirect at all. Inline as
+       well as a toast, because a toast disappears and this message tells the
+       user which row to fix. #}
+    {% if error %}
+    <p class="form-error" role="alert">{{ error }}</p>
+    <script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ error | tojson }}, true); });</script>
     {% endif %}
 
-    {% set total_rows = entries|length + unmatched|length %}
-    {% set seed_row = total_rows == 0 and movements %}
+    {# Sections drive the <optgroup> grouping. Derived from the movement list
+       itself, so no movement can fall outside a group and become unpickable. #}
+    {% set sections = movements | map(attribute='section') | unique | list %}
+    {% set seed_row = parsed_row_count == 0 and movements %}
 
     {% if parse_error %}
       <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
-      Notatka jest zapisana i widoczna w historii treningów na stronie /training —
+      Notatka jest zapisana i widoczna w historii treningów na stronie /training -
       nie usuwaj tej sesji.
-      {% if entries or unmatched or seed_row %}Ruchy i serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
+      {% if rows %}Ruchy i serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
+    {% endif %}
+
+    {% if dropped %}
+      <p class="text-muted">Notatka sparsowała się na więcej niż {{ max_entries }} wierszy.
+      Pokazane są pierwsze {{ max_entries }}; {{ dropped }} pominięto. Zapisz te wpisy,
+      a resztę dopisz kolejną notatką.</p>
     {% endif %}
 
     {% if library_error %}
-      <p class="text-muted">Lista ruchów CrossFit jest chwilowo niedostępna ({{ library_error }}).
+      <p class="text-muted">Lista ruchów jest chwilowo niedostępna ({{ library_error }}).
       Notatka jest zapisana i widoczna w historii treningów na stronie /training.</p>
     {% endif %}
 
-    {% if unmatched %}
-      <p class="text-muted">Nierozpoznane ruchy — wybierz odpowiednik albo pomiń:</p>
-    {% endif %}
-
-    {# The form renders unconditionally. It used to be gated on total_rows > 0,
-       which turned a parse failure into a dead end: POST /training/wod/confirm is
-       the only route that writes training_entries, so with no rows there was no
-       way to record a set at all — an LLM outage silently froze weekly volume and
-       PBs. addSet() clones an existing <tr>, so "no rows" also meant nothing to
-       clone from. One blank seed row below restores manual entry. #}
-    {# The seed row is only useful if there is a vocabulary to pick from. Under
-       library_error `movements` is empty, so the row would render a select whose
-       one option is "— pomiń": a manual-entry path that cannot write anything.
-       Suppressing it keeps the prose below honest. Nothing is lost either way —
-       confirm_wod re-arms wod_parsed when no row *resolves*, so this screen stays
-       reachable once the library is back. #}
-    {% set form_rows = total_rows if total_rows > 0 else (seed_rows if seed_row else 0) %}
+    {# The form renders whenever there is a row to render. It used to be gated on
+       a parsed row count, which turned a parse failure into a dead end: POST
+       /training/wod/confirm is the only route that writes training_entries, so
+       with no rows there was no way to record a set at all - an LLM outage
+       silently froze weekly volume and PBs. The router seeds blank rows instead,
+       and it seeds none when there is no vocabulary to pick from, because a
+       select whose only option is "pomiń" cannot write anything. #}
+    {% set form_rows = rows | length %}
     {% if form_rows > 0 %}
     <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }}, {{ max_entries }})"
           @submit="$refs.entryCount.value = base + extraRows.length">
       <!-- Deliberate redundancy, not an oversight: the :value binding below is
            the first `:value` on an input anywhere in this repo (no other
-           precedent), and its failure mode is silent — a stale entry_count
+           precedent), and its failure mode is silent - a stale entry_count
            makes confirm_wod's `for i in range(entry_count)` quietly drop the
            rows the user just added. This handler re-asserts the count
            explicitly at the moment of submit; a no-op if the binding already
@@ -58,93 +63,22 @@
       <table>
         <thead><tr><th>Ruch</th><th>Seria</th><th>Powt.</th><th>Ciężar (kg)</th><th>Czas (s)</th><th>Notatka</th><th></th></tr></thead>
         <tbody>
-        {% for e in entries %}
-          <tr>
-            <td>
-              <select name="entry_{{ loop.index0 }}_movement">
-                <option value="">— pomiń</option>
-                {% for m in movements %}
-                  <option value="{{ m.name }}" {% if m.name == e.movement %}selected{% endif %}>{{ m.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td><input type="number" name="entry_{{ loop.index0 }}_set_number" value="{{ e.set_number }}" min="1"></td>
-            <td><input type="number" name="entry_{{ loop.index0 }}_reps" value="{{ e.reps if e.reps is not none else '' }}" min="0"></td>
-            <td><input type="number" step="0.5" name="entry_{{ loop.index0 }}_weight" value="{{ e.weight if e.weight is not none else '' }}" min="0"></td>
-            <td><input type="number" step="1" name="entry_{{ loop.index0 }}_duration" value="{{ e.duration if e.duration is not none else '' }}" min="0"></td>
-            <td><input type="text" name="entry_{{ loop.index0 }}_note" value="{{ e.note }}" maxlength="200"></td>
-            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
-          </tr>
+        {# One numbered list for every row type: a parsed entry, an unmatched
+           name, and the blank seed rows a failed parse gets. The router owns the
+           numbering (_confirm_rows), so this template no longer does index
+           arithmetic across three loops, and the picker markup exists once. #}
+        {% for r in rows %}
+          {{ server_row(r, movements, tags, recent, sections) }}
         {% endfor %}
-        {% for name in unmatched %}
-          <tr>
-            <td>
-              <select name="entry_{{ entries|length + loop.index0 }}_movement">
-                <option value="">{{ name }} — pomiń</option>
-                {% for m in movements %}
-                  <option value="{{ m.name }}">{{ m.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td><input type="number" name="entry_{{ entries|length + loop.index0 }}_set_number" value="1" min="1"></td>
-            <td><input type="number" name="entry_{{ entries|length + loop.index0 }}_reps" value="" min="0"></td>
-            <td><input type="number" step="0.5" name="entry_{{ entries|length + loop.index0 }}_weight" value="" min="0"></td>
-            <td><input type="number" step="1" name="entry_{{ entries|length + loop.index0 }}_duration" value="" min="0"></td>
-            <td><input type="text" name="entry_{{ entries|length + loop.index0 }}_note" value="" maxlength="200"></td>
-            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
-          </tr>
-        {% endfor %}
-        {% if seed_row %}
-          {# Seed rows: nothing was parsed, so these are the only way in. Same
-             shape as an unmatched row, starting at index 0 (total_rows is 0 here).
-             Several of them, not one: the buttons that add more are Alpine, which
-             loads deferred from a CDN with no vendored fallback, so these rows are
-             the whole manual-entry path when that script does not arrive. A blank
-             row is skipped on submit exactly like the skip option, so an unused
-             one costs nothing. #}
-          {% for _ in range(seed_rows) %}
-          <tr>
-            <td>
-              <select name="entry_{{ loop.index0 }}_movement">
-                <option value="">— pomiń</option>
-                {% for m in movements %}
-                  <option value="{{ m.name }}">{{ m.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td><input type="number" name="entry_{{ loop.index0 }}_set_number" value="1" min="1"></td>
-            <td><input type="number" name="entry_{{ loop.index0 }}_reps" value="" min="0"></td>
-            <td><input type="number" step="0.5" name="entry_{{ loop.index0 }}_weight" value="" min="0"></td>
-            <td><input type="number" step="1" name="entry_{{ loop.index0 }}_duration" value="" min="0"></td>
-            <td><input type="text" name="entry_{{ loop.index0 }}_note" value="" maxlength="200"></td>
-            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
-          </tr>
-          {% endfor %}
-        {% endif %}
         <template x-for="row in extraRows" :key="row.index">
-          <tr>
-            <td>
-              <select :name="'entry_' + row.index + '_movement'" x-model="row.movement">
-                <option value="">— pomiń</option>
-                {% for m in movements %}
-                  <option value="{{ m.name }}">{{ m.name }}</option>
-                {% endfor %}
-              </select>
-            </td>
-            <td><input type="number" :name="'entry_' + row.index + '_set_number'" x-model="row.setNumber" min="1"></td>
-            <td><input type="number" :name="'entry_' + row.index + '_reps'" value="" min="0"></td>
-            <td><input type="number" step="0.5" :name="'entry_' + row.index + '_weight'" value="" min="0"></td>
-            <td><input type="number" step="1" :name="'entry_' + row.index + '_duration'" value="" min="0"></td>
-            <td><input type="text" :name="'entry_' + row.index + '_note'" value="" maxlength="200"></td>
-            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
-          </tr>
+          {{ alpine_row(movements, tags, recent, sections) }}
         </template>
         </tbody>
       </table>
       </div>
       {# Static value AND the Alpine binding. Alpine loads `defer` from a CDN with
-         no vendored fallback, so `:value` alone meant this field — and therefore
-         every set the user typed — existed only if a third-party script had
+         no vendored fallback, so `:value` alone meant this field - and therefore
+         every set the user typed - existed only if a third-party script had
          loaded. That was survivable while a plain-HTML log form also existed;
          this route is now the only writer of training_entries, so a CDN failure
          meant no way to record a workout at all. The server-rendered count is
@@ -174,7 +108,7 @@
       </div>
     </form>
     {% endif %}
-    {% if total_rows == 0 %}
+    {% if parsed_row_count == 0 %}
       {% if seed_row %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować -
       powyżej jest {{ seed_rows }} pustych wierszy do ręcznego wpisania. „+ dodaj ćwiczenie”
@@ -185,9 +119,9 @@
       niedokończoną.</p>
       {% else %}
       <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
-      jest chwilowo niedostępna — bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
+      jest chwilowo niedostępna - bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
       trzeba odłożyć. Notatka jest zapisana. W historii na
-      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ” — wróć nim tutaj,
+      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ” - wróć nim tutaj,
       gdy lista będzie z powrotem dostępna.</p>
       {% endif %}
     {% endif %}
@@ -222,11 +156,13 @@ function wodConfirmForm(baseCount, maxRows) {
                 setNumber: setNumber
             });
         },
-        // Another set of the movement in the row the button sits in.
+        // Another set of the movement in the row the button sits in. An
+        // Alpine-added row binds its field names with :name, so the selector
+        // has to match both spellings.
         addSet(buttonEl) {
             const tr = buttonEl.closest('tr');
-            const movementSelect = tr.querySelector('select[name$="_movement"]');
-            const setNumberInput = tr.querySelector('input[name$="_set_number"]');
+            const movementSelect = tr.querySelector('select[name$="_movement"], select[x-model="row.movement"]');
+            const setNumberInput = tr.querySelector('input[name$="_set_number"], input[x-model="row.setNumber"]');
             const movement = movementSelect ? movementSelect.value : '';
             const currentSetNumber = parseInt(setNumberInput && setNumberInput.value, 10) || 0;
             this.addRow(movement, currentSetNumber + 1);
@@ -236,6 +172,55 @@ function wodConfirmForm(baseCount, maxRows) {
         // movement and start the new exercise at set 2.
         addExercise() {
             this.addRow('', 1);
+        }
+    };
+}
+
+// One row's picker. Alpine chains nested x-data scopes, so `addSet($el)` inside
+// a row still resolves the form component's own method above. This component
+// deliberately does not define one.
+function movementRow() {
+    return {
+        query: '',
+        ready: false,
+        init() {
+            // Alpine arrived, so the search box is safe to show. Rendering it
+            // unconditionally would give a user whose CDN request failed an
+            // input that filters nothing.
+            this.ready = true;
+            this.promoteRecent();
+        },
+        // Recently logged movements first. Everything else keeps its library
+        // order, so a user who knows where a movement lives still finds it
+        // there.
+        promoteRecent() {
+            const select = this.$refs.select;
+            if (!select) return;
+            const recent = select.querySelectorAll('option[data-recent="1"]');
+            if (!recent.length) return;
+            const group = document.createElement('optgroup');
+            group.label = 'Ostatnio używane';
+            recent.forEach(function (opt) {
+                const clone = opt.cloneNode(true);
+                // Otherwise one select carries two selected options: the
+                // original and this copy of it.
+                clone.selected = false;
+                group.appendChild(clone);
+            });
+            select.insertBefore(group, select.firstElementChild.nextSibling);
+        },
+        // Name or tag, substring match. Older Safari ignores `hidden` on an
+        // <option>; there the grouping and the native type-ahead still work, so
+        // the screen degrades rather than breaks.
+        filter() {
+            const select = this.$refs.select;
+            if (!select) return;
+            const needle = this.query.trim().toLowerCase();
+            select.querySelectorAll('option').forEach(function (opt) {
+                if (!opt.value) return;
+                const haystack = (opt.value + ' ' + (opt.dataset.tags || '')).toLowerCase();
+                opt.hidden = needle !== '' && haystack.indexOf(needle) === -1;
+            });
         }
     };
 }

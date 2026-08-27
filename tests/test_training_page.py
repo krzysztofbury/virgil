@@ -111,3 +111,16 @@ def test_session_delete_still_routes(auth_client):
     token = csrf_token(auth_client, "/training")
     resp = auth_client.post("/training/session/999999999/delete", data={"_csrf_token": token}, follow_redirects=False)
     assert resp.status_code != 404, "the surviving delete route must still be registered"
+
+
+def test_capture_copy_is_user_facing(auth_client):
+    """`Zapisz i sparsuj` names the implementation. The user saves a workout.
+
+    The one fact that makes a parse failure harmless - the note is committed
+    before the LLM runs - was nowhere on the page.
+    """
+    html = auth_client.get("/training").text
+    assert "Zapisz trening" in html
+    assert "Zapisz i sparsuj" not in html
+    assert "opcjonalnie" in html, "duration is optional and must say so"
+    assert "Notatka zapisuje się" in html, "the user must know the note survives a failed parse"

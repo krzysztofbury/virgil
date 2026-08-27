@@ -1,8 +1,10 @@
 import json
 import logging
+import sqlite3
 from dataclasses import asdict
 from datetime import date, timedelta
 from urllib.parse import quote
+from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
@@ -41,6 +43,119 @@ MAX_CONFIRM_ENTRIES = 200
 # Blank rows cost nothing on submit: confirm_wod resolves an empty movement to
 # None and skips the row, the same way it treats the skip option.
 SEED_ROWS_ON_PARSE_FAILURE = 5
+
+# Skipped movement names listed in the message. A bounded list keeps one bad
+# parse from building a redirect URL nothing will accept.
+MAX_SKIPPED_NAMED = 5
+
+# History is paginated rather than capped. A capped list silently hid a
+# backdated session and every route to it, including the "dokończ" link the
+# confirm screen promises is there.
+SESSIONS_PER_PAGE = 20
+
+# Both remaining lists are bounded too: MAX_HISTORY_PAGES bounds the OFFSET a
+# hand-typed page number can ask for, and MAX_PENDING_LISTED bounds the pending
+# card. A pending list longer than that means something upstream is wrong, so the
+# page says so instead of growing without limit.
+MAX_HISTORY_PAGES = 500
+MAX_PENDING_LISTED = 50
+
+
+# The picker puts recently logged movements on top. A flat library listing makes
+# the user scan 70 rows to find the movement they did last week.
+RECENT_MOVEMENT_DAYS = 60
+RECENT_MOVEMENT_LIMIT = 8
+
+
+async def movement_tags(db) -> dict[str, list[str]]:
+    """Library name -> its tags, for the picker only.
+
+    Deliberately not folded into canonical_movements(): that function builds the
+    parser's prompt vocabulary, it runs on every parse, and its test fixture
+    creates exercise_library without the tag table. A picker concern does not
+    belong on that path.
+    """
+    rows = await db.execute_fetchall(
+        "SELECT l.name, t.tag FROM exercise_library l "
+        "JOIN exercise_library_tags t ON t.library_id = l.id "
+        "WHERE l.archived = 0"
+    )
+    tags: dict[str, list[str]] = {}
+    for r in rows:
+        tags.setdefault(r["name"], []).append(r["tag"])
+    for names in tags.values():
+        names.sort()
+    return tags
+
+
+async def recent_movements(db, limit: int = RECENT_MOVEMENT_LIMIT) -> list[str]:
+    """Movement names the user logged most recently, newest first."""
+    assert limit > 0, f"limit must be positive, got {limit}"
+    since = (date.today() - timedelta(days=RECENT_MOVEMENT_DAYS)).isoformat()
+    rows = await db.execute_fetchall(
+        "SELECT tex.name AS name, MAX(ts.date) AS last_date "
+        "FROM training_entries te "
+        "JOIN training_sessions ts ON te.session_id = ts.id "
+        "JOIN training_exercises tex ON te.exercise_id = tex.id "
+        "WHERE ts.date >= ? GROUP BY tex.name ORDER BY last_date DESC LIMIT ?",
+        (since, limit),
+    )
+    return [r["name"] for r in rows]
+
+
+def _as_input(value) -> str:
+    """A stored value as an HTML input value: None becomes blank, never "None"."""
+    return "" if value is None else str(value)
+
+
+def _blank_row(index: int, unmatched_label: str = "") -> dict:
+    return {
+        "index": index,
+        "movement": "",
+        "set_number": "1",
+        "reps": "",
+        "weight": "",
+        "duration": "",
+        "note": "",
+        "unmatched_label": unmatched_label,
+    }
+
+
+def _confirm_rows(parsed: dict, seed_rows: int) -> list[dict]:
+    """The confirm screen's rows, in one list, numbered once.
+
+    The template used to build parsed rows, unmatched rows, seed rows and
+    Alpine rows from four copies of the same markup, each with its own index
+    arithmetic. One list with one index per row removes that duplication, and
+    it gives confirm_wod something to re-render a rejected submission from.
+
+    seed_rows is 0 when there is no vocabulary to pick from: a select whose only
+    option is "pomiń" is a manual-entry path that cannot write anything.
+    """
+    rows: list[dict] = []
+    for entry in parsed.get("entries") or []:
+        if not isinstance(entry, dict):
+            # Same reasoning as the parser's own guard: a non-object carries no
+            # movement name, so there is nothing to render or resolve.
+            logger.warning("confirm rows skipped a non-object entry: %r", entry)
+            continue
+        rows.append(
+            {
+                "index": len(rows),
+                "movement": _as_input(entry.get("movement")),
+                "set_number": _as_input(entry.get("set_number")) or "1",
+                "reps": _as_input(entry.get("reps")),
+                "weight": _as_input(entry.get("weight")),
+                "duration": _as_input(entry.get("duration")),
+                "note": _as_input(entry.get("note")),
+                "unmatched_label": "",
+            }
+        )
+    for name in parsed.get("unmatched") or []:
+        rows.append(_blank_row(len(rows), unmatched_label=str(name)))
+    if not rows:
+        rows = [_blank_row(i) for i in range(seed_rows)]
+    return rows
 
 
 def _parse_int_in_range(raw, minimum: int, maximum: int) -> int | None:
@@ -100,15 +215,34 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
 
 
 @router.get("/training", response_class=HTMLResponse)
-async def training_page(request: Request):
+async def training_page(request: Request, page: int = 1):
     db = get_user_db_from_request(request)
+
+    # Sessions with a pending parse come first, and independently of the history
+    # window: a backdated capture used to fall off the newest-20 list together
+    # with the one link that leads back to its confirm screen.
+    pending_rows = await db.execute_fetchall(
+        "SELECT id, date, notes FROM training_sessions WHERE wod_parsed IS NOT NULL ORDER BY date DESC LIMIT ?",
+        (MAX_PENDING_LISTED + 1,),
+    )
+    pending_sessions = [dict(p) for p in pending_rows]
+    pending_overflow = len(pending_sessions) > MAX_PENDING_LISTED
+    pending_sessions = pending_sessions[:MAX_PENDING_LISTED]
 
     # training_exercises is no longer read here: the page has no protocol list
     # and no per-exercise log form. The table itself stays — training_entries
     # references it, so every logged set (past and future) hangs off it, and the
     # WOD parser keeps creating rows there via resolve_movement().
-    sessions = await db.execute_fetchall("SELECT * FROM training_sessions ORDER BY date DESC LIMIT 20")
+    #
+    # One row past the page size, so "is there a next page" needs no COUNT(*).
+    page = min(max(page, 1), MAX_HISTORY_PAGES)
+    sessions = await db.execute_fetchall(
+        "SELECT * FROM training_sessions ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
+        (SESSIONS_PER_PAGE + 1, (page - 1) * SESSIONS_PER_PAGE),
+    )
     sessions = [dict(s) for s in sessions]
+    has_next = len(sessions) > SESSIONS_PER_PAGE
+    sessions = sessions[:SESSIONS_PER_PAGE]
 
     # Load all entries for visible sessions in one query
     if sessions:
@@ -130,6 +264,12 @@ async def training_page(request: Request):
     else:
         for s in sessions:
             s["entries"] = []
+
+    for s in sessions:
+        # A session holding only the raw note: the parse never landed (a crash
+        # between capture_wod's two commits) or the user discarded it. Offer
+        # manual entry rather than leaving the note as the only record.
+        s["stranded"] = bool(s["notes"]) and not s["entries"] and not s["wod_parsed"]
 
     # --- KPIs: This Week ---
     today = date.today()
@@ -190,8 +330,58 @@ async def training_page(request: Request):
             "kpi_volume": kpi_volume,
             "kpi_reps": kpi_reps,
             "personal_bests": personal_bests,
+            # One token per rendered page. capture_wod uses it to tell a replay
+            # of THIS page's submission from a genuine second capture.
+            "capture_token": uuid4().hex,
+            "pending_sessions": pending_sessions,
+            "pending_overflow": pending_overflow,
+            "page": page,
+            "has_prev": page > 1,
+            "has_next": has_next,
         },
     )
+
+
+async def _resolve_capture_replay(db, capture_token, session_date, wod_text, duration_int):
+    """Decide what a refused capture_token means, and act on it.
+
+    Returns `(replay_id, session_id)`. Exactly one is set: `replay_id` for a
+    true replay, whose parse already exists, and `session_id` for a fresh row
+    that still needs one. `(None, None)` means the claim failed for a reason
+    this function must not guess at.
+
+    The token is minted by GET /training, so ONE rendered page can submit it
+    more than once. A double click carries the same token AND the same note:
+    that is a replay, and the first session is the right destination. The back
+    button is different. It restores the same page from the bfcache with the
+    same token, and the user then types a DIFFERENT note. Treating that as a
+    replay would redirect them to another session's confirm screen and drop the
+    note they just wrote, silently. So the payload decides, not the token: same
+    date and same text means replay, anything else is a new capture that gets
+    its own row with no token to collide with.
+    """
+    owner = await db.execute_fetchall(
+        "SELECT id, date, notes FROM training_sessions WHERE capture_token = ?", (capture_token,)
+    )
+    if not owner:
+        # The unique index refused the row but no session owns the token, so the
+        # cause is something else entirely. Do not write a second session on a
+        # guess.
+        logger.warning("capture claim for token %r failed and matched no session", capture_token)
+        return None, None
+
+    row = owner[0]
+    if row["date"] == session_date and (row["notes"] or "") == wod_text:
+        logger.info("capture replay for token %r -> session %s", capture_token, row["id"])
+        return row["id"], None
+
+    logger.info("capture token %r reused with a new note - writing a fresh session", capture_token)
+    cursor = await db.execute(
+        "INSERT INTO training_sessions (date, duration_minutes, notes, capture_token) VALUES (?, ?, ?, NULL)",
+        (session_date, duration_int, wod_text),
+    )
+    await db.commit()
+    return None, cursor.lastrowid
 
 
 @router.post("/training/wod")
@@ -221,19 +411,34 @@ async def capture_wod(request: Request):
 
     duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
 
-    cursor = await db.execute(
-        "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, ?, ?)",
-        (session_date, duration_int, wod_text),
-    )
-    session_id = cursor.lastrowid
-    await db.commit()
+    # One capture per click. The token is minted by the form GET /training
+    # rendered, so a double submit, an F5 or a bfcache replay all carry the same
+    # value and the unique index refuses the second row. That refusal is a
+    # decision, not an error: see _resolve_capture_replay.
+    capture_token = truncate(form.get("capture_token", "").strip(), 64) or None
+    try:
+        cursor = await db.execute(
+            "INSERT INTO training_sessions (date, duration_minutes, notes, capture_token) VALUES (?, ?, ?, ?)",
+            (session_date, duration_int, wod_text, capture_token),
+        )
+        session_id = cursor.lastrowid
+        await db.commit()
+    except sqlite3.IntegrityError:
+        await db.rollback()
+        replay_id, session_id = await _resolve_capture_replay(db, capture_token, session_date, wod_text, duration_int)
+        if replay_id is not None:
+            # Same token, same note: the first request already stored the parse.
+            return RedirectResponse(f"/training/wod/confirm/{replay_id}", status_code=303)
+        if session_id is None:
+            return RedirectResponse("/training", status_code=303)
 
     entries: list = []
     unmatched: list[str] = []
+    dropped = 0
     parse_error = ""
     try:
         parsed = await parse_wod(db, wod_text)
-        entries, unmatched = parsed.entries, parsed.unmatched
+        entries, unmatched, dropped = parsed.entries, parsed.unmatched, parsed.dropped
     except Exception as exc:
         # Broadened from `except ValueError`: parse_wod's own call chain raises
         # more than ValueError — app/services/llm.py has bare asserts (missing
@@ -257,6 +462,7 @@ async def capture_wod(request: Request):
             "entries": [asdict(e) for e in entries],
             "unmatched": unmatched,
             "parse_error": parse_error,
+            "dropped": dropped,
         }
     )
     await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (wod_parsed, session_id))
@@ -329,21 +535,105 @@ async def wod_confirm_page(request: Request, session_id: int):
         movements = []
         library_error = str(exc)
 
+    return await _render_confirm(
+        request,
+        session_id,
+        session["date"],
+        parsed=parsed,
+        movements=movements,
+        library_error=library_error,
+        error=request.query_params.get("err", ""),
+    )
+
+
+async def _render_confirm(
+    request: Request,
+    session_id: int,
+    session_date: str,
+    *,
+    parsed: dict | None = None,
+    rows: list[dict] | None = None,
+    movements: list[dict] | None = None,
+    library_error: str = "",
+    error: str = "",
+) -> HTMLResponse:
+    """Render the confirm screen. One renderer for the GET and for a refusal.
+
+    Pass `parsed` for the GET and `rows` for a refusal, never both. A refusal
+    renders the SUBMITTED rows: answering it with a redirect to this page's own
+    GET rebuilt the form from the stored parse and threw away every edit the
+    user had made, rows they had added included.
+
+    A refusal therefore answers a POST with 200, which drops Post/Redirect/Get
+    on that path alone. That is safe here: a refusal writes nothing and leaves
+    wod_parsed armed, so a refresh re-posts the same values and earns the same
+    refusal. The success path keeps its 303.
+    """
+    assert (parsed is None) != (rows is None), "pass parsed for the GET or rows for a refusal, never both"
+    db = get_user_db_from_request(request)
+
+    if movements is None:
+        try:
+            movements = await canonical_movements(db)
+            library_error = ""
+        except AssertionError as exc:
+            logger.warning("WOD confirm movements list unavailable for session %s: %s", session_id, exc)
+            movements = []
+            library_error = str(exc)
+
+    parsed = parsed or {}
+    if rows is None:
+        # No vocabulary means no seed rows: a picker whose only option is
+        # "pomiń" is a manual-entry path that cannot write anything.
+        rows = _confirm_rows(parsed, SEED_ROWS_ON_PARSE_FAILURE if movements else 0)
+        parsed_row_count = len(parsed.get("entries") or []) + len(parsed.get("unmatched") or [])
+    else:
+        # A re-render always has rows on screen, so the "nothing parsed" prose
+        # below is not the message this screen needs to carry.
+        parsed_row_count = len(rows)
+
     return templates.TemplateResponse(
         "wod_confirm.html",
         {
             "request": request,
             "session_id": session_id,
-            "session_date": session["date"],
-            "entries": parsed.get("entries", []),
-            "unmatched": parsed.get("unmatched", []),
+            "session_date": session_date,
+            "rows": rows,
+            "parsed_row_count": parsed_row_count,
             "parse_error": parsed.get("parse_error", ""),
+            "dropped": parsed.get("dropped", 0),
             "movements": movements,
+            "tags": await movement_tags(db),
+            "recent": await recent_movements(db),
             "library_error": library_error,
             "seed_rows": SEED_ROWS_ON_PARSE_FAILURE,
             "max_entries": MAX_CONFIRM_ENTRIES,
+            "error": error,
         },
     )
+
+
+def _rows_from_form(form, entry_count: int) -> list[dict]:
+    """The submitted rows, in the shape the template renders.
+
+    Raw strings on purpose: the rejected value must come back on screen exactly
+    as the user typed it, so they can see what the message is about.
+    """
+    rows: list[dict] = []
+    for i in range(entry_count):
+        rows.append(
+            {
+                "index": i,
+                "movement": (form.get(f"entry_{i}_movement") or "").strip(),
+                "set_number": str(form.get(f"entry_{i}_set_number") or "1"),
+                "reps": str(form.get(f"entry_{i}_reps") or ""),
+                "weight": str(form.get(f"entry_{i}_weight") or ""),
+                "duration": str(form.get(f"entry_{i}_duration") or ""),
+                "note": truncate(form.get(f"entry_{i}_note", ""), 200),
+                "unmatched_label": "",
+            }
+        )
+    return rows
 
 
 @router.post("/training/wod/confirm")
@@ -436,7 +726,15 @@ async def confirm_wod(request: Request):
             parsed_rows.append((movement, set_number if set_number is not None else 1, reps, weight, duration, note))
     except _ConfirmRejected as exc:
         logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
-        return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(str(exc))}", status_code=303)
+        date_rows = await db.execute_fetchall("SELECT date FROM training_sessions WHERE id = ?", (session_id,))
+        session_date = date_rows[0]["date"] if date_rows else date.today().isoformat()
+        return await _render_confirm(
+            request,
+            session_id,
+            session_date,
+            rows=_rows_from_form(form, entry_count),
+            error=f"{exc}. Reszta formularza jest zachowana - popraw to jedno pole i zapisz ponownie.",
+        )
 
     # B1: atomically consume the pending parse result. rowcount != 1 means
     # "unknown session" or "already confirmed" (replay) — either way, redirect
@@ -455,11 +753,16 @@ async def confirm_wod(request: Request):
         return RedirectResponse("/training", status_code=303)
 
     rows: list[tuple] = []
+    skipped: list[str] = []
     for movement, set_number, reps, weight, duration, note in parsed_rows:
         exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
-            # Blank movement ("— pomiń", I4) or one that no longer resolves —
-            # not an error, just nothing to write for this row.
+            # A blank movement is the deliberate skip ("- pomiń", I4) and needs
+            # no report. A NAMED movement that does not resolve is a different
+            # thing: the user reviewed that row and it vanished anyway, with no
+            # message, because the guard below only fires when NOTHING resolved.
+            if movement:
+                skipped.append(movement)
             continue
         rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
 
@@ -510,7 +813,51 @@ async def confirm_wod(request: Request):
         rows,
     )
     await db.commit()
+
+    if skipped:
+        names = ", ".join(sorted(set(skipped))[:MAX_SKIPPED_NAMED])
+        message = (
+            f"Zapisano {len(rows)} z {len(rows) + len(skipped)} wierszy. "
+            f"Pominięto ruchy, których nie ma w bibliotece: {names}. "
+            "Dodaj je w Ustawieniach i dopisz kolejną notatką."
+        )
+        logger.warning("WOD confirm skipped unresolved movements for session %s: %s", session_id, names)
+        return RedirectResponse(f"/training?msg={quote(message)}", status_code=303)
     return RedirectResponse("/training", status_code=303)
+
+
+@router.post("/training/session/{session_id}/manual")
+async def arm_manual_entry(request: Request, session_id: int):
+    """Arm an empty parse so a stranded session can gain entries.
+
+    The confirm GET needs a non-NULL wod_parsed to render anything, so an empty
+    one gives the user the same manual seed rows a failed parse already gets.
+
+    Refused for a session that has entries or a pending parse: re-arming either
+    offers a second write against a session that is already settled.
+    """
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall(
+        "SELECT s.wod_parsed AS wod_parsed, COUNT(e.id) AS entries "
+        "FROM training_sessions s LEFT JOIN training_entries e ON e.session_id = s.id "
+        "WHERE s.id = ? GROUP BY s.id",
+        (session_id,),
+    )
+    if not rows or rows[0]["entries"] or rows[0]["wod_parsed"] is not None:
+        logger.warning("manual entry refused for session %s (unknown, has entries, or already armed)", session_id)
+        return RedirectResponse("/training", status_code=303)
+
+    armed = json.dumps({"entries": [], "unmatched": [], "parse_error": "", "dropped": 0, "manual": True})
+    cursor = await db.execute(
+        "UPDATE training_sessions SET wod_parsed = ? WHERE id = ? AND wod_parsed IS NULL",
+        (armed, session_id),
+    )
+    await db.commit()
+    if cursor.rowcount != 1:
+        # Another request armed it between the read and this write.
+        logger.warning("manual entry for session %s lost the arming race", session_id)
+        return RedirectResponse("/training", status_code=303)
+    return RedirectResponse(f"/training/wod/confirm/{session_id}", status_code=303)
 
 
 @router.post("/training/session/{session_id}/delete")
