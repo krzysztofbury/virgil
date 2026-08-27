@@ -19,6 +19,12 @@
       {% if entries or unmatched or seed_row %}Ruchy i serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
     {% endif %}
 
+    {% if dropped %}
+      <p class="text-muted">Notatka sparsowała się na więcej niż {{ max_entries }} wierszy.
+      Pokazane są pierwsze {{ max_entries }}; {{ dropped }} pominięto. Zapisz te wpisy,
+      a resztę dopisz kolejną notatką.</p>
+    {% endif %}
+
     {% if library_error %}
       <p class="text-muted">Lista ruchów CrossFit jest chwilowo niedostępna ({{ library_error }}).
       Notatka jest zapisana i widoczna w historii treningów na stronie /training.</p>

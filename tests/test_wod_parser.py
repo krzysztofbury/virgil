@@ -502,3 +502,44 @@ def test_uncoercible_entry_is_not_duplicated_in_unmatched(monkeypatch):
     )
     result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "21-15-9 thruster"))
     assert result.unmatched.count("Thruster") == 1
+
+
+def test_parse_bounds_entries_at_the_confirm_limit(monkeypatch):
+    """More than MAX_PARSED_ENTRIES rows must truncate, not build an unsavable form.
+
+    confirm_wod rejects a submission whose entry_count exceeds its bound, and
+    that refusal costs the user the whole form. The parser bounded nothing, so a
+    note that parsed to 250 entries could only ever be discarded.
+    """
+    from app.routers.training import MAX_CONFIRM_ENTRIES
+
+    assert wod_parser.MAX_PARSED_ENTRIES == MAX_CONFIRM_ENTRIES
+
+    entries = [
+        {"movement": "Thruster", "set_number": i + 1, "reps": 1, "weight": None, "duration": None, "note": ""}
+        for i in range(250)
+    ]
+    _stub_llm(monkeypatch, {"entries": entries, "unmatched": []})
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "thruster x250"))
+    assert len(result.entries) == wod_parser.MAX_PARSED_ENTRIES
+    assert result.dropped == 50
+
+
+def test_parse_leaves_room_for_unmatched_rows(monkeypatch):
+    """unmatched names occupy confirm rows too, so they count against the bound."""
+    entries = [
+        {"movement": "Thruster", "set_number": i + 1, "reps": 1, "weight": None, "duration": None, "note": ""}
+        for i in range(200)
+    ]
+    _stub_llm(monkeypatch, {"entries": entries, "unmatched": ["ghost movement"]})
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "thruster x200 plus ghost"))
+    assert len(result.entries) + len(result.unmatched) == wod_parser.MAX_PARSED_ENTRIES
+    assert result.dropped == 1
+
+
+def test_parse_bounds_an_unmatched_flood(monkeypatch):
+    """A flood of unmatched names alone must not exceed the confirm limit either."""
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": [f"ghost {i}" for i in range(260)]})
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "nothing recognisable"))
+    assert len(result.unmatched) == wod_parser.MAX_PARSED_ENTRIES
+    assert result.dropped == 60

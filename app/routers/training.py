@@ -230,10 +230,11 @@ async def capture_wod(request: Request):
 
     entries: list = []
     unmatched: list[str] = []
+    dropped = 0
     parse_error = ""
     try:
         parsed = await parse_wod(db, wod_text)
-        entries, unmatched = parsed.entries, parsed.unmatched
+        entries, unmatched, dropped = parsed.entries, parsed.unmatched, parsed.dropped
     except Exception as exc:
         # Broadened from `except ValueError`: parse_wod's own call chain raises
         # more than ValueError — app/services/llm.py has bare asserts (missing
@@ -257,6 +258,7 @@ async def capture_wod(request: Request):
             "entries": [asdict(e) for e in entries],
             "unmatched": unmatched,
             "parse_error": parse_error,
+            "dropped": dropped,
         }
     )
     await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (wod_parsed, session_id))
@@ -338,6 +340,7 @@ async def wod_confirm_page(request: Request, session_id: int):
             "entries": parsed.get("entries", []),
             "unmatched": parsed.get("unmatched", []),
             "parse_error": parsed.get("parse_error", ""),
+            "dropped": parsed.get("dropped", 0),
             "movements": movements,
             "library_error": library_error,
             "seed_rows": SEED_ROWS_ON_PARSE_FAILURE,
