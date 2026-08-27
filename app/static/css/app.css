@@ -1730,6 +1730,19 @@ input.flatpickr-input:hover {
 }
 .goal-focus-btn.is-active { color: var(--accent); }
 .goal-focus-item { margin-bottom: 0.5rem; }
+/* Oura: the baseline verdict word, and the vitals group headings. */
+.baseline-status { font-weight: 700; margin: 0; }
+.baseline-above { color: var(--green); }
+.baseline-below { color: var(--flag-h); }
+.baseline-steady { color: var(--text-secondary); }
+.vitals-group {
+  margin: 0.75rem 0 0.5rem;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
 /* Daily: the state word beside each toggle, a finished task as content, and
    anchors on the energy scale. */
 .toggle-state { font-size: 0.7rem; color: var(--text-secondary); margin-left: 0.4rem; }

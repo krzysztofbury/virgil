@@ -13,19 +13,43 @@
     </div>
 </div>
 
-<!-- Today's Vitals -->
+<!-- Readiness against its own recent baseline: the one number that says whether
+     today is different. Numbers and one rule-derived word, by decision - no
+     generated advice, no LLM. -->
+{% if baseline.today is not none %}
+<div class="card" id="readiness-baseline" style="margin-bottom: 1rem;">
+    <div class="card-header">
+        <h3>Readiness {{ baseline.today }}</h3>
+        {% if baseline.baseline is not none %}
+        <small class="text-muted">{{ baseline.days }}-day baseline {{ baseline.baseline }}</small>
+        {% endif %}
+    </div>
+    {% if baseline.status %}
+    <p class="baseline-status baseline-{{ baseline.status }}">
+        {{ '%+d'|format(baseline.delta) }} versus baseline &middot; {{ baseline.status }}
+    </p>
+    {% else %}
+    <p class="text-muted">Not enough history yet for a baseline.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Today's Vitals, grouped. Six equal cards said nothing about which number
+     belongs to which system. -->
 {% if oura_today %}
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header"><h3>Today's Vitals</h3></div>
+
+    <h4 class="vitals-group">Sleep</h4>
     <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
             <div class="stat-label">Sleep</div>
         </div>
-        <div class="stat-card">
-            <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
-            <div class="stat-label">Readiness</div>
-        </div>
+    </div>
+
+    <h4 class="vitals-group">Activity</h4>
+    <div class="stat-grid">
         <div class="stat-card">
             {% if oura_today.activity_score %}
             <div class="stat-value">{{ oura_today.activity_score }}</div>
@@ -39,14 +63,6 @@
             {% endif %}
         </div>
         <div class="stat-card">
-            <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
-            <div class="stat-label">HRV (ms)</div>
-        </div>
-        <div class="stat-card">
-            <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
-            <div class="stat-label">RHR (bpm)</div>
-        </div>
-        <div class="stat-card">
             {% if oura_today.steps %}
             <div class="stat-value">{{ oura_today.steps }}</div>
             <div class="stat-label">Steps</div>
@@ -57,6 +73,22 @@
             <div class="stat-value">-</div>
             <div class="stat-label">Steps</div>
             {% endif %}
+        </div>
+    </div>
+
+    <h4 class="vitals-group">Recovery</h4>
+    <div class="stat-grid">
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
+            <div class="stat-label">Readiness</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
+            <div class="stat-label">HRV (ms)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
+            <div class="stat-label">RHR (bpm)</div>
         </div>
     </div>
     {% if oura_today.sleep_duration_hours %}
@@ -72,16 +104,6 @@
         {% if oura_today.stress_rest %}<small>Recovery: <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
     </div>
     {% endif %}
-</div>
-{% endif %}
-
-<!-- Weekly Trends (daily granularity) -->
-{% if trend_labels %}
-<div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header"><h3>Daily Trends (10 days)</h3></div>
-    <div class="chart-container">
-        <canvas id="dailyTrendChart" height="200"></canvas>
-    </div>
 </div>
 {% endif %}
 
@@ -132,6 +154,20 @@
     })();
 </script>
 </div>
+
+<!-- Compare metrics: four series on one dual-axis chart. It answers a
+     different question from the default trend above, so it goes last and
+     says what it is. Not collapsed: a Chart.js canvas inside a closed
+     details renders at zero size. -->
+<div class="section-title">Compare metrics</div>
+{% if trend_labels %}
+<div class="card" style="margin-bottom: 1.5rem;">
+    <div class="card-header"><h3>Daily Trends (10 days)</h3></div>
+    <div class="chart-container">
+        <canvas id="dailyTrendChart" height="200"></canvas>
+    </div>
+</div>
+{% endif %}
 
 <!-- History -->
 <details style="margin-bottom: 1.5rem;">
