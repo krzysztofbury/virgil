@@ -234,6 +234,12 @@ async def training_page(request: Request):
         for s in sessions:
             s["entries"] = []
 
+    for s in sessions:
+        # A session holding only the raw note: the parse never landed (a crash
+        # between capture_wod's two commits) or the user discarded it. Offer
+        # manual entry rather than leaving the note as the only record.
+        s["stranded"] = bool(s["notes"]) and not s["entries"] and not s["wod_parsed"]
+
     # --- KPIs: This Week ---
     today = date.today()
     # Monday of current week
@@ -782,6 +788,40 @@ async def confirm_wod(request: Request):
         logger.warning("WOD confirm skipped unresolved movements for session %s: %s", session_id, names)
         return RedirectResponse(f"/training?msg={quote(message)}", status_code=303)
     return RedirectResponse("/training", status_code=303)
+
+
+@router.post("/training/session/{session_id}/manual")
+async def arm_manual_entry(request: Request, session_id: int):
+    """Arm an empty parse so a stranded session can gain entries.
+
+    The confirm GET needs a non-NULL wod_parsed to render anything, so an empty
+    one gives the user the same manual seed rows a failed parse already gets.
+
+    Refused for a session that has entries or a pending parse: re-arming either
+    offers a second write against a session that is already settled.
+    """
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall(
+        "SELECT s.wod_parsed AS wod_parsed, COUNT(e.id) AS entries "
+        "FROM training_sessions s LEFT JOIN training_entries e ON e.session_id = s.id "
+        "WHERE s.id = ? GROUP BY s.id",
+        (session_id,),
+    )
+    if not rows or rows[0]["entries"] or rows[0]["wod_parsed"] is not None:
+        logger.warning("manual entry refused for session %s (unknown, has entries, or already armed)", session_id)
+        return RedirectResponse("/training", status_code=303)
+
+    armed = json.dumps({"entries": [], "unmatched": [], "parse_error": "", "dropped": 0, "manual": True})
+    cursor = await db.execute(
+        "UPDATE training_sessions SET wod_parsed = ? WHERE id = ? AND wod_parsed IS NULL",
+        (armed, session_id),
+    )
+    await db.commit()
+    if cursor.rowcount != 1:
+        # Another request armed it between the read and this write.
+        logger.warning("manual entry for session %s lost the arming race", session_id)
+        return RedirectResponse("/training", status_code=303)
+    return RedirectResponse(f"/training/wod/confirm/{session_id}", status_code=303)
 
 
 @router.post("/training/session/{session_id}/delete")

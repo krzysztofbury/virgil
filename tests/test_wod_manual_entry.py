@@ -276,3 +276,73 @@ def test_parsed_rows_also_get_the_add_exercise_control(auth_client, monkeypatch)
     assert 'value="Row" selected' in resp.text
     assert "+ dodaj ćwiczenie" in resp.text
     assert f"wodConfirmForm(1, {MAX_CONFIRM_ENTRIES})" in resp.text
+
+
+def test_stranded_session_offers_manual_entry(auth_client):
+    """A session with a note, no entries and no pending parse must be recoverable.
+
+    capture_wod commits the session before the LLM runs and stores the parse in a
+    second commit. A crash between the two - a container recreated mid-parse,
+    which this deployment does unattended - left the note with no form, no
+    "dokończ" link and no route back.
+    """
+    conn = sqlite3.connect(user_db_path())
+    try:
+        session_id = conn.execute(
+            "INSERT INTO training_sessions (date, notes, wod_parsed) "
+            "VALUES ('2026-08-24', 'ZZ stranded note', NULL)"
+        ).lastrowid
+        conn.commit()
+    finally:
+        conn.close()
+
+    page = auth_client.get("/training").text
+    assert f"/training/session/{session_id}/manual" in page, "no manual-entry route offered"
+
+    resp = auth_client.post(
+        f"/training/session/{session_id}/manual",
+        data={"_csrf_token": csrf_token(auth_client, "/training")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == f"/training/wod/confirm/{session_id}"
+
+    form = auth_client.get(f"/training/wod/confirm/{session_id}")
+    assert form.status_code == 200
+    assert 'name="entry_0_movement"' in form.text, "the armed session must render manual rows"
+
+
+def test_manual_entry_refuses_a_session_that_already_has_entries(auth_client):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        session_id = conn.execute(
+            "INSERT INTO training_sessions (date, notes) VALUES ('2026-08-23', 'ZZ has entries')"
+        ).lastrowid
+        exercise_id = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, display_order) "
+            "VALUES ('ZZ Manual Probe', 'Core', 'reps', 302)"
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps) VALUES (?, ?, 1, 5)",
+            (session_id, exercise_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    resp = auth_client.post(
+        f"/training/session/{session_id}/manual",
+        data={"_csrf_token": csrf_token(auth_client, "/training")},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert resp.headers["location"] == "/training"
+
+    conn = sqlite3.connect(user_db_path())
+    try:
+        pending = conn.execute(
+            "SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,)
+        ).fetchone()[0]
+    finally:
+        conn.close()
+    assert pending is None, "a session with entries must not be re-armed"

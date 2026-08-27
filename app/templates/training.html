@@ -100,6 +100,14 @@
         </summary>
         <div style="padding: 0.5rem 0;">
             {% if s.notes %}<p style="margin-bottom:0.5rem;"><small>{{ s.notes }}</small></p>{% endif %}
+            {% if s.stranded %}
+            {# The note is here and nothing else is. Without this the session had
+               no form, no "dokończ" link and no way to ever gain a set. #}
+            <form method="POST" action="/training/session/{{ s.id }}/manual" style="margin-bottom:0.5rem;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <button type="submit" class="btn btn-sm btn-outline">Wpisz serie ręcznie</button>
+            </form>
+            {% endif %}
             {% if s.entries %}
             <div class="overflow-x">
                 <table>
