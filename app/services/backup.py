@@ -1,8 +1,12 @@
 import asyncio
 import logging
+import os
 import sqlite3
 import time
+import uuid
+from collections.abc import Callable
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 from app.config import CENTRAL_DB_PATH
@@ -33,6 +37,107 @@ def _do_backup(src_path: str, dst_path: str) -> None:
     finally:
         dst.close()
         src.close()
+
+
+def _validate_backup(path: Path) -> None:
+    """Reject truncated or corrupt snapshots before they become recovery artifacts."""
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        result = connection.execute("PRAGMA quick_check").fetchone()
+        if result != ("ok",):
+            raise RuntimeError(f"SQLite snapshot integrity check failed: {path.name}")
+    finally:
+        connection.close()
+
+
+def _publish_backup(src_path: str, dst: Path, semantic_validator: Callable[[Path], None]) -> None:
+    """Build privately, validate, then publish without replacing another writer's snapshot."""
+    if dst.exists():
+        _validate_backup(dst)
+        semantic_validator(dst)
+        return
+
+    temporary = dst.with_name(f".{dst.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        _do_backup(src_path, str(temporary))
+        _validate_backup(temporary)
+        semantic_validator(temporary)
+        try:
+            os.link(temporary, dst)
+        except FileExistsError:
+            _validate_backup(dst)
+            semantic_validator(dst)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def _validate_snapshot_version(path: Path, tracking_table: str, expected_version: int, *, absent_at_zero: bool) -> None:
+    if tracking_table not in {"schema_migrations", "central_schema_migrations"}:
+        raise ValueError(f"Unsupported migration tracking table: {tracking_table}")
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        table = connection.execute(
+            "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?", (tracking_table,)
+        ).fetchone()
+        if table is None:
+            if expected_version == 0:
+                return
+            raise RuntimeError(f"Snapshot {path.name} has no migration history")
+        if expected_version == 0 and absent_at_zero:
+            raise RuntimeError(f"Snapshot {path.name} was taken after migration tracking began")
+        row = connection.execute(f"SELECT MAX(version) FROM {tracking_table}").fetchone()
+        actual_version = row[0] if row and row[0] is not None else 0
+        if actual_version != expected_version:
+            raise RuntimeError(
+                f"Snapshot {path.name} has schema version {actual_version:03d}, expected {expected_version:03d}"
+            )
+    finally:
+        connection.close()
+
+
+def _schema_fingerprint(path: Path) -> tuple[tuple[str, str, str, str], ...]:
+    connection = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        rows = connection.execute(
+            """SELECT type, name, tbl_name, sql FROM sqlite_master
+               WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%'
+               ORDER BY type, name"""
+        ).fetchall()
+        return tuple((object_type, name, table, "".join(sql.lower().split())) for object_type, name, table, sql in rows)
+    finally:
+        connection.close()
+
+
+def _validate_central_snapshot(
+    path: Path,
+    expected_version: int,
+    expected_schema: tuple[tuple[str, str, str, str], ...],
+) -> None:
+    """Prove the artifact is the expected central registry, not just valid SQLite."""
+    from app.central_migrations.runner import _discover_migrations
+
+    _validate_snapshot_version(
+        path,
+        "central_schema_migrations",
+        expected_version,
+        absent_at_zero=True,
+    )
+    actual = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+    try:
+        if _schema_fingerprint(path) != expected_schema:
+            raise RuntimeError(f"Snapshot {path.name} is not the expected central schema")
+
+        if expected_version > 0:
+            history = actual.execute("SELECT version, name FROM central_schema_migrations ORDER BY version").fetchall()
+            expected_history = [
+                (version, filename)
+                for version, _module, filename in _discover_migrations()
+                if version <= expected_version
+            ]
+            if history != expected_history:
+                raise RuntimeError(f"Snapshot {path.name} has unexpected central migration history")
+    finally:
+        actual.close()
 
 
 def _prune_backups(stem: str, max_copies: int, directory: Path | None = None) -> None:
@@ -109,14 +214,34 @@ async def snapshot_before_migration(db) -> Path:
 
     version = await _current_version(db)
     dst = directory / f"{stem}-pre-migration-v{version:03d}.db"
-    if dst.exists():
-        # A snapshot of this exact schema state already exists — it is the
-        # pristine copy; the current database may already be half-migrated.
-        return dst
-
-    await asyncio.to_thread(_do_backup, src_path, str(dst))
+    validator = partial(
+        _validate_snapshot_version,
+        tracking_table="schema_migrations",
+        expected_version=version,
+        absent_at_zero=False,
+    )
+    await asyncio.to_thread(_publish_backup, src_path, dst, validator)
     await asyncio.to_thread(_prune_backups, stem, PRE_MIGRATION_MAX_COPIES, directory)
     logger.info("Pre-migration snapshot created: %s", dst.name)
+    return dst
+
+
+async def snapshot_central_before_migration(db, current_version: int) -> Path:
+    """Keep the pristine central registry before its first pending migration."""
+    src_path = await db_main_path(db)
+    directory = _pre_migration_dir()
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = Path(src_path).stem
+    dst = directory / f"{stem}-pre-migration-v{current_version:03d}.db"
+    expected_schema = await asyncio.to_thread(_schema_fingerprint, Path(src_path))
+    validator = partial(
+        _validate_central_snapshot,
+        expected_version=current_version,
+        expected_schema=expected_schema,
+    )
+    await asyncio.to_thread(_publish_backup, src_path, dst, validator)
+    await asyncio.to_thread(_prune_backups, stem, PRE_MIGRATION_MAX_COPIES, directory)
+    logger.info("Central pre-migration snapshot created: %s", dst.name)
     return dst
 
 

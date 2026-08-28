@@ -1,6 +1,10 @@
 """Central database — user registry for multi-user Virgil."""
 
+import asyncio
+import fcntl
 import uuid
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager, suppress
 from pathlib import Path
 
 import aiosqlite
@@ -9,29 +13,31 @@ from app.auth import hash_password
 from app.config import ADMIN_EMAILS, CENTRAL_DB_PATH
 
 _central_db: aiosqlite.Connection | None = None
+CENTRAL_MIGRATION_LOCK_TIMEOUT_SECONDS = 30.0
 
-CENTRAL_SCHEMA = """
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY,
-    email TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    display_name TEXT,
-    role TEXT DEFAULT 'user' CHECK(role IN ('user', 'admin')),
-    db_filename TEXT NOT NULL,
-    is_active INTEGER DEFAULT 1,
-    totp_secret TEXT,
-    totp_enabled INTEGER DEFAULT 0,
-    created_at TEXT DEFAULT (datetime('now')),
-    last_login_at TEXT
-);
 
-CREATE TABLE IF NOT EXISTS webhook_routes (
-    webhook_id TEXT PRIMARY KEY,
-    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    provider TEXT NOT NULL DEFAULT 'oura',
-    created_at TEXT DEFAULT (datetime('now'))
-);
-"""
+@asynccontextmanager
+async def _central_migration_lock(db: aiosqlite.Connection) -> AsyncIterator[None]:
+    from app.services.backup import db_main_path
+
+    database_path = Path(await db_main_path(db))
+    lock_path = database_path.with_name(f".{database_path.name}.migration.lock")
+    handle = lock_path.open("a+b")
+    deadline = asyncio.get_running_loop().time() + CENTRAL_MIGRATION_LOCK_TIMEOUT_SECONDS
+    try:
+        while True:
+            try:
+                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if asyncio.get_running_loop().time() >= deadline:
+                    raise TimeoutError(f"Timed out waiting for central migration lock: {lock_path.name}") from None
+                await asyncio.sleep(0.05)
+        yield
+    finally:
+        with suppress(OSError):
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.close()
 
 
 async def get_central_db() -> aiosqlite.Connection:
@@ -52,11 +58,25 @@ async def get_central_db() -> aiosqlite.Connection:
     return _central_db
 
 
+async def migrate_central_db(db: aiosqlite.Connection) -> None:
+    """Serialize snapshot and migration so every caller uses the same safety boundary."""
+    from app.central_migrations.runner import (
+        _current_version,
+        count_pending_migrations,
+        has_application_schema,
+        run_migrations,
+    )
+    from app.services.backup import snapshot_central_before_migration
+
+    async with _central_migration_lock(db):
+        if await count_pending_migrations(db) > 0 and await has_application_schema(db):
+            await snapshot_central_before_migration(db, await _current_version(db))
+        await run_migrations(db)
+
+
 async def init_central_db() -> None:
-    """Create the users table if it doesn't exist."""
-    db = await get_central_db()
-    await db.executescript(CENTRAL_SCHEMA)
-    await db.commit()
+    """Open and migrate the central registry to the current version."""
+    await migrate_central_db(await get_central_db())
 
 
 async def close_central_db() -> None:

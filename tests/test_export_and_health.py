@@ -90,3 +90,20 @@ def test_healthz_degraded_on_migration_failure(client):
         assert resp.json()["status"] == "degraded"
     finally:
         app.state.migration_failures = original
+
+
+def test_healthz_degraded_on_central_migration_failure(client):
+    from app.main import app
+
+    original = getattr(app.state, "central_migration_failure", False)
+    app.state.central_migration_failure = True
+    try:
+        resp = client.get("/healthz")
+        assert resp.status_code == 503
+        assert resp.json() == {"status": "degraded"}
+
+        blocked = client.get("/login")
+        assert blocked.status_code == 503
+        assert blocked.json() == {"status": "unavailable"}
+    finally:
+        app.state.central_migration_failure = original
