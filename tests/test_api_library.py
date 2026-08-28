@@ -18,15 +18,9 @@ def _get(name: str) -> dict | None:
 
 
 def test_library_requires_key():
-    # A fresh, session-less TestClient — not the shared `client`/`auth_client`
-    # fixture, which by this point in the suite already carries a valid session
-    # cookie from earlier tests (they're the same session-scoped object per
-    # tests/conftest.py). Against a session-authenticated client, this endpoint
-    # would 401 anyway (the route's own X-API-Key check), which would pass this
-    # assertion for the wrong reason and hide a PUBLIC_PATHS regression that
-    # instead makes AuthMiddleware 303-redirect a genuinely anonymous caller to
-    # /login (see test_new_api_routes_reachable_with_key_only in test_api.py,
-    # which covers that regression class directly).
+    # A fresh, session-less client keeps this test independent of fixture setup.
+    # The route's own API-key check must answer 401 rather than AuthMiddleware
+    # redirecting an anonymous caller to /login.
     from fastapi.testclient import TestClient
 
     from app.main import app

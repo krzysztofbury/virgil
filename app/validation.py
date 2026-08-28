@@ -2,6 +2,7 @@
 
 from datetime import date
 from typing import Annotated
+from uuid import UUID
 
 from fastapi import Form
 from pydantic import BeforeValidator
@@ -71,6 +72,14 @@ def valid_month(s: str) -> bool:
         m = int(s[5:])
         return 1 <= m <= 12
     except ValueError:
+        return False
+
+
+def valid_uuid(value: str) -> bool:
+    """Return True only for the canonical lowercase, hyphenated UUID form."""
+    try:
+        return str(UUID(value)) == value
+    except (AttributeError, TypeError, ValueError):
         return False
 
 

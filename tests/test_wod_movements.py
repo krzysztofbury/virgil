@@ -21,7 +21,8 @@ async def _db(tmp_path):
             display_order INTEGER DEFAULT 0,
             metric TEXT NOT NULL DEFAULT 'reps',
             archived INTEGER NOT NULL DEFAULT 0,
-            ad_hoc INTEGER NOT NULL DEFAULT 0
+            ad_hoc INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(name COLLATE NOCASE)
         )"""
     )
     await db.execute(
@@ -77,6 +78,57 @@ def test_second_use_reuses_the_same_row(tmp_path):
             assert rows[0]["c"] == 1
         finally:
             await db.close()
+
+    asyncio.run(run())
+
+
+def test_concurrent_resolve_creates_one_training_exercise(tmp_path, monkeypatch):
+    async def run():
+        setup_db = await _db(tmp_path)
+        await setup_db.close()
+
+        connections = []
+        for _ in range(2):
+            db = await aiosqlite.connect(tmp_path / "u.db")
+            db.row_factory = aiosqlite.Row
+            await db.execute("PRAGMA busy_timeout=5000")
+            connections.append(db)
+
+        ready_count = 0
+        ready_lock = asyncio.Lock()
+        both_checked = asyncio.Event()
+
+        for db in connections:
+            original_execute_fetchall = db.execute_fetchall
+
+            async def synchronized_fetchall(sql, parameters=None, *, _original=original_execute_fetchall):
+                nonlocal ready_count
+                rows = await _original(sql, parameters) if parameters is not None else await _original(sql)
+                if sql.startswith("SELECT id, archived FROM training_exercises") and not rows:
+                    async with ready_lock:
+                        ready_count += 1
+                        if ready_count == len(connections):
+                            both_checked.set()
+                    await asyncio.wait_for(both_checked.wait(), timeout=1)
+                return rows
+
+            monkeypatch.setattr(db, "execute_fetchall", synchronized_fetchall)
+
+        async def resolve_and_commit(db):
+            exercise_id = await resolve_movement(db, "Thruster")
+            await db.commit()
+            return exercise_id
+
+        try:
+            exercise_ids = await asyncio.gather(*(resolve_and_commit(db) for db in connections))
+            assert exercise_ids[0] == exercise_ids[1]
+            rows = await connections[0].execute_fetchall(
+                "SELECT COUNT(*) AS count FROM training_exercises WHERE name = 'Thruster' COLLATE NOCASE"
+            )
+            assert rows[0]["count"] == 1
+        finally:
+            for db in connections:
+                await db.close()
 
     asyncio.run(run())
 

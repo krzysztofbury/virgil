@@ -135,22 +135,17 @@ recorded here so it isn't rediscovered from scratch:
       rejects on every submit, with no user-adjustable input. Not a regression
       (the previous behaviour discarded them silently) but it is an
       unrecoverable loop. Either cap the parse or let the screen paginate.
-- [ ] `training_exercises` has no `UNIQUE(name)`; `resolve_movement` is
-      SELECT-then-INSERT, so concurrent requests could race into duplicate
-      ad-hoc rows. Single-user deployment makes this theoretical today.
-- [ ] `app/routers/admin.py:18` holds a duplicate `_UUID_RE` ending in `$`, and
-      that one *is* path-matching (`POST /admin/users/{id}/disable|enable|delete`).
-      Starlette's `str` converter is `[^/]+`, so `<uuid>\n` satisfies it. Impact
-      is nil (parameterised SQL, admin-only) but the equivalent patterns in
-      `auth.py`/`csrf.py` were hardened to `[0-9]`/`\Z` and this was missed.
-- [ ] `app/rate_limit.py` keys the LLM cost-control bucket on `cf-connecting-ip`,
-      a client-supplied header. Fine while the Cloudflare tunnel is the only
-      ingress — the assumption is now written down in a comment there, but any
-      second ingress (LAN, direct port-forward) invalidates it.
-- [ ] `tests/conftest.py` returns the same session-scoped object for `client` and
-      `auth_client`. This produced one of the vacuous tests found on this branch
-      (an auth test that ran with a session cookie already set). Worked around
-      locally in `tests/test_api_library.py`; the fixture itself is still a trap.
+- [x] `training_exercises.name` is unique case-insensitively (migration 026),
+      legacy race duplicates retain their entries, and `resolve_movement` uses
+      an atomic upsert. Semantic conflicts abort instead of rewriting history.
+- [x] Admin and session UUID validation use one canonical UUID helper; trailing
+      newlines are rejected before an admin action or central DB lookup.
+- [x] `CF-Connecting-IP` is trusted only when explicitly enabled and the direct
+      peer appears in `VIRGIL_TRUSTED_PROXY_IPS`; direct ingress ignores spoofed
+      forwarding headers. Compose defaults stay disabled.
+- [x] `client` and `auth_client` now have independent cookie jars on the same
+      application lifespan portal, with a regression proving anonymous state
+      does not inherit the authenticated session.
 
 **Note on test quality.** Twelve vacuous tests were caught and fixed during this
 work — tests that passed under every mutation of the code they claimed to cover.
@@ -165,6 +160,38 @@ future work in this repo.
 
 Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 
+**Implementation roadmap (2026-08-27):**
+[`docs/superpowers/plans/2026-08-27-reliability-data-ownership-roadmap.md`](docs/superpowers/plans/2026-08-27-reliability-data-ownership-roadmap.md).
+The order below is intentional: trustworthy tests and central migrations come
+before jobs, restore, or new identity tables. Phase 9 is conditional on an
+explicit decision to support accounts outside the trusted household.
+
+- [x] **Phase 0 — Test isolation and small integrity gaps:** independent
+      anonymous/authenticated clients, strict admin UUID validation, explicit
+      trusted-proxy handling, atomic unique training movement resolution.
+      Completed on `fix/reliability-phase-0-foundations`; 530 tests and
+      TigerStyle pair-programming review passed before push.
+- [ ] **Phase 1 — Central DB migrations:** numbered central schema, automatic
+      pre-migration snapshot, health-check failure on migration failure.
+- [ ] **Phase 2 — Mutation-feedback contract:** shared accessible progress,
+      success and persistent failure UI across every write route.
+- [ ] **Phase 3 — Durable jobs:** restart-safe queue for LLM, sync, backup and
+      export work, with bounded retries and no automatic retry at an ambiguous
+      paid-LLM boundary.
+- [ ] **Phase 4 — Oura lifecycle hardening:** timestamp replay protection,
+      subscription expiry tracking, renewal and periodic reconciliation.
+- [ ] **Phase 5 — Recovery and data ownership:** versioned JSON transfer,
+      validated `.db` restore, freshness status, off-NAS copy and restore drill.
+- [ ] **Phase 6 — Explicit offline and accessible shell:** read-only offline
+      state, disabled writes, keyboard-safe global navigation, reduced motion
+      and chart text/table equivalents.
+- [ ] **Phase 7 — Correctable history and audit:** blood results, PMO events,
+      goals, workout entries and experiment-day details editable without SQL.
+- [ ] **Phase 8 — Longitudinal insights:** real 12-week Daily heatmap, common
+      4/12/26-week ranges, Life Score history and Oura freshness.
+- [ ] **Phase 9 — Multi-user hardening (conditional):** invites, one-time reset
+      codes, scoped per-client API tokens and metadata-only access audit.
+
 ### P0 — Safety & dependability ✅ DONE (this branch)
 
 - [x] Credential handling — `.qnap.setup` out of the Docker build context (**rotate the exposed LLM key + tunnel token**)
@@ -178,49 +205,57 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 
 ### P1 — Durable job model for LLM/sync/backup work
 
-**Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no duplicate LLM cost.
+**Roadmap status:** Phase 3, blocked by Phases 0 and 2.
+**Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no automatic duplicate LLM cost at an ambiguous provider boundary.
 **Plan:** Add a `jobs` table per user DB (id, kind, payload, status, attempts, last_error, created/finished). Scheduler loop doubles as the worker (claim → run → record). Onboarding enrichment, A.N.D.Y., experiment summaries, briefings, Oura sync, backup, export become job kinds. UI polls a lightweight `/api/jobs/{id}` partial via HTMX.
 **Deliverables:** jobs table migration; worker in scheduler; onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); tests for claim/retry/backoff.
 
 ### P1 — Recovery & data-ownership story
 
+**Roadmap status:** Phase 5, blocked by central migrations, mutation feedback and durable jobs.
 **Goal:** A user can fully restore their life data from an export/backup without SSH.
-**Done already (2026-07-14):** backups enabled by default; timestamped filenames (hourly runs no longer overwrite one file); central `virgil-central.db` backed up daily by the scheduler; automatic pre-migration snapshots.
+**Done already (2026-07-14):** backups enabled by default; timestamped filenames (hourly runs no longer overwrite one file); central `virgil-central.db` backed up daily by the scheduler; automatic per-user pre-migration snapshots.
 **Plan (remaining):** off-NAS copy (S3/rsync target); versioned export manifest (JSON, schema_version + all user tables); validated import endpoint (dry-run report → apply); restore-from-`.db`-upload in Settings > Data; backup age/status card; pre-reset backup download prompt; a documented restore drill.
 **Deliverables:** `export/import` service with round-trip test (export → wipe → import → identical data); restore UI; backup freshness indicator on the Automation tab; docs.
 
 ### P1 — Mutation-feedback contract
 
+**Roadmap status:** Phase 2, after test-fixture isolation.
 **Goal:** Every write gives visible, accessible progress/success/failure — no silent redirects.
-**Plan:** One helper pattern: disable control on submit, `aria-live` status region, persistent error toast with retry, `msg`/`err` params standardized across ALL pages (today only Settings renders them). Oura page sync (`/oura/api-sync`) currently swallows errors — add msg/err there first.
+**Plan:** One helper pattern: disable control on submit, `aria-live` status region, persistent error toast, `msg`/`err` params standardized across ALL pages (today only Settings renders them), and retry links only for idempotent operations. Oura page sync (`/oura/api-sync`) currently swallows errors — add msg/err there first.
 **Deliverables:** shared toast partial in `base.html`; msg/err rendering on every page; draft retention on network failure for daily notes/journal; tests asserting error surfacing for Oura sync + import.
 
 ### P1 — Multi-user hardening beyond a trusted household
 
+**Roadmap status:** Conditional Phase 9. Do not start without an explicit product decision.
 **Goal:** Safe to give accounts to people you don't fully trust.
 **Plan:** Password reset (email-less: admin-issued one-time reset codes); invite codes (admin panel, single-use, expiry) replacing the global open/closed switch; per-client API tokens (hashed at rest, scopes read/read-sensitive, revocable in Settings) replacing the single env key; API access log (who/what/when, no payloads).
 **Deliverables:** `api_tokens` + `invites` central tables; token management UI; MCP server updated for per-token auth; audit view under Settings > Security; tests.
 
 ### P2 — Explicit offline behavior
 
+**Roadmap status:** Phase 6. Decision made: read-only offline, no mutation queue.
 **Goal:** Mobile users know exactly what works offline; no silent data loss.
-**Plan:** Decide: offline **read-only** (persistent banner + disabled save controls when `navigator.onLine === false`) — cheap; or offline **capture** (IndexedDB queue + Background Sync + conflict policy) — expensive. Recommendation: read-only banner now, capture later only if real need appears.
+**Plan:** Ship offline **read-only** now: persistent banner + disabled save controls when `navigator.onLine === false`. Defer offline capture (IndexedDB queue + Background Sync + conflict policy) until real usage proves it is needed.
 **Deliverables:** offline banner + disabled mutations; SW keeps never caching authenticated HTML; docs updated to match.
 
 ### P2 — Edit/delete/audit paths for personal history
 
+**Roadmap status:** Phase 7, after self-service recovery exists.
 **Goal:** Sensitive records (relapses, blood results, goals, workouts) are correctable without SQL.
 **Plan:** Add edit/delete endpoints + inline UI for blood results, pmo_events (with confirm + duplicate-date warning), goals (undo toast), workout sessions (already deletable — add per-entry edit); experiments day-detail sheet showing all activities per day.
 **Deliverables:** routes + templates + validation, deletion confirmations with non-judgmental copy for Feniks, tests per entity.
 
 ### P2 — Longitudinal insights
 
+**Roadmap status:** Phase 8, after history corrections and accessible chart equivalents.
 **Goal:** Turn raw tracking into reflection.
 **Plan:** 12-week daily heatmap (README already promises it), selectable ranges (4/12/26 weeks) for training + Oura trends, full life-score history list with detail view (diagnostic/priorities), Oura freshness badge ("last synced Xh ago") on dashboard + oura page.
 **Deliverables:** range-parameterized queries + chart endpoints, life-score history page, freshness indicator, tests for range math.
 
 ### P2 — Accessibility
 
+**Roadmap status:** Phase 6 for the app shell, completed per-page during Phases 7 and 8.
 **Goal:** Usable with keyboard and assistive tech.
 **Plan:** Replace clickable `<div>` menus (bottom bar) with `<button>` + `aria-expanded` + Escape handling; `aria-pressed` + visible state labels on three-state toggles; text/table equivalent for every chart; `prefers-reduced-motion` overrides; skip-to-content link; focusable help popovers instead of `title`-only tooltips.
 **Deliverables:** base template + daily/oura/bloodwork template updates, CSS motion guards, axe-style smoke checklist in CONTRIBUTING.
@@ -342,7 +377,9 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 
 ## Oura Integration Polish
 - [x] Scheduled auto-sync (background task every 6h instead of manual "Sync Now")
-- [x] Flash messages / toast notifications for sync success/failure
+- [x] Flash messages / toast notifications for Settings sync success/failure
+- [ ] Apply the shared mutation-feedback contract to `/oura/api-sync` and every
+      remaining Oura write path (roadmap Phase 2)
 - [x] Oura daily data table on `/oura` page (browsable 30-day history)
 - [x] Daily Oura trends chart (10-day daily granularity, dual-axis HRV/RHR + scores)
 - [x] Handle Oura API rate limits gracefully (429 → exponential backoff with Retry-After)
@@ -384,7 +421,8 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 
 ## Daily Log
 - [x] Streak tracking for individual habits (7 habits, reverse-chronological scan)
-- [x] Weekly/monthly habit completion heatmap (12-week CSS grid)
+- [ ] Weekly/monthly habit completion heatmap (12-week CSS grid) — current
+      implementation renders only the selected 7-day window; roadmap Phase 8
 - [x] Notes with markdown rendering (Alpine.js edit/preview toggle)
 
 ## Feniks
@@ -394,7 +432,8 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 - [x] Automated daily backup (SQLite → `data/backups/` with rolling retention)
 - [x] Data export to JSON/CSV (all 21 tables, download endpoints)
 - [x] Markdown export with selectable sections
-- [x] Migration system for DB schema changes (instead of CREATE IF NOT EXISTS)
+- [x] Migration system for per-user DB schema changes (instead of CREATE IF NOT EXISTS)
+- [ ] Migration system for `virgil-central.db` (roadmap Phase 1)
 - [x] Input validation on all forms (shared `validation.py` helpers, all POST endpoints covered)
 
 ## Settings & Infrastructure
@@ -404,7 +443,10 @@ Status of the 2026-07 review (branch `fix/review-findings-2026-07`).
 - [x] **Automation settings** — backup enable/interval/retention, Oura auto-sync enable/interval, briefing toggle
 
 ## UI/UX
-- [x] PWA offline support (service worker + cache)
+- [x] PWA install/static-asset cache and public `/offline` fallback; authenticated
+      HTML remains correctly network-only
+- [ ] Explicit read-only offline state with a persistent banner and disabled
+      mutation controls (roadmap Phase 6)
 - [x] Swipe gestures for day/week navigation on mobile
 - [x] Keyboard shortcuts (g-prefix navigation, arrow keys, ? help overlay)
 - [x] Dark/light theme toggle

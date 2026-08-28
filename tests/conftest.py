@@ -117,18 +117,27 @@ def client():
 @pytest.fixture(scope="session")
 def auth_client(client):
     """Client with a signed-up, onboarded admin user session."""
-    token = csrf_token(client, "/signup")
-    resp = client.post(
-        "/signup",
-        data={
-            "email": TEST_EMAIL,
-            "display_name": "Test",
-            "password": TEST_PASSWORD,
-            "password_confirm": TEST_PASSWORD,
-            "_csrf_token": token,
-        },
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303, f"Signup failed: {resp.status_code} {resp.text[:200]}"
-    _complete_onboarding()
-    return client
+    # `client` owns the one application lifespan for this test session. Use a
+    # second cookie jar against that running app so login state cannot leak into
+    # tests that intentionally exercise anonymous requests.
+    authenticated = TestClient(app)
+    assert client.portal is not None, "the session client must own the application lifespan"
+    authenticated.portal = client.portal
+    try:
+        token = csrf_token(authenticated, "/signup")
+        resp = authenticated.post(
+            "/signup",
+            data={
+                "email": TEST_EMAIL,
+                "display_name": "Test",
+                "password": TEST_PASSWORD,
+                "password_confirm": TEST_PASSWORD,
+                "_csrf_token": token,
+            },
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303, f"Signup failed: {resp.status_code} {resp.text[:200]}"
+        _complete_onboarding()
+        yield authenticated
+    finally:
+        authenticated.close()

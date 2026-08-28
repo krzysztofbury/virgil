@@ -1,8 +1,11 @@
+import ipaddress
 import time
 
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
+
+from app.config import TRUST_CLOUDFLARE_HEADERS, TRUSTED_PROXY_IPS
 
 # Sliding window rate limiter: per-IP, in-memory
 # General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min
@@ -28,6 +31,19 @@ def _clean_bucket(bucket: list[float], window: int, now: float) -> list[float]:
     return [t for t in bucket if t > cutoff]
 
 
+def _client_ip(request: Request) -> str:
+    """Return the configured rate-limit identity for this network request."""
+    peer_ip = request.client.host if request.client else "unknown"
+    if not TRUST_CLOUDFLARE_HEADERS or peer_ip not in TRUSTED_PROXY_IPS:
+        return peer_ip
+
+    forwarded_ip = request.headers.get("cf-connecting-ip", "")
+    try:
+        return str(ipaddress.ip_address(forwarded_ip))
+    except ValueError:
+        return peer_ip
+
+
 class RateLimitMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -38,16 +54,7 @@ class RateLimitMiddleware:
             return
 
         request = Request(scope)
-        # Use CF-Connecting-IP when behind Cloudflare Tunnel, fall back to peer IP.
-        # ASSUMPTION (M2, 2026-07-30 review): cf-connecting-ip is a client-supplied
-        # header, spoofable by anyone who can reach this process directly. Trusting
-        # it here — and, since this branch, using the `:llm` bucket built from it as
-        # the only cost control in front of the paid /training/wod parse call — is
-        # only sound if the Cloudflare Tunnel is the sole ingress path to this app.
-        # If a raw origin route, a second reverse proxy that doesn't strip
-        # client-set headers, or any other direct path ever opens up, a caller can
-        # pick their own IP and bypass both this bucket and the LLM one.
-        ip = request.headers.get("cf-connecting-ip") or (request.client.host if request.client else "unknown")
+        ip = _client_ip(request)
         path = scope.get("path", "")
         now = time.monotonic()
 

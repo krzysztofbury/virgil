@@ -79,8 +79,12 @@ async def resolve_movement(db, name: str) -> int | None:
     order_row = await db.execute_fetchall("SELECT COALESCE(MAX(display_order), 0) as m FROM training_exercises")
     next_order = (order_row[0]["m"] if order_row else 0) + 1
     cursor = await db.execute(
-        "INSERT INTO training_exercises (name, section, metric, display_order, ad_hoc, notes) "
-        "VALUES (?, ?, ?, ?, 1, 'Added from a WOD')",
+        """INSERT INTO training_exercises (name, section, metric, display_order, ad_hoc, notes)
+           VALUES (?, ?, ?, ?, 1, 'Added from a WOD')
+           ON CONFLICT(name COLLATE NOCASE) DO UPDATE SET archived = 0
+           RETURNING id""",
         (row["name"], row["section"], row["metric"], next_order),
     )
-    return cursor.lastrowid
+    created_or_existing = await cursor.fetchone()
+    assert created_or_existing is not None, "movement upsert must return an exercise id"
+    return created_or_existing["id"]
