@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Authenticated tests no longer contaminate anonymous tests.** `client` and
+  `auth_client` use separate cookie jars on one application lifespan portal,
+  with a regression that proves login state does not leak between them.
+- **Concurrent WOD movement resolution is atomic** (migration 026).
+  `training_exercises.name` now has a case-insensitive unique index and the
+  resolver uses an upsert. Legacy race duplicates keep all linked training
+  entries; a semantic conflict aborts migration rather than rewriting history.
+- **UUID validation is canonical and shared.** Admin paths and session auth
+  reject trailing newlines before any mutation or central database lookup.
+
+### Security
+- **Forwarded client IPs have an explicit trust boundary.** Rate limiting uses
+  `CF-Connecting-IP` only when Cloudflare trust is enabled and the direct peer
+  is listed in `VIRGIL_TRUSTED_PROXY_IPS`. Direct ingress ignores spoofed
+  forwarding headers, and Compose defaults to the safe disabled state.
+
 ## [0.6.0] - 2026-08-27
 
 ### Added

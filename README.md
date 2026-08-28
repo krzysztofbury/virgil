@@ -161,6 +161,8 @@ All configuration via environment variables:
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for encrypting secrets |
 | `VIRGIL_ADMIN_EMAILS` | (empty) | Comma-separated admin emails (always have admin role) |
 | `VIRGIL_REGISTRATION_OPEN` | `false` | Allow new user signups. The first account (bootstrap owner) can always be created |
+| `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Trust `CF-Connecting-IP` for rate limiting. Enable only when Cloudflare Tunnel is the sole ingress |
+| `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated direct proxy IPs allowed to supply `CF-Connecting-IP` |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `VIRGIL_API_KEY` | (empty) | REST API key: read endpoints + experiment-entry logging (empty = API disabled) |
@@ -429,6 +431,13 @@ Current migrations:
 | 017 | `crossfit_editable` | Makes the seeded CrossFit movements user-editable (`builtin = 0`) so they can be renamed/deleted, not just archived |
 | 018 | `wod_parsed_cache` | Adds `training_sessions.wod_parsed` — caches the WOD parser result so Post/Redirect/Get never re-invokes the LLM on a refresh |
 | 019 | `exercise_tags` | Replaces `exercise_library.category` with free-form tags (`exercise_library_tags` join table); makes `name` unique (`UNIQUE(name COLLATE NOCASE)`), merging same-name rows that used to coexist under different categories |
+| 020 | `duration_seconds` | Converts `training_entries.duration` to canonical seconds |
+| 021 | `air_squat` | Adds the missing bodyweight squat to the WOD vocabulary |
+| 022 | `feniks_bricks` | Adds urge-survival bricks and the first single-flow Feniks schema |
+| 023 | `feniks_single_flow` | Reconciles Feniks daily usage, bricks and legacy relapse history |
+| 024 | `capture_token` | Adds idempotency tokens for WOD capture |
+| 025 | `goal_focus` | Adds the advisory current-focus state to goals |
+| 026 | `training_exercise_name_unique` | Merges safe race duplicates, preserves linked entries and makes movement resolution case-insensitively unique |
 
 ## Data Model
 

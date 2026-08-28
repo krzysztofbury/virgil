@@ -5,11 +5,56 @@ import os
 import re
 import sqlite3
 
+import pytest
 from conftest import TEST_EMAIL, csrf_token
+from fastapi import HTTPException
 
 
 def _central_conn():
     return sqlite3.connect(os.environ["VIRGIL_CENTRAL_DB_PATH"])
+
+
+def test_anonymous_client_stays_anonymous_after_auth_fixture(client, auth_client):
+    """Using auth_client must not leak its session into the anonymous client."""
+    assert auth_client.portal is client.portal
+    assert auth_client.get("/").status_code == 200
+
+    response = client.get("/", follow_redirects=False)
+    assert response.status_code == 303
+    assert response.headers["location"] == "/login"
+
+
+def test_admin_user_id_rejects_trailing_newline():
+    from app.routers.admin import _validate_user_id
+
+    valid_user_id = "12345678-1234-1234-1234-123456789abc"
+    _validate_user_id(valid_user_id)
+    with pytest.raises(HTTPException, match="Invalid user ID"):
+        _validate_user_id(valid_user_id + "\n")
+
+
+def test_auth_middleware_rejects_signed_noncanonical_user_id(client, monkeypatch):
+    import app.central_db as central_db
+    from app.auth import SESSION_COOKIE, create_session
+
+    lookup_called = False
+
+    async def unexpected_lookup(_user_id):
+        nonlocal lookup_called
+        lookup_called = True
+        return None
+
+    monkeypatch.setattr(central_db, "get_user_by_id", unexpected_lookup)
+
+    malformed_user_id = "12345678-1234-1234-1234-123456789abc\n"
+    client.cookies.set(SESSION_COOKIE, create_session(malformed_user_id))
+    try:
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+        assert lookup_called is False
+    finally:
+        client.cookies.delete(SESSION_COOKIE)
 
 
 def test_oura_callback_rejects_missing_or_mismatched_state(auth_client):

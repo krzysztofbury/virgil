@@ -11,6 +11,7 @@ from starlette.responses import RedirectResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import BASE_URL
+from app.validation import valid_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -65,8 +66,6 @@ PUBLIC_PATTERNS = (
 )
 
 BCRYPT_ROUNDS = 12
-
-_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 
 _signer: TimestampSigner | None = None
 
@@ -167,7 +166,7 @@ class AuthMiddleware:
             return
 
         # Validate UUID format before DB lookup.
-        if not _UUID_RE.match(user_id):
+        if not valid_uuid(user_id):
             response = RedirectResponse("/login", status_code=303)
             await response(scope, receive, send)
             return

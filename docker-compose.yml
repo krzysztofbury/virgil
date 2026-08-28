@@ -27,6 +27,9 @@ services:
       VIRGIL_ADMIN_EMAILS: ${VIRGIL_ADMIN_EMAILS:-}
       # Closed by default — the first account (bootstrap owner) can always sign up.
       VIRGIL_REGISTRATION_OPEN: ${VIRGIL_REGISTRATION_OPEN:-false}
+      # Safe only while this compose file's outbound-only tunnel is the sole ingress.
+      VIRGIL_TRUST_CLOUDFLARE_HEADERS: ${VIRGIL_TRUST_CLOUDFLARE_HEADERS:-false}
+      VIRGIL_TRUSTED_PROXY_IPS: ${VIRGIL_TRUSTED_PROXY_IPS:-}
       VIRGIL_INTERNAL_LLM_MODEL: ${VIRGIL_INTERNAL_LLM_MODEL:-gemini/gemini-3-flash-preview}
       VIRGIL_INTERNAL_LLM_KEY: ${VIRGIL_INTERNAL_LLM_KEY:-}
       VIRGIL_API_KEY: ${VIRGIL_API_KEY:-}

@@ -41,8 +41,7 @@ def test_signup_post_blocked_when_closed(auth_client, monkeypatch):
 
 
 def _anonymous_client():
-    """Fresh client with no session cookie — the shared fixture is logged in
-    and would be redirected off /login."""
+    """Fresh client for tests that do not need the session-scoped fixture."""
     from fastapi.testclient import TestClient
 
     from app.main import app

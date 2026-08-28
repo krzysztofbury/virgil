@@ -24,13 +24,13 @@ app/
   db.py                 - Database connection, schema constants, seed data
   auth.py               - Authentication middleware (cookie sessions)
   csrf.py               - CSRF double-submit cookie middleware
-  rate_limit.py         - Per-IP sliding window rate limiter
+  rate_limit.py         - Per-IP sliding window limiter with an explicit trusted-proxy boundary
   security_headers.py   - Security response headers (CSP, etc.)
   validation.py         - Shared input validation helpers
 
   migrations/           - Numbered database schema migrations
     runner.py           - Migration discovery + execution engine
-    001_*.py ... 025_*.py
+    001_*.py ... 026_*.py
 
   models/               - Data models (query helpers, not ORMs)
     daily.py, bloodwork.py, experiments.py, feniks.py,
@@ -73,14 +73,14 @@ app/
 3. **Numbered migrations instead of `CREATE TABLE IF NOT EXISTS`.** Each migration is a Python file with an `async def up(db)` function. Applied sequentially on startup, tracked in `schema_migrations`.
 4. **Fernet encryption for secrets at rest.** OAuth tokens, LLM API keys, and webhook secrets are encrypted in the database. Key is auto-generated or provided via env var.
 5. **Multi-user model.** Central `virgil-central.db` user registry; one isolated SQLite database per user (`data/users/{uuid}.db`), opened per request by the auth middleware.
-6. **Training data model.** The WOD confirm screen (`POST /training/wod/confirm`) is the only writer of `training_entries`. `training_entries.duration` is SECONDS (migration 020) and renders through `app.formatting.format_duration_seconds`. `training_entries.notes` holds the metcon result for that movement: a finishing time, or rounds plus reps. A `training_sessions` row with a non-NULL `wod_parsed` has a parse waiting for review, and `/training` lists every one of them. `training_sessions.capture_token` (migration 024) makes one rendered capture form write one session. `exercise_library.sets` / `reps` are parser fallbacks, not a prescription; `training_exercises.ad_hoc` is provenance with no reader.
+6. **Training data model.** The WOD confirm screen (`POST /training/wod/confirm`) is the only writer of `training_entries`. `training_entries.duration` is SECONDS (migration 020) and renders through `app.formatting.format_duration_seconds`. `training_entries.notes` holds the metcon result for that movement: a finishing time, or rounds plus reps. A `training_sessions` row with a non-NULL `wod_parsed` has a parse waiting for review, and `/training` lists every one of them. `training_sessions.capture_token` (migration 024) makes one rendered capture form write one session. `training_exercises.name` is unique with SQLite `NOCASE` semantics (migration 026), and movement resolution uses an upsert so concurrent WOD confirmations return one row. `exercise_library.sets` / `reps` are parser fallbacks, not a prescription; `training_exercises.ad_hoc` is provenance with no reader.
 7. **Page shape.** Five pages converged on one shape in v0.6.0, and a sixth should not invent another. The first block is what to do now: the current state stated in words or numbers, plus one primary action. Reference and analytics follow, under an `Insights` or `Your trends` heading. History is last. A secondary form and every destructive action live behind a `<details>`; an input inside a closed `<details>` still submits, so nothing is lost by collapsing one. A `<details>` never contains a Chart.js canvas: a canvas with no layout renders at zero size and stays wrong after opening, so charts get reordered instead. A mobile-only view pairs `.on-mobile` with `.on-desktop` and never duplicates markup - one Jinja macro renders both. Layout lives in `app/static/css/app.css`; a page-level inline `grid-template-columns: repeat(<n>, ...)` outranks every media query and `tests/test_mobile_layout.py` refuses it.
 8. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
 
 ## Middleware Stack (Processing Order)
 
 1. **Security Headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
-2. **Rate Limiting** — 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window)
+2. **Rate Limiting** — 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window). `CF-Connecting-IP` is accepted only when Cloudflare trust is enabled and the socket peer is listed in `VIRGIL_TRUSTED_PROXY_IPS`.
 3. **Authentication** — Cookie-based session verification (exempts: login, signup, MFA, offline, healthz, service worker, per-user Oura webhooks)
 4. **Feature Flags** — Loads `feature_*` settings into `request.state.features`
 5. **CSRF Protection** — Double-submit cookie on all POST forms (exempts: Oura webhook)
@@ -148,6 +148,8 @@ All via environment variables (see `.env.example`):
 | `VIRGIL_HOST` | `0.0.0.0` | Server bind host |
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL for OAuth callbacks |
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for secret encryption |
+| `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Allow trusted proxy peers to provide `CF-Connecting-IP` |
+| `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated direct peer IPs trusted as proxies |
 
 Port is always **8123**.
 
