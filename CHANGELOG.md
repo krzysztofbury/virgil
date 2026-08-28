@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **The central identity registry now has versioned migrations.** Startup takes
+  a bounded, non-overwriting snapshot before upgrading an existing registry;
+  schema changes and version stamps commit atomically. A failed or unsupported
+  central migration leaves dependent work stopped and reports a detail-free
+  degraded state through `/healthz`.
+
 ### Fixed
 - **Authenticated tests no longer contaminate anonymous tests.** `client` and
   `auth_client` use separate cookie jars on one application lifespan portal,

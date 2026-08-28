@@ -171,8 +171,11 @@ explicit decision to support accounts outside the trusted household.
       trusted-proxy handling, atomic unique training movement resolution.
       Completed on `fix/reliability-phase-0-foundations`; 530 tests and
       TigerStyle pair-programming review passed before push.
-- [ ] **Phase 1 — Central DB migrations:** numbered central schema, automatic
+- [x] **Phase 1 — Central DB migrations:** numbered central schema, automatic
       pre-migration snapshot, health-check failure on migration failure.
+      Completed on `fix/reliability-phase-1-central-migrations`; atomic schema
+      validation/version stamping, fail-closed startup quarantine, 548 tests and
+      three-round TigerStyle pair-programming review passed before push.
 - [ ] **Phase 2 — Mutation-feedback contract:** shared accessible progress,
       success and persistent failure UI across every write route.
 - [ ] **Phase 3 — Durable jobs:** restart-safe queue for LLM, sync, backup and
@@ -433,7 +436,7 @@ explicit decision to support accounts outside the trusted household.
 - [x] Data export to JSON/CSV (all 21 tables, download endpoints)
 - [x] Markdown export with selectable sections
 - [x] Migration system for per-user DB schema changes (instead of CREATE IF NOT EXISTS)
-- [ ] Migration system for `virgil-central.db` (roadmap Phase 1)
+- [x] Migration system for `virgil-central.db` (roadmap Phase 1)
 - [x] Input validation on all forms (shared `validation.py` helpers, all POST endpoints covered)
 
 ## Settings & Infrastructure

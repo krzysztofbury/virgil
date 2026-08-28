@@ -9,6 +9,7 @@ from pathlib import Path
 
 import markupsafe
 from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -107,16 +108,21 @@ def get_app_version() -> str:
     return _APP_VERSION
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    from app.central_db import close_central_db, init_central_db, promote_admin_emails
-
-    await init_central_db()
-    await promote_admin_emails()
+async def _start_application(app: FastAPI):
+    from app.central_db import init_central_db, promote_admin_emails
 
     # Version banner — proves WHICH code is running in the deploy logs.
     _log = logging.getLogger("uvicorn")
     _version = get_app_version()
+
+    app.state.central_migration_failure = False
+    app.state.migration_failures = []
+    try:
+        await init_central_db()
+        await promote_admin_emails()
+    except Exception:
+        app.state.central_migration_failure = True
+        logging.getLogger(__name__).exception("Central database migration failed")
 
     # Run pending migrations for EXISTING per-user databases. Without this,
     # migrations only ever ran at account creation — new migrations silently
@@ -129,44 +135,75 @@ async def lifespan(app: FastAPI):
     from app.user_db import close_user_db, open_user_db
 
     _migrated = 0
-    app.state.migration_failures = []
-    for _user in await get_all_users():
-        # open_user_db lives INSIDE the try: one corrupt/unreadable database
-        # must degrade that account (visible via /healthz), never abort the
-        # whole lifespan and take every other user down with it.
-        _udb = None
-        try:
-            _udb = await open_user_db(_user["db_filename"])
-            if await count_pending_migrations(_udb) > 0:
-                # Image rollback cannot reverse a migration — keep a snapshot
-                # of the pre-migration database next to the regular backups.
-                await snapshot_before_migration(_udb)
-            await run_migrations(_udb)
-            _migrated += 1
-        except Exception:
-            logging.getLogger(__name__).exception("Startup migration failed for %s", _user["db_filename"])
-            # Surfaced via /healthz — a green healthcheck must not hide a user
-            # whose every request will fail on missing tables.
-            app.state.migration_failures.append(_user["db_filename"])
-        finally:
-            if _udb is not None:
-                await close_user_db(_udb)
+    if not app.state.central_migration_failure:
+        for _user in await get_all_users():
+            # open_user_db lives INSIDE the try: one corrupt/unreadable database
+            # must degrade that account (visible via /healthz), never abort the
+            # whole lifespan and take every other user down with it.
+            _udb = None
+            try:
+                _udb = await open_user_db(_user["db_filename"])
+                if await count_pending_migrations(_udb) > 0:
+                    # Image rollback cannot reverse a migration — keep a snapshot
+                    # of the pre-migration database next to the regular backups.
+                    await snapshot_before_migration(_udb)
+                await run_migrations(_udb)
+                _migrated += 1
+            except Exception:
+                logging.getLogger(__name__).exception("Startup migration failed for %s", _user["db_filename"])
+                # Surfaced via /healthz — a green healthcheck must not hide a user
+                # whose every request will fail on missing tables.
+                app.state.migration_failures.append(_user["db_filename"])
+            finally:
+                if _udb is not None:
+                    await close_user_db(_udb)
 
     _log.info(
-        "Virgil version=%s — startup migrations OK for %d user DB(s), %d failed",
+        "Virgil version=%s — central migration=%s, user migrations OK for %d DB(s), %d failed",
         _version,
+        "failed" if app.state.central_migration_failure else "ok",
         _migrated,
         len(app.state.migration_failures),
     )
 
     from app.services.scheduler import scheduler_loop
 
-    task = asyncio.create_task(scheduler_loop())
-    yield
-    task.cancel()
-    with contextlib.suppress(asyncio.CancelledError):
-        await task
-    await close_central_db()
+    return None if app.state.central_migration_failure else asyncio.create_task(scheduler_loop())
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.central_db import close_central_db
+
+    task = None
+    try:
+        task = await _start_application(app)
+        yield
+    finally:
+        if task is not None:
+            task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await task
+        await close_central_db()
+
+
+class CentralMigrationGuardMiddleware:
+    """Pure ASGI quarantine that preserves downstream cancellation semantics."""
+
+    def __init__(self, application, state):
+        self.application = application
+        self.state = state
+
+    async def __call__(self, scope, receive, send):
+        if (
+            scope["type"] == "http"
+            and getattr(self.state, "central_migration_failure", False)
+            and scope["path"] != "/healthz"
+        ):
+            response = JSONResponse({"status": "unavailable"}, status_code=503)
+            await response(scope, receive, send)
+            return
+        await self.application(scope, receive, send)
 
 
 app = FastAPI(title="Virgil", lifespan=lifespan)
@@ -174,6 +211,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(CSRFMiddleware)
+app.add_middleware(CentralMigrationGuardMiddleware, state=app.state)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")
@@ -186,19 +224,15 @@ templates.env.filters["md_block"] = _md_block
 templates.env.filters["duration"] = format_duration_seconds
 
 
-from fastapi.responses import JSONResponse, Response  # noqa: E402
-
-
 @app.get("/healthz")
 async def healthz(request: Request):
     """Deployment health: 503 while any user DB failed its startup migrations,
     so a broken schema rollout stops the deploy instead of passing a /login ping."""
-    failures = getattr(request.app.state, "migration_failures", [])
-    status_code = 503 if failures else 200
-    return JSONResponse(
-        {"status": "degraded" if failures else "ok", "migration_failures": len(failures)},
-        status_code=status_code,
+    degraded = bool(
+        getattr(request.app.state, "central_migration_failure", False)
+        or getattr(request.app.state, "migration_failures", [])
     )
+    return JSONResponse({"status": "degraded" if degraded else "ok"}, status_code=503 if degraded else 200)
 
 
 @app.get("/service-worker.js")
