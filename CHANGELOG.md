@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Durable background work now has a restart-safe state core.** Migration 027
+  adds a bounded per-user job queue with idempotent enqueue, atomic single-runner
+  claims, persisted retry timing, stale-job recovery and explicit
+  `needs_attention` handling. Every claim receives a unique lease token, so a
+  recovered process cannot complete a newer attempt; unknown work defaults to
+  manual retry rather than risking duplicate external side effects.
 - **Browser writes now share one accessible feedback contract.** Native PRG
   responses and HTMX requests use bounded `msg`/`err` outcomes, one persistent
   error/status region, and a submit state that preserves the control's original
