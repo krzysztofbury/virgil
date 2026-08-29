@@ -184,6 +184,18 @@ explicit decision to support accounts outside the trusted household.
 - [ ] **Phase 3 — Durable jobs:** restart-safe queue for LLM, sync, backup and
       export work, with bounded retries and no automatic retry at an ambiguous
       paid-LLM boundary.
+      - [x] **Phase 3A - Durable state core:** migration 027, bounded payloads,
+        strict idempotency, atomic single-runner claims, per-attempt lease
+        fencing, persisted retry timing and stale recovery. Completed on
+        `fix/reliability-phase-3-durable-jobs`; 601 tests and a three-pass
+        TigerStyle pair-programming review passed before push.
+      - [ ] **Phase 3B - Worker integration:** bounded scheduler worker and
+        handler registry, with no external I/O inside a SQLite write
+        transaction.
+      - [ ] **Phase 3C - Status and retry UI:** lightweight job status endpoint,
+        progress partial and explicit retry for failed or ambiguous work.
+      - [ ] **Phase 3D - Workload migration:** move Oura, backup/export and LLM
+        calls one kind at a time, with an explicit retry policy for each kind.
 - [ ] **Phase 4 — Oura lifecycle hardening:** timestamp replay protection,
       subscription expiry tracking, renewal and periodic reconciliation.
 - [ ] **Phase 5 — Recovery and data ownership:** versioned JSON transfer,
@@ -211,10 +223,15 @@ explicit decision to support accounts outside the trusted household.
 
 ### P1 — Durable job model for LLM/sync/backup work
 
-**Roadmap status:** Phase 3, blocked by Phases 0 and 2.
+**Roadmap status:** Phase 3A complete; Phases 3B-3D remain.
 **Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no automatic duplicate LLM cost at an ambiguous provider boundary.
-**Plan:** Add a `jobs` table per user DB (id, kind, payload, status, attempts, last_error, created/finished). Scheduler loop doubles as the worker (claim → run → record). Onboarding enrichment, A.N.D.Y., experiment summaries, briefings, Oura sync, backup, export become job kinds. UI polls a lightweight `/api/jobs/{id}` partial via HTMX.
-**Deliverables:** jobs table migration; worker in scheduler; onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); tests for claim/retry/backoff.
+**Shipped in Phase 3A:** migration 027 and the durable state-transition service:
+bounded JSON payload/result/error fields, idempotent enqueue with semantic conflict
+detection, atomic claim, unique claim-token fencing, heartbeat, completion,
+persisted retry delay, bounded stale recovery, and explicit retry/cancel paths.
+Manual retry is the safe default; automatic retry must be selected deliberately.
+**Plan remaining:** scheduler loop doubles as the bounded worker (claim -> run -> record). Onboarding enrichment, A.N.D.Y., experiment summaries, briefings, Oura sync, backup, export become job kinds. UI polls a lightweight `/api/jobs/{id}` partial via HTMX.
+**Deliverables remaining:** worker in scheduler; onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); workload-level crash/restart tests.
 
 ### P1 — Recovery & data-ownership story
 
