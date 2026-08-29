@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Durable jobs now have a bounded scheduler worker.** Each tick rotates through
+  a bounded user batch with bounded concurrency, recovers stale leases and runs
+  at most one claimed job per user. Handlers use a separate database connection,
+  receive heartbeats outside queue transactions and must pass fail-closed
+  transaction checks. Unsupported, timed-out and ambiguous outcomes require
+  attention, while a lost lease cannot overwrite a newer attempt.
 - **Durable background work now has a restart-safe state core.** Migration 027
   adds a bounded per-user job queue with idempotent enqueue, atomic single-runner
   claims, persisted retry timing, stale-job recovery and explicit
