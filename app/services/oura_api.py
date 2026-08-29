@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from collections import defaultdict
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from functools import lru_cache
 from urllib.parse import urlencode
@@ -135,6 +136,28 @@ ENDPOINT_COLUMNS: dict[str, tuple[str, ...]] = {
     "heartrate": ("resting_hr",),
 }
 DAILY_ENDPOINT_ORDER = ("daily_sleep", "daily_readiness", "daily_activity", "daily_stress", "sleep", "heartrate")
+MONTHLY_ENDPOINT_COLUMNS: dict[str, tuple[str, ...]] = {
+    "daily_sleep": ("sleep_score",),
+    "daily_readiness": ("readiness",),
+    "daily_activity": ("activity", "steps"),
+    "daily_stress": ("stress_normal", "stress_stressful", "stress_restored"),
+    "sleep": ("sleep_duration", "deep_sleep", "rem_sleep", "lowest_hr", "hrv"),
+    "heartrate": ("rhr",),
+}
+_ALL_MONTHLY_COLUMNS = tuple(
+    column for endpoint in DAILY_ENDPOINT_ORDER for column in MONTHLY_ENDPOINT_COLUMNS[endpoint]
+)
+
+
+@dataclass(frozen=True)
+class OuraSyncResult:
+    days: int
+    failed_daily_endpoints: tuple[str, ...]
+    workouts_synced: bool
+
+    @property
+    def complete(self) -> bool:
+        return not self.failed_daily_endpoints and self.workouts_synced
 
 
 # Retry-After can be server-controlled and may legally be an HTTP-date — never
@@ -155,13 +178,22 @@ async def _fetch_endpoint(
     client: httpx.AsyncClient, endpoint: str, token: str, start: str, end: str, max_retries: int = 3
 ) -> list:
     for attempt in range(max_retries + 1):
-        resp = await client.get(
-            f"{OURA_API_BASE}/{endpoint}",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"start_date": start, "end_date": end},
-        )
+        try:
+            resp = await client.get(
+                f"{OURA_API_BASE}/{endpoint}",
+                headers={"Authorization": f"Bearer {token}"},
+                params={"start_date": start, "end_date": end},
+            )
+        except httpx.RequestError as exc:
+            raise OuraFetchError(f"Oura API {endpoint} transport failed") from exc
         if resp.status_code == 200:
-            return resp.json().get("data", [])
+            try:
+                payload = resp.json()
+            except ValueError as exc:
+                raise OuraFetchError(f"Oura API {endpoint} returned malformed JSON") from exc
+            if not isinstance(payload, dict) or not isinstance(payload.get("data", []), list):
+                raise OuraFetchError(f"Oura API {endpoint} returned an unexpected response")
+            return payload.get("data", [])
         if resp.status_code == 401:
             raise OuraAuthError(f"Oura API {endpoint} returned 401 — token expired or revoked")
         if resp.status_code == 429 and attempt < max_retries:
@@ -399,7 +431,7 @@ async def _upsert_daily(db, day_str: str, data: dict, ok_endpoints: set[str]) ->
     await db.execute(_daily_upsert_sql(ok_endpoints), values)
 
 
-async def sync_oura_from_api(db, days_back: int = 30) -> int:
+async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
     """Full sync pipeline: ensure token → fetch → upsert oura_daily → recompute oura_monthly.
 
     Partial endpoint failures update only the successfully fetched columns;
@@ -438,7 +470,6 @@ async def sync_oura_from_api(db, days_back: int = 30) -> int:
         if not rows:
             continue
         days = [dict(r) for r in rows]
-        n = len(days)
 
         def avg(field, _days=days):
             vals = [d[field] for d in _days if d.get(field) is not None]
@@ -448,45 +479,45 @@ async def sync_oura_from_api(db, days_back: int = 30) -> int:
             vals = [d[field] for d in _days if d.get(field) is not None]
             return sum(vals) if vals else None
 
-        steps_total = total("steps")
-        steps_avg = steps_total // n if steps_total else None
-
         # Oura API v2 daily_stress only provides stress_high (seconds) and
         # stress_rest/recovery_high (seconds). stress_medium and stress_low
         # are always 0 — those fields don't exist in the API.
         # Monthly mapping: stress_stressful = stress_high, stress_restored = stress_rest.
         # stress_normal is kept for schema compatibility but will always be 0.
+        steps_average = avg("steps")
+        monthly_values = {
+            "sleep_score": avg("sleep_score"),
+            "readiness": avg("readiness_score"),
+            "activity": avg("activity_score"),
+            "steps": round(steps_average) if steps_average is not None else None,
+            "sleep_duration": avg("sleep_duration_hours"),
+            "deep_sleep": avg("deep_sleep_hours"),
+            "rem_sleep": avg("rem_sleep_hours"),
+            "rhr": avg("resting_hr"),
+            "lowest_hr": avg("lowest_hr"),
+            "hrv": avg("avg_hrv"),
+            "stress_normal": 0,
+            "stress_stressful": total("stress_high"),
+            "stress_restored": total("stress_rest"),
+        }
+        update_columns = tuple(
+            column
+            for endpoint in DAILY_ENDPOINT_ORDER
+            if endpoint in ok_endpoints
+            for column in MONTHLY_ENDPOINT_COLUMNS[endpoint]
+        )
+        assert update_columns, "Monthly aggregation requires at least one successful endpoint"
+        insert_columns = ", ".join(("month", *_ALL_MONTHLY_COLUMNS))
+        placeholders = ", ".join("?" for _ in range(len(_ALL_MONTHLY_COLUMNS) + 1))
+        update_clause = ", ".join(f"{column}=excluded.{column}" for column in update_columns)
         await db.execute(
-            """INSERT INTO oura_monthly (month, sleep_score, readiness, activity, steps,
-                sleep_duration, deep_sleep, rem_sleep, rhr, lowest_hr, hrv,
-                stress_normal, stress_stressful, stress_restored)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(month) DO UPDATE SET
-                sleep_score=excluded.sleep_score, readiness=excluded.readiness,
-                activity=excluded.activity, steps=excluded.steps,
-                sleep_duration=excluded.sleep_duration, deep_sleep=excluded.deep_sleep,
-                rem_sleep=excluded.rem_sleep, rhr=excluded.rhr, lowest_hr=excluded.lowest_hr,
-                hrv=excluded.hrv, stress_normal=excluded.stress_normal,
-                stress_stressful=excluded.stress_stressful, stress_restored=excluded.stress_restored""",
-            (
-                month,
-                avg("sleep_score"),
-                avg("readiness_score"),
-                avg("activity_score"),
-                steps_avg,
-                avg("sleep_duration_hours"),
-                avg("deep_sleep_hours"),
-                avg("rem_sleep_hours"),
-                avg("resting_hr"),
-                avg("lowest_hr"),
-                avg("avg_hrv"),
-                0,  # stress_normal: always 0 (stress_low doesn't exist in Oura API v2)
-                total("stress_high"),  # stress_stressful = high stress seconds
-                total("stress_rest"),  # stress_restored = recovery seconds
-            ),
+            f"INSERT INTO oura_monthly ({insert_columns}) VALUES ({placeholders}) "
+            f"ON CONFLICT(month) DO UPDATE SET {update_clause}",
+            (month, *(monthly_values[column] for column in _ALL_MONTHLY_COLUMNS)),
         )
 
     # Sync workouts
+    workouts_synced = True
     try:
         workouts = await fetch_oura_workouts(token, start.isoformat(), end.isoformat())
         for w in workouts:
@@ -513,15 +544,26 @@ async def sync_oura_from_api(db, days_back: int = 30) -> int:
             )
         await _auto_populate_experiments(db)
     except OuraAuthError:
-        logger.warning("Oura workout scope not authorized — skipping workout sync")
+        logger.warning("Oura token rejected during workout sync — marking integration as error")
+        await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
+        await db.commit()
+        raise
+    except OuraFetchError:
+        logger.warning("Oura workout endpoint unavailable or not authorized — skipping workout sync")
+        workouts_synced = False
     except Exception:
         logger.exception("Failed to sync Oura workouts")
+        workouts_synced = False
 
     # Update last_sync_at
     now = datetime.now(UTC).isoformat()
     await db.execute("UPDATE integrations SET last_sync_at = ? WHERE provider = 'oura'", (now,))
     await db.commit()
-    return count
+    return OuraSyncResult(
+        days=count,
+        failed_daily_endpoints=tuple(sorted(failed)),
+        workouts_synced=workouts_synced,
+    )
 
 
 # ── Webhook Subscription API ──

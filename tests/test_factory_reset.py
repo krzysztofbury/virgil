@@ -6,6 +6,7 @@ empty un-migrated SQLite file and crashed on missing tables.
 """
 
 import sqlite3
+from urllib.parse import parse_qs, urlsplit
 
 from conftest import _complete_onboarding, csrf_token, user_db_path
 
@@ -23,10 +24,12 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
         data={"_csrf_token": token},
         follow_redirects=False,
     )
-    assert resp.status_code == 303
-    assert resp.headers["location"] == "/onboarding"
-
     try:
+        assert resp.status_code == 303
+        redirect = urlsplit(resp.headers["location"])
+        assert redirect.path == "/onboarding"
+        assert parse_qs(redirect.query) == {"msg": ["Factory reset completed. Start onboarding again."]}
+
         # The recreated DB must be fully migrated (schema_migrations populated,
         # seeded data present) and the seeded daily_log gone.
         conn = sqlite3.connect(user_db_path())

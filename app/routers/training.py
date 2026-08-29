@@ -3,12 +3,12 @@ import logging
 import sqlite3
 from dataclasses import asdict
 from datetime import date, timedelta
-from urllib.parse import quote
 from uuid import uuid4
 
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements, parse_wod
@@ -403,11 +403,11 @@ async def capture_wod(request: Request):
 
     session_date = form.get("date", date.today().isoformat())
     if not valid_date(session_date):
-        return RedirectResponse("/training", status_code=303)
+        return error_redirect(request, "/training", "Nieprawidłowa data treningu.")
 
     wod_text = truncate(form.get("wod_text", "").strip(), 4000)
     if not wod_text:
-        return RedirectResponse("/training", status_code=303)
+        return error_redirect(request, "/training", "Wpisz notatkę treningową.")
 
     duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
 
@@ -428,9 +428,13 @@ async def capture_wod(request: Request):
         replay_id, session_id = await _resolve_capture_replay(db, capture_token, session_date, wod_text, duration_int)
         if replay_id is not None:
             # Same token, same note: the first request already stored the parse.
-            return RedirectResponse(f"/training/wod/confirm/{replay_id}", status_code=303)
+            return success_redirect(
+                request,
+                f"/training/wod/confirm/{replay_id}",
+                "Notatka treningowa zapisana. Sprawdź wpisy przed zatwierdzeniem.",
+            )
         if session_id is None:
-            return RedirectResponse("/training", status_code=303)
+            return error_redirect(request, "/training", "Nie udało się zapisać notatki treningowej.")
 
     entries: list = []
     unmatched: list[str] = []
@@ -468,7 +472,11 @@ async def capture_wod(request: Request):
     await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (wod_parsed, session_id))
     await db.commit()
 
-    return RedirectResponse(f"/training/wod/confirm/{session_id}", status_code=303)
+    return success_redirect(
+        request,
+        f"/training/wod/confirm/{session_id}",
+        "Notatka treningowa zapisana. Sprawdź wpisy przed zatwierdzeniem.",
+    )
 
 
 @router.get("/training/wod/confirm/{session_id}", response_class=HTMLResponse)
@@ -662,7 +670,7 @@ async def confirm_wod(request: Request):
 
     session_id = _parse_int_in_range(form.get("session_id"), 1, 2**31 - 1)
     if session_id is None:
-        return RedirectResponse("/training", status_code=303)
+        return error_redirect(request, "/training", "Nieprawidłowy identyfikator sesji treningowej.")
 
     # "Discard this parse": the supported way to end up with the note and no
     # entries. Without an explicit exit, "I reviewed this and want none of it" is
@@ -691,8 +699,12 @@ async def confirm_wod(request: Request):
         )
         if cursor.rowcount == 0:
             logger.warning("WOD discard for session %s matched nothing (unknown id or already settled)", session_id)
+            await db.commit()
+            return error_redirect(
+                request, "/training", "Nie odrzucono parsowania: sesja jest nieznana lub nieaktualna."
+            )
         await db.commit()
-        return RedirectResponse("/training", status_code=303)
+        return success_redirect(request, "/training", "Parsowanie odrzucone. Notatka treningowa została zachowana.")
 
     entry_count_raw = form.get("entry_count")
     entry_count = _parse_int_in_range(entry_count_raw, 0, MAX_CONFIRM_ENTRIES)
@@ -712,7 +724,7 @@ async def confirm_wod(request: Request):
             if blank
             else "Zbyt dużo wpisów naraz — spróbuj ponownie."
         )
-        return RedirectResponse(f"/training/wod/confirm/{session_id}?err={quote(message)}", status_code=303)
+        return error_redirect(request, f"/training/wod/confirm/{session_id}", message)
 
     parsed_rows: list[tuple[str, int, int | None, float | None, float | None, str]] = []
     try:
@@ -750,7 +762,7 @@ async def confirm_wod(request: Request):
     )
     if cursor.rowcount != 1:
         await db.commit()
-        return RedirectResponse("/training", status_code=303)
+        return error_redirect(request, "/training", "Nie zapisano wpisów: sesja jest nieznana lub nieaktualna.")
 
     rows: list[tuple] = []
     skipped: list[str] = []
@@ -798,13 +810,11 @@ async def confirm_wod(request: Request):
         )
         await db.commit()
         logger.warning("WOD confirm resolved no movements for session %s; parse re-armed", session_id)
-        return RedirectResponse(
-            f"/training/wod/confirm/{session_id}?err="
-            + quote(
-                "Żaden wiersz nie wskazał znanego ruchu, więc nic nie zapisano. "
-                "Wybierz ruch z listy albo użyj „Odrzuć parsowanie”, jeśli notatka wystarczy."
-            ),
-            status_code=303,
+        return error_redirect(
+            request,
+            f"/training/wod/confirm/{session_id}",
+            "Żaden wiersz nie wskazał znanego ruchu, więc nic nie zapisano. "
+            "Wybierz ruch z listy albo użyj „Odrzuć parsowanie”, jeśli notatka wystarczy.",
         )
 
     await db.executemany(
@@ -822,8 +832,8 @@ async def confirm_wod(request: Request):
             "Dodaj je w Ustawieniach i dopisz kolejną notatką."
         )
         logger.warning("WOD confirm skipped unresolved movements for session %s: %s", session_id, names)
-        return RedirectResponse(f"/training?msg={quote(message)}", status_code=303)
-    return RedirectResponse("/training", status_code=303)
+        return success_redirect(request, "/training", message)
+    return success_redirect(request, "/training", f"Zapisano {len(rows)} wpisów treningowych.")
 
 
 @router.post("/training/session/{session_id}/manual")
@@ -845,7 +855,7 @@ async def arm_manual_entry(request: Request, session_id: int):
     )
     if not rows or rows[0]["entries"] or rows[0]["wod_parsed"] is not None:
         logger.warning("manual entry refused for session %s (unknown, has entries, or already armed)", session_id)
-        return RedirectResponse("/training", status_code=303)
+        return error_redirect(request, "/training", "Nie można otworzyć ręcznego wpisu dla tej sesji.")
 
     armed = json.dumps({"entries": [], "unmatched": [], "parse_error": "", "dropped": 0, "manual": True})
     cursor = await db.execute(
@@ -856,13 +866,19 @@ async def arm_manual_entry(request: Request, session_id: int):
     if cursor.rowcount != 1:
         # Another request armed it between the read and this write.
         logger.warning("manual entry for session %s lost the arming race", session_id)
-        return RedirectResponse("/training", status_code=303)
-    return RedirectResponse(f"/training/wod/confirm/{session_id}", status_code=303)
+        return error_redirect(request, "/training", "Sesja zmieniła się przed otwarciem ręcznego wpisu.")
+    return success_redirect(
+        request,
+        f"/training/wod/confirm/{session_id}",
+        "Ręczny wpis jest gotowy. Uzupełnij i zapisz ćwiczenia.",
+    )
 
 
 @router.post("/training/session/{session_id}/delete")
 async def delete_session(request: Request, session_id: int):
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+    cursor = await db.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
     await db.commit()
-    return RedirectResponse("/training", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, "/training", "Nie usunięto sesji: sesja nie istnieje.")
+    return success_redirect(request, "/training", "Sesja treningowa usunięta.")

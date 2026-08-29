@@ -1,0 +1,10 @@
+{% set feedback_error = request.query_params.get('err', '')[:240] %}
+{% set feedback_message = request.query_params.get('msg', '')[:240] if not feedback_error else '' %}
+<section id="mutation-feedback" class="mutation-feedback" aria-label="Action feedback">
+    <div id="feedback-status" role="status" aria-live="polite" aria-atomic="true">{% if feedback_message %}<div class="feedback-message feedback-success"><span data-feedback-text>{{ feedback_message }}</span></div>{% endif %}</div>
+    <div id="feedback-error" role="alert" aria-live="assertive" aria-atomic="true">{% if feedback_error %}<div class="feedback-message feedback-error">
+            <span data-feedback-text>{{ feedback_error }}</span>
+            <button type="button" class="feedback-dismiss" data-feedback-dismiss aria-label="Dismiss error">&times;</button>
+        </div>{% endif %}
+    </div>
+</section>

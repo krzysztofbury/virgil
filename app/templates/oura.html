@@ -6,8 +6,8 @@
     <div class="flex-between">
         <h1>Oura Ring Data</h1>
         {% if oura_connected %}
-        <form method="POST" action="/oura/api-sync" style="margin:0;">
-            <button type="submit" class="btn btn-primary btn-sm">Sync from API</button>
+        <form method="POST" action="/oura/api-sync" hx-post="/oura/api-sync" hx-swap="none" style="margin:0;">
+            <button type="submit" class="btn btn-primary btn-sm" data-pending-label="Syncing...">Sync from API</button>
         </form>
         {% endif %}
     </div>

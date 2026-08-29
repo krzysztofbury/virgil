@@ -2,6 +2,7 @@
 
 import sqlite3
 from datetime import date, timedelta
+from urllib.parse import urlsplit
 
 from conftest import csrf_token, user_db_path
 
@@ -27,7 +28,7 @@ def _create_general(auth_client, **overrides):
     data.update(overrides)
     resp = auth_client.post("/experiments/create", data=data, follow_redirects=False)
     assert resp.status_code == 303, resp.text[:200]
-    return int(resp.headers["location"].rsplit("/", 1)[1]), token
+    return int(urlsplit(resp.headers["location"]).path.rsplit("/", 1)[1]), token
 
 
 def _metrics(exp_id):

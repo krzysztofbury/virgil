@@ -2,6 +2,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS
+from app.feedback import error_redirect, success_redirect
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, OptionalFormInt, clamp, truncate, valid_date
 
@@ -40,7 +41,7 @@ async def save_life_score(
     priorities: str = Form(""),
 ):
     if not valid_date(date):
-        return RedirectResponse("/", status_code=303)
+        return error_redirect(request, "/", "Choose a valid life-score date.")
     # Clamp area scores to 1-10 range
     planning = clamp(planning, 1, 10)
     spirituality = clamp(spirituality, 1, 10)
@@ -92,4 +93,4 @@ async def save_life_score(
         ),
     )
     await db.commit()
-    return RedirectResponse("/", status_code=303)
+    return success_redirect(request, "/", "Life scores saved.")

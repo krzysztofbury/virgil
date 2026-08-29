@@ -1,8 +1,10 @@
+import logging
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.user_db import get_user_db_from_request
 from app.validation import (
@@ -15,6 +17,7 @@ from app.validation import (
 )
 
 router = APIRouter(prefix="/experiments")
+logger = logging.getLogger(__name__)
 
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -389,13 +392,13 @@ async def create_experiment(
     week_labels: str = Form(""),
 ):
     if not valid_date(start_date):
-        return RedirectResponse("/experiments/new", status_code=303)
+        return error_redirect(request, "/experiments/new", "Choose a valid experiment start date.")
     if num_weeks < 1 or num_weeks > 52:
-        return RedirectResponse("/experiments/new", status_code=303)
+        return error_redirect(request, "/experiments/new", "Experiment duration must be between 1 and 52 weeks.")
     title = truncate(title, 200)
     description = truncate(description, 2000)
     if not title.strip():
-        return RedirectResponse("/experiments/new", status_code=303)
+        return error_redirect(request, "/experiments/new", "Experiment title is required.")
     # Normalize targets the same way week editing does — an inverted range
     # otherwise renders nonsense progress percentages.
     target_min = max(0, target_min or 0)
@@ -460,7 +463,7 @@ async def create_experiment(
         )
 
     await db.commit()
-    return RedirectResponse(f"/experiments/{exp_id}", status_code=303)
+    return success_redirect(request, f"/experiments/{exp_id}", "Experiment created.")
 
 
 @router.get("/{experiment_id}", response_class=HTMLResponse)
@@ -622,19 +625,25 @@ async def edit_experiment(
     num_weeks: int = Form(...),
     status: str = Form("active"),
 ):
-    if not valid_date(start_date) or num_weeks < 1 or num_weeks > 52:
-        return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+    if not valid_date(start_date):
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Choose a valid experiment start date.")
+    if num_weeks < 1 or num_weeks > 52:
+        return error_redirect(
+            request,
+            f"/experiments/{experiment_id}/edit",
+            "Experiment duration must be between 1 and 52 weeks.",
+        )
     title = truncate(title, 200).strip()
     if not title:
-        return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Experiment title is required.")
     if status not in ("active", "completed", "abandoned"):
-        status = "active"
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Choose a valid experiment status.")
 
     db = get_user_db_from_request(request)
     # Unknown id: the week INSERT below would otherwise raise an FK violation (500).
     rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
     if not rows:
-        return RedirectResponse("/experiments", status_code=303)
+        return error_redirect(request, "/experiments", "Experiment not found.")
     await db.execute(
         "UPDATE experiments SET title = ?, description = ?, start_date = ?, num_weeks = ?, status = ? WHERE id = ?",
         (title, truncate(description, 2000), start_date, num_weeks, status, experiment_id),
@@ -658,7 +667,7 @@ async def edit_experiment(
         )
 
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    return success_redirect(request, f"/experiments/{experiment_id}", "Experiment updated.")
 
 
 @router.post("/{experiment_id}/metric/add")
@@ -674,12 +683,12 @@ async def add_metric(
 ):
     metric = _normalize_metric(name, color, kind, target_value, target_period, source_match)
     if metric is None:
-        return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric name is required.")
     db = get_user_db_from_request(request)
     # Unknown id: the metric INSERT below would otherwise raise an FK violation (500).
     rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
     if not rows:
-        return RedirectResponse("/experiments", status_code=303)
+        return error_redirect(request, "/experiments", "Experiment not found.")
     order_rows = await db.execute_fetchall(
         "SELECT COALESCE(MAX(display_order), 0) AS mx FROM experiment_activity_types WHERE experiment_id = ?",
         (experiment_id,),
@@ -700,7 +709,7 @@ async def add_metric(
         ),
     )
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+    return success_redirect(request, f"/experiments/{experiment_id}/edit", "Metric added.")
 
 
 @router.post("/{experiment_id}/metric/{metric_id}/update")
@@ -715,16 +724,19 @@ async def update_metric(
     source_match: str = Form(""),
 ):
     db = get_user_db_from_request(request)
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Experiment not found.")
     rows = await db.execute_fetchall(
         "SELECT kind FROM experiment_activity_types WHERE id = ? AND experiment_id = ?", (metric_id, experiment_id)
     )
     if not rows:
-        return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric not found.")
     # kind is immutable — changing it would silently reinterpret logged values.
     metric = _normalize_metric(name, color, rows[0]["kind"], target_value, target_period, source_match)
     if metric is None:
-        return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
-    await db.execute(
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric name is required.")
+    cursor = await db.execute(
         "UPDATE experiment_activity_types SET name = ?, color = ?, target_value = ?, target_period = ?, source_match = ? "
         "WHERE id = ? AND experiment_id = ?",
         (
@@ -738,18 +750,25 @@ async def update_metric(
         ),
     )
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}/edit", "Metric updated.")
 
 
 @router.post("/{experiment_id}/metric/{metric_id}/delete")
 async def delete_metric(request: Request, experiment_id: int, metric_id: int):
     db = get_user_db_from_request(request)
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Experiment not found.")
     # Entries cascade via FK (activity_type_id ... ON DELETE CASCADE).
-    await db.execute(
+    cursor = await db.execute(
         "DELETE FROM experiment_activity_types WHERE id = ? AND experiment_id = ?", (metric_id, experiment_id)
     )
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}/edit", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}/edit", "Metric deleted.")
 
 
 @router.post("/{experiment_id}/entry")
@@ -762,21 +781,24 @@ async def add_entry(
     notes: str = Form(""),
 ):
     if not valid_date(date):
-        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}", "Choose a valid entry date.")
     db = get_user_db_from_request(request)
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
     rows = await db.execute_fetchall(
         "SELECT kind FROM experiment_activity_types WHERE id = ? AND experiment_id = ?", (metric_id, experiment_id)
     )
     if not rows:
-        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}", "Metric not found.")
     kind = rows[0]["kind"]
     try:
         v = int(value)
     except (TypeError, ValueError):
-        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}", "Entry value must be a whole number.")
     v = clamp_metric_value(kind, v)
     if v is None:
-        return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+        return error_redirect(request, f"/experiments/{experiment_id}", "Entry value is outside the allowed range.")
     notes = truncate(notes, 500)
 
     if kind == "boolean":
@@ -790,7 +812,7 @@ async def add_entry(
         (experiment_id, date, metric_id, v, notes),
     )
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    return success_redirect(request, f"/experiments/{experiment_id}", "Entry logged.")
 
 
 @router.post("/{experiment_id}/generate-summary")
@@ -802,8 +824,23 @@ async def generate_summary(
     from app.services.experiment_summary import generate_week_summary
 
     db = get_user_db_from_request(request)
-    await generate_week_summary(db, experiment_id, week_number)
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
+    week_rows = await db.execute_fetchall(
+        "SELECT 1 FROM experiment_weeks WHERE experiment_id = ? AND week_number = ?",
+        (experiment_id, week_number),
+    )
+    if not week_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment week not found.")
+    try:
+        await generate_week_summary(db, experiment_id, week_number)
+    except Exception:
+        logger.exception("Failed to generate summary for experiment %s week %s", experiment_id, week_number)
+        return error_redirect(
+            request, f"/experiments/{experiment_id}", "Could not generate the week summary. Try again."
+        )
+    return success_redirect(request, f"/experiments/{experiment_id}", "Week summary generated.")
 
 
 @router.post("/{experiment_id}/import-workouts")
@@ -811,9 +848,16 @@ async def import_workouts(request: Request, experiment_id: int):
     from app.services.oura_api import _auto_populate_experiments
 
     db = get_user_db_from_request(request)
-    await _auto_populate_experiments(db)
-    await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
+    try:
+        await _auto_populate_experiments(db)
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to import Oura workouts for experiment %s", experiment_id)
+        return error_redirect(request, f"/experiments/{experiment_id}", "Could not import Oura workouts. Try again.")
+    return success_redirect(request, f"/experiments/{experiment_id}", "Oura workout import completed.")
 
 
 @router.post("/{experiment_id}/delete-entry")
@@ -823,9 +867,16 @@ async def delete_entry(
     entry_id: int = Form(...),
 ):
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM experiment_entries WHERE id = ? AND experiment_id = ?", (entry_id, experiment_id))
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
+    cursor = await db.execute(
+        "DELETE FROM experiment_entries WHERE id = ? AND experiment_id = ?", (entry_id, experiment_id)
+    )
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Entry not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}", "Entry deleted.")
 
 
 @router.post("/{experiment_id}/complete")
@@ -836,18 +887,28 @@ async def complete_experiment(
 ):
     db = get_user_db_from_request(request)
     # 'active' allows undoing a mistaken Complete/Abandon click (reopen).
-    if new_status in ("completed", "abandoned", "active"):
-        await db.execute("UPDATE experiments SET status = ? WHERE id = ?", (new_status, experiment_id))
-        await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    messages = {
+        "completed": "Experiment marked as completed.",
+        "abandoned": "Experiment marked as abandoned.",
+        "active": "Experiment reopened.",
+    }
+    if new_status not in messages:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Choose a valid experiment status.")
+    cursor = await db.execute("UPDATE experiments SET status = ? WHERE id = ?", (new_status, experiment_id))
+    await db.commit()
+    if cursor.rowcount == 0:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}", messages[new_status])
 
 
 @router.post("/{experiment_id}/delete")
 async def delete_experiment(request: Request, experiment_id: int):
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
+    cursor = await db.execute("DELETE FROM experiments WHERE id = ?", (experiment_id,))
     await db.commit()
-    return RedirectResponse("/experiments", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, "/experiments", "Experiment not found.")
+    return success_redirect(request, "/experiments", "Experiment deleted.")
 
 
 @router.post("/{experiment_id}/week/{week_number}/targets")
@@ -864,10 +925,15 @@ async def update_week_targets(
     if target_max < target_min:
         target_max = target_min
     db = get_user_db_from_request(request)
-    await db.execute(
+    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    if not experiment_rows:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
+    cursor = await db.execute(
         "UPDATE experiment_weeks SET target_min = ?, target_max = ?, label = ? "
         "WHERE experiment_id = ? AND week_number = ?",
         (target_min, target_max, label.strip(), experiment_id, week_number),
     )
     await db.commit()
-    return RedirectResponse(f"/experiments/{experiment_id}", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Experiment week not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}", f"Week {week_number} targets updated.")

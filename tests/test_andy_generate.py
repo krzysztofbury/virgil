@@ -46,9 +46,11 @@ def test_generate_andy_surfaces_error(auth_client):
         headers={"HX-Request": "true"},
         follow_redirects=False,
     )
-    assert resp.status_code == 200
+    assert resp.status_code == 500
     assert resp.headers.get("HX-Retarget") == "#andy-error", "error must retarget to the visible container"
     assert resp.headers.get("HX-Reswap") == "innerHTML"
+    assert resp.headers.get("X-Feedback-Swap") == "true"
+    assert resp.headers.get("X-Feedback-Message") == "Could not generate A.N.D.Y. suggestions."
     # Exact reason varies by env (no provider / bad key / bad model), but an LLM
     # error must be shown to the user, not swallowed into an empty redirect.
     assert "LLM" in resp.text and "⚠" in resp.text, f"reason must be shown, got: {resp.text[:200]}"

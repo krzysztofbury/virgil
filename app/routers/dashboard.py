@@ -295,5 +295,10 @@ async def generate_briefing_endpoint(request: Request):
         return HTMLResponse(
             '<div class="text-muted" style="padding:0.5rem;">'
             "Failed to generate briefing. Check LLM provider settings.</div>",
-            status_code=200,
+            status_code=500,
+            headers={
+                "X-Feedback-Kind": "error",
+                "X-Feedback-Message": "Failed to generate briefing. Check LLM provider settings.",
+                "X-Feedback-Swap": "true",
+            },
         )

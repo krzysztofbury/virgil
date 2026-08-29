@@ -35,39 +35,305 @@ document.addEventListener('htmx:afterSwap', function(e) {
     initDatePickers(e.detail.target);
 });
 
-// Toast notification
+// One accessible mutation-feedback surface for native forms and HTMX.
+var DRAFT_PREFIX = 'virgil-draft:';
+var DRAFT_INDEX_KEY = 'virgil-draft-index';
+var DRAFT_CLEAR_PENDING_PREFIX = 'virgil-draft-clear-pending:';
+var DRAFT_FIELD_MAX = 2000;
+var DRAFT_TOTAL_MAX = 4000;
+var DRAFT_COUNT_MAX = 12;
+var DRAFT_FIELDS_MAX = 20;
+var HTMX_TIMEOUT_MS = 30000;
+
+if (window.htmx) window.htmx.config.timeout = HTMX_TIMEOUT_MS;
+
+function renderFeedback(region, message, className, dismissible) {
+    region.replaceChildren();
+    var box = document.createElement('div');
+    box.className = 'feedback-message ' + className;
+    var text = document.createElement('span');
+    text.dataset.feedbackText = '';
+    text.textContent = message;
+    box.appendChild(text);
+    if (dismissible) {
+        var dismiss = document.createElement('button');
+        dismiss.type = 'button';
+        dismiss.className = 'feedback-dismiss';
+        dismiss.dataset.feedbackDismiss = '';
+        dismiss.setAttribute('aria-label', 'Dismiss error');
+        dismiss.textContent = '\u00d7';
+        box.appendChild(dismiss);
+    }
+    region.appendChild(box);
+}
+
+function showFeedback(message, kind) {
+    var status = document.getElementById('feedback-status');
+    var error = document.getElementById('feedback-error');
+    if (!status || !error) return;
+    if (kind === 'error') {
+        status.replaceChildren();
+        renderFeedback(error, message, 'feedback-error', true);
+        return;
+    }
+    error.replaceChildren();
+    renderFeedback(status, message, kind === 'pending' ? 'feedback-pending' : 'feedback-success', false);
+}
+
 function showToast(message, isError) {
-    isError = isError || false;
-    var toast = document.getElementById('toast');
-    if (!toast) return;
-    toast.textContent = message;
-    toast.className = 'toast' + (isError ? ' error' : '');
-    toast.style.display = 'block';
-    setTimeout(function() { toast.style.display = 'none'; }, 2500);
+    showFeedback(message, isError ? 'error' : 'success');
 }
 
-// Save indicator flash
 function flashSaved() {
-    var el = document.getElementById('save-indicator');
-    if (!el) return;
-    el.textContent = '';
-    void el.offsetWidth;
-    el.textContent = 'saved';
+    showFeedback('Saved', 'success');
 }
 
-// Listen for HTMX events
-document.addEventListener('htmx:afterRequest', function(e) {
-    if (e.detail.successful) {
-        var resp = e.detail.xhr.responseText;
-        if (resp === 'saved') {
-            flashSaved();
+function draftStorageKey(form) {
+    return form && form.dataset.draftKey ? DRAFT_PREFIX + form.dataset.draftKey : '';
+}
+
+function draftFieldNames(form) {
+    return (form.dataset.draftFields || '').split(',').map(function(name) { return name.trim(); })
+        .filter(Boolean).slice(0, DRAFT_FIELDS_MAX);
+}
+
+function draftIndex() {
+    try {
+        var parsed = JSON.parse(sessionStorage.getItem(DRAFT_INDEX_KEY) || '[]');
+        if (!Array.isArray(parsed)) return [];
+        return parsed.filter(function(key) { return typeof key === 'string' && key.indexOf(DRAFT_PREFIX) === 0; })
+            .slice(-DRAFT_COUNT_MAX);
+    } catch (_) {
+        return [];
+    }
+}
+
+function writeDraftIndex(index) {
+    sessionStorage.setItem(DRAFT_INDEX_KEY, JSON.stringify(index.slice(-DRAFT_COUNT_MAX)));
+}
+
+function draftValues(form) {
+    var values = {};
+    var total = 0;
+    draftFieldNames(form).forEach(function(name) {
+        var field = form.elements.namedItem(name);
+        if (!field || typeof field.value !== 'string') return;
+        var value = field.value.slice(0, DRAFT_FIELD_MAX);
+        if (total + value.length > DRAFT_TOTAL_MAX) value = value.slice(0, Math.max(0, DRAFT_TOTAL_MAX - total));
+        values[name] = value;
+        total += value.length;
+    });
+    return values;
+}
+
+function saveNetworkDraft(form) {
+    var key = draftStorageKey(form);
+    if (!key) return;
+    try {
+        var index = draftIndex().filter(function(existing) { return existing !== key; });
+        while (index.length >= DRAFT_COUNT_MAX) sessionStorage.removeItem(index.shift());
+        sessionStorage.setItem(key, JSON.stringify(draftValues(form)));
+        index.push(key);
+        writeDraftIndex(index);
+        form.dataset.draftRestored = 'true';
+    } catch (_) {}
+}
+
+function clearDraft(key) {
+    if (!key) return;
+    try {
+        var storageKey = DRAFT_PREFIX + key;
+        sessionStorage.removeItem(storageKey);
+        sessionStorage.removeItem(DRAFT_CLEAR_PENDING_PREFIX + key);
+        writeDraftIndex(draftIndex().filter(function(existing) { return existing !== storageKey; }));
+    } catch (_) {}
+}
+
+function markDraftClearPending(form) {
+    if (!form || !form.dataset.draftKey) return;
+    try { sessionStorage.setItem(DRAFT_CLEAR_PENDING_PREFIX + form.dataset.draftKey, '1'); } catch (_) {}
+}
+
+function clearDraftPending(form) {
+    if (!form || !form.dataset.draftKey) return;
+    try { sessionStorage.removeItem(DRAFT_CLEAR_PENDING_PREFIX + form.dataset.draftKey); } catch (_) {}
+}
+
+function hasDraftClearPending(key) {
+    try { return sessionStorage.getItem(DRAFT_CLEAR_PENDING_PREFIX + key) === '1'; } catch (_) { return false; }
+}
+
+function updateRestoredDraft(event) {
+    var form = event.target.closest('form[data-draft-key][data-draft-restored="true"]');
+    if (form) saveNetworkDraft(form);
+}
+
+function restoreNetworkDrafts() {
+    document.querySelectorAll('form[data-draft-key][data-draft-fields]').forEach(function(form) {
+        var key = draftStorageKey(form);
+        var raw = null;
+        try { raw = sessionStorage.getItem(key); } catch (_) {}
+        if (!raw) return;
+        try {
+            var values = JSON.parse(raw);
+            if (!values || Array.isArray(values) || typeof values !== 'object') throw new Error('invalid draft');
+            var total = 0;
+            draftFieldNames(form).forEach(function(name) {
+                if (!Object.prototype.hasOwnProperty.call(values, name)) return;
+                if (typeof values[name] !== 'string') throw new Error('invalid draft value');
+                var field = form.elements.namedItem(name);
+                var value = values[name].slice(0, Math.min(DRAFT_FIELD_MAX, DRAFT_TOTAL_MAX - total));
+                if (field && typeof field.value === 'string') field.value = value;
+                total += value.length;
+            });
+            form.dataset.draftRestored = 'true';
+            showFeedback('A draft from a failed network request was restored.', 'error');
+        } catch (_) {
+            clearDraft(form.dataset.draftKey);
         }
-        var msg = e.detail.xhr.getResponseHeader('X-Toast');
-        if (msg) showToast(msg);
+    });
+}
+
+function pendingControl(form, fallback) {
+    return form._feedbackSubmitter || fallback || null;
+}
+
+function markPending(form, control) {
+    if (!form || form.dataset.feedbackPending === 'true') return;
+    form.dataset.feedbackPending = 'true';
+    form.setAttribute('aria-busy', 'true');
+    if (!control) {
+        showFeedback('Saving...', 'pending');
+        return;
+    }
+    form._feedbackSubmitter = control;
+    control.dataset.feedbackOriginalHtml = control.innerHTML;
+    control.dataset.feedbackWasDisabled = control.disabled ? 'true' : 'false';
+    control.disabled = true;
+    control.setAttribute('aria-disabled', 'true');
+    control.textContent = control.dataset.pendingLabel || 'Working...';
+    showFeedback(control.textContent, 'pending');
+}
+
+function restorePending(form) {
+    if (!form) return;
+    form.removeAttribute('aria-busy');
+    delete form.dataset.feedbackPending;
+    var control = form._feedbackSubmitter;
+    if (control && control.dataset.feedbackOriginalHtml !== undefined) {
+        control.innerHTML = control.dataset.feedbackOriginalHtml;
+        control.disabled = control.dataset.feedbackWasDisabled === 'true';
+        control.removeAttribute('aria-disabled');
+        delete control.dataset.feedbackOriginalHtml;
+        delete control.dataset.feedbackWasDisabled;
+    }
+    form._feedbackSubmitter = null;
+}
+
+function requestForm(event) {
+    var element = event.detail && event.detail.elt;
+    if (!element) return null;
+    return element.tagName === 'FORM' ? element : element.closest('form');
+}
+
+document.addEventListener('click', function(event) {
+    var control = event.target.closest('button[type="submit"], input[type="submit"]');
+    if (control && control.form) control.form._feedbackSubmitter = control;
+});
+
+document.addEventListener('submit', function(event) {
+    var form = event.target;
+    if (form.tagName !== 'FORM' || event.defaultPrevented) return;
+    form._feedbackSubmitter = event.submitter || form._feedbackSubmitter;
+    markDraftClearPending(form);
+    if (!form.hasAttribute('hx-post')) {
+        window.setTimeout(function() { markPending(form, pendingControl(form)); }, 0);
+    }
+    if (form.action && form.action.endsWith('/logout')) {
+        try {
+            Object.keys(sessionStorage).filter(function(key) {
+                return key.indexOf(DRAFT_PREFIX) === 0 || key.indexOf(DRAFT_CLEAR_PENDING_PREFIX) === 0;
+            })
+                .forEach(function(key) { sessionStorage.removeItem(key); });
+            sessionStorage.removeItem(DRAFT_INDEX_KEY);
+        } catch (_) {}
     }
 });
-document.addEventListener('htmx:responseError', function() {
-    showToast('Error saving data', true);
+
+document.addEventListener('htmx:beforeRequest', function(event) {
+    var form = requestForm(event);
+    var element = event.detail.elt;
+    var fallback = element && /^(BUTTON|INPUT)$/.test(element.tagName) ? element : null;
+    markDraftClearPending(form);
+    markPending(form, pendingControl(form, fallback));
+});
+
+document.addEventListener('htmx:afterRequest', function(event) {
+    var form = requestForm(event);
+    restorePending(form);
+    if (!event.detail.successful) return;
+    var xhr = event.detail.xhr;
+    var message = xhr.getResponseHeader('X-Feedback-Message');
+    var kind = xhr.getResponseHeader('X-Feedback-Kind') || 'success';
+    var clearKey = xhr.getResponseHeader('X-Draft-Clear');
+    if (clearKey) clearDraft(clearKey);
+    else clearDraftPending(form);
+    if (message) showFeedback(message, kind);
+    else if (xhr.responseText === 'saved') flashSaved();
+});
+
+document.addEventListener('htmx:responseError', function(event) {
+    var xhr = event.detail.xhr;
+    var form = requestForm(event);
+    restorePending(form);
+    clearDraftPending(form);
+    var message = xhr.getResponseHeader('X-Feedback-Message');
+    if (message) showFeedback(message, xhr.getResponseHeader('X-Feedback-Kind') || 'error');
+    else if (xhr.status === 422) showFeedback('Check the submitted values and try again.', 'error');
+    else showFeedback('Server error. Your changes were not confirmed.', 'error');
+});
+
+document.addEventListener('htmx:beforeSwap', function(event) {
+    if (event.detail.xhr.getResponseHeader('X-Feedback-Swap') === 'true') event.detail.shouldSwap = true;
+});
+
+document.addEventListener('htmx:sendError', function(event) {
+    var form = requestForm(event);
+    saveNetworkDraft(form);
+    restorePending(form);
+    clearDraftPending(form);
+    showFeedback('Network error. Your changes were not confirmed.', 'error');
+});
+
+document.addEventListener('htmx:timeout', function(event) {
+    var form = requestForm(event);
+    saveNetworkDraft(form);
+    restorePending(form);
+    clearDraftPending(form);
+    showFeedback('Request timed out. Your changes were not confirmed.', 'error');
+});
+
+document.addEventListener('input', updateRestoredDraft);
+document.addEventListener('click', function(event) {
+    if (event.target.closest('[data-feedback-dismiss]')) document.getElementById('feedback-error').replaceChildren();
+});
+
+window.addEventListener('pageshow', function() {
+    document.querySelectorAll('form[data-feedback-pending="true"]').forEach(restorePending);
+});
+
+document.addEventListener('DOMContentLoaded', function() {
+    var params = new URLSearchParams(window.location.search);
+    var clearKey = params.get('clear_draft');
+    if (clearKey && hasDraftClearPending(clearKey)) clearDraft(clearKey);
+    if (params.has('msg') || params.has('err') || params.has('clear_draft')) {
+        params.delete('msg');
+        params.delete('err');
+        params.delete('clear_draft');
+        var query = params.toString();
+        history.replaceState(null, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+    }
+    restoreNetworkDrafts();
 });
 
 // Three-state toggle cycle: pending -> done -> skipped -> pending

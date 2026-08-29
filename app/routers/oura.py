@@ -2,8 +2,9 @@ import logging
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, OptionalFormInt, valid_month
@@ -160,7 +161,7 @@ async def save_oura(
     notes: str = Form(""),
 ):
     if not valid_month(month):
-        return RedirectResponse("/oura", status_code=303)
+        return error_redirect(request, "/oura", "Invalid Oura month.")
     db = get_user_db_from_request(request)
     await db.execute(
         """
@@ -197,17 +198,20 @@ async def save_oura(
         ),
     )
     await db.commit()
-    return RedirectResponse("/oura", status_code=303)
+    return success_redirect(request, "/oura", "Oura month saved.")
 
 
 @router.post("/oura/delete")
 async def delete_oura(request: Request, month: str = Form(...)):
     if not valid_month(month):
-        return RedirectResponse("/oura", status_code=303)
+        return error_redirect(request, "/oura", "Invalid Oura month.")
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM oura_monthly WHERE month = ?", (month,))
+    cursor = await db.execute("DELETE FROM oura_monthly WHERE month = ?", (month,))
+    if cursor.rowcount != 1:
+        await db.rollback()
+        return error_redirect(request, "/oura", "Oura month not found.")
     await db.commit()
-    return RedirectResponse("/oura", status_code=303)
+    return success_redirect(request, "/oura", "Oura month deleted.")
 
 
 @router.post("/oura/api-sync")
@@ -216,8 +220,16 @@ async def oura_api_sync(request: Request):
 
     db = get_user_db_from_request(request)
     try:
-        count = await sync_oura_from_api(db)
-        logger.info("Oura API sync from oura page: %d days", count)
+        result = await sync_oura_from_api(db)
+        logger.info("Oura API sync from oura page: %d days", result.days)
     except Exception:
         logger.exception("Oura API sync failed")
-    return RedirectResponse("/oura", status_code=303)
+        return error_redirect(request, "/oura", "Oura sync failed. Try again.")
+    if not result.complete:
+        return error_redirect(
+            request,
+            "/oura",
+            "Oura sync was partial. Existing data for failed sources was preserved.",
+        )
+    day_word = "day" if result.days == 1 else "days"
+    return success_redirect(request, "/oura", f"Oura sync completed: {result.days} {day_word}")

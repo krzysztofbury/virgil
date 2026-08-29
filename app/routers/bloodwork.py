@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, truncate, valid_date
@@ -151,9 +152,9 @@ async def save_result(
     flag: str = Form(""),
 ):
     if not valid_date(date):
-        return RedirectResponse("/bloodwork", status_code=303)
+        return error_redirect(request, "/bloodwork", "Choose a valid bloodwork date.")
     if flag and flag not in ("", "H", "L"):
-        flag = ""
+        return error_redirect(request, "/bloodwork", "Choose a valid bloodwork result flag.")
     value_text = truncate(value_text, 200)
     db = get_user_db_from_request(request)
 
@@ -161,7 +162,7 @@ async def save_result(
     # foreign-key 500 instead of a controlled redirect.
     marker_rows = await db.execute_fetchall("SELECT ref_low, ref_high FROM blood_markers WHERE id = ?", (marker_id,))
     if not marker_rows:
-        return RedirectResponse("/bloodwork", status_code=303)
+        return error_redirect(request, "/bloodwork", "Blood marker was not found.")
 
     # No explicit flag → derive it from the stored reference range, so the
     # lab-reported value can still override (labs use their own ranges).
@@ -179,7 +180,7 @@ async def save_result(
         (marker_id, date, value, value_text, flag),
     )
     await db.commit()
-    return RedirectResponse("/bloodwork", status_code=303)
+    return success_redirect(request, "/bloodwork", "Blood result saved.")
 
 
 @router.post("/bloodwork/marker")
@@ -192,6 +193,13 @@ async def save_marker(
     ref_high: OptionalFormFloat = None,
     display_order: int = Form(0),
 ):
+    name = name.strip()
+    category = category.strip()
+    unit = unit.strip()
+    if not name or not category or not unit:
+        return error_redirect(request, "/bloodwork", "Name, category, and unit are required.")
+    if ref_low is not None and ref_high is not None and ref_low > ref_high:
+        return error_redirect(request, "/bloodwork", "Reference minimum cannot exceed the maximum.")
     db = get_user_db_from_request(request)
     await db.execute(
         """
@@ -205,4 +213,4 @@ async def save_marker(
         (name, category, unit, ref_low, ref_high, display_order),
     )
     await db.commit()
-    return RedirectResponse("/bloodwork", status_code=303)
+    return success_redirect(request, "/bloodwork", "Blood marker saved.")

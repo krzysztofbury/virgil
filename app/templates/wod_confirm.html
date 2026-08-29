@@ -6,13 +6,9 @@
   <div class="card-header"><h3>WOD - {{ session_date }}</h3></div>
   <div class="card-body">
 
-    {# One variable for both paths: the route passes the ?err= value through as
-       `error`, and a refusal renders here without any redirect at all. Inline as
-       well as a toast, because a toast disappears and this message tells the
-       user which row to fix. #}
+    {# A refusal rendered without a redirect stays next to the rows to fix. #}
     {% if error %}
     <p class="form-error" role="alert">{{ error }}</p>
-    <script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ error | tojson }}, true); });</script>
     {% endif %}
 
     {# Sections drive the <optgroup> grouping. Derived from the movement list

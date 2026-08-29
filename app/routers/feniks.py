@@ -2,8 +2,9 @@ import logging
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import get_user_db_from_request
@@ -110,7 +111,7 @@ async def save_daily(
     row is history, not corruption.
     """
     if not valid_date(date) or used not in ("0", "1"):
-        return RedirectResponse("/feniks", status_code=303)
+        return error_redirect(request, "/feniks", "Choose a valid date and day outcome.")
     used_val = int(used)
     edging_val = 1 if edging == "1" else 0
     minutes_val = clamp(minutes, 0, 1440)
@@ -141,7 +142,12 @@ async def save_daily(
             (date,),
         )
     await db.commit()
-    return RedirectResponse("/feniks", status_code=303)
+    return success_redirect(
+        request,
+        f"/feniks?date={date}",
+        "Day saved.",
+        clear_draft=f"feniks-daily:{date}",
+    )
 
 
 @router.post("/feniks/bricks")
@@ -155,7 +161,7 @@ async def save_brick(
     """A brick = one urge survived, in Gola's structure. The hook (hak
     pamięciowy) is what makes it retrievable under pressure — required."""
     if not valid_date(date) or not hook.strip():
-        return RedirectResponse("/feniks", status_code=303)
+        return error_redirect(request, "/feniks", "Name the brick before saving it.")
     hook = truncate(hook.strip(), 200)
     story = truncate(story, 2000)
     craving_val = clamp(craving, 0, 10)
@@ -165,4 +171,9 @@ async def save_brick(
         (date, hook, craving_val, story),
     )
     await db.commit()
-    return RedirectResponse("/feniks", status_code=303)
+    return success_redirect(
+        request,
+        "/feniks",
+        "Brick added.",
+        clear_draft=f"feniks-brick:{date}",
+    )

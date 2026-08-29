@@ -6,13 +6,6 @@
     <h1>Training</h1>
 </div>
 
-{# A confirmed submission can write some rows and skip others. Reporting that
-   here is the only place the user sees it: the confirm screen is gone by then. #}
-{% if request.query_params.get('msg') %}
-<p class="text-muted" role="status">{{ request.query_params.get('msg') }}</p>
-<script>document.addEventListener('DOMContentLoaded', function(){ showToast({{ request.query_params.get('msg') | tojson }}); });</script>
-{% endif %}
-
 <!-- 1. Capture — the only way in. Free text goes to the parser, which resolves
      movements against the whole exercise library (managed in Settings →
      Exercise Library) and hands back an editable confirm screen. The raw note is
@@ -21,12 +14,7 @@
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Zapisz trening</h3></div>
     <div class="card-body">
-        {# onsubmit disables the button on the next tick, AFTER the submission has
-           started - disabling it inside the click handler cancels the submit in
-           some browsers. This is the fast half of the double-click fix; the
-           capture_token below is the half that holds without JavaScript. #}
-        <form method="post" action="/training/wod"
-              onsubmit="setTimeout(function(){ document.getElementById('wod-submit').disabled = true; }, 0);">
+        <form method="post" action="/training/wod">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="capture_token" value="{{ capture_token }}">
             <div class="grid" style="margin-bottom: 0.75rem;">
@@ -46,7 +34,7 @@
             {# The property that makes a parse failure harmless, said out loud. #}
             <small class="text-muted">Notatka zapisuje się przed parsowaniem, więc nawet nieudane
             parsowanie nie kasuje tego, co napisałeś.</small>
-            <button id="wod-submit" type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Zapisz trening</button>
+            <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="Saving..." style="margin-top:0.5rem;">Zapisz trening</button>
         </form>
     </div>
 </div>

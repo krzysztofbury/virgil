@@ -15,7 +15,7 @@ movement's PBs/volume in two.
 """
 
 import sqlite3
-from urllib.parse import unquote
+from urllib.parse import parse_qs, urlsplit
 
 from conftest import csrf_token, user_db_path
 
@@ -121,7 +121,7 @@ def test_invalid_metric_rejected_by_both_surfaces(auth_client):
     # only "err=" / only the status code (as this test used to) is satisfied
     # by any rejection reason at all, including an unrelated one substituted
     # in by mistake; pin the actual, stable reason text on both surfaces.
-    assert "metric must be one of" in unquote(location), (
+    assert "metric must be one of" in parse_qs(urlsplit(location).query)["err"][0], (
         "settings must surface the SAME rejection reason validate_library_write raised, not just any err="
     )
     assert _row("Parity Bad Metric") is None

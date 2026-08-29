@@ -13,6 +13,7 @@ per-row movement and accepts up to MAX_CONFIRM_ENTRIES. This was a template gap.
 import json
 import re
 import sqlite3
+from urllib.parse import urlsplit
 
 import pytest
 from conftest import csrf_token, user_db_path
@@ -304,7 +305,7 @@ def test_stranded_session_offers_manual_entry(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == f"/training/wod/confirm/{session_id}"
+    assert urlsplit(resp.headers["location"]).path == f"/training/wod/confirm/{session_id}"
 
     form = auth_client.get(f"/training/wod/confirm/{session_id}")
     assert form.status_code == 200
@@ -335,7 +336,7 @@ def test_manual_entry_refuses_a_session_that_already_has_entries(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/training"
+    assert urlsplit(resp.headers["location"]).path == "/training"
 
     conn = sqlite3.connect(user_db_path())
     try:

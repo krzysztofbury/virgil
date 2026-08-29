@@ -13,9 +13,10 @@
 <form id="daily-form"
       hx-post="/daily/save"
       hx-trigger="change"
-      hx-target="#save-indicator"
-      hx-swap="innerHTML"
-      hx-indicator="#save-indicator">
+      hx-swap="none"
+      hx-sync="this:replace"
+      data-draft-key="daily:{{ date }}"
+      data-draft-fields="notes">
     <input type="hidden" name="date" value="{{ date }}">
 
     <!-- Routines & Energy -->
@@ -131,12 +132,7 @@
             <button type="button" class="btn btn-sm btn-outline" @click="editing = !editing" x-text="editing ? 'Save' : 'Edit'"></button>
         </div>
         <div x-show="editing">
-            <textarea name="notes" rows="3" placeholder="Notes for the day..."
-                      hx-trigger="blur changed"
-                      hx-post="/daily/save"
-                      hx-include="closest form"
-                      hx-target="#save-indicator"
-                      hx-swap="innerHTML">{{ log.notes if log else '' }}</textarea>
+            <textarea name="notes" rows="3" placeholder="Notes for the day...">{{ log.notes if log else '' }}</textarea>
         </div>
         <div x-show="!editing" class="md-preview">
             {% if log and log.notes %}
@@ -187,9 +183,8 @@
 {% if is_saturday %}
 <form hx-post="/daily/measurements"
       hx-trigger="change"
-      hx-target="#save-indicator"
-      hx-swap="innerHTML"
-      hx-indicator="#save-indicator">
+      hx-swap="none"
+      hx-sync="this:replace">
     <input type="hidden" name="date" value="{{ date }}">
     <div class="card" style="margin-top: 1rem;">
         <div class="card-header"><h3>Measurements (Saturday)</h3></div>

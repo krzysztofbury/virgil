@@ -16,6 +16,7 @@
     <meta name="csrf-token" content="{{ request.state.csrf_token }}">
 </head>
 <body>
+{% include "partials/feedback.html" %}
 <div class="auth-wrapper">
     <div class="auth-card">
         <div class="auth-logo">
@@ -25,7 +26,7 @@
         <p class="auth-subtitle">Create your account to get started.</p>
 
         {% if error %}
-        <div class="auth-error">{{ error }}</div>
+        <div class="auth-error" role="alert">{{ error }}</div>
         {% endif %}
 
         <form method="POST" action="/setup">
@@ -56,5 +57,6 @@
 .auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
 </style>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(function(){});</script>
+<script src="/static/js/app.js?v={{ app_version }}"></script>
 </body>
 </html>
