@@ -1,5 +1,7 @@
 import asyncio
 import logging
+import os
+import socket
 from datetime import UTC, datetime
 
 from app.central_db import get_active_users
@@ -9,6 +11,10 @@ from app.user_db import close_user_db, open_user_db
 logger = logging.getLogger(__name__)
 
 TICK_SECONDS = 60
+USERS_PER_TICK_MAX = 100
+USERS_CONCURRENT_MAX = 4
+WORKER_ID = f"{socket.gethostname()[:60]}:{os.getpid()}"
+_user_offset = 0
 
 
 def _hours_since(iso_str: str) -> float:
@@ -134,28 +140,65 @@ async def _check_and_run(db, user_id: str) -> None:
                 logger.exception("Scheduled briefing failed")
 
 
+def _select_users_for_tick(users: list[dict]) -> list[dict]:
+    """Take one bounded rotating slice so no active user is permanently starved."""
+    global _user_offset
+    if not users:
+        _user_offset = 0
+        return []
+    count = min(len(users), USERS_PER_TICK_MAX)
+    start = _user_offset % len(users)
+    selected = [users[(start + index) % len(users)] for index in range(count)]
+    _user_offset = (start + count) % len(users)
+    return selected
+
+
+async def _run_scheduled_user(user: dict, semaphore: asyncio.Semaphore) -> None:
+    from app.services.job_worker import run_jobs_for_user
+
+    async with semaphore:
+        user_db = None
+        try:
+            user_db = await open_user_db(user["db_filename"])
+            await run_jobs_for_user(
+                user_db,
+                user["id"],
+                user["db_filename"],
+                worker_id=WORKER_ID,
+            )
+            await _check_and_run(user_db, user["id"])
+        except Exception:
+            logger.exception("Scheduler failed for user %s", user["email"])
+        finally:
+            if user_db is not None:
+                try:
+                    await close_user_db(user_db)
+                except Exception:
+                    logger.exception("Scheduler failed to close database for user %s", user["email"])
+
+
+async def scheduler_tick() -> None:
+    """Run one bounded scheduler and durable-worker pass."""
+    from app.services.backup import maybe_backup_central
+
+    users = await get_active_users()
+    selected_users = _select_users_for_tick(users)
+    if len(users) > len(selected_users):
+        logger.warning("Scheduler rotating batch: processing %d of %d users", len(selected_users), len(users))
+    semaphore = asyncio.Semaphore(USERS_CONCURRENT_MAX)
+    await asyncio.gather(*(_run_scheduled_user(user, semaphore) for user in selected_users))
+
+    # Per-user backups never cover the registry. This function self-limits to
+    # once per 24 hours.
+    await maybe_backup_central()
+
+
 async def scheduler_loop() -> None:
-    """Main scheduler loop. Wakes every TICK_SECONDS, checks for due tasks."""
+    """Main scheduler loop. Wakes every TICK_SECONDS and runs one finite tick."""
     logger.info("Scheduler started (tick=%ds)", TICK_SECONDS)
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
-            users = await get_active_users()
-            for user in users:
-                user_db = None
-                try:
-                    user_db = await open_user_db(user["db_filename"])
-                    await _check_and_run(user_db, user["id"])
-                except Exception:
-                    logger.exception("Scheduler failed for user %s", user["email"])
-                finally:
-                    if user_db is not None:
-                        await close_user_db(user_db)
-
-            # Central registry backup — per-user backups never cover it, yet
-            # losing it orphans every user database. Self-limits to once/24h.
-            from app.services.backup import maybe_backup_central
-
-            await maybe_backup_central()
+            await scheduler_tick()
         except Exception:
             logger.exception("Scheduler tick failed")
