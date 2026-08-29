@@ -584,6 +584,24 @@
     <button type="submit" class="btn btn-primary">Save Automation Settings</button>
 </form>
 
+<section class="card job-activity-card" aria-labelledby="recent-jobs-heading">
+    <div class="card-header">
+        <div>
+            <h3 id="recent-jobs-heading">Recent Jobs</h3>
+            <p class="text-muted job-activity-intro">Background work and actions that may need your review.</p>
+        </div>
+    </div>
+    {% if recent_jobs %}
+    <div class="job-status-list">
+        {% for job in recent_jobs %}
+            {% include "partials/job_status.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="text-muted">No background jobs yet.</p>
+    {% endif %}
+</section>
+
 {% elif active_tab == 'security' %}
 <!-- ═══ SECURITY TAB ═══ -->
 

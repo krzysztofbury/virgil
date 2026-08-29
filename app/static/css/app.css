@@ -47,6 +47,10 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --blue: #539bf5;
   --purple: #a07ce4;
   --orange: #d18a36;
+  --job-info: var(--blue);
+  --job-success: var(--green);
+  --job-warning: var(--yellow);
+  --job-muted: var(--text-secondary);
 
   /* Borders & Effects */
   --border: rgba(255, 255, 255, 0.08);
@@ -101,6 +105,10 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --accent: #1f9e6b;
   --accent-glow: rgba(31, 158, 107, 0.2);
   --accent-hover: #24b478;
+  --job-info: #245f96;
+  --job-success: #176b49;
+  --job-warning: #765000;
+  --job-muted: #526174;
 
   --border: rgba(0, 0, 0, 0.08);
   --border-light: rgba(0, 0, 0, 0.14);
@@ -1145,6 +1153,68 @@ details > :not(summary) { margin-top: 1rem; }
   border: none;
 }
 .goal-add-btn:hover { background: var(--accent-hover); }
+
+/* ── Durable Job Status ── */
+.job-activity-card { margin-top: 1.5rem; }
+.job-activity-intro { margin-top: 0.2rem; font-size: 0.8rem; }
+.job-status-list { display: grid; gap: 0.75rem; }
+.job-status-card {
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--text-tertiary);
+  border-radius: var(--radius-sm);
+  background: var(--bg-surface);
+  padding: 1rem;
+}
+.job-status-queued, .job-status-running { border-left-color: var(--job-info); }
+.job-status-succeeded { border-left-color: var(--job-success); }
+.job-status-failed, .job-status-needs-attention { border-left-color: var(--job-warning); }
+.job-status-cancelled { border-left-color: var(--text-tertiary); }
+.job-status-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+.job-status-heading > div { min-width: 0; }
+.job-status-heading h4 { margin: 0; font-size: 0.95rem; overflow-wrap: anywhere; }
+.job-status-heading p { margin-top: 0.2rem; color: var(--text-secondary); font-size: 0.8rem; }
+.job-status-badge {
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  padding: 0.2rem 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.job-status-badge-queued, .job-status-badge-running { color: var(--job-info); background: rgba(83, 155, 245, 0.12); }
+.job-status-badge-succeeded { color: var(--job-success); background: rgba(44, 182, 125, 0.12); }
+.job-status-badge-failed, .job-status-badge-needs-attention { color: var(--job-warning); background: rgba(229, 169, 64, 0.12); }
+.job-status-badge-cancelled { color: var(--text-secondary); background: var(--bg-surface); }
+.job-status-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 1rem;
+  margin-top: 0.75rem;
+  color: var(--job-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+.job-status-error, .job-status-warning {
+  margin-top: 0.75rem;
+  border-radius: var(--radius-sm);
+  padding: 0.7rem 0.8rem;
+  font-size: 0.8rem;
+}
+.job-status-error { color: var(--job-warning); background: rgba(229, 169, 64, 0.08); }
+.job-status-warning { color: var(--text-primary); background: rgba(229, 169, 64, 0.1); }
+.job-status-error, .job-status-warning, .job-status-meta { overflow-wrap: anywhere; }
+.job-status-card form { margin-top: 0.75rem; }
+
+@media (max-width: 600px) {
+  .job-status-heading { flex-direction: column; gap: 0.5rem; }
+  .job-status-badge { align-self: flex-start; }
+}
 
 /* ═══════════════════════════════════════════
    Experiments

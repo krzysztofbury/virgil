@@ -7,7 +7,7 @@ import re
 import bcrypt
 from itsdangerous import BadSignature, TimestampSigner
 from starlette.requests import Request
-from starlette.responses import RedirectResponse
+from starlette.responses import RedirectResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import BASE_URL
@@ -68,6 +68,13 @@ PUBLIC_PATTERNS = (
 BCRYPT_ROUNDS = 12
 
 _signer: TimestampSigner | None = None
+
+
+def _login_response(scope) -> Response:
+    is_htmx = any(name == b"hx-request" and value.lower() == b"true" for name, value in scope.get("headers", []))
+    if is_htmx:
+        return Response(status_code=200, headers={"HX-Redirect": "/login", "Cache-Control": "no-store"})
+    return RedirectResponse("/login", status_code=303)
 
 
 def _get_signer() -> TimestampSigner:
@@ -161,13 +168,13 @@ class AuthMiddleware:
         user_id = validate_session(session_token) if session_token else None
 
         if not user_id or user_id.startswith("_mfa_pending:"):
-            response = RedirectResponse("/login", status_code=303)
+            response = _login_response(scope)
             await response(scope, receive, send)
             return
 
         # Validate UUID format before DB lookup.
         if not valid_uuid(user_id):
-            response = RedirectResponse("/login", status_code=303)
+            response = _login_response(scope)
             await response(scope, receive, send)
             return
 
@@ -177,7 +184,7 @@ class AuthMiddleware:
         user = await get_user_by_id(user_id)
 
         if not user or not user["is_active"]:
-            response = RedirectResponse("/login", status_code=303)
+            response = _login_response(scope)
             await response(scope, receive, send)
             return
 

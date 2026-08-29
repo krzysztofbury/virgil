@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Durable jobs now have session-scoped status and explicit retry controls.**
+  Settings shows a bounded recent-job list with accessible HTMX polling for
+  active work and no worker, payload or idempotency metadata. Failed work can be
+  retried explicitly; ambiguous outcomes require an additional warning and
+  confirmation, with an atomic state-and-attempt check preventing stale retries.
 - **Durable jobs now have a bounded scheduler worker.** Each tick rotates through
   a bounded user batch with bounded concurrency, recovers stale leases and runs
   at most one claimed job per user. Handlers use a separate database connection,

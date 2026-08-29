@@ -117,6 +117,9 @@ async def settings_page(request: Request, tab: str = Query("general")):
         context["export_filename"] = await export_filename_for(db, request.state.user["id"])
 
     elif tab == "automation":
+        from app.routers.jobs import build_job_view
+        from app.services.jobs import list_recent_job_statuses
+
         context["backup_enabled"] = await get_setting(db, "backup_enabled", "1") == "1"
         context["backup_interval_hours"] = await get_setting(db, "backup_interval_hours", "24")
         context["backup_max_copies"] = await get_setting(db, "backup_max_copies", "7")
@@ -128,6 +131,7 @@ async def settings_page(request: Request, tab: str = Query("general")):
         # Check if oura is connected
         oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
         context["oura_connected"] = bool(oura_row and oura_row[0]["status"] == "connected")
+        context["recent_jobs"] = [build_job_view(row) for row in await list_recent_job_statuses(db)]
 
     elif tab == "security":
         # MFA status lives in the central users table, not per-user DB.
