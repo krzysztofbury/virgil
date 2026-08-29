@@ -193,8 +193,11 @@ explicit decision to support accounts outside the trusted household.
         handler registry, with no external I/O inside a SQLite write
         transaction. Completed on `fix/reliability-phase-3b-job-worker`; 620
         tests and a three-pass TigerStyle review passed before push.
-      - [ ] **Phase 3C - Status and retry UI:** lightweight job status endpoint,
-        progress partial and explicit retry for failed or ambiguous work.
+      - [x] **Phase 3C - Status and retry UI:** session-scoped lightweight status
+        endpoint, bounded recent-job list, accessible HTMX polling and explicit
+        retry for failed or ambiguous work. Completed on
+        `fix/reliability-phase-3c-job-status-ui`; 637 tests and a three-pass
+        TigerStyle review passed before push.
       - [ ] **Phase 3D - Workload migration:** move Oura, backup/export and LLM
         calls one kind at a time, with an explicit retry policy for each kind.
 - [ ] **Phase 4 — Oura lifecycle hardening:** timestamp replay protection,
@@ -224,7 +227,7 @@ explicit decision to support accounts outside the trusted household.
 
 ### P1 — Durable job model for LLM/sync/backup work
 
-**Roadmap status:** Phases 3A-3B complete; Phases 3C-3D remain.
+**Roadmap status:** Phases 3A-3C complete; Phase 3D remains.
 **Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no automatic duplicate LLM cost at an ambiguous provider boundary.
 **Shipped in Phase 3A:** migration 027 and the durable state-transition service:
 bounded JSON payload/result/error fields, idempotent enqueue with semantic conflict
@@ -235,7 +238,13 @@ Manual retry is the safe default; automatic retry must be selected deliberately.
 concurrency, an explicit handler registry, separate control/handler connections,
 heartbeat and execution deadlines, cancellation propagation, transaction guards,
 bounded backoff and fail-closed ambiguity handling.
-**Plan remaining:** onboarding enrichment, A.N.D.Y., experiment summaries, briefings, Oura sync, backup and export become explicit job kinds. UI polls a lightweight `/api/jobs/{id}` partial via HTMX.
+**Shipped in Phase 3C:** a session-scoped lightweight status partial, a bounded
+recent-job list in Settings, accessible HTMX polling that ignores heartbeat-only
+updates, and explicit retry controls with additional ambiguous-outcome confirmation.
+Retry authorization uses an atomic status-and-attempt comparison so stale forms
+cannot requeue a newer attempt.
+**Plan remaining:** onboarding enrichment, A.N.D.Y., experiment summaries,
+briefings, Oura sync, backup and export become explicit job kinds.
 **Deliverables remaining:** onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); workload-level crash/restart tests.
 
 ### P1 — Recovery & data-ownership story

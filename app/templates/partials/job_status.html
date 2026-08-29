@@ -1,0 +1,56 @@
+<article id="job-status-{{ job.id }}" role="status" aria-live="polite" aria-atomic="true">
+<div id="job-status-body-{{ job.id }}"
+     class="job-status-card job-status-{{ job.status | replace('_', '-') }}"
+     data-job-id="{{ job.id }}"
+     data-job-status="{{ job.status }}"
+     {% if job.polling %}
+     hx-get="{{ job.poll_url }}"
+     hx-trigger="every 8s"
+     hx-target="this"
+     hx-select="#job-status-body-{{ job.id }}"
+     hx-swap="outerHTML"
+     hx-sync="closest article:abort"
+     {% endif %}>
+    <div class="job-status-heading">
+        <div>
+            <h4>{{ job.kind_label }}</h4>
+            <p>{{ job.description }}</p>
+        </div>
+        <span class="job-status-badge job-status-badge-{{ job.status | replace('_', '-') }}">{{ job.status_label }}</span>
+    </div>
+
+    <div class="job-status-meta">
+        <span>Attempts made: {{ job.attempts }}</span>
+        <span>Attempt limit: {{ job.max_attempts }}</span>
+        <span>Created: {{ job.created_at }} UTC</span>
+    </div>
+
+    {% if job.last_error %}
+    <p class="job-status-error"><strong>Last error:</strong> {{ job.last_error }}</p>
+    {% endif %}
+
+    {% if job.ambiguous %}
+    <div class="job-status-warning">
+        <strong>Check before retrying.</strong>
+        The external service may already have completed this work. Verify it there first to avoid a duplicate action or charge.
+    </div>
+    {% endif %}
+
+    {% if job.retryable %}
+    <form method="POST"
+          action="{{ job.retry_url }}"
+          hx-post="{{ job.retry_url }}"
+          hx-target="#job-status-body-{{ job.id }}"
+          hx-select="#job-status-body-{{ job.id }}"
+          hx-swap="outerHTML"
+          hx-sync="closest article:replace"
+          {% if job.ambiguous %}onsubmit="return confirm('Retry only after checking the external service. Continue?')"{% endif %}>
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        {% if job.ambiguous %}<input type="hidden" name="confirm_ambiguous" value="yes">{% endif %}
+        <button type="submit" class="btn btn-outline btn-sm" data-pending-label="Queueing...">
+            {{ 'Retry anyway' if job.ambiguous else 'Retry' }}
+        </button>
+    </form>
+    {% endif %}
+</div>
+</article>

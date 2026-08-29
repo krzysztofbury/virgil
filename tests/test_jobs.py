@@ -192,7 +192,7 @@ def test_stale_paid_job_needs_attention_and_only_explicit_retry_requeues(tmp_pat
                 now=started + timedelta(minutes=10),
             )
             before_retry = await get_job(db, result.job_id)
-            retried = await retry_job(db, result.job_id, now=started + timedelta(minutes=11))
+            retried = await retry_job(db, result.job_id, "needs_attention", 1, now=started + timedelta(minutes=11))
             claimed_again = await claim_next_job(db, "dead-worker", now=started + timedelta(minutes=11))
             completion_time = started + timedelta(minutes=11)
             stale_completion = await complete_job(

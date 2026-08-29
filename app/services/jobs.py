@@ -25,9 +25,11 @@ JOB_RETRY_DELAY_SECONDS_MAX = 86400
 JOB_JSON_DEPTH_MAX = 20
 JOB_JSON_NODES_MAX = 1024
 JOB_CLOCK_SKEW_SECONDS_MAX = 300
+JOB_STATUS_LIST_LIMIT_MAX = 20
 
 _KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _RETRY_POLICIES = {"automatic", "manual"}
+_EXPLICIT_RETRY_STATUSES = {"failed", "cancelled", "needs_attention"}
 
 
 class IdempotencyConflictError(ValueError):
@@ -336,20 +338,34 @@ async def cancel_job(db: aiosqlite.Connection, job_id: int, *, now: datetime | N
         return cursor.rowcount == 1
 
 
-async def retry_job(db: aiosqlite.Connection, job_id: int, *, now: datetime | None = None) -> bool:
+async def retry_job(
+    db: aiosqlite.Connection,
+    job_id: int,
+    expected_status: str,
+    expected_attempts: int,
+    *,
+    now: datetime | None = None,
+) -> bool:
     """Explicitly authorize another attempt while preserving the attempt counter."""
+    if expected_status not in _EXPLICIT_RETRY_STATUSES:
+        raise ValueError("expected_status must be failed, cancelled, or needs_attention")
+    if (
+        not isinstance(expected_attempts, int)
+        or isinstance(expected_attempts, bool)
+        or not 0 <= expected_attempts <= 100
+    ):
+        raise ValueError("expected_attempts must be between 0 and 100")
     now_text = _timestamp(_transition_time(now))
     async with _immediate_transaction(db):
         cursor = await db.execute(
             """UPDATE jobs
                SET status = 'queued',
                    max_attempts = CASE WHEN attempts >= max_attempts THEN max_attempts + 1 ELSE max_attempts END,
-                    run_after = ?, locked_at = NULL, locked_by = NULL, claim_token = NULL,
+                   run_after = ?, locked_at = NULL, locked_by = NULL, claim_token = NULL,
                    last_error = '', result_json = '{}', finished_at = NULL, updated_at = ?
-               WHERE id = ?
-                 AND status IN ('failed', 'cancelled', 'needs_attention')
-                 AND (attempts < max_attempts OR max_attempts < 100)""",
-            (now_text, now_text, job_id),
+               WHERE id = ? AND status = ? AND attempts = ?
+                  AND (attempts < max_attempts OR max_attempts < 100)""",
+            (now_text, now_text, job_id, expected_status, expected_attempts),
         )
         return cursor.rowcount == 1
 
@@ -405,6 +421,29 @@ async def recover_stale_jobs(
 async def get_job(db: aiosqlite.Connection, job_id: int) -> dict[str, Any] | None:
     rows = await db.execute_fetchall("SELECT * FROM jobs WHERE id = ?", (job_id,))
     return dict(rows[0]) if rows else None
+
+
+async def get_job_status(db: aiosqlite.Connection, job_id: int) -> dict[str, Any] | None:
+    """Return only fields safe for the session-authenticated status UI."""
+    rows = await db.execute_fetchall(
+        """SELECT id, kind, status, attempts, max_attempts, last_error,
+                  created_at, started_at, finished_at
+           FROM jobs WHERE id = ?""",
+        (job_id,),
+    )
+    return dict(rows[0]) if rows else None
+
+
+async def list_recent_job_statuses(db: aiosqlite.Connection, *, limit: int = 8) -> list[dict[str, Any]]:
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= JOB_STATUS_LIST_LIMIT_MAX:
+        raise ValueError(f"Job status limit must be between 1 and {JOB_STATUS_LIST_LIMIT_MAX}")
+    rows = await db.execute_fetchall(
+        """SELECT id, kind, status, attempts, max_attempts, last_error,
+                  created_at, started_at, finished_at
+           FROM jobs ORDER BY created_at DESC, id DESC LIMIT ?""",
+        (limit,),
+    )
+    return [dict(row) for row in rows]
 
 
 def decode_job_payload(job: Mapping[str, Any]) -> dict[str, Any]:

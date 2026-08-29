@@ -258,6 +258,7 @@ from app.routers import (  # noqa: E402
     experiments,
     feniks,
     goals,
+    jobs,
     life_scores,
     onboarding,
     oura,
@@ -277,6 +278,7 @@ app.include_router(oura_webhook.router)
 app.include_router(bloodwork.router)
 app.include_router(life_scores.router)
 app.include_router(goals.router)
+app.include_router(jobs.router)
 app.include_router(experiments.router)
 app.include_router(settings.router)
 app.include_router(onboarding.router)
