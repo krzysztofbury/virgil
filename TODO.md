@@ -176,8 +176,11 @@ explicit decision to support accounts outside the trusted household.
       Completed on `fix/reliability-phase-1-central-migrations`; atomic schema
       validation/version stamping, fail-closed startup quarantine, 548 tests and
       three-round TigerStyle pair-programming review passed before push.
-- [ ] **Phase 2 — Mutation-feedback contract:** shared accessible progress,
-      success and persistent failure UI across every write route.
+- [x] **Phase 2 — Mutation-feedback contract:** shared accessible progress,
+      success and persistent failure UI across browser write routes, with
+      transport-only bounded draft retention for Daily and Feniks. Completed on
+      `fix/reliability-phase-2-mutation-feedback`; 568 tests and a two-pass
+      TigerStyle pair-programming review passed before push.
 - [ ] **Phase 3 — Durable jobs:** restart-safe queue for LLM, sync, backup and
       export work, with bounded retries and no automatic retry at an ambiguous
       paid-LLM boundary.
@@ -221,12 +224,17 @@ explicit decision to support accounts outside the trusted household.
 **Plan (remaining):** off-NAS copy (S3/rsync target); versioned export manifest (JSON, schema_version + all user tables); validated import endpoint (dry-run report → apply); restore-from-`.db`-upload in Settings > Data; backup age/status card; pre-reset backup download prompt; a documented restore drill.
 **Deliverables:** `export/import` service with round-trip test (export → wipe → import → identical data); restore UI; backup freshness indicator on the Automation tab; docs.
 
-### P1 — Mutation-feedback contract
+### P1 — Mutation-feedback contract ✅ DONE
 
 **Roadmap status:** Phase 2, after test-fixture isolation.
 **Goal:** Every write gives visible, accessible progress/success/failure — no silent redirects.
-**Plan:** One helper pattern: disable control on submit, `aria-live` status region, persistent error toast, `msg`/`err` params standardized across ALL pages (today only Settings renders them), and retry links only for idempotent operations. Oura page sync (`/oura/api-sync`) currently swallows errors — add msg/err there first.
-**Deliverables:** shared toast partial in `base.html`; msg/err rendering on every page; draft retention on network failure for daily notes/journal; tests asserting error surfacing for Oura sync + import.
+**Shipped:** bounded local `msg`/`err` helpers for native PRG and HTMX; one
+accessible status/error partial; submitted-control pending state with label
+restoration; distinct timeout, network, validation and server-error handling;
+domain-aware Oura sync feedback; and tab-scoped bounded Daily/Feniks draft
+retention only after transport failure. An AST regression test blocks new silent
+browser mutation redirects. Ordinary form writes intentionally have no automatic
+retry.
 
 ### P1 — Multi-user hardening beyond a trusted household
 
@@ -381,8 +389,8 @@ explicit decision to support accounts outside the trusted household.
 ## Oura Integration Polish
 - [x] Scheduled auto-sync (background task every 6h instead of manual "Sync Now")
 - [x] Flash messages / toast notifications for Settings sync success/failure
-- [ ] Apply the shared mutation-feedback contract to `/oura/api-sync` and every
-      remaining Oura write path (roadmap Phase 2)
+- [x] Apply the shared mutation-feedback contract to `/oura/api-sync` and every
+      remaining browser-facing Oura write path (roadmap Phase 2)
 - [x] Oura daily data table on `/oura` page (browsable 30-day history)
 - [x] Daily Oura trends chart (10-day daily granularity, dual-axis HRV/RHR + scores)
 - [x] Handle Oura API rate limits gracefully (429 → exponential backoff with Retry-After)

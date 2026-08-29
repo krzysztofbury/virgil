@@ -59,8 +59,7 @@
 
     <!-- Main Content -->
     <main class="container">
-        <div id="toast" class="toast" style="display:none"></div>
-        <div id="save-indicator" class="save-indicator"></div>
+        {% include "partials/feedback.html" %}
         {% block content %}{% endblock %}
     </main>
 

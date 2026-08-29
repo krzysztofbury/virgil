@@ -31,7 +31,8 @@
 <!-- The day: one question, one save -->
 <div class="card day-card"
      x-data="{ used: {{ "'" ~ form_daily.used ~ "'" if form_daily else 'null' }} }">
-    <form method="POST" action="/feniks/daily">
+    <form method="POST" action="/feniks/daily" hx-post="/feniks/daily" hx-swap="none"
+          data-draft-key="feniks-daily:{{ form_date }}" data-draft-fields="note">
         <div class="day-card-head">
             <h3>How was {{ 'today' if form_date == today else form_date }}?</h3>
             <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required
@@ -76,7 +77,8 @@
         <span><strong>Survived an urge?</strong> <span class="text-muted">Lay a brick &mdash; that's the win that counts.</span></span>
         <span class="brick-plus" :class="{ open: open }">+</span>
     </button>
-    <form method="POST" action="/feniks/bricks" x-show="open" x-cloak>
+    <form method="POST" action="/feniks/bricks" hx-post="/feniks/bricks" hx-swap="none" x-show="open" x-cloak
+          data-draft-key="feniks-brick:{{ today }}" data-draft-fields="hook,story">
         <input type="hidden" name="date" value="{{ today }}">
         <input type="hidden" name="craving" :value="craving === null ? '' : craving">
         <label>Name this brick <small class="text-muted">&mdash; the words you'll stand on next time</small>

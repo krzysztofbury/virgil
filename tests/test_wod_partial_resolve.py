@@ -7,7 +7,7 @@ and redirect with a success page and no message at all.
 
 import json
 import sqlite3
-from urllib.parse import unquote
+from urllib.parse import parse_qs, urlsplit
 
 from conftest import csrf_token, user_db_path
 
@@ -53,9 +53,10 @@ def test_partial_resolve_names_the_skipped_movement(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    location = unquote(resp.headers["location"])
-    assert location.startswith("/training?msg="), f"a partial write must be reported: {location}"
-    assert "Ghost Movement" in location, "the message must name what was skipped"
+    redirect = urlsplit(resp.headers["location"])
+    assert redirect.path == "/training"
+    message = parse_qs(redirect.query)["msg"][0]
+    assert "Ghost Movement" in message, "the message must name what was skipped"
     assert _entry_count(session_id) == 1, "the resolved row must still be written"
 
 
@@ -77,7 +78,9 @@ def test_deliberate_skip_is_silent(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/training"
+    redirect = urlsplit(resp.headers["location"])
+    assert redirect.path == "/training"
+    assert "Pominięto" not in parse_qs(redirect.query)["msg"][0]
     assert _entry_count(session_id) == 1
 
 

@@ -17,6 +17,7 @@
     <meta name="csrf-token" content="{{ request.state.csrf_token }}">
 </head>
 <body>
+{% include "partials/feedback.html" %}
 <div class="auth-wrapper">
     <div class="auth-card">
         <div class="auth-logo">
@@ -26,10 +27,10 @@
         <p class="auth-subtitle">Sign in to continue.</p>
 
         {% if error %}
-        <div class="auth-error">{{ error }}</div>
+        <div class="auth-error" role="alert">{{ error }}</div>
         {% endif %}
         {% if info %}
-        <div class="auth-info">{{ info }}</div>
+        <div class="auth-info" role="status">{{ info }}</div>
         {% endif %}
 
         <form method="POST" action="/login">
@@ -63,5 +64,6 @@
 .auth-footer a:hover { text-decoration:underline; }
 </style>
 <script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(function(){});</script>
+<script src="/static/js/app.js?v={{ app_version }}"></script>
 </body>
 </html>

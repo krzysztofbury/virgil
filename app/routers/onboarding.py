@@ -1,9 +1,11 @@
 import logging
+import math
 
 from fastapi import APIRouter, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
 from app.db import set_setting
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.models.user_profile import (
     ensure_profile,
@@ -24,6 +26,14 @@ router = APIRouter()
 MAX_UPLOAD_BYTES = 20 * 1024 * 1024  # 20 MB hard ceiling for medical PDFs.
 MAX_MARKERS = 200
 MAX_RESULTS_PER_MARKER = 50
+ALLOWED_EQUIPMENT = {
+    "home_gym",
+    "gym_membership",
+    "resistance_bands",
+    "kettlebells",
+    "pullup_bar",
+    "bodyweight",
+}
 
 
 def _safe_float(value: str) -> float | None:
@@ -32,9 +42,10 @@ def _safe_float(value: str) -> float | None:
     if not stripped:
         return None
     try:
-        return float(stripped)
+        parsed = float(stripped)
     except ValueError:
         return None
+    return parsed if math.isfinite(parsed) else None
 
 
 GOAL_CATEGORY_MAP = {
@@ -94,25 +105,45 @@ async def save_step1(
     habits_good: str = Form(""),
     habits_bad: str = Form(""),
 ):
+    if sex not in {"", "male", "female"}:
+        return error_redirect(request, "/onboarding?step=1", "Choose a valid sex option.")
+
+    age_value = None
+    if age.strip():
+        try:
+            age_value = int(age)
+        except ValueError:
+            return error_redirect(request, "/onboarding?step=1", "Enter age as a whole number from 10 to 120.")
+        if not 10 <= age_value <= 120:
+            return error_redirect(request, "/onboarding?step=1", "Enter an age from 10 to 120.")
+
+    height_value = _safe_float(height_cm)
+    if height_cm.strip() and (height_value is None or height_value <= 0):
+        return error_redirect(request, "/onboarding?step=1", "Enter height as a positive number.")
+
+    weight_value = _safe_float(weight_kg)
+    if weight_kg.strip() and (weight_value is None or weight_value <= 0):
+        return error_redirect(request, "/onboarding?step=1", "Enter weight as a positive number.")
+
     db = get_user_db_from_request(request)
     await update_step1(
         db,
         sex=truncate(sex, 20),
-        age=int(age) if age.strip().isdigit() else None,
-        height_cm=_safe_float(height_cm),
-        weight_kg=_safe_float(weight_kg),
+        age=age_value,
+        height_cm=height_value,
+        weight_kg=weight_value,
         family=truncate(family, 500),
         habits_good=truncate(habits_good, 2000),
         habits_bad=truncate(habits_bad, 2000),
     )
-    return RedirectResponse("/onboarding?step=2", status_code=303)
+    return success_redirect(request, "/onboarding?step=2", "About-you details saved.")
 
 
 @router.post("/onboarding/step/2")
 async def save_step2(request: Request, ideal_day: str = Form("")):
     db = get_user_db_from_request(request)
     await update_step2(db, ideal_day=truncate(ideal_day, 5000))
-    return RedirectResponse("/onboarding?step=3", status_code=303)
+    return success_redirect(request, "/onboarding?step=3", "Ideal-day details saved.")
 
 
 @router.post("/onboarding/step/3")
@@ -152,7 +183,7 @@ async def save_step3(
 
     await update_step3(db)
 
-    return RedirectResponse("/onboarding?step=4", status_code=303)
+    return success_redirect(request, "/onboarding?step=4", "Goals saved.")
 
 
 @router.post("/onboarding/step/4")
@@ -163,6 +194,9 @@ async def save_step4(
     habits_build: str = Form(""),
     habits_break: str = Form(""),
 ):
+    if any(item not in ALLOWED_EQUIPMENT for item in equipment):
+        return error_redirect(request, "/onboarding?step=4", "Choose only equipment options shown in the form.")
+
     db = get_user_db_from_request(request)
     await update_step4(
         db,
@@ -171,7 +205,7 @@ async def save_step4(
         habits_build=truncate(habits_build, 2000),
         habits_break=truncate(habits_break, 2000),
     )
-    return RedirectResponse("/onboarding?step=5", status_code=303)
+    return success_redirect(request, "/onboarding?step=5", "Habits and training details saved.")
 
 
 @router.post("/onboarding/step/5")
@@ -184,16 +218,35 @@ async def save_step5(
     from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
 
     raw_text = truncate(medical_text, 10000)
+    has_file = bool(medical_file and medical_file.filename)
+
+    if not has_file and not raw_text.strip():
+        return error_redirect(
+            request,
+            "/onboarding?step=5",
+            "Upload a medical PDF or paste lab results, or skip this step.",
+        )
+
+    if not INTERNAL_LLM_KEY:
+        return error_redirect(
+            request,
+            "/onboarding?step=5",
+            "Medical record import requires an internal LLM key.",
+        )
 
     # Process PDF via multimodal LLM if uploaded.
-    if medical_file and medical_file.size and medical_file.size > 0 and INTERNAL_LLM_KEY:
-        if medical_file.size > MAX_UPLOAD_BYTES:
-            return RedirectResponse("/onboarding?step=5", status_code=303)
+    if has_file:
+        if medical_file.size is not None and medical_file.size > MAX_UPLOAD_BYTES:
+            return error_redirect(request, "/onboarding?step=5", "Medical PDFs must be 20 MB or smaller.")
         import base64
 
         import litellm
 
-        pdf_bytes = await medical_file.read()
+        pdf_bytes = await medical_file.read(MAX_UPLOAD_BYTES + 1)
+        if len(pdf_bytes) > MAX_UPLOAD_BYTES:
+            return error_redirect(request, "/onboarding?step=5", "Medical PDFs must be 20 MB or smaller.")
+        if not pdf_bytes:
+            return error_redirect(request, "/onboarding?step=5", "The uploaded medical PDF is empty.")
         pdf_b64 = base64.b64encode(pdf_bytes).decode()
 
         try:
@@ -223,22 +276,46 @@ async def save_step5(
                 max_tokens=4096,
                 timeout=120.0,
             )
+            if not response.choices or not response.choices[0].message.content:
+                raise ValueError("Medical PDF extraction returned no content")
             raw_text = response.choices[0].message.content
         except Exception:
             logger.exception("Failed to process medical PDF")
+            return error_redirect(
+                request,
+                "/onboarding?step=5",
+                "Could not read the medical PDF. Try another file or paste the results.",
+            )
 
     # Parse extracted text into blood_markers + blood_results.
-    if raw_text.strip() and INTERNAL_LLM_KEY:
-        try:
-            await _parse_medical_text(db, raw_text)
-        except Exception:
-            logger.exception("Failed to parse medical records")
+    try:
+        imported_markers = await _parse_medical_text(db, raw_text)
+    except Exception:
+        logger.exception("Failed to parse medical records")
+        await db.rollback()
+        return error_redirect(
+            request,
+            "/onboarding?step=5",
+            "Could not import medical records. Check the file or pasted text and try again.",
+        )
+    if not imported_markers:
+        await db.rollback()
+        return error_redirect(
+            request,
+            "/onboarding?step=5",
+            "No blood test markers were found. Check the file or pasted text and try again.",
+        )
 
     await update_step5(db)
-    return RedirectResponse("/onboarding?step=6", status_code=303)
+    marker_word = "marker" if imported_markers == 1 else "markers"
+    return success_redirect(
+        request,
+        "/onboarding?step=6",
+        f"Imported {imported_markers} blood test {marker_word}.",
+    )
 
 
-async def _parse_medical_text(db, text: str) -> None:
+async def _parse_medical_text(db, text: str) -> int:
     """Use LLM to extract structured markers from free text, then save to DB."""
     import json
 
@@ -265,6 +342,8 @@ async def _parse_medical_text(db, text: str) -> None:
         timeout=90.0,
     )
 
+    if not response.choices or not response.choices[0].message.content:
+        return 0
     raw = response.choices[0].message.content.strip()
     if raw.startswith("```"):
         lines = raw.split("\n")[1:]
@@ -276,12 +355,15 @@ async def _parse_medical_text(db, text: str) -> None:
         markers = json.loads(raw)
     except json.JSONDecodeError:
         logger.warning("Could not parse medical markers JSON")
-        return
-    if not isinstance(markers, list):
-        return
+        return 0
+    if not isinstance(markers, list) or not markers:
+        return 0
     markers = markers[:MAX_MARKERS]
+    imported_markers = 0
 
     for m in markers:
+        if not isinstance(m, dict):
+            continue
         name = m.get("marker", "")
         if not name:
             continue
@@ -303,9 +385,15 @@ async def _parse_medical_text(db, text: str) -> None:
         marker_row = await db.execute_fetchall("SELECT id FROM blood_markers WHERE name = ?", (name,))
         if not marker_row:
             continue
+        imported_markers += 1
         marker_id = marker_row[0]["id"]
 
-        for r in m.get("results", [])[:MAX_RESULTS_PER_MARKER]:
+        results = m.get("results", [])
+        if not isinstance(results, list):
+            continue
+        for r in results[:MAX_RESULTS_PER_MARKER]:
+            if not isinstance(r, dict):
+                continue
             date_val = r.get("date", "")
             value = r.get("value")
             flag = r.get("flag", "")
@@ -317,7 +405,10 @@ async def _parse_medical_text(db, text: str) -> None:
                     (marker_id, date_val, value, flag or ""),
                 )
 
+    if not imported_markers:
+        return 0
     await db.commit()
+    return imported_markers
 
 
 @router.post("/onboarding/confirm")
@@ -337,7 +428,7 @@ async def confirm_onboarding(request: Request):
 
     mark_onboarding_complete()
 
-    return RedirectResponse("/", status_code=303)
+    return success_redirect(request, "/", "Onboarding complete.")
 
 
 @router.post("/onboarding/skip")
@@ -349,4 +440,4 @@ async def skip_onboarding(request: Request):
 
     mark_onboarding_complete()
 
-    return RedirectResponse("/", status_code=303)
+    return success_redirect(request, "/", "Onboarding skipped.")

@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Browser writes now share one accessible feedback contract.** Native PRG
+  responses and HTMX requests use bounded `msg`/`err` outcomes, one persistent
+  error/status region, and a submit state that preserves the control's original
+  label. Network, timeout, validation, and server failures remain distinct.
+- **Daily and Feniks retain bounded drafts after transport failures.** Drafts
+  stay tab-scoped in `sessionStorage`, restore by route/date, and clear only
+  after confirmed success or logout.
 - **The central identity registry now has versioned migrations.** Startup takes
   a bounded, non-overwriting snapshot before upgrading an existing registry;
   schema changes and version stamps commit atomically. A failed or unsupported
@@ -15,6 +22,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   degraded state through `/healthz`.
 
 ### Fixed
+- **Manual Oura sync no longer reports partial domain results as success.** The
+  browser receives visible success, partial-failure, or exception feedback from
+  the same native/HTMX contract.
 - **Authenticated tests no longer contaminate anonymous tests.** `client` and
   `auth_client` use separate cookie jars on one application lifespan portal,
   with a regression that proves login state does not leak between them.

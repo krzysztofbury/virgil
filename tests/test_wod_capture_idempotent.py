@@ -8,6 +8,7 @@ weekly KPI with no entries.
 
 import re
 import sqlite3
+from urllib.parse import urlsplit
 
 from conftest import csrf_token, user_db_path
 
@@ -81,7 +82,7 @@ def test_reused_token_with_a_new_note_still_saves_it(auth_client, monkeypatch):
     assert _count_sessions("second note") == 1, "the second note was dropped as a false replay"
     row = _session_row("second note")
     assert row[1] is None, "a fresh session must not keep the colliding token"
-    assert second.headers["location"] == f"/training/wod/confirm/{row[0]}"
+    assert urlsplit(second.headers["location"]).path == f"/training/wod/confirm/{row[0]}"
     assert len(calls) == 2, "a genuine new capture must still be parsed"
 
 

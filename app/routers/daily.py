@@ -5,9 +5,10 @@ from datetime import timedelta
 from html import escape
 
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.config import SECOND_BRAIN_PATH
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.llm import llm_available
 from app.services.training_schedule import schedule_block
@@ -167,7 +168,7 @@ async def save_daily(
     notes: str = Form(""),
 ):
     if not valid_date(date):
-        return RedirectResponse("/daily", status_code=303)
+        return error_redirect(request, "/daily", "Invalid daily-log date.")
     energy = max(1, min(10, energy))
     andy_body_desc = truncate(andy_body_desc, 500)
     andy_spirit_desc = truncate(andy_spirit_desc, 500)
@@ -218,14 +219,21 @@ async def save_daily(
     await db.commit()
 
     if request.headers.get("HX-Request"):
-        return PlainTextResponse("saved")
-    return RedirectResponse(f"/daily/{date}", status_code=303)
+        return Response(
+            status_code=200,
+            headers={
+                "X-Feedback-Message": "Saved",
+                "X-Feedback-Kind": "success",
+                "X-Draft-Clear": f"daily:{date}",
+            },
+        )
+    return success_redirect(request, f"/daily/{date}", "Daily log saved.", clear_draft=f"daily:{date}")
 
 
 @router.post("/daily/generate-andy")
 async def generate_andy(request: Request, date: str = Form(...)):
     if not valid_date(date):
-        return RedirectResponse("/daily", status_code=303)
+        return error_redirect(request, "/daily", "Invalid planning date.")
     from app.services.llm import call_llm, parse_andy_response
 
     db = get_user_db_from_request(request)
@@ -337,14 +345,18 @@ async def generate_andy(request: Request, date: str = Form(...)):
             return HTMLResponse(
                 f'<div class="andy-error-msg" style="color:var(--danger,#ef4444);'
                 f'font-size:var(--text-sm);margin-top:0.5rem;">⚠ {escape(msg)}</div>',
-                headers={"HX-Retarget": "#andy-error", "HX-Reswap": "innerHTML"},
+                status_code=500,
+                headers={
+                    "HX-Retarget": "#andy-error",
+                    "HX-Reswap": "innerHTML",
+                    "X-Feedback-Kind": "error",
+                    "X-Feedback-Message": "Could not generate A.N.D.Y. suggestions.",
+                    "X-Feedback-Swap": "true",
+                },
             )
-        return RedirectResponse(f"/daily/{target}", status_code=303)
+        return error_redirect(request, f"/daily/{target}", "Could not generate A.N.D.Y. suggestions.")
 
-    redirect_url = f"/daily/{target}"
-    if request.headers.get("HX-Request"):
-        return Response(status_code=200, headers={"HX-Redirect": redirect_url})
-    return RedirectResponse(redirect_url, status_code=303)
+    return success_redirect(request, f"/daily/{target}", "A.N.D.Y. suggestions generated.")
 
 
 @router.post("/daily/measurements")
@@ -358,7 +370,7 @@ async def save_measurements(
     thighs: str = Form(""),
 ):
     if not valid_date(date):
-        return RedirectResponse("/daily", status_code=303)
+        return error_redirect(request, "/daily", "Invalid measurement date.")
 
     def to_float(v: str) -> float | None:
         try:
@@ -379,5 +391,8 @@ async def save_measurements(
     )
     await db.commit()
     if request.headers.get("HX-Request"):
-        return PlainTextResponse("saved")
-    return RedirectResponse(f"/daily/{date}", status_code=303)
+        return Response(
+            status_code=200,
+            headers={"X-Feedback-Message": "Measurements saved", "X-Feedback-Kind": "success"},
+        )
+    return success_redirect(request, f"/daily/{date}", "Measurements saved.")

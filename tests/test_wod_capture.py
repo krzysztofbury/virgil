@@ -6,7 +6,7 @@ import json
 import re
 import sqlite3
 from datetime import date
-from urllib.parse import unquote
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
 from conftest import csrf_token, user_db_path
@@ -919,7 +919,9 @@ def test_discard_is_a_supported_exit(auth_client, monkeypatch):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/training", "discard is a terminal action, not a loop back to the form"
+    assert urlsplit(resp.headers["location"]).path == "/training", (
+        "discard is a terminal action, not a loop back to the form"
+    )
     assert _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"] == before
     pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert pending is None, "discard must consume the parse — that is the point"
@@ -1017,7 +1019,7 @@ def test_library_error_with_parsed_rows_is_escapable(auth_client):
             },
             follow_redirects=False,
         )
-        assert resp.headers["location"] == "/training", "discard must terminate, not loop"
+        assert urlsplit(resp.headers["location"]).path == "/training", "discard must terminate, not loop"
     finally:
         conn.execute("DELETE FROM exercise_library WHERE name LIKE 'Escapable Bound Movement %'")
         if session_id is not None:
@@ -1091,7 +1093,7 @@ def test_discard_works_when_the_parse_holds_an_out_of_range_value(auth_client, m
         },
         follow_redirects=False,
     )
-    assert resp.headers["location"] == "/training", "discard must not be blocked by the rows it discards"
+    assert urlsplit(resp.headers["location"]).path == "/training", "discard must not be blocked by the rows it discards"
     pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert pending is None, "discard must consume the parse"
 
@@ -1140,9 +1142,9 @@ def test_missing_entry_count_reports_the_right_cause(auth_client, monkeypatch):
         data={"_csrf_token": token, "session_id": str(session_id), "entry_count": ""},
         follow_redirects=False,
     )
-    location = unquote(resp.headers["location"])
-    assert "Zbyt dużo wpisów" not in location, "a missing field is not a too-many-rows problem"
-    assert "niekompletny" in location
+    message = parse_qs(urlsplit(resp.headers["location"]).query)["err"][0]
+    assert "Zbyt dużo wpisów" not in message, "a missing field is not a too-many-rows problem"
+    assert "niekompletny" in message
     pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert pending, "a rejected submission must leave the parse armed"
 
@@ -1177,14 +1179,14 @@ def test_discard_on_a_settled_session_is_a_logged_no_op(auth_client, monkeypatch
     # First discard: a real one. Must not log a no-match.
     with caplog.at_level("WARNING", logger="app.routers.training"):
         caplog.clear()
-        assert discard().headers["location"] == "/training"
+        assert urlsplit(discard().headers["location"]).path == "/training"
         assert "matched nothing" not in caplog.text, "a discard that consumed a parse is not a no-match"
     assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"] is None
 
     # Replay against the now-settled session: same 303, but reported as a no-match.
     with caplog.at_level("WARNING", logger="app.routers.training"):
         caplog.clear()
-        assert discard().headers["location"] == "/training"
+        assert urlsplit(discard().headers["location"]).path == "/training"
         assert "matched nothing" in caplog.text, (
             "discarding an already-settled session must be distinguishable from discarding a pending parse"
         )

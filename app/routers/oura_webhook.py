@@ -92,8 +92,17 @@ def _schedule_user_sync(db_filename: str, data_type: str) -> bool:
             try:
                 from app.services.oura_api import sync_oura_from_api
 
-                count = await sync_oura_from_api(db, days_back=2)
-                logger.info("Oura webhook sync completed: %d days (data_type: %s)", count, data_type)
+                result = await sync_oura_from_api(db, days_back=2)
+                if not result.complete:
+                    logger.warning(
+                        "Oura webhook sync partial: %d days, failed_daily=%s, workouts_synced=%s (data_type: %s)",
+                        result.days,
+                        result.failed_daily_endpoints,
+                        result.workouts_synced,
+                        data_type,
+                    )
+                else:
+                    logger.info("Oura webhook sync completed: %d days (data_type: %s)", result.days, data_type)
             finally:
                 await close_user_db(db)
         except Exception:

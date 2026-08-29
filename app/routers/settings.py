@@ -12,6 +12,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 
 from app.config import BASE_URL, DB_PATH, SECOND_BRAIN_PATH
 from app.db import get_feature_flags, get_setting, set_setting
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.encryption import decrypt, encrypt
 from app.services.oura_api import (
@@ -159,7 +160,7 @@ async def library_add(
     try:
         sets_val = int(sets) if sets.strip() else None
     except ValueError:
-        sets_val = None
+        return error_redirect(request, "/settings?tab=configuration", "Sets must be a whole number.")
 
     db = get_user_db_from_request(request)
     try:
@@ -169,7 +170,7 @@ async def library_add(
             fields={"name": name, "section": section, "sets": sets_val, "reps": reps, "notes": notes, "metric": metric},
         )
     except LibraryWriteError as exc:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", exc.message)
 
     # normalize_tags accepts the raw comma-separated field straight from the
     # form. Run it before the INSERT so a bad tag (e.g. one that normalises
@@ -177,7 +178,7 @@ async def library_add(
     try:
         tag_list = normalize_tags(tags)
     except LibraryWriteError as exc:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", exc.message)
 
     cursor = await db.execute(
         "INSERT INTO exercise_library "
@@ -188,7 +189,7 @@ async def library_add(
     for tag in tag_list:
         await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (cursor.lastrowid, tag))
     await db.commit()
-    return RedirectResponse("/settings?tab=configuration", status_code=303)
+    return success_redirect(request, "/settings?tab=configuration", "Exercise added to the library.")
 
 
 @router.post("/settings/library/update")
@@ -228,7 +229,7 @@ async def library_update(
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
     if not rows:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", "Library entry not found.")
     existing = dict(rows[0])
 
     fields: dict = {}
@@ -244,7 +245,7 @@ async def library_update(
             # "do 4 sets of 10" any more, so do not reintroduce that meaning.
             fields["sets"] = int(sets) if sets.strip() else None
         except ValueError:
-            fields["sets"] = None
+            return error_redirect(request, "/settings?tab=configuration", "Sets must be a whole number.")
     if reps is not None:
         fields["reps"] = reps
     if notes is not None:
@@ -255,7 +256,7 @@ async def library_update(
     try:
         result = await validate_library_write(db, op="update", entry_id=entry_id, existing=existing, fields=fields)
     except LibraryWriteError as exc:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", exc.message)
 
     # M2 (2026-07-31 review): normalize_tags must run — and be allowed to
     # raise — BEFORE the UPDATE below, not after. This used to run after,
@@ -272,16 +273,22 @@ async def library_update(
         try:
             tag_list = normalize_tags(tags)
         except LibraryWriteError as exc:
-            return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+            return error_redirect(request, "/settings?tab=configuration", exc.message)
+
+    if not result and tags is None:
+        return error_redirect(request, "/settings?tab=configuration", "No library changes were submitted.")
 
     if result:
         assignments = ", ".join(f"{k} = ?" for k in result)
-        await db.execute(
+        cursor = await db.execute(
             f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are this
             # module's own known column names (validate_library_write's fixed key set), never
             # attacker-controlled.
             [*result.values(), entry_id],
         )
+        if cursor.rowcount != 1:
+            await db.rollback()
+            return error_redirect(request, "/settings?tab=configuration", "Library entry was not updated.")
 
     # Tags themselves bypass the builtin guard — never routed through
     # `fields`/validate_library_write above, so a builtin row accepts a
@@ -299,7 +306,7 @@ async def library_update(
 
     if result or tags is not None:
         await db.commit()
-    return RedirectResponse("/settings?tab=configuration", status_code=303)
+    return success_redirect(request, "/settings?tab=configuration", "Library entry updated.")
 
 
 @router.post("/settings/library/delete")
@@ -309,15 +316,18 @@ async def library_delete(request: Request, entry_id: int = Form(...)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
     if not rows:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", "Library entry not found.")
     try:
         await validate_library_write(db, op="delete", entry_id=entry_id, existing=dict(rows[0]))
     except LibraryWriteError as exc:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", exc.message)
 
-    await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
+    cursor = await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
+    if cursor.rowcount != 1:
+        await db.rollback()
+        return error_redirect(request, "/settings?tab=configuration", "Library entry was not deleted.")
     await db.commit()
-    return RedirectResponse("/settings?tab=configuration", status_code=303)
+    return success_redirect(request, "/settings?tab=configuration", "Exercise deleted from the library.")
 
 
 @router.post("/settings/library/archive")
@@ -337,24 +347,33 @@ async def library_archive(request: Request, entry_id: int = Form(...), archived:
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
     if not rows:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote('Library entry not found')}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", "Library entry not found.")
     existing = dict(rows[0])
+
+    target_archived = 1 if archived else 0
+    if existing["archived"] == target_archived:
+        state = "archived" if target_archived else "active"
+        return error_redirect(request, "/settings?tab=configuration", f"Library entry is already {state}.")
 
     try:
         result = await validate_library_write(
-            db, op="update", entry_id=entry_id, existing=existing, fields={"archived": archived}
+            db, op="update", entry_id=entry_id, existing=existing, fields={"archived": target_archived}
         )
     except LibraryWriteError as exc:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote(exc.message)}", status_code=303)
+        return error_redirect(request, "/settings?tab=configuration", exc.message)
 
     if result:
         assignments = ", ".join(f"{k} = ?" for k in result)
-        await db.execute(
+        cursor = await db.execute(
             f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — see library_update
             [*result.values(), entry_id],
         )
+        if cursor.rowcount != 1:
+            await db.rollback()
+            return error_redirect(request, "/settings?tab=configuration", "Library entry was not updated.")
         await db.commit()
-    return RedirectResponse("/settings?tab=configuration", status_code=303)
+    action = "archived" if target_archived else "restored"
+    return success_redirect(request, "/settings?tab=configuration", f"Exercise {action}.")
 
 
 # --- Training schedule ---
@@ -376,8 +395,8 @@ async def save_training_schedule(request: Request):
     )
     from app.validation import truncate
 
-    def reject(message: str) -> RedirectResponse:
-        return RedirectResponse(f"/settings?tab=configuration&err={quote(message)}", status_code=303)
+    def reject(message: str) -> Response:
+        return error_redirect(request, "/settings?tab=configuration", message)
 
     form = await request.form()
     db = get_user_db_from_request(request)
@@ -427,7 +446,7 @@ async def save_training_schedule(request: Request):
     # from here.
     await set_setting(db, SETTING_SWIM, str(swim))
 
-    return RedirectResponse(f"/settings?tab=configuration&msg={quote('Training schedule saved')}", status_code=303)
+    return success_redirect(request, "/settings?tab=configuration", "Training schedule saved.")
 
 
 # --- Automation settings ---
@@ -435,16 +454,43 @@ async def save_training_schedule(request: Request):
 
 @router.post("/settings/automation")
 async def save_automation(request: Request):
-    from app.validation import clamp_float, clamp_int
+    from math import isfinite
 
     form = await request.form()
     db = get_user_db_from_request(request)
 
-    # Validate numeric settings before persisting to prevent scheduler crashes.
-    backup_interval = clamp_float(form.get("backup_interval_hours", "24"), minimum=1.0, maximum=168.0)
-    backup_max = clamp_int(form.get("backup_max_copies", "7"), minimum=1, maximum=100)
-    oura_interval = clamp_float(form.get("oura_sync_interval_hours", "6"), minimum=1.0, maximum=168.0)
-    export_interval = clamp_float(form.get("export_interval_hours", "6"), minimum=1.0, maximum=168.0)
+    # Validate every value before the first set_setting(), which commits independently.
+    try:
+        backup_interval = float(form.get("backup_interval_hours", "24"))
+    except (TypeError, ValueError):
+        return error_redirect(request, "/settings?tab=automation", "Backup interval must be a number from 1 to 168.")
+    if not isfinite(backup_interval) or not 1 <= backup_interval <= 168:
+        return error_redirect(request, "/settings?tab=automation", "Backup interval must be a number from 1 to 168.")
+
+    try:
+        backup_max = int(form.get("backup_max_copies", "7"))
+    except (TypeError, ValueError):
+        return error_redirect(
+            request, "/settings?tab=automation", "Backup copies must be a whole number from 1 to 100."
+        )
+    if not 1 <= backup_max <= 100:
+        return error_redirect(
+            request, "/settings?tab=automation", "Backup copies must be a whole number from 1 to 100."
+        )
+
+    try:
+        oura_interval = float(form.get("oura_sync_interval_hours", "6"))
+    except (TypeError, ValueError):
+        return error_redirect(request, "/settings?tab=automation", "Oura sync interval must be a number from 1 to 168.")
+    if not isfinite(oura_interval) or not 1 <= oura_interval <= 168:
+        return error_redirect(request, "/settings?tab=automation", "Oura sync interval must be a number from 1 to 168.")
+
+    try:
+        export_interval = float(form.get("export_interval_hours", "6"))
+    except (TypeError, ValueError):
+        return error_redirect(request, "/settings?tab=automation", "Export interval must be a number from 1 to 168.")
+    if not isfinite(export_interval) or not 1 <= export_interval <= 168:
+        return error_redirect(request, "/settings?tab=automation", "Export interval must be a number from 1 to 168.")
 
     await set_setting(db, "backup_enabled", "1" if form.get("backup_enabled") else "0")
     await set_setting(db, "backup_interval_hours", str(backup_interval))
@@ -455,7 +501,7 @@ async def save_automation(request: Request):
     await set_setting(db, "export_enabled", "1" if form.get("export_enabled") else "0")
     await set_setting(db, "export_interval_hours", str(export_interval))
 
-    return RedirectResponse(f"/settings?tab=automation&msg={quote('Automation settings saved')}", status_code=303)
+    return success_redirect(request, "/settings?tab=automation", "Automation settings saved.")
 
 
 # --- Feature Flags ---
@@ -473,7 +519,7 @@ async def save_features(request: Request):
         key = f"feature_{flag_name}"
         await set_setting(db, key, "1" if form.get(key) else "0")
 
-    return RedirectResponse(f"/settings?tab=general&msg={quote('Features updated')}", status_code=303)
+    return success_redirect(request, "/settings?tab=general", "Feature settings updated.")
 
 
 # --- Backup ---
@@ -486,13 +532,10 @@ async def trigger_backup_now(request: Request):
     db = get_user_db_from_request(request)
     try:
         path = await run_backup(db)
-        return RedirectResponse(
-            f"/settings?tab=automation&msg={quote(f'Backup created: {path.name}')}",
-            status_code=303,
-        )
+        return success_redirect(request, "/settings?tab=automation", f"Backup created: {path.name}")
     except Exception:
         logger.exception("Manual backup failed")
-        return RedirectResponse(f"/settings?tab=automation&err={quote('Backup failed')}", status_code=303)
+        return error_redirect(request, "/settings?tab=automation", "Backup failed. Try again.")
 
 
 # --- Export ---
@@ -505,18 +548,33 @@ async def trigger_export(request: Request):
     form = await request.form()
     scope = form.get("scope", "weekly")
     if scope not in ("weekly", "monthly", "yearly", "all"):
-        scope = "weekly"
+        return error_redirect(request, "/settings?tab=data", "Choose a valid export scope.")
     sections = form.getlist("sections")
-    section_set = set(sections) if sections else None
+    valid_sections = {
+        "daily_logs",
+        "training",
+        "body_measurements",
+        "feniks",
+        "oura",
+        "life_scores",
+        "experiments",
+        "bloodwork",
+        "goals",
+    }
+    if any(section not in valid_sections for section in sections):
+        return error_redirect(request, "/settings?tab=data", "Choose only valid export sections.")
+    if not sections:
+        return error_redirect(request, "/settings?tab=data", "Choose at least one export section.")
+    section_set = set(sections)
 
     db = get_user_db_from_request(request)
     try:
         filename = await export_filename_for(db, request.state.user["id"])
         await write_export(db, scope, sections=section_set, filename=filename)
-        return RedirectResponse(f"/settings?tab=data&msg={quote(f'{scope} export complete')}", status_code=303)
+        return success_redirect(request, "/settings?tab=data", f"{scope.capitalize()} export completed.")
     except Exception:
         logger.exception("Export failed")
-        return RedirectResponse(f"/settings?tab=data&err={quote('Export failed')}", status_code=303)
+        return error_redirect(request, "/settings?tab=data", "Export failed. Try again.")
 
 
 @router.post("/settings/import")
@@ -526,10 +584,10 @@ async def trigger_import(request: Request):
     db = get_user_db_from_request(request)
     try:
         await import_all(db)
-        return RedirectResponse(f"/settings?tab=data&msg={quote('Import complete')}", status_code=303)
+        return success_redirect(request, "/settings?tab=data", "Import completed.")
     except Exception:
         logger.exception("Import failed")
-        return RedirectResponse(f"/settings?tab=data&err={quote('Import failed')}", status_code=303)
+        return error_redirect(request, "/settings?tab=data", "Import failed. Try again.")
 
 
 @router.get("/settings/backup")
@@ -661,31 +719,40 @@ async def add_llm_provider(
     # Sanitize inputs — provider and model are stored as-is for LiteLLM.
     provider = truncate(provider.strip(), 50)
     model = truncate(model.strip(), 200)
-    if not provider or not model or not api_key:
-        return RedirectResponse("/settings?tab=general&err=All+fields+required", status_code=303)
+    if not provider or not model or not api_key.strip():
+        return error_redirect(request, "/settings?tab=general", "Provider, model, and API key are required.")
     await db.execute(
         "INSERT INTO llm_providers (provider, api_key_enc, model, is_active) VALUES (?, ?, ?, 0)",
         (provider, encrypt(api_key), model),
     )
     await db.commit()
-    return RedirectResponse("/settings?tab=general", status_code=303)
+    return success_redirect(request, "/settings?tab=general", "LLM provider added.")
 
 
 @router.post("/settings/llm/activate")
 async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
     db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT id FROM llm_providers WHERE id = ?", (provider_id,))
+    if not rows:
+        return error_redirect(request, "/settings?tab=general", "LLM provider not found.")
     await db.execute("UPDATE llm_providers SET is_active = 0")
-    await db.execute("UPDATE llm_providers SET is_active = 1 WHERE id = ?", (provider_id,))
+    cursor = await db.execute("UPDATE llm_providers SET is_active = 1 WHERE id = ?", (provider_id,))
+    if cursor.rowcount != 1:
+        await db.rollback()
+        return error_redirect(request, "/settings?tab=general", "LLM provider was not activated.")
     await db.commit()
-    return RedirectResponse("/settings?tab=general", status_code=303)
+    return success_redirect(request, "/settings?tab=general", "LLM provider activated.")
 
 
 @router.post("/settings/llm/delete")
 async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
+    cursor = await db.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
+    if cursor.rowcount != 1:
+        await db.rollback()
+        return error_redirect(request, "/settings?tab=general", "LLM provider not found.")
     await db.commit()
-    return RedirectResponse("/settings?tab=general", status_code=303)
+    return success_redirect(request, "/settings?tab=general", "LLM provider deleted.")
 
 
 # --- Factory Reset ---
@@ -710,7 +777,7 @@ async def factory_reset(request: Request):
 
     user = getattr(request.state, "user", None)
     if not user or not user.get("db_filename"):
-        return RedirectResponse("/login", status_code=303)
+        return error_redirect(request, "/login", "Sign in again before resetting data.")
 
     db = get_user_db_from_request(request)
     async with _oura_webhook_lock:
@@ -724,7 +791,7 @@ async def factory_reset(request: Request):
     delete_user_db(old_filename)
 
     logger.info("Factory reset completed for user %s", user["email"])
-    return RedirectResponse("/onboarding", status_code=303)
+    return success_redirect(request, "/onboarding", "Factory reset completed. Start onboarding again.")
 
 
 # --- Oura Integration ---
@@ -736,6 +803,11 @@ async def save_oura_credentials(
     client_id: str = Form(...),
     client_secret: str = Form(...),
 ):
+    client_id = client_id.strip()
+    client_secret = client_secret.strip()
+    if not client_id or not client_secret:
+        return error_redirect(request, "/settings?tab=integrations", "Oura client ID and client secret are required.")
+
     db = get_user_db_from_request(request)
     await db.execute(
         """INSERT INTO integrations (provider, client_id, client_secret_enc, scopes, status)
@@ -747,7 +819,7 @@ async def save_oura_credentials(
         (client_id, encrypt(client_secret), "daily heartrate session spo2 sleep workout"),
     )
     await db.commit()
-    return RedirectResponse("/settings?tab=integrations", status_code=303)
+    return success_redirect(request, "/settings?tab=integrations", "Oura credentials saved.")
 
 
 @router.get("/settings/oura/connect")
@@ -819,27 +891,39 @@ async def oura_callback(request: Request, code: str = Query(...), state: str = Q
 @router.post("/settings/oura/disconnect")
 async def oura_disconnect(request: Request):
     db = get_user_db_from_request(request)
-    await db.execute(
+    rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
+    if not rows:
+        return error_redirect(request, "/settings?tab=integrations", "Oura integration is not configured.")
+    if rows[0]["status"] != "connected":
+        return error_redirect(request, "/settings?tab=integrations", "Oura is not connected.")
+
+    cursor = await db.execute(
         """UPDATE integrations SET access_token_enc = '', refresh_token_enc = '',
            token_expires_at = '', status = 'configured' WHERE provider = 'oura'"""
     )
+    if cursor.rowcount != 1:
+        await db.rollback()
+        return error_redirect(request, "/settings?tab=integrations", "Oura was not disconnected.")
     await db.commit()
-    return RedirectResponse("/settings?tab=integrations", status_code=303)
+    return success_redirect(request, "/settings?tab=integrations", "Oura disconnected.")
 
 
 @router.post("/settings/oura/sync")
 async def oura_sync(request: Request):
     db = get_user_db_from_request(request)
     try:
-        count = await sync_oura_from_api(db)
-        logger.info("Oura sync completed: %d days", count)
-        return RedirectResponse(
-            f"/settings?tab=integrations&msg={quote(f'Oura sync: {count} days')}",
-            status_code=303,
-        )
+        result = await sync_oura_from_api(db)
+        logger.info("Oura sync completed: %d days", result.days)
+        if not result.complete:
+            return error_redirect(
+                request,
+                "/settings?tab=integrations",
+                "Oura sync was partial. Existing data for failed sources was preserved.",
+            )
+        return success_redirect(request, "/settings?tab=integrations", f"Oura sync: {result.days} days")
     except Exception:
         logger.exception("Oura sync failed")
-        return RedirectResponse(f"/settings?tab=integrations&err={quote('Oura sync failed')}", status_code=303)
+        return error_redirect(request, "/settings?tab=integrations", "Oura sync failed")
 
 
 # --- Oura Webhook ---
@@ -903,10 +987,12 @@ async def enable_oura_webhook(request: Request):
     token = await ensure_valid_token(db)
     creds = await _oura_client_credentials(db)
     if not token or not creds:
-        return RedirectResponse(
-            f"/settings?tab=integrations&err={quote('Oura not connected or token expired')}",
-            status_code=303,
-        )
+        return error_redirect(request, "/settings?tab=integrations", "Connect Oura again before enabling the webhook.")
+
+    existing_webhook_id = await get_setting(db, "oura_webhook_id", "")
+    existing_webhook = await db.execute_fetchall("SELECT webhook_secret FROM integrations WHERE provider = 'oura'")
+    if existing_webhook_id and existing_webhook and existing_webhook[0]["webhook_secret"]:
+        return error_redirect(request, "/settings?tab=integrations", "Oura webhook is already enabled.")
     client_id, client_secret = creds
 
     # The lock spans reconcile AND registration: another user's concurrent
@@ -942,24 +1028,19 @@ async def enable_oura_webhook(request: Request):
                 # Partial coverage is a degraded state the user must see — the
                 # missing data types will silently never push events.
                 failed_types = ", ".join(sorted({data_type for _, data_type, _ in result["failed"]}))
-                return RedirectResponse(
-                    f"/settings?tab=integrations&err={quote(f'Webhook partially enabled — no events for: {failed_types}. Disable and retry for full coverage.')}",
-                    status_code=303,
+                return error_redirect(
+                    request,
+                    "/settings?tab=integrations",
+                    f"Webhook partially enabled; no events for: {failed_types}. Disable it and retry.",
                 )
-            return RedirectResponse(
-                f"/settings?tab=integrations&msg={quote('Webhook enabled')}",
-                status_code=303,
-            )
+            return success_redirect(request, "/settings?tab=integrations", "Oura webhook enabled.")
         except Exception:
             logger.exception("Failed to create Oura webhook subscription")
             # Roll back local state since no subscription exists
             await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
             await set_setting(db, "oura_webhook_id", "")
             await delete_webhook_routes(user["id"])
-            return RedirectResponse(
-                f"/settings?tab=integrations&err={quote('Failed to register webhook with Oura')}",
-                status_code=303,
-            )
+            return error_redirect(request, "/settings?tab=integrations", "Oura webhook registration failed. Try again.")
 
 
 @router.post("/settings/oura/webhook/disable")
@@ -969,13 +1050,15 @@ async def disable_oura_webhook(request: Request):
     db = get_user_db_from_request(request)
     user = request.state.user
 
+    rows = await db.execute_fetchall("SELECT webhook_secret FROM integrations WHERE provider = 'oura'")
+    webhook_id = await get_setting(db, "oura_webhook_id", "")
+    if not webhook_id and (not rows or not rows[0]["webhook_secret"]):
+        return error_redirect(request, "/settings?tab=integrations", "Oura webhook is not enabled.")
+
     async with _oura_webhook_lock:
         await _reconcile_oura_subscriptions(db)
 
         await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
         await set_setting(db, "oura_webhook_id", "")
         await delete_webhook_routes(user["id"])
-    return RedirectResponse(
-        f"/settings?tab=integrations&msg={quote('Webhook disabled')}",
-        status_code=303,
-    )
+    return success_redirect(request, "/settings?tab=integrations", "Oura webhook disabled.")

@@ -12,7 +12,7 @@
     <p class="text-muted" style="margin-bottom:1rem;">Your account is protected with a TOTP authenticator app.</p>
 
     {% if error %}
-    <div class="auth-error" style="margin-bottom:1rem;">{{ error }}</div>
+    <div class="auth-error" role="alert" style="margin-bottom:1rem;">{{ error }}</div>
     {% endif %}
 
     <details>
@@ -42,7 +42,7 @@
     </details>
 
     {% if error %}
-    <div class="auth-error" style="margin-bottom:1rem;">{{ error }}</div>
+    <div class="auth-error" role="alert" style="margin-bottom:1rem;">{{ error }}</div>
     {% endif %}
 
     <form method="POST" action="/settings/mfa/enable">

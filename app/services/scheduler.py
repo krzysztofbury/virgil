@@ -33,8 +33,16 @@ async def _run_backup_task(db) -> None:
 async def _run_oura_sync_task(db) -> None:
     from app.services.oura_api import sync_oura_from_api
 
-    count = await sync_oura_from_api(db)
-    logger.info("Scheduled Oura sync: %d days", count)
+    result = await sync_oura_from_api(db)
+    if not result.complete:
+        logger.warning(
+            "Scheduled Oura sync partial: %d days, failed_daily=%s, workouts_synced=%s",
+            result.days,
+            result.failed_daily_endpoints,
+            result.workouts_synced,
+        )
+        return
+    logger.info("Scheduled Oura sync complete: %d days", result.days)
 
 
 async def _run_export_task(db, user_id: str) -> None:

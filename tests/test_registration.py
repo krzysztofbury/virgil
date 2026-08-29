@@ -1,5 +1,7 @@
 """Registration gating: closed by default, but the first account bootstraps."""
 
+from urllib.parse import parse_qs, urlsplit
+
 import app.routers.auth as auth_module
 
 
@@ -27,7 +29,9 @@ def test_signup_post_blocked_when_closed(auth_client, monkeypatch):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert resp.headers["location"] == "/login"
+    redirect = urlsplit(resp.headers["location"])
+    assert redirect.path == "/login"
+    assert parse_qs(redirect.query) == {"err": ["Registration is closed on this server."]}
 
     import os
     import sqlite3

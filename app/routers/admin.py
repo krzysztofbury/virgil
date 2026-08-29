@@ -3,10 +3,11 @@
 import logging
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 
-from app.central_db import delete_user, get_all_users, update_user
+from app.central_db import delete_user, get_all_users, get_user_by_id, update_user
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.user_db import delete_user_db
 from app.validation import valid_uuid
@@ -50,17 +51,21 @@ async def disable_user(request: Request, user_id: str):
     admin = _require_admin(request)
     _validate_user_id(user_id)
     if user_id == admin["id"]:
-        return RedirectResponse("/admin/users", status_code=303)
+        return error_redirect(request, "/admin/users", "Your account cannot be disabled from the admin panel.")
+    if not await get_user_by_id(user_id):
+        return error_redirect(request, "/admin/users", "User account was not found.")
     await update_user(user_id, is_active=0)
-    return RedirectResponse("/admin/users", status_code=303)
+    return success_redirect(request, "/admin/users", "User account disabled.")
 
 
 @router.post("/users/{user_id}/enable")
 async def enable_user(request: Request, user_id: str):
     _require_admin(request)
     _validate_user_id(user_id)
+    if not await get_user_by_id(user_id):
+        return error_redirect(request, "/admin/users", "User account was not found.")
     await update_user(user_id, is_active=1)
-    return RedirectResponse("/admin/users", status_code=303)
+    return success_redirect(request, "/admin/users", "User account enabled.")
 
 
 @router.post("/users/{user_id}/delete")
@@ -69,8 +74,9 @@ async def delete_user_route(request: Request, user_id: str):
     _validate_user_id(user_id)
     # Prevent self-deletion.
     if user_id == admin["id"]:
-        return RedirectResponse("/admin/users", status_code=303)
+        return error_redirect(request, "/admin/users", "Your account cannot be deleted from the admin panel.")
     db_filename = await delete_user(user_id)
-    if db_filename:
-        delete_user_db(db_filename)
-    return RedirectResponse("/admin/users", status_code=303)
+    if not db_filename:
+        return error_redirect(request, "/admin/users", "User account was not found.")
+    delete_user_db(db_filename)
+    return success_redirect(request, "/admin/users", "User account deleted.")

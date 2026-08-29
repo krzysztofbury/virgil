@@ -1,6 +1,7 @@
 """Experiments: create-time target normalization + reopen after complete/abandon."""
 
 import sqlite3
+from urllib.parse import urlsplit
 
 from conftest import csrf_token, user_db_path
 
@@ -26,7 +27,7 @@ def test_inverted_targets_normalized_and_reopen_allowed(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    exp_id = int(resp.headers["location"].rsplit("/", 1)[1])
+    exp_id = int(urlsplit(resp.headers["location"]).path.rsplit("/", 1)[1])
 
     conn = sqlite3.connect(user_db_path())
     try:

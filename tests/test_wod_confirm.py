@@ -3,7 +3,7 @@
 import json
 import sqlite3
 from datetime import date
-from urllib.parse import unquote
+from urllib.parse import parse_qs, urlsplit
 
 from conftest import csrf_token, plain_stat_value_for_label, stat_value_for_label, user_db_path
 
@@ -535,7 +535,8 @@ def test_out_of_range_entry_count_never_reaches_the_consume(auth_client, monkeyp
             data={"_csrf_token": token, "session_id": str(session_id), "entry_count": "201"},
             follow_redirects=False,
         )
-    assert "Zbyt dużo wpisów" in unquote(resp.headers["location"])
+    redirect = urlsplit(resp.headers["location"])
+    assert "Zbyt dużo wpisów" in parse_qs(redirect.query)["err"][0]
     assert "parse re-armed" not in caplog.text, "an over-bound entry_count must be refused before the consume"
 
 
@@ -549,7 +550,9 @@ def test_discard_survives_an_out_of_range_entry_count(auth_client, monkeypatch):
         data={"_csrf_token": token, "session_id": str(session_id), "entry_count": "201", "action": "discard"},
         follow_redirects=False,
     )
-    assert resp.headers["location"] == "/training", "discard must outrank every field check, entry_count included"
+    assert urlsplit(resp.headers["location"]).path == "/training", (
+        "discard must outrank every field check, entry_count included"
+    )
     assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"] is None
 
 
@@ -694,15 +697,10 @@ def test_rendered_confirm_form_carries_every_field_the_route_needs(auth_client, 
     assert _re.search(r'name="session_id"[^>]*\svalue="\d+"', form), "session_id must carry a server-rendered value"
 
 
-def test_err_toast_is_json_escaped(auth_client):
-    """A backslash in ?err= must reach showToast intact, not truncate the message.
-
-    The value used to be interpolated straight into a JavaScript string literal.
-    Autoescape stops XSS there, but it does not stop a backslash from starting an
-    escape sequence and eating the rest of the message.
-    """
+def test_err_feedback_preserves_backslashes_without_inline_javascript(auth_client):
+    """A backslash in ?err= must remain visible without entering a script."""
     session_id = _new_session()
     resp = auth_client.get(f"/training/wod/confirm/{session_id}?err=path%20C%3A%5Ctmp%20failed")
     assert resp.status_code == 200
-    assert r"C:\\tmp failed" in resp.text
-    assert r'showToast("path C:\tmp' not in resp.text
+    assert r"path C:\tmp failed" in resp.text
+    assert "showToast(" not in resp.text

@@ -19,6 +19,7 @@ from app.auth import (
 )
 from app.central_db import count_users, create_user, get_user_by_email, get_user_by_id, update_user
 from app.config import REGISTRATION_OPEN
+from app.feedback import error_redirect, feedback_url, success_redirect
 from app.main import templates
 from app.user_db import create_user_db
 
@@ -85,7 +86,7 @@ async def signup_submit(
     password_confirm: str = Form(...),
 ):
     if not await registration_allowed():
-        return RedirectResponse("/login", status_code=303)
+        return error_redirect(request, "/login", "Registration is closed on this server.")
 
     email = email.strip().lower()
     display_name = display_name.strip()
@@ -114,7 +115,7 @@ async def signup_submit(
     # can't both slip through the count check.
     user = await create_user(email, password, display_name, only_if_first=not REGISTRATION_OPEN)
     if user is None:
-        return RedirectResponse("/login", status_code=303)
+        return error_redirect(request, "/login", "Registration is closed on this server.")
 
     try:
         await create_user_db(user["db_filename"])
@@ -129,7 +130,8 @@ async def signup_submit(
         return _render_error("Could not create your account. Please try again.")
 
     token = create_session(user["id"])
-    response = RedirectResponse("/onboarding", status_code=303)
+    target = feedback_url("/onboarding", msg="Account created.")
+    response = RedirectResponse(target, status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
 
@@ -204,7 +206,7 @@ async def login_submit(
     # No MFA — create full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     token = create_session(user["id"])
-    response = RedirectResponse("/", status_code=303)
+    response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
 
@@ -214,7 +216,7 @@ async def login_submit(
 
 @router.post("/logout")
 async def logout(request: Request):
-    response = RedirectResponse("/login", status_code=303)
+    response = RedirectResponse(feedback_url("/login", msg="Signed out."), status_code=303)
     response.headers["set-cookie"] = clear_session_cookie()
     return response
 
@@ -252,7 +254,7 @@ async def mfa_setup_page(request: Request):
 async def mfa_enable(request: Request, totp_code: str = Form(...)):
     user = getattr(request.state, "user", None)
     if not user or not user["totp_secret"]:
-        return RedirectResponse("/settings/mfa", status_code=303)
+        return error_redirect(request, "/settings/mfa", "MFA setup is unavailable. Start setup again.")
 
     secret = _totp_secret_plain(user["totp_secret"])
     totp = pyotp.TOTP(secret)
@@ -271,14 +273,14 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
 
     # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
     await update_user(user["id"], totp_enabled=1, totp_secret=_totp_secret_stored(secret))
-    return RedirectResponse("/settings", status_code=303)
+    return success_redirect(request, "/settings", "MFA enabled.")
 
 
 @router.post("/settings/mfa/disable")
 async def mfa_disable(request: Request, password: str = Form(...)):
     user = getattr(request.state, "user", None)
     if not user:
-        return RedirectResponse("/settings", status_code=303)
+        return error_redirect(request, "/settings", "MFA could not be disabled.")
 
     # verify_password raises on empty input — treat it as a wrong password.
     if not password or not verify_password(password, user["password_hash"]):
@@ -288,7 +290,7 @@ async def mfa_disable(request: Request, password: str = Form(...)):
         )
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
-    return RedirectResponse("/settings", status_code=303)
+    return success_redirect(request, "/settings", "MFA disabled.")
 
 
 # --- MFA Verify (during login) ---
@@ -299,7 +301,7 @@ async def mfa_verify_page(request: Request):
     session_token = request.cookies.get(SESSION_COOKIE, "")
     pending = validate_session(session_token) if session_token else None
     if not pending or not pending.startswith("_mfa_pending:"):
-        return RedirectResponse("/login", status_code=303)
+        return error_redirect(request, "/login", "MFA session expired. Sign in again.")
     return templates.TemplateResponse("auth_mfa_verify.html", {"request": request})
 
 
@@ -308,12 +310,12 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     session_token = request.cookies.get(SESSION_COOKIE, "")
     pending = validate_session(session_token) if session_token else None
     if not pending or not pending.startswith("_mfa_pending:"):
-        return RedirectResponse("/login", status_code=303)
+        return error_redirect(request, "/login", "MFA session expired. Sign in again.")
 
     user_id = pending.removeprefix("_mfa_pending:")
     user = await get_user_by_id(user_id)
     if not user:
-        return RedirectResponse("/login", status_code=303)
+        return error_redirect(request, "/login", "MFA session expired. Sign in again.")
 
     totp = pyotp.TOTP(_totp_secret_plain(user["totp_secret"]))
     if not totp.verify(totp_code, valid_window=1):
@@ -325,7 +327,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     # MFA verified — upgrade to full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     token = create_session(user["id"])
-    response = RedirectResponse("/", status_code=303)
+    response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
 

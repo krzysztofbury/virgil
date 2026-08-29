@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Form, Request
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, PlainTextResponse
 
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormInt, truncate
@@ -73,10 +74,15 @@ async def toggle_focus(request: Request, goal_id: int = Form(...), horizon: str 
     Refuses nothing on count: the page warns above FOCUS_SOFT_LIMIT instead,
     which keeps the guidance without turning a save into a loss.
     """
+    destination = f"/goals?horizon={_safe_horizon(horizon)}"
     db = get_user_db_from_request(request)
-    await db.execute("UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ?", (goal_id,))
+    cursor = await db.execute(
+        "UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ?", (goal_id,)
+    )
     await db.commit()
-    return RedirectResponse(f"/goals?horizon={_safe_horizon(horizon)}", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, destination, "Goal was not found.")
+    return success_redirect(request, destination, "Goal focus updated.")
 
 
 @router.post("/goals/save")
@@ -89,24 +95,30 @@ async def save_goal(
     display_order: int = Form(0),
 ):
     if horizon not in HORIZON_KEYS:
-        return RedirectResponse("/goals", status_code=303)
+        return error_redirect(request, "/goals", "Choose a valid goal horizon.")
     content = truncate(content, 2000)
     if not content.strip():
-        return RedirectResponse("/goals", status_code=303)
+        return error_redirect(request, "/goals", "Goal content is required.")
     db = get_user_db_from_request(request)
     if goal_id is not None:
-        await db.execute(
+        cursor = await db.execute(
             "UPDATE goals SET content = ?, display_order = ?, updated_at = datetime('now') WHERE id = ?",
             (content.strip(), display_order, goal_id),
         )
+        if cursor.rowcount == 0:
+            await db.commit()
+            return error_redirect(request, f"/goals?horizon={horizon}", "Goal was not found.")
     else:
+        area = await db.execute_fetchall("SELECT 1 FROM goal_areas WHERE id = ?", (area_id,))
+        if not area:
+            return error_redirect(request, f"/goals?horizon={horizon}", "Goal area was not found.")
         await db.execute(
             "INSERT INTO goals (area_id, horizon, content, display_order) VALUES (?, ?, ?, ?)",
             (area_id, horizon, content.strip(), display_order),
         )
     await db.commit()
     # Back to the horizon the goal belongs to, not to the default one.
-    return RedirectResponse(f"/goals?horizon={horizon}", status_code=303)
+    return success_redirect(request, f"/goals?horizon={horizon}", "Goal saved.")
 
 
 @router.post("/goals/update-inline")
@@ -127,7 +139,10 @@ async def update_goal_inline(
 
 @router.post("/goals/delete")
 async def delete_goal(request: Request, goal_id: int = Form(...), horizon: str = Form(DEFAULT_HORIZON)):
+    destination = f"/goals?horizon={_safe_horizon(horizon)}"
     db = get_user_db_from_request(request)
-    await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+    cursor = await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
     await db.commit()
-    return RedirectResponse(f"/goals?horizon={_safe_horizon(horizon)}", status_code=303)
+    if cursor.rowcount == 0:
+        return error_redirect(request, destination, "Goal was not found.")
+    return success_redirect(request, destination, "Goal deleted.")

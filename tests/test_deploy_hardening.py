@@ -6,6 +6,7 @@ import sqlite3
 
 import app.routers.oura_webhook as webhook_module
 from app.services.llm import parse_andy_response
+from app.services.oura_api import OuraSyncResult
 
 
 def test_debounce_is_race_free(monkeypatch, tmp_path):
@@ -23,7 +24,7 @@ def test_debounce_is_race_free(monkeypatch, tmp_path):
     async def fake_sync(db, days_back=2):
         started.append(1)
         await asyncio.sleep(0.02)
-        return 0
+        return OuraSyncResult(days=0, failed_daily_endpoints=(), workouts_synced=True)
 
     monkeypatch.setattr(webhook_module, "open_user_db", fake_open)
     monkeypatch.setattr(webhook_module, "close_user_db", fake_close)
