@@ -15,6 +15,7 @@ from app.db import get_feature_flags, get_setting, set_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.encryption import decrypt, encrypt
+from app.services.llm import REASONING_EFFORT_SETTING, REASONING_EFFORTS, resolve_reasoning_effort
 from app.services.oura_api import (
     create_webhook_subscription,
     ensure_valid_token,
@@ -76,6 +77,8 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["second_brain_path"] = SECOND_BRAIN_PATH
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
+        context["reasoning_efforts"] = list(REASONING_EFFORTS)
+        context["reasoning_effort"] = await resolve_reasoning_effort(db)
 
     elif tab == "configuration":
         from app.library_validation import LIBRARY_SECTIONS
@@ -763,6 +766,15 @@ async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
         return error_redirect(request, "/settings?tab=general", "LLM provider was not activated.")
     await db.commit()
     return success_redirect(request, "/settings?tab=general", "LLM provider activated.")
+
+
+@router.post("/settings/llm/reasoning")
+async def save_llm_reasoning(request: Request, reasoning_effort: str = Form(...)):
+    if reasoning_effort not in REASONING_EFFORTS:
+        return error_redirect(request, "/settings?tab=general", "Choose one of the listed thinking levels.")
+    db = get_user_db_from_request(request)
+    await set_setting(db, REASONING_EFFORT_SETTING, reasoning_effort)
+    return success_redirect(request, "/settings?tab=general", "Thinking level saved.")
 
 
 @router.post("/settings/llm/delete")

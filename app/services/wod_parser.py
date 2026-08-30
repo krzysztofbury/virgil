@@ -168,24 +168,22 @@ async def parse_wod(db, text: str) -> ParsedWod:
     # off after 837 characters, mid-object, and 25 correctly-parsed movements
     # were thrown away with it.
     #
-    # Omitting reasoning_effort is NOT the same as leaving a default alone:
-    # litellm sends no thinkingConfig at all, so Gemini 3 picks its own default
-    # level (high on Pro) and the thinking spend lands inside max_tokens. That
-    # is what consumed nearly the whole 4096 allowance.
+    # call_llm always sends an effort now - the user's Settings choice, default
+    # medium - so litellm never omits thinkingConfig and Gemini 3 never falls
+    # back to its own default level (high on Pro), which is what consumed nearly
+    # the whole 4096 allowance. The old hardcoded "disable" is gone because
+    # OpenAI rejects that value with a 400.
     #
-    # "disable" is aspirational on this model family and deliberately so: litellm
-    # clamps it to thinkingLevel 'low' with includeThoughts false (verified
-    # against the pinned litellm for both gemini-3-pro-preview and
-    # gemini-3.5-flash) because Gemini 3 Pro cannot turn thinking off - low is
-    # the floor. It is a request for the cheapest level available, not a
-    # guarantee of none, which is exactly why the cap below has to be generous
-    # rather than merely sufficient.
+    # The effort is a request for a level, never a guarantee of none: Gemini 3
+    # Pro cannot turn thinking off, and litellm clamps the cheapest values to
+    # thinkingLevel 'low'. That is exactly why the cap below has to be generous
+    # rather than merely sufficient, and why raising the setting is safe here.
     #
     # MAX_WOD_CHARS (4000) bounds the input, so the output cannot grow without
     # bound either; 16384 clears the worst realistic note with thinking headroom
     # to spare. A cap costs nothing when unused - only generated tokens are
     # billed - whereas one set too low costs the user their whole session.
-    raw = await call_llm(db, system_prompt, text, json_mode=True, reasoning_effort="disable", max_tokens=16384)
+    raw = await call_llm(db, system_prompt, text, json_mode=True, max_tokens=16384)
     payload = parse_andy_response(raw)
 
     raw_entries = payload.get("entries")
