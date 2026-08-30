@@ -216,3 +216,28 @@ async def handle_andy_generation(context: "JobContext", payload: Mapping[str, An
         lambda: generate_andy_suggestions(context.db, day),
         publish,
     )
+
+
+async def handle_experiment_summary(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    from app.services.experiment_summary import build_week_summary, save_week_summary
+
+    _exact_payload(payload, {"experiment_id", "week_number", "trigger"})
+    trigger = paid_llm_trigger(payload["trigger"])
+    experiment_id = _positive_id(payload["experiment_id"], "experiment id")
+    week_number = _positive_id(payload["week_number"], "week number")
+    key = paid_llm_job_key("experiment_summary", str(experiment_id), str(week_number), trigger)
+
+    async def publish(summary: str) -> Mapping[str, Any]:
+        return {
+            "experiment_id": experiment_id,
+            "week_number": week_number,
+            "chars": await save_week_summary(context.db, experiment_id, week_number, summary),
+        }
+
+    return await run_paid_llm_job(
+        context,
+        "experiment_summary",
+        key,
+        lambda: build_week_summary(context.db, experiment_id, week_number),
+        publish,
+    )

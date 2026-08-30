@@ -54,6 +54,7 @@ DbCloser = Callable[[aiosqlite.Connection], Awaitable[None]]
 from app.services.job_handlers import (  # noqa: E402
     handle_andy_generation,
     handle_backup,
+    handle_experiment_summary,
     handle_markdown_export,
     handle_morning_briefing,
     handle_oura_sync,
@@ -64,6 +65,7 @@ JOB_HANDLERS: Mapping[str, JobHandler] = MappingProxyType(
     {
         "andy_generation": handle_andy_generation,
         "backup": handle_backup,
+        "experiment_summary": handle_experiment_summary,
         "markdown_export": handle_markdown_export,
         "morning_briefing": handle_morning_briefing,
         "oura_sync": handle_oura_sync,

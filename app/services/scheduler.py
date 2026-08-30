@@ -21,6 +21,7 @@ from app.user_db import close_user_db, open_user_db
 logger = logging.getLogger(__name__)
 
 BRIEFING_JOB_KIND = "morning_briefing"
+EXPERIMENTS_PER_TICK_MAX = 20
 TICK_SECONDS = 60
 USERS_PER_TICK_MAX = 100
 USERS_CONCURRENT_MAX = 4
@@ -107,11 +108,36 @@ async def _enqueue_oura_if_due(db, now: datetime) -> None:
         logger.exception("Failed to enqueue scheduled Oura sync")
 
 
+async def _enqueue_due_summaries(db) -> None:
+    """Queue one missing experiment week summary per active experiment.
+
+    Moved off the experiment detail GET: opening a page must not spend money,
+    and a page load is not a schedule.
+    """
+    from app.services.experiment_summary import enqueue_due_summary
+
+    rows = await db.execute_fetchall(
+        "SELECT id FROM experiments WHERE status = 'active' ORDER BY id LIMIT ?",
+        (EXPERIMENTS_PER_TICK_MAX,),
+    )
+    for row in rows:
+        try:
+            job_id = await enqueue_due_summary(db, row["id"])
+        except Exception:
+            logger.exception("Failed to enqueue a summary for experiment %s", row["id"])
+            continue
+        if job_id is not None:
+            logger.info("Experiment %s week summary job queued: %d", row["id"], job_id)
+            # One queued paid job per kind, so the rest wait for the next tick.
+            return
+
+
 async def _enqueue_due_jobs(db) -> None:
     now = datetime.now(UTC)
     await _enqueue_backup_if_due(db, now)
     await _enqueue_export_if_due(db, now)
     await _enqueue_oura_if_due(db, now)
+    await _enqueue_due_summaries(db)
 
 
 async def _enqueue_briefing(db, day_iso: str) -> None:

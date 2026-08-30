@@ -423,7 +423,7 @@ def test_production_registry_contains_only_migrated_workloads():
     assert set(JOB_HANDLERS) - operational <= set(PAID_LLM_JOB_KINDS), "only known kinds may reach a handler"
     assert (
         json.dumps(sorted(JOB_HANDLERS))
-        == '["andy_generation", "backup", "markdown_export", "morning_briefing", "oura_sync", "wod_parse"]'
+        == '["andy_generation", "backup", "experiment_summary", "markdown_export", "morning_briefing", "oura_sync", "wod_parse"]'
     )
 
 
