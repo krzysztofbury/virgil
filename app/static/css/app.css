@@ -1283,16 +1283,35 @@ details > :not(summary) { margin-top: 1rem; }
 .enrichment-not_needed { opacity: 0.6; }
 
 /* ── LLM thinking level ── */
-.llm-reasoning {
+.thinking-level {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin: 0 0 1.25rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
 }
-.llm-reasoning label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
-.llm-reasoning select { min-width: 9rem; }
-.llm-reasoning small { flex: 1 1 16rem; }
+.thinking-level-head { display: flex; flex-direction: column; gap: 0.15rem; }
+.thinking-level-title { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); }
+.thinking-level-head small { max-width: 46ch; line-height: 1.45; }
+.thinking-level-scale { display: flex; gap: 0.3rem; flex-wrap: wrap; }
+.level-chip {
+  min-width: 4.5rem;
+  height: 32px;
+  padding: 0 0.7rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-input);
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+.level-chip:hover { border-color: var(--border-light); color: var(--text-primary); }
+.level-chip.selected {
+  border-color: var(--accent);
+  background: rgba(44,182,125,0.16);
+  color: var(--accent);
+}
 .notification-tray .job-status-heading p { font-size: 0.75rem; }
 .job-status-dismiss {
   flex: 0 0 auto;

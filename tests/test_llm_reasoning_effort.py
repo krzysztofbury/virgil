@@ -126,8 +126,12 @@ def test_settings_page_offers_the_level_and_shows_the_stored_choice(auth_client)
     try:
         html = auth_client.get("/settings?tab=general").text
         assert 'action="/settings/llm/reasoning"' in html
-        assert '<option value="high" selected>high</option>' in html
-        assert 'value="disable"' not in html
+        assert 'value="high" data-level="high"\n                    class="level-chip selected"' in html, (
+            "the stored level must be the one rendered as picked"
+        )
+        for effort in REASONING_EFFORTS:
+            assert f'data-level="{effort}"' in html
+        assert "disable" not in html
     finally:
         _clear_effort()
 

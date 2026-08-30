@@ -23,8 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   each as ready, not yet, or nothing to use, beside an explicit
   "Continue without AI".
 - **The thinking budget is a setting.** Settings > General offers none, low,
-  medium, high and xhigh, defaulting to medium, and steps xhigh down for
-  providers that reject it.
+  medium, high and xhigh as one scale, defaulting to medium, and steps xhigh
+  down for providers that reject it. Picking a level saves it; a select plus a
+  Save button made three controls out of one decision.
 - **Backup, markdown export and Oura sync now run as durable workloads.**
   Manual routes, schedules and HMAC-verified webhooks only enqueue bounded,
   restart-safe jobs; a static worker registry performs external I/O with automatic
@@ -68,6 +69,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   caller pinned `reasoning_effort="disable"`, which Gemini accepts and OpenAI
   rejects with "Unsupported value". litellm's `drop_params` removes unsupported
   parameters, never unsupported values, so the call failed rather than degrading.
+- **The tray shows what is queued, on every page.** It used to know only about
+  the job named in the URL, so a refresh or a click elsewhere lost sight of
+  background work entirely, which looks exactly like the job never having been
+  enqueued. The tray now asks `/api/jobs/active` for everything still running,
+  plus the outcome of whatever the current page started.
+- **The A.N.D.Y. generate button posted the whole daily log as a GET.** Its form
+  sat inside `#daily-form`, and one form nested inside another is invalid HTML
+  that browsers flatten, so the button became a submit control of the outer
+  form. It now names its own form with the `form` attribute.
 - **Confirmations disappear on their own and stop moving the page.** Feedback
   and background-job cards share one fixed top-right tray outside the document
   flow. A success fades after four seconds, with hover and focus holding the

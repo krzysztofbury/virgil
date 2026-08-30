@@ -138,3 +138,60 @@ def test_every_job_kind_reports_under_the_name_the_user_knows(auth_client):
     response = auth_client.get(f"/oura?job_id={job_id}")
     assert "Training note analysis" in response.text
     assert "Wod Parse" not in response.text
+
+
+def test_the_tray_shows_queued_work_on_any_page_without_a_job_id(auth_client):
+    """The reported gap: the tray only knew about the job named in the URL, so a
+    refresh or a click elsewhere lost sight of the queue - which looks exactly
+    like the job never having been enqueued."""
+    path = user_db_path()
+    queued = _insert_job(path, "queued", kind="morning_briefing")
+    running = _insert_job(path, "running", kind="wod_parse")
+    _insert_job(path, "succeeded", kind="backup")
+
+    listing = auth_client.get("/api/jobs/active")
+
+    assert listing.status_code == 200
+    assert f'data-job-id="{queued}"' in listing.text
+    assert f'data-job-id="{running}"' in listing.text
+    assert listing.text.count("data-job-id=") == 2, "only unfinished work belongs in the live view"
+    assert listing.headers["Cache-Control"] == "no-store"
+
+
+def test_the_outcome_of_what_this_page_started_stays_visible(auth_client):
+    finished = _insert_job(user_db_path(), "needs_attention", kind="andy_generation")
+
+    listing = auth_client.get(f"/api/jobs/active?job_id={finished}")
+
+    assert f'data-job-id="{finished}"' in listing.text
+    assert "Retry anyway" in listing.text
+
+
+def test_the_tray_asks_for_its_own_contents_on_every_page(auth_client):
+    """A section that replaces itself cannot keep a load trigger without
+    re-firing, so the section stays put and only its cards are swapped."""
+    page = auth_client.get("/oura").text
+    section = page[page.index('id="job-notifications"') :]
+    section = section[: section.index("</section>")]
+
+    assert 'hx-get="/api/jobs/active' in section
+    assert 'hx-trigger="load, every 15s"' in section, "the tray must fill itself when the page opens"
+    assert 'hx-swap="innerHTML"' in section, "swapping the section away would kill its own polling"
+
+
+def test_an_idle_tray_renders_nothing_so_it_collapses(auth_client):
+    listing = auth_client.get("/api/jobs/active")
+
+    assert listing.status_code == 200
+    assert listing.text == "", "even whitespace defeats the :empty rule that collapses the tray"
+
+
+def test_a_tray_card_does_not_poll_against_its_own_section(auth_client):
+    """Two swaps racing on the same node drop one of them."""
+    job_id = _insert_job(user_db_path(), "running", kind="wod_parse")
+
+    tray = auth_client.get("/api/jobs/active").text
+    standalone = auth_client.get(f"/api/jobs/{job_id}").text
+
+    assert f'hx-get="/api/jobs/{job_id}' not in tray, "the section polls, the cards inside it do not"
+    assert f'hx-get="/api/jobs/{job_id}' in standalone, "a card on its own still polls"

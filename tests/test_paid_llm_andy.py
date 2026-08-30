@@ -198,3 +198,38 @@ def test_no_request_path_generates_suggestions():
     source = Path("app/routers/daily.py").read_text()
     assert "call_llm" not in source
     assert "generate_andy_suggestions" not in source
+
+
+def test_the_generate_button_is_not_a_form_inside_the_daily_form(auth_client, monkeypatch):
+    """Reported: clicking AI issued GET /daily?...&andy_body_status=... instead.
+
+    The card sits inside #daily-form. One form nested inside another is invalid
+    HTML, so the browser drops the inner one and the button becomes a submit
+    control of the outer form - which posted the whole daily log to the wrong
+    place. The form= attribute keeps the button where it belongs.
+    """
+    import re
+
+    monkeypatch.setattr("app.routers.daily.llm_available", _available)
+    html = auth_client.get(f"/daily/{_DAY}").text
+
+    body = re.sub(r"<!--.*?-->", "", html, flags=re.S)
+    depth = 0
+    for tag in re.findall(r"</?form\b", body):
+        depth += 1 if tag == "<form" else -1
+        assert depth <= 1, "a nested form is flattened by the browser and submits the wrong thing"
+    assert depth == 0
+
+    assert 'form="andy-generate-form"' in html, "the button must name its owner explicitly"
+    assert 'id="andy-generate-form"' in html
+    assert re.search(r'id="andy-generate-form"[^>]*method="POST"[^>]*action="/daily/generate-andy"', html)
+
+
+def test_the_generate_button_still_queues_a_job(auth_client, monkeypatch):
+    """A form= reference is easy to get subtly wrong, so exercise the real POST."""
+    monkeypatch.setattr("app.routers.daily.llm_available", _available)
+    monkeypatch.setattr("app.services.andy.call_llm", _stub(_FULL))
+
+    job_id = _queue(auth_client, "a" * 32)
+
+    assert _rows("SELECT kind FROM jobs WHERE id = ?", (job_id,))[0]["kind"] == _KIND
