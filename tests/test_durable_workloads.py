@@ -421,9 +421,12 @@ def test_production_registry_contains_only_migrated_workloads():
 
     operational = {BACKUP_JOB_KIND, MARKDOWN_EXPORT_JOB_KIND, OURA_SYNC_JOB_KIND}
     assert set(JOB_HANDLERS) - operational <= set(PAID_LLM_JOB_KINDS), "only known kinds may reach a handler"
-    assert (
-        json.dumps(sorted(JOB_HANDLERS))
-        == '["andy_generation", "backup", "experiment_summary", "markdown_export", "morning_briefing", "oura_sync", "wod_parse"]'
+    assert operational | set(PAID_LLM_JOB_KINDS) == set(JOB_HANDLERS), (
+        "every paid kind has a handler now: nothing paid is left on the request path"
+    )
+    assert json.dumps(sorted(JOB_HANDLERS)) == (
+        '["andy_generation", "backup", "experiment_summary", "markdown_export", "medical_import", '
+        '"morning_briefing", "onboarding_enrichment", "oura_sync", "wod_parse"]'
     )
 
 

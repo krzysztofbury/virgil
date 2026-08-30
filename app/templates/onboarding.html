@@ -324,14 +324,43 @@
     {% endif %}
 </div>
 
+{% if has_internal_llm and enrichment %}
+<div class="card onboarding-enrichment" style="margin-bottom:1rem;">
+    <h3 style="margin-bottom:0.35rem;">AI extras</h3>
+    <p class="text-muted" style="font-size:0.85rem;margin-bottom:0.75rem;">
+        These are prepared in the background. Nothing here blocks you: your account works without them.
+    </p>
+    <ul class="enrichment-steps">
+        {% for item in enrichment %}
+        <li class="enrichment-step enrichment-{{ item.state }}">
+            <span class="enrichment-mark" aria-hidden="true">{{ '✓' if item.state == 'done' else ('–' if item.state == 'not_needed' else '·') }}</span>
+            <span>{{ item.label }}</span>
+            <span class="text-muted enrichment-state">
+                {{ {'done': 'ready', 'waiting': 'not yet', 'not_needed': 'nothing to use'}[item.state] }}
+            </span>
+        </li>
+        {% endfor %}
+    </ul>
+    {% if enrichment | selectattr('state', 'equalto', 'waiting') | list %}
+    <form method="POST" action="/onboarding/enrichment/retry" style="margin-top:0.75rem;">
+        <button type="submit" class="btn btn-outline btn-sm" data-pending-label="Queueing...">
+            Finish the AI extras
+        </button>
+    </form>
+    {% endif %}
+</div>
+{% endif %}
+
 <div style="display:flex;justify-content:space-between;gap:1rem;">
     <a href="/onboarding?step=5" class="btn btn-outline">Back</a>
     <div style="display:flex;gap:0.5rem;">
         <form method="POST" action="/onboarding/skip" style="margin:0;">
-            <button type="submit" class="btn btn-outline">Skip for now</button>
+            <button type="submit" class="btn btn-outline" data-pending-label="Finishing...">
+                Continue without AI
+            </button>
         </form>
         <form method="POST" action="/onboarding/confirm" style="margin:0;">
-            <button type="submit" class="btn btn-primary">Confirm & Start</button>
+            <button type="submit" class="btn btn-primary" data-pending-label="Finishing...">Confirm &amp; Start</button>
         </form>
     </div>
 </div>

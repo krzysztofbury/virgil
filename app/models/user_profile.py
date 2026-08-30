@@ -74,17 +74,26 @@ async def update_step4(db, training_routine: str, equipment: str, habits_build: 
     await db.commit()
 
 
-async def update_step5(db) -> None:
-    """Mark Step 5 complete (medical records saved to blood_markers/blood_results)."""
+async def update_step5(db, *, commit: bool = True) -> None:
+    """Mark Step 5 complete (medical records saved to blood_markers/blood_results).
+
+    commit=False lets a durable job mark the step inside the same transaction as
+    the markers it just imported, so the two can never disagree.
+    """
     await ensure_profile(db)
     await db.execute(
         "UPDATE user_profiles SET onboarding_step = MAX(onboarding_step, 5), updated_at = datetime('now') WHERE id = 1"
     )
-    await db.commit()
+    if commit:
+        await db.commit()
 
 
-async def save_enrichment(db, llm_summary: str | None, realistic_day: str | None) -> None:
-    """Save LLM-generated enrichment data."""
+async def save_enrichment(db, llm_summary: str | None, realistic_day: str | None, *, commit: bool = True) -> None:
+    """Save LLM-generated enrichment data.
+
+    commit=False lets a durable job write the text inside the same transaction
+    as its publication marker, so a crash cannot leave one without the other.
+    """
     await db.execute(
         """UPDATE user_profiles SET
             llm_summary = COALESCE(?, llm_summary),
@@ -93,4 +102,5 @@ async def save_enrichment(db, llm_summary: str | None, realistic_day: str | None
         WHERE id = 1""",
         (llm_summary, realistic_day),
     )
-    await db.commit()
+    if commit:
+        await db.commit()

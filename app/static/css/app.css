@@ -1262,6 +1262,20 @@ details > :not(summary) { margin-top: 1rem; }
 .notification-tray .job-status-meta { display: none; }
 .job-status-heading-end { display: flex; align-items: center; gap: 0.25rem; }
 
+/* ── Onboarding AI extras ── */
+.enrichment-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.enrichment-step {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.enrichment-mark { text-align: center; }
+.enrichment-state { font-size: 0.8rem; }
+.enrichment-done .enrichment-mark { color: var(--green); }
+.enrichment-not_needed { opacity: 0.6; }
+
 /* ── LLM thinking level ── */
 .llm-reasoning {
   display: flex;

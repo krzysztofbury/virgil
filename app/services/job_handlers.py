@@ -241,3 +241,106 @@ async def handle_experiment_summary(context: "JobContext", payload: Mapping[str,
         lambda: build_week_summary(context.db, experiment_id, week_number),
         publish,
     )
+
+
+async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Import one staged blood panel: at most two paid calls, then one write."""
+    from app.models.user_profile import ensure_profile, update_step5
+    from app.services.medical_import import (
+        MEDICAL_SOURCES,
+        MEDICAL_TEXT_MAX_CHARS,
+        discard_staged,
+        extract_pdf_markers,
+        parse_medical_text,
+        read_staged,
+        save_medical_markers,
+    )
+
+    _exact_payload(payload, {"source", "upload"})
+    source = payload["source"]
+    if source not in MEDICAL_SOURCES:
+        raise ValueError("Stored medical import source is invalid")
+    token = payload["upload"]
+    if not isinstance(token, str):
+        raise ValueError("Stored medical upload token must be a string")
+    key = paid_llm_job_key("medical_import", token)
+    # Outside the publish transaction: ensure_profile commits when it inserts,
+    # and a commit inside publish would split the write from its marker.
+    await ensure_profile(context.db)
+
+    async def produce() -> list:
+        raw = read_staged(context.user_id, token)
+        if source == "pdf":
+            text = await extract_pdf_markers(raw)
+        else:
+            text = raw.decode("utf-8", errors="replace")[:MEDICAL_TEXT_MAX_CHARS]
+        if not text.strip():
+            raise ValueError("The medical upload held nothing to import")
+        markers = await parse_medical_text(text)
+        if not markers:
+            # A produce-side failure: the charge happened, nothing is worth
+            # storing, and the message names what the user should check.
+            raise ValueError("No blood test markers were found in the upload")
+        return markers
+
+    async def publish(markers: list) -> Mapping[str, Any]:
+        imported = await save_medical_markers(context.db, markers)
+        if not imported:
+            raise ValueError("No blood test markers were found in the upload")
+        await update_step5(context.db, commit=False)
+        return {"markers": imported}
+
+    result = await run_paid_llm_job(context, "medical_import", key, produce, publish)
+    # The bytes exist only to be imported. Once they are, they go.
+    discard_staged(context.user_id, token)
+    return result
+
+
+async def handle_onboarding_enrichment(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Run every enrichment step that still owes work, one purchase at a time.
+
+    The steps are independent, so one failure must not cost the others. Each
+    publishes under its own key, so a retry re-buys only what is missing, and
+    the job as a whole reports the worst outcome it saw.
+    """
+    from app.models.user_profile import get_profile
+    from app.services.job_worker import AmbiguousJobError, VisibleJobError
+    from app.services.onboarding import enrichment_units
+
+    _exact_payload(payload, set())
+    profile = await get_profile(context.db) or {}
+    outcomes: dict[str, str] = {}
+    ambiguous: list[str] = []
+    failed: list[str] = []
+
+    for unit in await enrichment_units(context.db, profile):
+        try:
+            result = await run_paid_llm_job(
+                context,
+                "onboarding_enrichment",
+                unit["key"],
+                unit["produce"],
+                unit["publish"],
+            )
+        except AmbiguousJobError:
+            ambiguous.append(unit["step"])
+            outcomes[unit["step"]] = "uncertain"
+            continue
+        except VisibleJobError as exc:
+            failed.append(f"{unit['step']}: {exc.public_error}")
+            outcomes[unit["step"]] = "failed"
+            continue
+        except Exception:
+            logger.exception("Onboarding enrichment step %s failed", unit["step"])
+            failed.append(unit["step"])
+            outcomes[unit["step"]] = "failed"
+            continue
+        outcomes[unit["step"]] = "published" if result.get("published") else "already_published"
+        # The summary a step just wrote is context for the next one.
+        profile = await get_profile(context.db) or profile
+
+    if ambiguous:
+        raise AmbiguousJobError("Some AI steps may already have been charged: " + ", ".join(sorted(ambiguous)))
+    if failed:
+        raise VisibleJobError("Some AI steps did not finish: " + "; ".join(failed))
+    return {"steps": outcomes}

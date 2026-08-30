@@ -7,52 +7,110 @@ from datetime import date
 import litellm
 
 from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
-from app.db import set_setting
-from app.models.user_profile import save_enrichment
 
 logger = logging.getLogger(__name__)
 
 MAX_GOAL_EXPANSIONS = 20
 
 
-async def run_enrichment(db, profile: dict) -> None:
-    """Run all applicable LLM enrichment steps. Each is independent and optional."""
-    if not INTERNAL_LLM_KEY:
-        logger.warning("No VIRGIL_INTERNAL_LLM_KEY set — skipping LLM enrichment")
-        return
+# Four independent purchases, run in this order because each later one reads the
+# profile summary the first may have written. Each publishes on its own, so a
+# retry after a partial failure re-buys only what is still missing.
+ENRICHMENT_STEPS = ("profile_summary", "realistic_day", "goal_expansion", "habit_experiment")
+ENRICHMENT_STEP_LABELS = {
+    "profile_summary": "Profile summary",
+    "realistic_day": "A realistic version of your day",
+    "goal_expansion": "One-year and three-year milestones",
+    "habit_experiment": "A first experiment",
+}
 
-    llm_summary = None
-    realistic_day = None
 
-    # 1. Profile summary (if Step 1 data exists).
-    if profile.get("sex") or profile.get("age") or profile.get("family"):
-        try:
-            llm_summary = await _generate_profile_summary(profile)
-        except Exception:
-            logger.exception("Failed to generate profile summary")
+def enrichment_step_key(step: str) -> str:
+    from app.services.llm_jobs import paid_llm_job_key
 
-    # 2. Realistic day (if Step 2 data exists).
-    if profile.get("ideal_day"):
-        try:
-            realistic_day = await _generate_realistic_day(profile, llm_summary)
-        except Exception:
-            logger.exception("Failed to generate realistic day")
+    if step not in ENRICHMENT_STEPS:
+        raise ValueError("Unknown onboarding enrichment step")
+    return paid_llm_job_key("onboarding_enrichment", step)
 
-    # Save profile enrichment.
-    await save_enrichment(db, llm_summary, realistic_day)
 
-    # 3. Goal expansion (if goals exist in DB).
-    try:
-        await _expand_goals(db, llm_summary)
-    except Exception:
-        logger.exception("Failed to expand goals")
+async def enrichment_applies(db, step: str, profile: dict) -> bool:
+    """Whether this step has anything to work with. No input, no purchase."""
+    if step == "profile_summary":
+        return bool(profile.get("sex") or profile.get("age") or profile.get("family"))
+    if step == "realistic_day":
+        return bool(profile.get("ideal_day"))
+    if step == "goal_expansion":
+        rows = await db.execute_fetchall("SELECT 1 FROM goals WHERE horizon = '10yr' LIMIT 1")
+        return bool(rows)
+    if step == "habit_experiment":
+        return bool(profile.get("habits_break"))
+    raise ValueError("Unknown onboarding enrichment step")
 
-    # 4. Habit analysis (if Step 4 data exists).
-    if profile.get("training_routine") or profile.get("habits_break"):
-        try:
-            await _analyze_habits(db, profile, llm_summary)
-        except Exception:
-            logger.exception("Failed to analyze habits")
+
+async def enrichment_progress(db) -> list[dict]:
+    """Per-step state for the onboarding screen: done, waiting, or not needed."""
+    from app.models.user_profile import get_profile
+    from app.services.llm_jobs import llm_result_published
+
+    profile = await get_profile(db) or {}
+    progress = []
+    for step in ENRICHMENT_STEPS:
+        applies = await enrichment_applies(db, step, profile)
+        done = await llm_result_published(db, "onboarding_enrichment", enrichment_step_key(step))
+        progress.append(
+            {
+                "step": step,
+                "label": ENRICHMENT_STEP_LABELS[step],
+                "state": "done" if done else ("waiting" if applies else "not_needed"),
+            }
+        )
+    return progress
+
+
+def apply_feniks_trigger_words(profile: dict) -> bool:
+    """Whether the stated habits ask for the No Porn module. No LLM involved."""
+    habits = (profile.get("habits_bad") or "") + " " + (profile.get("habits_break") or "")
+    return any(word in habits.lower() for word in ("porn", "pmo", "masturbat", "nofap", "porno"))
+
+
+async def enrichment_units(db, profile: dict) -> list[dict]:
+    """Build the produce/publish pair for every step that still has work to do.
+
+    Steps that do not apply are absent. The caller checks the ledger, so a step
+    that already published is skipped without a second charge.
+    """
+    from app.models.user_profile import save_enrichment
+
+    units = []
+
+    async def summary_publish(text: str) -> dict:
+        await save_enrichment(db, text, None, commit=False)
+        return {"chars": len(text)}
+
+    async def day_publish(text: str) -> dict:
+        await save_enrichment(db, None, text, commit=False)
+        return {"chars": len(text)}
+
+    async def goals_publish(items: list) -> dict:
+        return {"goals": await _save_goal_levels(db, items)}
+
+    async def experiment_publish(exp: dict | None) -> dict:
+        if not exp:
+            return {"experiment_id": None}
+        return {"experiment_id": await create_suggested_experiment(db, exp, commit=False)}
+
+    builders = {
+        "profile_summary": (lambda: _generate_profile_summary(profile), summary_publish),
+        "realistic_day": (lambda: _generate_realistic_day(profile, profile.get("llm_summary")), day_publish),
+        "goal_expansion": (lambda: _expand_goals(db, profile.get("llm_summary")), goals_publish),
+        "habit_experiment": (lambda: _analyze_habits(db, profile, profile.get("llm_summary")), experiment_publish),
+    }
+    for step in ENRICHMENT_STEPS:
+        if not await enrichment_applies(db, step, profile):
+            continue
+        produce, publish = builders[step]
+        units.append({"step": step, "key": enrichment_step_key(step), "produce": produce, "publish": publish})
+    return units
 
 
 async def _llm_call(system_prompt: str, user_prompt: str, max_tokens: int = 2048) -> str:
@@ -135,15 +193,19 @@ async def _generate_realistic_day(profile: dict, llm_summary: str | None) -> str
     )
 
 
-async def _expand_goals(db, llm_summary: str | None) -> None:
-    """For each Level 3 (10yr) goal, generate Level 2 (3yr, ~35%) and Level 1 (1yr, ~10%)."""
+async def _expand_goals(db, llm_summary: str | None) -> list:
+    """For each Level 3 (10yr) goal, generate Level 2 (3yr, ~35%) and Level 1 (1yr, ~10%).
+
+    Reads and buys only. _save_goal_levels performs the write, so the caller can
+    commit it together with the publication marker.
+    """
     rows = await db.execute_fetchall(
         """SELECT g.id, g.area_id, g.content, ga.name as area_name
            FROM goals g JOIN goal_areas ga ON g.area_id = ga.id
            WHERE g.horizon = '10yr'"""
     )
     if not rows:
-        return
+        return []
 
     goals_text = "\n".join(f"- {row['area_name']}: {row['content']}" for row in rows)
 
@@ -168,14 +230,20 @@ async def _expand_goals(db, llm_summary: str | None) -> None:
         goal_levels = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("Could not parse goal expansion JSON")
-        return
+        return []
 
     if not isinstance(goal_levels, list):
-        return
+        return []
+    return goal_levels[:MAX_GOAL_EXPANSIONS]
 
-    for item in goal_levels[:MAX_GOAL_EXPANSIONS]:
-        area_name = item.get("area_name", "")
-        area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (area_name,))
+
+async def _save_goal_levels(db, goal_levels: list) -> int:
+    """Store the expanded milestones. The caller owns the transaction."""
+    written = 0
+    for item in goal_levels:
+        if not isinstance(item, dict):
+            continue
+        area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (item.get("area_name", ""),))
         if not area_row:
             continue
         area_id = area_row[0]["id"]
@@ -189,23 +257,18 @@ async def _expand_goals(db, llm_summary: str | None) -> None:
                        ON CONFLICT DO NOTHING""",
                     (area_id, horizon, content),
                 )
+                written += 1
+    return written
 
-    await db.commit()
 
+async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> dict | None:
+    """Buy one replacement experiment for the most costly stated bad habit.
 
-async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> None:
-    """Check for Feniks trigger and suggest one experiment."""
-    habits_bad = (profile.get("habits_bad") or "") + " " + (profile.get("habits_break") or "")
-
-    # Check for Feniks trigger words.
-    feniks_keywords = ["porn", "pmo", "masturbat", "nofap", "porno"]
-    if any(kw in habits_bad.lower() for kw in feniks_keywords):
-        await set_setting(db, "feature_no_porn", "1")
-        logger.info("Feniks feature auto-enabled based on onboarding habits")
-
-    # Suggest one experiment to replace a bad habit.
+    The Feniks trigger words moved to the confirm route: matching them is a
+    string comparison, not a purchase, and it must not wait on a worker.
+    """
     if not profile.get("habits_break"):
-        return
+        return None
 
     context = f"User profile: {llm_summary}\n\n" if llm_summary else ""
 
@@ -226,12 +289,11 @@ async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> None:
         exp = json.loads(cleaned)
     except json.JSONDecodeError:
         logger.warning("Could not parse experiment suggestion JSON")
-        return
+        return None
 
     if not isinstance(exp, dict) or not exp.get("title"):
-        return
-
-    await create_suggested_experiment(db, exp)
+        return None
+    return exp
 
 
 def _coerce_minutes(value, default: int) -> int:
@@ -243,7 +305,7 @@ def _coerce_minutes(value, default: int) -> int:
     return max(0, min(10080, minutes))
 
 
-async def create_suggested_experiment(db, exp: dict) -> int:
+async def create_suggested_experiment(db, exp: dict, *, commit: bool = True) -> int:
     """Persist an LLM-suggested experiment using the real schema.
 
     Weekly targets live in experiment_weeks (one row per week), NOT on the
@@ -278,6 +340,7 @@ async def create_suggested_experiment(db, exp: dict) -> int:
             (experiment_id, week_number, target_min, target_max),
         )
 
-    await db.commit()
+    if commit:
+        await db.commit()
     logger.info("Onboarding experiment created: id=%d weeks=%d", experiment_id, num_weeks)
     return experiment_id

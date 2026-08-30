@@ -56,7 +56,9 @@ from app.services.job_handlers import (  # noqa: E402
     handle_backup,
     handle_experiment_summary,
     handle_markdown_export,
+    handle_medical_import,
     handle_morning_briefing,
+    handle_onboarding_enrichment,
     handle_oura_sync,
     handle_wod_parse,
 )
@@ -67,7 +69,9 @@ JOB_HANDLERS: Mapping[str, JobHandler] = MappingProxyType(
         "backup": handle_backup,
         "experiment_summary": handle_experiment_summary,
         "markdown_export": handle_markdown_export,
+        "medical_import": handle_medical_import,
         "morning_briefing": handle_morning_briefing,
+        "onboarding_enrichment": handle_onboarding_enrichment,
         "oura_sync": handle_oura_sync,
         "wod_parse": handle_wod_parse,
     }
