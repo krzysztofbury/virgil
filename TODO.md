@@ -491,6 +491,30 @@ retry.
 
 ## Feniks
 - [x] Progress graph (streak timeline with red dots at relapse points)
+- [ ] **Make the Feniks measurement contract explicit and correctable.** Define
+      `used` as at least 5 total minutes of intentional viewing in a day; shorter
+      exposure remains a clean daily outcome but must be recordable in the note.
+      Define a brick as one distinct decision episode resolved before exposure;
+      background desire alone is not a brick, and no specific coping action is
+      required. Show these rules next to the forms, clear hidden minutes/edging
+      when a day is saved clean, and add edit/delete for bricks with confirmation.
+
+## Goals and reps as canonical data
+
+- [ ] **Make Virgil the source of truth for goals and their execution reps.** The
+      current goal rows only model area, long-term horizon, text and focus, while
+      experiments cannot represent calendar-month one-off reps. Add explicit goal
+      status and date windows plus first-class reps with period, due date, status
+      and completion timestamp. Link experiments to goals where repeated metrics
+      are useful, without forcing one-off reps into experiment counters.
+- [ ] Add complete REST and MCP read/write coverage for goals and reps, including
+      active goals, pending reps, completion/carry/skip transitions and bounded
+      history. Resolve duplicate metric names and use one calendar-week contract
+      before agents can write canonical progress.
+- [ ] Migrate and deduplicate existing imported goals/reps, then treat Second Brain
+      markdown as a generated read-only view for this data. Keep the append-only
+      review ledger outside Virgil in this scope; do not add a competing review
+      store.
 
 ## Data & Reliability
 - [x] Automated daily backup (SQLite → `data/backups/` with rolling retention)
