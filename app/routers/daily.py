@@ -264,6 +264,10 @@ async def generate_andy(request: Request, date: str = Form(...), job_nonce: str 
     except Exception:
         logger.exception("A.N.D.Y. enqueue failed")
         return error_redirect(request, f"/daily/{day}", "The suggestions could not be queued. Try again.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(request, f"/daily/{day}?job_id={result.job_id}", "A.N.D.Y. suggestions queued.")
 
 

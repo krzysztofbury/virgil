@@ -1,5 +1,13 @@
-{#- Cards only: the tray section owns the polling and is never replaced, so it
-    can keep a load trigger without re-firing on every swap. Rendering nothing
-    when idle keeps the section :empty, which is what collapses it. -#}
+{#- Cards, then the poller that asks for the next set. The poller lives in the
+    swapped content on purpose: that is what lets each response choose its own
+    interval, so an idle tray costs one request every 20s while live work is
+    followed closely. The tray section itself is never swapped, so it keeps its
+    initial load trigger. -#}
 {%- set in_tray = true -%}
 {%- for job in jobs %}{% include "partials/job_status.html" %}{% endfor -%}
+<div class="tray-poller" aria-hidden="true"
+     hx-get="/api/jobs/active{{ tray_query }}"
+     hx-trigger="every {{ "3s" if jobs else "20s" }}"
+     hx-target="#job-notifications"
+     hx-swap="innerHTML"
+     hx-sync="#job-notifications:replace"></div>

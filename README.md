@@ -164,6 +164,7 @@ All configuration via environment variables:
 | `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Trust `CF-Connecting-IP` for rate limiting. Enable only when Cloudflare Tunnel is the sole ingress |
 | `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated direct proxy IPs allowed to supply `CF-Connecting-IP` |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
+| `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `VIRGIL_API_KEY` | (empty) | REST API key: read endpoints + experiment-entry logging (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
@@ -349,6 +350,12 @@ Six-tab settings page:
 No request waits on an LLM or on Oura. Backups, exports, Oura syncs and every
 paid AI call are **durable jobs**: the route (or the scheduler) writes what you
 asked for and returns; a bounded worker does the rest and survives a restart.
+
+**Enqueueing starts the work immediately.** A job you asked for does not wait
+for the next scheduler tick: the route wakes a bounded worker pass, so the click
+is answered in milliseconds and the job is running a moment later. The 60-second
+tick stays as the safety net for scheduled work and for anything a restart left
+behind. Set `VIRGIL_WORKER_WAKE=false` to fall back to tick-only pickup.
 
 **Paid AI work is treated differently from operational work.** Backups and syncs
 retry themselves; a paid call does not. A timeout or an API error does not prove

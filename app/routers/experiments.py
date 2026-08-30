@@ -857,6 +857,10 @@ async def generate_summary(
         return error_redirect(
             request, f"/experiments/{experiment_id}", "The week summary could not be queued. Try again."
         )
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(request, f"/experiments/{experiment_id}?job_id={result.job_id}", "Week summary queued.")
 
 

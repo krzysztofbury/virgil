@@ -239,6 +239,10 @@ async def oura_api_sync(request: Request, job_nonce: str = Form(...)):
     except Exception:
         logger.exception("Oura API sync enqueue failed")
         return error_redirect(request, "/oura", "Oura sync could not be queued. Try again.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/oura?job_id={result.job_id}",

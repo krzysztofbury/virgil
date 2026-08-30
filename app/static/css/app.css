@@ -686,6 +686,8 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 }
 .notification-tray > section { display: grid; gap: 0.5rem; pointer-events: none; }
 .notification-tray > section:empty { display: none; }
+/* The poller is markup, not a notification: it must add no box and no gap. */
+.tray-poller { display: none; }
 .notification-tray > section > div:empty { display: none; }
 .notification-tray .feedback-message,
 .notification-tray .job-status-card { pointer-events: auto; }

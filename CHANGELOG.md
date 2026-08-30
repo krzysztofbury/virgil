@@ -69,6 +69,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   caller pinned `reasoning_effort="disable"`, which Gemini accepts and OpenAI
   rejects with "Unsupported value". litellm's `drop_params` removes unsupported
   parameters, never unsupported values, so the call failed rather than degrading.
+- **A job you ask for starts at once.** Enqueueing used to leave the work for
+  the next scheduler tick, so clicking Generate could sit at "Waiting for a
+  worker" for up to a minute before anything happened. The route now wakes a
+  bounded worker pass: measured in a browser, the click is answered in 0.16s and
+  the job is running 0.07s later. The tick remains the safety net, and
+  `VIRGIL_WORKER_WAKE=false` restores the old behaviour. A woken pass is safe to
+  race the tick, because claims are atomic and one runner per database is a
+  database-level invariant.
+- **The tray follows live work closely and idles quietly.** The poller travels
+  inside the swapped content, so each response picks its own interval: every 3
+  seconds while something is running, every 20 seconds when nothing is.
 - **The tray shows what is queued, on every page.** It used to know only about
   the job named in the URL, so a refresh or a click elsewhere lost sight of
   background work entirely, which looks exactly like the job never having been
