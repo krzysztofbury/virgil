@@ -8,21 +8,21 @@ Protocol (per Oura API v2 docs/OpenAPI spec):
   and expects {"challenge": <challenge>} back within 10 seconds.
 - Events: Oura sends POST with x-oura-signature + x-oura-timestamp headers.
   Signature = HMAC-SHA256(client_secret, timestamp + body), uppercase hex.
-- Responses must arrive within 10 seconds — the actual data sync therefore runs
-  as a debounced background task, never inline.
+- Responses must arrive within 10 seconds; the actual data sync is durably queued.
 """
 
-import asyncio
 import hashlib
 import hmac
 import logging
 import re
+import time
 
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse, Response
 
 from app.central_db import get_webhook_route
 from app.services.encryption import decrypt
+from app.services.job_producers import WEBHOOK_TIMESTAMP_SKEW_SECONDS, enqueue_oura_sync_job, webhook_oura_job_key
 from app.user_db import close_user_db, open_user_db
 
 logger = logging.getLogger(__name__)
@@ -44,14 +44,6 @@ SUPPORTED_DATA_TYPES = frozenset(
 
 _WEBHOOK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
-# Debounce: at most one in-flight sync per user DB. Oura retries up to 10x and
-# we hold 12 subscriptions, so bursts of events for the same user are the
-# normal case. Membership in _pending is checked-and-set synchronously on the
-# event loop — a lock's .locked() probe raced: N deliveries could all pass it
-# before any task started, then run N sequential full syncs.
-_pending_syncs: set[str] = set()
-_background_tasks: set[asyncio.Task] = set()
-
 
 def _stored_secret(raw: str) -> str:
     """Decrypt a stored webhook secret; tolerate legacy plaintext rows."""
@@ -72,53 +64,6 @@ async def _load_oura_integration(db) -> dict | None:
         "SELECT client_id, client_secret_enc, webhook_secret FROM integrations WHERE provider = 'oura'"
     )
     return dict(rows[0]) if rows else None
-
-
-def _schedule_user_sync(db_filename: str, data_type: str) -> bool:
-    """Run a 2-day sync in the background, at most one at a time per user.
-
-    Returns False when a sync is already pending/running (event debounced).
-    The check-and-set below runs synchronously on the event loop, so no other
-    coroutine can interleave between the membership test and the add.
-    """
-    if db_filename in _pending_syncs:
-        return False
-
-    async def _run() -> None:
-        # One blanket except: an open_user_db failure escaping the coroutine
-        # would only surface as "Task exception was never retrieved".
-        try:
-            db = await open_user_db(db_filename)
-            try:
-                from app.services.oura_api import sync_oura_from_api
-
-                result = await sync_oura_from_api(db, days_back=2)
-                if not result.complete:
-                    logger.warning(
-                        "Oura webhook sync partial: %d days, failed_daily=%s, workouts_synced=%s (data_type: %s)",
-                        result.days,
-                        result.failed_daily_endpoints,
-                        result.workouts_synced,
-                        data_type,
-                    )
-                else:
-                    logger.info("Oura webhook sync completed: %d days (data_type: %s)", result.days, data_type)
-            finally:
-                await close_user_db(db)
-        except Exception:
-            logger.exception("Oura webhook sync failed for data_type: %s", data_type)
-        finally:
-            _pending_syncs.discard(db_filename)
-
-    task = asyncio.create_task(_run())
-    # Registered AFTER create_task (the coroutine body only starts on the next
-    # loop iteration, so this is still atomic) — adding before would leak the
-    # entry forever if create_task itself raised, permanently debouncing the user.
-    _pending_syncs.add(db_filename)
-    # Keep a strong reference so the task isn't garbage-collected mid-flight.
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
-    return True
 
 
 @router.post("/api/oura/webhook")
@@ -157,7 +102,7 @@ async def oura_webhook_verify(request: Request, webhook_id: str):
 
 @router.post("/api/oura/webhook/{webhook_id}")
 async def oura_webhook_event(request: Request, webhook_id: str):
-    """Data event delivery — HMAC-verified, sync runs in the background."""
+    """HMAC-verified event delivery that durably coalesces sync work."""
     if not _WEBHOOK_ID_RE.match(webhook_id):
         return Response("Not found", status_code=404)
     user = await get_webhook_route(webhook_id)
@@ -177,6 +122,12 @@ async def oura_webhook_event(request: Request, webhook_id: str):
         if not signature or not timestamp:
             logger.warning("Oura webhook event missing signature/timestamp headers")
             return Response("Missing signature", status_code=403)
+        try:
+            delivered_at = int(timestamp)
+        except (TypeError, ValueError):
+            return Response("Invalid timestamp", status_code=403)
+        if abs(int(time.time()) - delivered_at) > WEBHOOK_TIMESTAMP_SKEW_SECONDS:
+            return Response("Stale timestamp", status_code=403)
 
         # Per Oura docs: HMAC-SHA256 keyed with the OAuth CLIENT SECRET over
         # timestamp + body, uppercase hex digest.
@@ -201,8 +152,12 @@ async def oura_webhook_event(request: Request, webhook_id: str):
             logger.debug("Ignoring unsupported Oura data type: %r", data_type)
             return JSONResponse({"status": "ignored"})
 
-        # Respond inside Oura's 10s deadline — sync happens out-of-band.
-        scheduled = _schedule_user_sync(user["db_filename"], data_type)
-        return JSONResponse({"status": "accepted" if scheduled else "debounced"})
+        result = await enqueue_oura_sync_job(
+            db,
+            trigger="webhook",
+            days_back=2,
+            idempotency_key=webhook_oura_job_key(timestamp, body),
+        )
+        return JSONResponse({"status": "accepted" if result.created else "debounced"})
     finally:
         await close_user_db(db)

@@ -101,6 +101,7 @@ def test_partial_sync_preserves_failed_monthly_columns_and_uses_non_null_step_co
             return {today: {"activity_score": 70, "steps": 5000}}, {"daily_activity"}
 
         async def fake_workouts(_token, _start, _end):
+            assert db.in_transaction is False
             return []
 
         monkeypatch.setattr("app.services.oura_api.ensure_valid_token", fake_token)
@@ -179,13 +180,34 @@ def test_optional_fetch_absorbs_normalized_endpoint_failures(mode):
     assert ok_endpoints == set()
 
 
-def test_scheduled_partial_sync_is_a_completed_attempt(monkeypatch, caplog):
-    from app.services.scheduler import _run_oura_sync_task
+def test_scheduled_partial_sync_is_a_completed_job_result(monkeypatch):
+    from app.services.job_handlers import handle_oura_sync
+    from app.services.job_worker import JobContext
 
-    async def fake_sync(_db):
+    async def fake_sync(_db, days_back):
+        assert days_back == 30
         return OuraSyncResult(days=2, failed_daily_endpoints=("sleep",), workouts_synced=False)
 
     monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", fake_sync)
-    with caplog.at_level("WARNING", logger="app.services.scheduler"):
-        asyncio.run(_run_oura_sync_task(object()))
-    assert "Scheduled Oura sync partial" in caplog.text
+
+    class FakeDb:
+        in_transaction = False
+
+        async def execute(self, _sql, _params):
+            return None
+
+        async def commit(self):
+            return None
+
+    result = asyncio.run(
+        handle_oura_sync(
+            JobContext(db=FakeDb(), user_id="user-1", job_id=1, attempt=1),
+            {"days_back": 30, "trigger": "scheduled"},
+        )
+    )
+    assert result == {
+        "complete": False,
+        "days": 2,
+        "failed_daily_endpoints": ["sleep"],
+        "workouts_synced": False,
+    }

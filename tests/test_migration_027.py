@@ -2,6 +2,7 @@
 
 import asyncio
 import importlib
+from datetime import UTC, datetime, timedelta
 
 import aiosqlite
 import pytest
@@ -156,7 +157,7 @@ def test_migration_recovers_after_each_ddl_boundary(tmp_path, completed_indexes)
     assert set(importlib.import_module("app.migrations.027_jobs")._INDEX_SQL) <= asyncio.run(scenario())
 
 
-def test_full_migration_chain_records_027(tmp_path):
+def test_full_migration_chain_records_028(tmp_path):
     async def scenario():
         from app.migrations.runner import run_migrations
 
@@ -172,5 +173,125 @@ def test_full_migration_chain_records_027(tmp_path):
             await db.close()
 
     marker, has_jobs = asyncio.run(scenario())
-    assert marker == (27, "027_jobs.py")
+    assert marker == (28, "028_active_workload_jobs.py")
     assert has_jobs is True
+
+
+def test_migration_028_rejects_an_existing_index_with_the_wrong_definition(tmp_path):
+    async def scenario():
+        jobs_migration = importlib.import_module("app.migrations.027_jobs")
+        workload_migration = importlib.import_module("app.migrations.028_active_workload_jobs")
+        db = await _db(tmp_path / "wrong-index.db")
+        try:
+            await jobs_migration.up(db)
+            await db.execute(f"CREATE INDEX {workload_migration.INDEX_NAME} ON jobs(kind)")
+            await db.commit()
+            with pytest.raises(RuntimeError, match="unsupported definition"):
+                await workload_migration.up(db)
+        finally:
+            await db.close()
+
+    asyncio.run(scenario())
+
+
+def test_migration_028_reconciles_duplicate_v27_workloads(tmp_path):
+    async def scenario():
+        jobs_migration = importlib.import_module("app.migrations.027_jobs")
+        workload_migration = importlib.import_module("app.migrations.028_active_workload_jobs")
+        db = await _db(tmp_path / "duplicates.db")
+        try:
+            await jobs_migration.up(db)
+            await db.executemany(
+                "INSERT INTO jobs(kind, payload_json, idempotency_key) VALUES(?, ?, ?)",
+                [
+                    ("backup", '{"trigger":"manual"}', "backup:first"),
+                    ("backup", '{"trigger":"scheduled"}', "backup:second"),
+                    ("markdown_export", '{"scope":"weekly"}', "export:first"),
+                    ("markdown_export", '{"scope":"monthly"}', "export:second"),
+                    ("oura_sync", '{"days_back":2,"trigger":"webhook"}', "oura:short"),
+                    ("oura_sync", '{"days_back":30,"trigger":"scheduled"}', "oura:wide"),
+                ],
+            )
+            await db.commit()
+            await workload_migration.up(db)
+            rows = await db.execute_fetchall("SELECT kind, payload_json, status, last_error FROM jobs ORDER BY id")
+            indexes = await db.execute_fetchall("PRAGMA index_list(jobs)")
+            return rows, {row["name"] for row in indexes}
+        finally:
+            await db.close()
+
+    rows, indexes = asyncio.run(scenario())
+    queued = [(row["kind"], row["payload_json"]) for row in rows if row["status"] == "queued"]
+    assert queued == [
+        ("backup", '{"trigger":"manual"}'),
+        ("markdown_export", '{"scope":"weekly"}'),
+        ("oura_sync", '{"days_back":30,"trigger":"scheduled"}'),
+    ]
+    cancelled = [row for row in rows if row["status"] == "cancelled"]
+    assert len(cancelled) == 3
+    assert all(row["last_error"] == "Superseded while bounding the workload queue." for row in cancelled)
+    assert "idx_jobs_queued_workload_kind" in indexes
+
+
+@pytest.mark.parametrize(
+    ("kind", "running_payload", "successor_payload"),
+    [
+        (
+            "oura_sync",
+            '{"days_back":30,"trigger":"scheduled"}',
+            '{"days_back":2,"trigger":"webhook"}',
+        ),
+        (
+            "markdown_export",
+            '{"scope":"weekly","sections":null,"trigger":"scheduled"}',
+            '{"scope":"monthly","sections":null,"trigger":"manual"}',
+        ),
+    ],
+)
+def test_migrated_v27_running_job_rejects_a_noncovering_successor(
+    tmp_path,
+    kind,
+    running_payload,
+    successor_payload,
+):
+    async def scenario():
+        from app.services.jobs import RecoveryResult, claim_next_job, recover_stale_jobs
+
+        jobs_migration = importlib.import_module("app.migrations.027_jobs")
+        workload_migration = importlib.import_module("app.migrations.028_active_workload_jobs")
+        db = await _db(tmp_path / f"running-{kind}.db")
+        try:
+            await jobs_migration.up(db)
+            now = datetime.now(UTC)
+            stale = (now - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S.%f")
+            await db.execute(
+                """INSERT INTO jobs(
+                       kind, payload_json, status, attempts, retry_policy,
+                       locked_at, locked_by, claim_token, started_at
+                   ) VALUES(?, ?, 'running', 1, 'automatic', ?, 'old-worker', ?, ?)""",
+                (kind, running_payload, stale, "a" * 32, stale),
+            )
+            running_id = (await db.execute_fetchall("SELECT last_insert_rowid() AS id"))[0]["id"]
+            await db.execute(
+                "INSERT INTO jobs(kind, payload_json, idempotency_key, retry_policy) VALUES(?, ?, ?, 'automatic')",
+                (kind, successor_payload, f"successor:{kind}"),
+            )
+            successor_id = (await db.execute_fetchall("SELECT last_insert_rowid() AS id"))[0]["id"]
+            await db.commit()
+            await workload_migration.up(db)
+            await db.commit()
+            recovered = await recover_stale_jobs(db, now - timedelta(minutes=1), now=now, retry_delay_seconds=1)
+            rows = await db.execute_fetchall("SELECT id, status, last_error FROM jobs ORDER BY id")
+            claimed = await claim_next_job(db, "new-worker", now=now + timedelta(seconds=1))
+            assert recovered == [RecoveryResult(running_id, "queued")]
+            return running_id, successor_id, rows, claimed
+        finally:
+            await db.close()
+
+    running_id, successor_id, rows, claimed = asyncio.run(scenario())
+    assert [(row["id"], row["status"]) for row in rows] == [
+        (running_id, "queued"),
+        (successor_id, "cancelled"),
+    ]
+    assert rows[1]["last_error"] == "Did not cover interrupted running work."
+    assert claimed["id"] == running_id

@@ -7,11 +7,18 @@
         <h1>Oura Ring Data</h1>
         {% if oura_connected %}
         <form method="POST" action="/oura/api-sync" hx-post="/oura/api-sync" hx-swap="none" style="margin:0;">
+            <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
             <button type="submit" class="btn btn-primary btn-sm" data-pending-label="Syncing...">Sync from API</button>
         </form>
         {% endif %}
     </div>
 </div>
+
+{% if current_job %}
+<section class="card job-activity-card" aria-label="Oura sync status">
+    {% with job=current_job %}{% include "partials/job_status.html" %}{% endwith %}
+</section>
+{% endif %}
 
 <!-- Readiness against its own recent baseline: the one number that says whether
      today is different. Numbers and one rule-derived word, by decision - no

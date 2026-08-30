@@ -1,6 +1,6 @@
 <article id="job-status-{{ job.id }}" role="status" aria-live="polite" aria-atomic="true">
 <div id="job-status-body-{{ job.id }}"
-     class="job-status-card job-status-{{ job.status | replace('_', '-') }}"
+     class="job-status-card job-status-{{ job.display_status | replace('_', '-') }}"
      data-job-id="{{ job.id }}"
      data-job-status="{{ job.status }}"
      {% if job.polling %}
@@ -16,7 +16,7 @@
             <h4>{{ job.kind_label }}</h4>
             <p>{{ job.description }}</p>
         </div>
-        <span class="job-status-badge job-status-badge-{{ job.status | replace('_', '-') }}">{{ job.status_label }}</span>
+        <span class="job-status-badge job-status-badge-{{ job.display_status | replace('_', '-') }}">{{ job.status_label }}</span>
     </div>
 
     <div class="job-status-meta">

@@ -70,3 +70,12 @@ def test_prune_keeps_newest(tmp_path, monkeypatch):
 
     left = sorted(p.name for p in backup_dir.glob("stem-*.db"))
     assert left == ["stem-2026-07-03.db", "stem-2026-07-04.db", "stem-2026-07-05.db"]
+
+
+def test_prune_orders_fixed_width_job_suffixes_numerically(tmp_path):
+    for job_id in (9, 10):
+        (tmp_path / f"stem-2026-07-05T1200-j{job_id:020d}.db").touch()
+
+    _prune_backups("stem", 1, directory=tmp_path)
+
+    assert [path.name for path in tmp_path.glob("stem-*.db")] == ["stem-2026-07-05T1200-j00000000000000000010.db"]

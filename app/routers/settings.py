@@ -20,7 +20,6 @@ from app.services.oura_api import (
     ensure_valid_token,
     exchange_code,
     get_oura_auth_url,
-    sync_oura_from_api,
 )
 from app.user_db import get_user_db_from_request
 
@@ -43,7 +42,7 @@ async def save_theme(request: Request):
 
 
 @router.get("/settings", response_class=HTMLResponse)
-async def settings_page(request: Request, tab: str = Query("general")):
+async def settings_page(request: Request, tab: str = Query("general"), job_id: int | None = Query(None, ge=1)):
     if tab not in SETTINGS_TABS:
         tab = "general"
 
@@ -54,7 +53,15 @@ async def settings_page(request: Request, tab: str = Query("general")):
         "request": request,
         "active_tab": tab,
         "tabs": SETTINGS_TABS,
+        "job_nonce": secrets.token_hex(16),
     }
+
+    if job_id is not None and tab != "automation":
+        from app.routers.jobs import build_job_view
+        from app.services.jobs import get_job_status
+
+        job = await get_job_status(db, job_id)
+        context["current_job"] = build_job_view(job) if job is not None else None
 
     if tab == "general":
         providers = await db.execute_fetchall("SELECT * FROM llm_providers ORDER BY created_at DESC")
@@ -530,55 +537,65 @@ async def save_features(request: Request):
 
 
 @router.post("/settings/backup/now")
-async def trigger_backup_now(request: Request):
-    from app.services.backup import run_backup
+async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
+    from app.services.job_producers import BACKUP_JOB_KIND, enqueue_backup_job, manual_job_key
 
     db = get_user_db_from_request(request)
     try:
-        path = await run_backup(db)
-        return success_redirect(request, "/settings?tab=automation", f"Backup created: {path.name}")
+        result = await enqueue_backup_job(
+            db,
+            trigger="manual",
+            idempotency_key=manual_job_key(BACKUP_JOB_KIND, job_nonce),
+        )
     except Exception:
-        logger.exception("Manual backup failed")
-        return error_redirect(request, "/settings?tab=automation", "Backup failed. Try again.")
+        logger.exception("Manual backup enqueue failed")
+        return error_redirect(request, "/settings?tab=automation", "Backup could not be queued. Try again.")
+    return success_redirect(
+        request,
+        f"/settings?tab=automation&job_id={result.job_id}#job-status-{result.job_id}",
+        "Backup queued.",
+    )
 
 
 # --- Export ---
 
 
 @router.post("/settings/export")
-async def trigger_export(request: Request):
-    from app.services.markdown_export import export_filename_for, write_export
+async def trigger_export(request: Request, job_nonce: str = Form(...)):
+    from app.services.job_producers import (
+        EXPORT_SCOPES,
+        EXPORT_SECTIONS,
+        MARKDOWN_EXPORT_JOB_KIND,
+        enqueue_markdown_export_job,
+        manual_job_key,
+    )
 
     form = await request.form()
     scope = form.get("scope", "weekly")
-    if scope not in ("weekly", "monthly", "yearly", "all"):
+    if scope not in EXPORT_SCOPES:
         return error_redirect(request, "/settings?tab=data", "Choose a valid export scope.")
     sections = form.getlist("sections")
-    valid_sections = {
-        "daily_logs",
-        "training",
-        "body_measurements",
-        "feniks",
-        "oura",
-        "life_scores",
-        "experiments",
-        "bloodwork",
-        "goals",
-    }
-    if any(section not in valid_sections for section in sections):
+    if any(section not in EXPORT_SECTIONS for section in sections):
         return error_redirect(request, "/settings?tab=data", "Choose only valid export sections.")
     if not sections:
         return error_redirect(request, "/settings?tab=data", "Choose at least one export section.")
-    section_set = set(sections)
-
     db = get_user_db_from_request(request)
     try:
-        filename = await export_filename_for(db, request.state.user["id"])
-        await write_export(db, scope, sections=section_set, filename=filename)
-        return success_redirect(request, "/settings?tab=data", f"{scope.capitalize()} export completed.")
+        result = await enqueue_markdown_export_job(
+            db,
+            trigger="manual",
+            scope=scope,
+            sections=sections,
+            idempotency_key=manual_job_key(MARKDOWN_EXPORT_JOB_KIND, job_nonce),
+        )
     except Exception:
-        logger.exception("Export failed")
-        return error_redirect(request, "/settings?tab=data", "Export failed. Try again.")
+        logger.exception("Export enqueue failed")
+        return error_redirect(request, "/settings?tab=data", "Export could not be queued. Try again.")
+    return success_redirect(
+        request,
+        f"/settings?tab=data&job_id={result.job_id}#job-status-{result.job_id}",
+        f"{scope.capitalize()} export queued.",
+    )
 
 
 @router.post("/settings/import")
@@ -913,21 +930,28 @@ async def oura_disconnect(request: Request):
 
 
 @router.post("/settings/oura/sync")
-async def oura_sync(request: Request):
+async def oura_sync(request: Request, job_nonce: str = Form(...)):
+    from app.services.job_producers import OURA_SYNC_JOB_KIND, enqueue_oura_sync_job, manual_job_key
+
     db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
+    if not rows or rows[0]["status"] != "connected":
+        return error_redirect(request, "/settings?tab=integrations", "Oura is not connected.")
     try:
-        result = await sync_oura_from_api(db)
-        logger.info("Oura sync completed: %d days", result.days)
-        if not result.complete:
-            return error_redirect(
-                request,
-                "/settings?tab=integrations",
-                "Oura sync was partial. Existing data for failed sources was preserved.",
-            )
-        return success_redirect(request, "/settings?tab=integrations", f"Oura sync: {result.days} days")
+        result = await enqueue_oura_sync_job(
+            db,
+            trigger="manual",
+            days_back=30,
+            idempotency_key=manual_job_key(OURA_SYNC_JOB_KIND, job_nonce),
+        )
     except Exception:
-        logger.exception("Oura sync failed")
-        return error_redirect(request, "/settings?tab=integrations", "Oura sync failed")
+        logger.exception("Oura sync enqueue failed")
+        return error_redirect(request, "/settings?tab=integrations", "Oura sync could not be queued.")
+    return success_redirect(
+        request,
+        f"/settings?tab=integrations&job_id={result.job_id}#job-status-{result.job_id}",
+        "Oura sync queued.",
+    )
 
 
 # --- Oura Webhook ---

@@ -1,48 +1,9 @@
-"""Round-3 hardening: webhook debounce race, pending-migration counting,
-central/pre-migration backups, truncated-JSON repair."""
+"""Deployment hardening: migrations, backups, and truncated-JSON repair."""
 
 import asyncio
 import sqlite3
 
-import app.routers.oura_webhook as webhook_module
 from app.services.llm import parse_andy_response
-from app.services.oura_api import OuraSyncResult
-
-
-def test_debounce_is_race_free(monkeypatch, tmp_path):
-    """N simultaneous deliveries must schedule exactly ONE sync — the old
-    lock.locked() probe let all of them enqueue before any task started."""
-
-    started = []
-
-    async def fake_open(db_filename):
-        return object()
-
-    async def fake_close(db):
-        return None
-
-    async def fake_sync(db, days_back=2):
-        started.append(1)
-        await asyncio.sleep(0.02)
-        return OuraSyncResult(days=0, failed_daily_endpoints=(), workouts_synced=True)
-
-    monkeypatch.setattr(webhook_module, "open_user_db", fake_open)
-    monkeypatch.setattr(webhook_module, "close_user_db", fake_close)
-    monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", fake_sync)
-
-    async def scenario():
-        results = [webhook_module._schedule_user_sync("user-x.db", "sleep") for _ in range(5)]
-        # Let the single scheduled task run to completion.
-        await asyncio.sleep(0.1)
-        # After completion a new sync may be scheduled again.
-        again = webhook_module._schedule_user_sync("user-x.db", "sleep")
-        await asyncio.sleep(0.1)
-        return results, again
-
-    results, again = asyncio.run(scenario())
-    assert results == [True, False, False, False, False]
-    assert again is True
-    assert sum(started) == 2
 
 
 def test_count_pending_migrations(tmp_path):

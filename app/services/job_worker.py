@@ -7,6 +7,7 @@ import secrets
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from types import MappingProxyType
 from typing import Any
 
 import aiosqlite
@@ -49,9 +50,16 @@ JobHandler = Callable[[JobContext, Mapping[str, Any]], Awaitable[Mapping[str, An
 DbOpener = Callable[[str], Awaitable[aiosqlite.Connection]]
 DbCloser = Callable[[aiosqlite.Connection], Awaitable[None]]
 
-# Workload handlers are added explicitly during Phase 3D. Payload data can never
-# select an import path or arbitrary callable.
-JOB_HANDLERS: dict[str, JobHandler] = {}
+# Payload data can never select an import path or arbitrary callable.
+from app.services.job_handlers import handle_backup, handle_markdown_export, handle_oura_sync  # noqa: E402
+
+JOB_HANDLERS: Mapping[str, JobHandler] = MappingProxyType(
+    {
+        "backup": handle_backup,
+        "markdown_export": handle_markdown_export,
+        "oura_sync": handle_oura_sync,
+    }
+)
 
 
 class AmbiguousJobError(RuntimeError):
