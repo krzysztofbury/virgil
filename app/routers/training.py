@@ -481,6 +481,10 @@ async def capture_wod(request: Request):
             "Notatka zapisana, ale analiza się nie zakolejkowała. Uzupełnij wpisy ręcznie.",
         )
 
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/training/wod/confirm/{session_id}?job_id={result.job_id}",

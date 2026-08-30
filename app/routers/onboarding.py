@@ -292,6 +292,10 @@ async def save_step5(
         _discard(user_id, token)
         return error_redirect(request, "/onboarding?step=5", "The import could not be queued. Try again.")
 
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/onboarding?step=6&job_id={result.job_id}",
@@ -349,6 +353,10 @@ async def confirm_onboarding(request: Request):
     except Exception:
         logger.exception("Onboarding enrichment enqueue failed")
         return success_redirect(request, "/", "Onboarding complete. The AI extras could not be queued.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/?job_id={result.job_id}",
@@ -379,6 +387,10 @@ async def retry_enrichment(request: Request):
     except Exception:
         logger.exception("Onboarding enrichment retry failed")
         return error_redirect(request, "/onboarding?step=6", "The AI extras could not be queued. Try again.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/onboarding?step=6&job_id={result.job_id}",

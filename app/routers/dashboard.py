@@ -315,4 +315,8 @@ async def generate_briefing_endpoint(request: Request, job_nonce: str = Form(...
     except Exception:
         logger.exception("Briefing enqueue failed")
         return error_redirect(request, "/", "The briefing could not be queued. Try again.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(request, f"/?job_id={result.job_id}", "Briefing queued.")

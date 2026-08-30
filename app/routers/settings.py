@@ -551,6 +551,10 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
     except Exception:
         logger.exception("Manual backup enqueue failed")
         return error_redirect(request, "/settings?tab=automation", "Backup could not be queued. Try again.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/settings?tab=automation&job_id={result.job_id}",
@@ -592,6 +596,10 @@ async def trigger_export(request: Request, job_nonce: str = Form(...)):
     except Exception:
         logger.exception("Export enqueue failed")
         return error_redirect(request, "/settings?tab=data", "Export could not be queued. Try again.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/settings?tab=data&job_id={result.job_id}",
@@ -957,6 +965,10 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
     except Exception:
         logger.exception("Oura sync enqueue failed")
         return error_redirect(request, "/settings?tab=integrations", "Oura sync could not be queued.")
+    from app.routers.jobs import wake_worker_for
+
+    wake_worker_for(request)
+
     return success_redirect(
         request,
         f"/settings?tab=integrations&job_id={result.job_id}",

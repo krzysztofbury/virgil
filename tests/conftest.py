@@ -27,6 +27,10 @@ else:
     os.environ["VIRGIL_INTERNAL_LLM_KEY"] = ""
     os.environ["VIRGIL_REGISTRATION_OPEN"] = "false"
     os.environ["VIRGIL_API_SENSITIVE"] = "false"
+    # Enqueueing wakes a worker in the background. That is what production
+    # wants and what makes queue state non-deterministic in a test, so it is
+    # off here and turned on explicitly by the test that covers it.
+    os.environ["VIRGIL_WORKER_WAKE"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402

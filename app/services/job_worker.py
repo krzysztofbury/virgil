@@ -3,7 +3,9 @@
 import asyncio
 import contextlib
 import logging
+import os
 import secrets
+import socket
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -84,6 +86,58 @@ class AmbiguousJobError(RuntimeError):
     def __init__(self, public_error: str = "Job outcome needs review.") -> None:
         super().__init__(public_error)
         self.public_error = public_error
+
+
+# A woken pass may run a short burst, so two quick clicks do not leave the
+# second job for the tick. It stays small: each job can hold the worker for
+# DEFAULT_EXECUTION_TIMEOUT_SECONDS.
+WAKE_JOBS_MAX = 3
+# Concurrent woken passes are pointless past a handful - the claim is
+# single-runner per database, so the rest find nothing and exit - but the bound
+# is what stops a click-happy page spawning tasks without limit.
+WAKE_TASKS_MAX = 8
+_wake_tasks: set[asyncio.Task] = set()
+
+
+async def _wake_once(user_id: str, db_filename: str, worker_id: str) -> None:
+    control_db = None
+    try:
+        control_db = await open_user_db(db_filename)
+        await run_jobs_for_user(control_db, user_id, db_filename, worker_id=worker_id, max_jobs=WAKE_JOBS_MAX)
+    except Exception:
+        logger.exception("Woken worker pass failed for user %s", user_id)
+    finally:
+        if control_db is not None:
+            with contextlib.suppress(Exception):
+                await close_user_db(control_db)
+
+
+def wake_worker(user_id: str, db_filename: str) -> bool:
+    """Start a worker pass now instead of waiting for the next scheduler tick.
+
+    Safe to race the tick: claims are atomic and one runner per database is a
+    database-level invariant, so a woken pass either claims the job first or
+    finds nothing and exits. Returns whether a pass was started, which is
+    advisory - the tick still picks the job up if it was not.
+    """
+    from app.config import WORKER_WAKE
+
+    if not WORKER_WAKE:
+        return False
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return False
+    if len(_wake_tasks) >= WAKE_TASKS_MAX:
+        logger.warning("Skipping a worker wake: %d passes already in flight", len(_wake_tasks))
+        return False
+    worker_id = f"wake:{socket.gethostname()[:52]}:{os.getpid()}"
+    # Held in a set: a task with no strong reference can be garbage collected
+    # mid-run, which would look exactly like the job silently never starting.
+    task = loop.create_task(_wake_once(user_id, db_filename, worker_id))
+    _wake_tasks.add(task)
+    task.add_done_callback(_wake_tasks.discard)
+    return True
 
 
 class VisibleJobError(RuntimeError):

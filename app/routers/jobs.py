@@ -97,6 +97,16 @@ async def current_job_view(db, job_id: int | None) -> dict[str, Any] | None:
     return build_job_view(row) if row is not None else None
 
 
+def wake_worker_for(request: Request) -> None:
+    """Ask for the work just enqueued to start now, not at the next tick."""
+    from app.services.job_worker import wake_worker
+
+    user = getattr(request.state, "user", None)
+    if not user:
+        return
+    wake_worker(user["id"], user["db_filename"])
+
+
 def _is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
 
@@ -138,7 +148,7 @@ async def active_jobs(request: Request):
     return templates.TemplateResponse(
         request,
         "partials/job_notifications.html",
-        {"jobs": jobs},
+        {"jobs": jobs, "tray_query": f"?job_id={named}" if named.isdigit() else ""},
         headers=_NO_STORE,
     )
 

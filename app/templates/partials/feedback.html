@@ -17,5 +17,5 @@
              hx-trigger="load, every 15s"
              hx-target="this"
              hx-swap="innerHTML"
-             hx-sync="this:replace">{% with jobs = [tray_job] if tray_job else [] %}{% include "partials/job_notifications.html" %}{% endwith %}</section>
+             hx-sync="this:replace">{% with jobs = [tray_job] if tray_job else [], tray_query = ('?job_id=' ~ tray_job.id) if tray_job else '' %}{% include "partials/job_notifications.html" %}{% endwith %}</section>
 </div>

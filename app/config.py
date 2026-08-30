@@ -26,6 +26,11 @@ PORT = 8123
 INTERNAL_LLM_MODEL = os.environ.get("VIRGIL_INTERNAL_LLM_MODEL", "gemini/gemini-3-flash-preview")
 INTERNAL_LLM_KEY = os.environ.get("VIRGIL_INTERNAL_LLM_KEY", "")
 
+# A user-initiated job that sits until the next scheduler tick reads as broken.
+# Enqueueing wakes a bounded worker pass immediately; the tick stays the safety
+# net. Tests turn this off so queue state stays deterministic.
+WORKER_WAKE = os.environ.get("VIRGIL_WORKER_WAKE", "true").lower() == "true"
+
 # Multi-user settings.
 CENTRAL_DB_PATH = os.environ.get(
     "VIRGIL_CENTRAL_DB_PATH",

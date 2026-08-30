@@ -179,11 +179,14 @@ def test_the_tray_asks_for_its_own_contents_on_every_page(auth_client):
     assert 'hx-swap="innerHTML"' in section, "swapping the section away would kill its own polling"
 
 
-def test_an_idle_tray_renders_nothing_so_it_collapses(auth_client):
+def test_an_idle_tray_shows_nothing_and_asks_again_slowly(auth_client):
     listing = auth_client.get("/api/jobs/active")
 
     assert listing.status_code == 200
-    assert listing.text == "", "even whitespace defeats the :empty rule that collapses the tray"
+    assert "data-job-id=" not in listing.text
+    assert 'hx-trigger="every 20s"' in listing.text, "an idle tray must not poll at working speed"
+    assert 'class="tray-poller"' in listing.text
+    assert "<article" not in listing.text, "the poller must add no visible box"
 
 
 def test_a_tray_card_does_not_poll_against_its_own_section(auth_client):
