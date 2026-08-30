@@ -157,7 +157,7 @@ def test_migration_recovers_after_each_ddl_boundary(tmp_path, completed_indexes)
     assert set(importlib.import_module("app.migrations.027_jobs")._INDEX_SQL) <= asyncio.run(scenario())
 
 
-def test_full_migration_chain_records_028(tmp_path):
+def test_full_migration_chain_records_029(tmp_path):
     async def scenario():
         from app.migrations.runner import run_migrations
 
@@ -167,14 +167,16 @@ def test_full_migration_chain_records_028(tmp_path):
             marker = await db.execute_fetchall(
                 "SELECT version, name FROM schema_migrations ORDER BY version DESC LIMIT 1"
             )
-            jobs = await db.execute_fetchall("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'jobs'")
-            return tuple(marker[0]), bool(jobs)
+            tables = await db.execute_fetchall(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('jobs', 'llm_publications')"
+            )
+            return tuple(marker[0]), {row["name"] for row in tables}
         finally:
             await db.close()
 
-    marker, has_jobs = asyncio.run(scenario())
-    assert marker == (28, "028_active_workload_jobs.py")
-    assert has_jobs is True
+    marker, tables = asyncio.run(scenario())
+    assert marker == (29, "029_llm_publications.py")
+    assert tables == {"jobs", "llm_publications"}
 
 
 def test_migration_028_rejects_an_existing_index_with_the_wrong_definition(tmp_path):

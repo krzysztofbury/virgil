@@ -11,6 +11,10 @@ logger = logging.getLogger(__name__)
 litellm.suppress_debug_info = True
 
 
+class LLMCallAmbiguousError(RuntimeError):
+    """The provider may have accepted a paid request before transport failed."""
+
+
 async def get_active_provider(db) -> dict | None:
     """Return the user's active LLM provider from the DB, or None."""
     rows = await db.execute_fetchall("SELECT * FROM llm_providers WHERE is_active = 1 LIMIT 1")
@@ -98,9 +102,9 @@ async def call_llm(
     except litellm.RateLimitError:
         raise ValueError(f"LLM rate limit exceeded for model {model} — try again later") from None
     except litellm.Timeout:
-        raise ValueError(f"LLM request timed out for model {model}") from None
+        raise LLMCallAmbiguousError(f"LLM request timed out for model {model}") from None
     except litellm.APIError as exc:
-        raise ValueError(f"LLM API error for model {model}: {exc}") from exc
+        raise LLMCallAmbiguousError(f"LLM API outcome is uncertain for model {model}: {exc}") from exc
 
     choice = response.choices[0]
     finish = str(getattr(choice, "finish_reason", "") or "").lower()
