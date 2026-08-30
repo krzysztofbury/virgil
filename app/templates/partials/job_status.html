@@ -16,7 +16,10 @@
             <h4>{{ job.kind_label }}</h4>
             <p>{{ job.description }}</p>
         </div>
-        <span class="job-status-badge job-status-badge-{{ job.display_status | replace('_', '-') }}">{{ job.status_label }}</span>
+        <div class="job-status-heading-end">
+            <span class="job-status-badge job-status-badge-{{ job.display_status | replace('_', '-') }}">{{ job.status_label }}</span>
+            <button type="button" class="job-status-dismiss" data-job-dismiss aria-label="Dismiss this notification">&times;</button>
+        </div>
     </div>
 
     <div class="job-status-meta">

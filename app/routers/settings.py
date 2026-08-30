@@ -552,7 +552,7 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=automation", "Backup could not be queued. Try again.")
     return success_redirect(
         request,
-        f"/settings?tab=automation&job_id={result.job_id}#job-status-{result.job_id}",
+        f"/settings?tab=automation&job_id={result.job_id}",
         "Backup queued.",
     )
 
@@ -593,7 +593,7 @@ async def trigger_export(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=data", "Export could not be queued. Try again.")
     return success_redirect(
         request,
-        f"/settings?tab=data&job_id={result.job_id}#job-status-{result.job_id}",
+        f"/settings?tab=data&job_id={result.job_id}",
         f"{scope.capitalize()} export queued.",
     )
 
@@ -949,7 +949,7 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=integrations", "Oura sync could not be queued.")
     return success_redirect(
         request,
-        f"/settings?tab=integrations&job_id={result.job_id}#job-status-{result.job_id}",
+        f"/settings?tab=integrations&job_id={result.job_id}",
         "Oura sync queued.",
     )
 

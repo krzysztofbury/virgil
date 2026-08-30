@@ -33,6 +33,7 @@ document.addEventListener('htmx:afterSwap', function(e) {
         lucide.createIcons();
     }
     initDatePickers(e.detail.target);
+    scanNotifications();
 });
 
 // One accessible mutation-feedback surface for native forms and HTMX.
@@ -46,6 +47,53 @@ var DRAFT_FIELDS_MAX = 20;
 var HTMX_TIMEOUT_MS = 30000;
 
 if (window.htmx) window.htmx.config.timeout = HTMX_TIMEOUT_MS;
+
+// A confirmation has said everything it has to say after a few seconds; an
+// error and an unfinished job have not, so only success self-dismisses.
+var TOAST_DISMISS_MS = 4000;
+var JOB_TOAST_DISMISS_MS = 6000;
+var TOAST_LEAVE_MS = 220;
+
+function dismissNotification(node) {
+    var target = (node && node.closest('#job-notifications article')) || node;
+    if (!target || target.dataset.dismissing === 'true') return;
+    target.dataset.dismissing = 'true';
+    target.classList.add('is-leaving');
+    window.setTimeout(function() { target.remove(); }, TOAST_LEAVE_MS);
+}
+
+// Hover and focus hold the timer open, so a notification cannot vanish out from
+// under a pointer or a keyboard user reading it.
+function armAutoDismiss(node, delay) {
+    if (!node || node.dataset.autodismissArmed === 'true') return;
+    node.dataset.autodismissArmed = 'true';
+    var timer = null;
+    var start = function() {
+        if (timer !== null || node.dataset.dismissing === 'true') return;
+        timer = window.setTimeout(function() { dismissNotification(node); }, delay);
+    };
+    var stop = function() {
+        if (timer === null) return;
+        window.clearTimeout(timer);
+        timer = null;
+    };
+    node.addEventListener('mouseenter', stop);
+    node.addEventListener('focusin', stop);
+    node.addEventListener('mouseleave', start);
+    node.addEventListener('focusout', start);
+    start();
+}
+
+function scanNotifications() {
+    document.querySelectorAll('#mutation-feedback [data-feedback-autodismiss]').forEach(function(node) {
+        armAutoDismiss(node, TOAST_DISMISS_MS);
+    });
+    // Polling replaces the body div, not the article, so a job re-arms only
+    // once it actually reaches a terminal success.
+    document.querySelectorAll('#job-notifications [data-job-status="succeeded"]').forEach(function(node) {
+        armAutoDismiss(node, JOB_TOAST_DISMISS_MS);
+    });
+}
 
 function renderFeedback(region, message, className, dismissible) {
     region.replaceChildren();
@@ -65,6 +113,10 @@ function renderFeedback(region, message, className, dismissible) {
         box.appendChild(dismiss);
     }
     region.appendChild(box);
+    if (className === 'feedback-success') {
+        box.dataset.feedbackAutodismiss = '';
+        armAutoDismiss(box, TOAST_DISMISS_MS);
+    }
 }
 
 function showFeedback(message, kind) {
@@ -316,6 +368,8 @@ document.addEventListener('htmx:timeout', function(event) {
 document.addEventListener('input', updateRestoredDraft);
 document.addEventListener('click', function(event) {
     if (event.target.closest('[data-feedback-dismiss]')) document.getElementById('feedback-error').replaceChildren();
+    var jobDismiss = event.target.closest('[data-job-dismiss]');
+    if (jobDismiss) dismissNotification(jobDismiss.closest('article'));
 });
 
 window.addEventListener('pageshow', function() {
@@ -334,6 +388,7 @@ document.addEventListener('DOMContentLoaded', function() {
         history.replaceState(null, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
     }
     restoreNetworkDrafts();
+    scanNotifications();
 });
 
 // Three-state toggle cycle: pending -> done -> skipped -> pending

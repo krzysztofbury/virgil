@@ -57,9 +57,10 @@
         </div>
     </nav>
 
+    {% include "partials/feedback.html" %}
+
     <!-- Main Content -->
     <main class="container">
-        {% include "partials/feedback.html" %}
         {% block content %}{% endblock %}
     </main>
 

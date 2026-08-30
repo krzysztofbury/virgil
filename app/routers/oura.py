@@ -245,6 +245,6 @@ async def oura_api_sync(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/oura", "Oura sync could not be queued. Try again.")
     return success_redirect(
         request,
-        f"/oura?job_id={result.job_id}#job-status-{result.job_id}",
+        f"/oura?job_id={result.job_id}",
         "Oura sync queued.",
     )

@@ -21,12 +21,6 @@
     {% endfor %}
 </nav>
 
-{% if current_job %}
-<section class="card job-activity-card" aria-label="Queued background work">
-    {% with job=current_job %}{% include "partials/job_status.html" %}{% endwith %}
-</section>
-{% endif %}
-
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
