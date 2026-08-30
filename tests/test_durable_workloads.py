@@ -421,7 +421,10 @@ def test_production_registry_contains_only_migrated_workloads():
 
     operational = {BACKUP_JOB_KIND, MARKDOWN_EXPORT_JOB_KIND, OURA_SYNC_JOB_KIND}
     assert set(JOB_HANDLERS) - operational <= set(PAID_LLM_JOB_KINDS), "only known kinds may reach a handler"
-    assert json.dumps(sorted(JOB_HANDLERS)) == '["backup", "markdown_export", "morning_briefing", "oura_sync"]'
+    assert (
+        json.dumps(sorted(JOB_HANDLERS))
+        == '["backup", "markdown_export", "morning_briefing", "oura_sync", "wod_parse"]'
+    )
 
 
 def test_webhook_jobs_coalesce_queued_work_and_leave_one_successor_while_running(tmp_path):

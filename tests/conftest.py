@@ -54,6 +54,47 @@ def user_db_path() -> Path:
     return db_files[0]
 
 
+def drain_jobs(worker_id: str = "test-worker") -> list:
+    """Run every queued job for the test user, the way the scheduler would.
+
+    Paid work left the request path, so a test that captures something and then
+    reads the result has to let the worker run in between.
+    """
+    import asyncio
+
+    import aiosqlite
+
+    from app.services.job_worker import run_jobs_for_user
+
+    path = user_db_path()
+
+    async def opener(_filename):
+        db = await aiosqlite.connect(path)
+        db.row_factory = aiosqlite.Row
+        return db
+
+    async def closer(db):
+        await db.close()
+
+    async def scenario():
+        control = await opener(path.name)
+        try:
+            batch = await run_jobs_for_user(
+                control,
+                "test-user",
+                path.name,
+                worker_id=worker_id,
+                max_jobs=10,
+                handler_db_opener=opener,
+                handler_db_closer=closer,
+            )
+            return list(batch.jobs)
+        finally:
+            await control.close()
+
+    return asyncio.run(scenario())
+
+
 def stat_value_for_label(html: str, label: str) -> float:
     """Numeric value of the "kg" stat-card whose stat-label matches `label`.
 

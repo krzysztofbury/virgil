@@ -2,6 +2,27 @@
 {% from "partials/wod_row.html" import server_row, alpine_row %}
 {% block title %}Virgil - WOD{% endblock %}
 {% block content %}
+{# One wrapper for both states, so the waiting poll can swap itself for the
+   finished form without knowing anything about either. #}
+<div id="wod-confirm-root">
+{% if awaiting_parse %}
+<div class="card"
+     hx-get="/training/wod/confirm/{{ session_id }}"
+     hx-trigger="every 4s"
+     hx-select="#wod-confirm-root"
+     hx-target="#wod-confirm-root"
+     hx-swap="outerHTML">
+  <div class="card-header"><h3>WOD - {{ session_date }}</h3></div>
+  <div class="card-body">
+    <p role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      Analizuję notatkę. Zostań tutaj - wpisy pojawią się same.
+    </p>
+    <p class="text-muted">Notatka jest już zapisana. Jeśli analiza się nie powiedzie,
+      w historii na <a href="/training">stronie treningu</a> ta sesja pozwoli wpisać serie ręcznie.</p>
+  </div>
+</div>
+{% else %}
 <div class="card">
   <div class="card-header"><h3>WOD - {{ session_date }}</h3></div>
   <div class="card-body">
@@ -123,6 +144,8 @@
     {% endif %}
 
   </div>
+</div>
+{% endif %}
 </div>
 {% endblock %}
 

@@ -1,5 +1,6 @@
 """Trusted production handlers for durable workload jobs."""
 
+import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
@@ -10,6 +11,8 @@ from app.services.llm_jobs import paid_llm_job_key, paid_llm_trigger, run_paid_l
 
 if TYPE_CHECKING:
     from app.services.job_worker import JobContext
+
+logger = logging.getLogger(__name__)
 
 
 def _exact_payload(payload: Mapping[str, Any], keys: set[str]) -> None:
@@ -129,3 +132,68 @@ async def handle_morning_briefing(context: "JobContext", payload: Mapping[str, A
     if trigger == "scheduled":
         await set_setting(context.db, "briefing_last_day", day)
     return result
+
+
+def _positive_id(value: Any, field: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"Stored job {field} must be a positive integer")
+    return value
+
+
+async def handle_wod_parse(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Parse one captured training note into library-constrained entries.
+
+    A deterministic parse failure still publishes: the provider was already
+    paid, and storing the empty result with its reason is what puts the confirm
+    screen - and its manual-entry path - back in front of the user. Only an
+    uncertain provider outcome withholds the write, because there the charge
+    itself is in doubt.
+    """
+    import json
+    from dataclasses import asdict
+
+    from app.services.llm import LLMCallAmbiguousError
+    from app.services.wod_parser import parse_wod
+
+    _exact_payload(payload, {"session_id"})
+    session_id = _positive_id(payload["session_id"], "session id")
+    key = paid_llm_job_key("wod_parse", str(session_id))
+
+    rows = await context.db.execute_fetchall(
+        "SELECT notes FROM training_sessions WHERE id = ?",
+        (session_id,),
+    )
+    if not rows or not (rows[0]["notes"] or "").strip():
+        raise ValueError("The captured training note is gone")
+    note = rows[0]["notes"]
+
+    async def produce() -> dict[str, Any]:
+        try:
+            parsed = await parse_wod(context.db, note)
+        except LLMCallAmbiguousError:
+            raise
+        except Exception as exc:
+            logger.warning("WOD parse failed for session %s: %s", session_id, exc)
+            return {"entries": [], "unmatched": [], "parse_error": str(exc), "dropped": 0}
+        return {
+            "entries": [asdict(entry) for entry in parsed.entries],
+            "unmatched": parsed.unmatched,
+            "parse_error": "",
+            "dropped": parsed.dropped,
+        }
+
+    async def publish(parsed: dict[str, Any]) -> Mapping[str, Any]:
+        cursor = await context.db.execute(
+            "UPDATE training_sessions SET wod_parsed = ? WHERE id = ? AND wod_parsed IS NULL",
+            (json.dumps(parsed), session_id),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("The training session already carries a parse result")
+        return {
+            "session_id": session_id,
+            "entries": len(parsed["entries"]),
+            "unmatched": len(parsed["unmatched"]),
+            "parsed": not parsed["parse_error"],
+        }
+
+    return await run_paid_llm_job(context, "wod_parse", key, produce, publish)

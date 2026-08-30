@@ -10,7 +10,7 @@ import re
 import sqlite3
 from urllib.parse import urlsplit
 
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, drain_jobs, user_db_path
 
 from app.services.wod_parser import ParsedWod
 
@@ -34,11 +34,13 @@ def _session_row(note):
 
 
 def _stub_parse(monkeypatch, calls):
+    """The parse now runs in the worker, so the stub belongs at its own module."""
+
     async def fake_parse(db, text):
         calls.append(text)
         return ParsedWod(entries=[], unmatched=[], dropped=0)
 
-    monkeypatch.setattr("app.routers.training.parse_wod", fake_parse)
+    monkeypatch.setattr("app.services.wod_parser.parse_wod", fake_parse)
 
 
 def test_same_capture_token_creates_one_session(auth_client, monkeypatch):
@@ -52,11 +54,15 @@ def test_same_capture_token_creates_one_session(auth_client, monkeypatch):
         "capture_token": "probe-token-0001",
     }
     first = auth_client.post("/training/wod", data=payload, follow_redirects=False)
+    drain_jobs()
     second = auth_client.post("/training/wod", data=payload, follow_redirects=False)
+    drain_jobs()
 
     assert first.status_code == 303
     assert second.status_code == 303
-    assert first.headers["location"] == second.headers["location"]
+    # Same confirm screen. The feedback text differs: the first request queued
+    # the parse, the second recognised a replay of it.
+    assert urlsplit(first.headers["location"]).path == urlsplit(second.headers["location"]).path
     assert _count_sessions("double click probe") == 1
     assert len(calls) == 1, "the second request paid for a second parse"
 
@@ -76,7 +82,9 @@ def test_reused_token_with_a_new_note_still_saves_it(auth_client, monkeypatch):
         "capture_token": "reused-token-0002",
     }
     auth_client.post("/training/wod", data={**base, "wod_text": "first note"}, follow_redirects=False)
+    drain_jobs()
     second = auth_client.post("/training/wod", data={**base, "wod_text": "second note"}, follow_redirects=False)
+    drain_jobs()
 
     assert second.status_code == 303
     assert _count_sessions("second note") == 1, "the second note was dropped as a false replay"

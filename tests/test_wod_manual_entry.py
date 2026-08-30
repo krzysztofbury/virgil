@@ -16,7 +16,7 @@ import sqlite3
 from urllib.parse import urlsplit
 
 import pytest
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, drain_jobs, user_db_path
 
 from app.routers.training import MAX_CONFIRM_ENTRIES, SEED_ROWS_ON_PARSE_FAILURE
 
@@ -47,10 +47,14 @@ def _fail_parse(monkeypatch):
 
 def _capture(auth_client, text="ZZ crossfit, parser down"):
     token = csrf_token(auth_client, "/training")
-    return auth_client.post(
+    captured = auth_client.post(
         "/training/wod",
         data={"date": "2026-08-03", "duration_minutes": "60", "wod_text": text, "_csrf_token": token},
     )
+    # The parse is a durable job now, so the confirm page is only settled once
+    # the worker has run.
+    drain_jobs()
+    return auth_client.get(captured.url)
 
 
 def _session_id(html):
