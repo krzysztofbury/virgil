@@ -181,7 +181,7 @@ explicit decision to support accounts outside the trusted household.
       transport-only bounded draft retention for Daily and Feniks. Completed on
       `fix/reliability-phase-2-mutation-feedback`; 568 tests and a two-pass
       TigerStyle pair-programming review passed before push.
-- [ ] **Phase 3 — Durable jobs:** restart-safe queue for LLM, sync, backup and
+- [x] **Phase 3 — Durable jobs:** restart-safe queue for LLM, sync, backup and
       export work, with bounded retries and no automatic retry at an ambiguous
       paid-LLM boundary.
       - [x] **Phase 3A - Durable state core:** migration 027, bounded payloads,
@@ -198,15 +198,19 @@ explicit decision to support accounts outside the trusted household.
         retry for failed or ambiguous work. Completed on
         `fix/reliability-phase-3c-job-status-ui`; 637 tests and a three-pass
         TigerStyle review passed before push.
-      - [ ] **Phase 3D - Workload migration:** move Oura, backup/export and LLM
+      - [x] **Phase 3D - Workload migration:** move Oura, backup/export and LLM
         calls one kind at a time, with an explicit retry policy for each kind.
         - [x] Backup, markdown export and manual/scheduled/webhook Oura sync use
           bounded automatic-retry jobs with replay-safe publication and one
           queued successor per kind. Completed on
           `fix/reliability-phase-3d-workload-jobs`; 650 tests, real-browser
           desktop/mobile smoke and final TigerStyle review passed.
-        - [ ] Paid LLM workloads remain on the request path and require manual
-          retry at an ambiguous provider boundary.
+        - [x] All six paid LLM families (morning briefing, WOD parse, A.N.D.Y.,
+          experiment summaries, onboarding enrichment, medical import) are
+          single-attempt manual-retry jobs. Migration 029 adds the publication
+          ledger and one queued job per paid kind; `LLMCallAmbiguousError` keeps
+          an uncertain provider outcome out of an automatic second charge.
+          Completed on `fix/reliability-phase-3d-llm-jobs`.
 - [ ] **Phase 4 - Oura lifecycle hardening:**
       - [x] Signed delivery timestamp replay protection and persistent delivery
         fingerprints shipped with Phase 3D operational workloads.
@@ -236,8 +240,8 @@ explicit decision to support accounts outside the trusted household.
 
 ### P1 — Durable job model for LLM/sync/backup work
 
-**Roadmap status:** Phases 3A-3C and Phase 3D operational workloads are complete;
-paid LLM workload migration remains.
+**Roadmap status:** Phase 3 is complete. Every LLM, sync, backup and export
+call runs as a durable job.
 **Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no automatic duplicate LLM cost at an ambiguous provider boundary.
 **Shipped in Phase 3A:** migration 027 and the durable state-transition service:
 bounded JSON payload/result/error fields, idempotent enqueue with semantic conflict
@@ -258,9 +262,12 @@ automatic-retry job kinds. Manual routes, schedules and Oura webhooks enqueue
 only; filesystem and network I/O runs in the static worker registry. Queue
 growth, terminal history and retries are bounded, while Oura partial outcomes
 stay visible without exposing job payloads.
-**Plan remaining:** onboarding enrichment, A.N.D.Y., experiment summaries and
-briefings become explicit paid-LLM job kinds with ambiguity-safe manual retry.
-**Deliverables remaining:** onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); workload-level crash/restart tests.
+**Shipped in Phase 3D (paid LLM):** six paid job kinds with one attempt and
+manual retry, a publication ledger that outlives terminal pruning, per-step
+onboarding enrichment with its own retry and an explicit "Continue without AI",
+and medical uploads staged outside the job payload. The experiment-summary
+cooldown dictionary is gone: the queue and the ledger are the guard, and a page
+load no longer buys anything.
 
 ### P1 — Recovery & data-ownership story
 

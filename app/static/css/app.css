@@ -667,27 +667,68 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .text-muted { color: var(--text-secondary); }
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
-/* ── Mutation Feedback ── */
-.mutation-feedback {
-  position: sticky;
+/* ── Notification Tray ── */
+/* Fixed top-right, out of the document flow: feedback must never reflow the
+   page it reports on. Empty live regions collapse so the tray adds no gap. */
+.notification-tray {
+  position: fixed;
   top: calc(var(--nav-height) + 0.75rem);
+  right: 1rem;
   z-index: 2000;
   display: grid;
   gap: 0.5rem;
-  width: min(100%, 48rem);
-  margin: 0 auto 1rem;
+  width: min(24rem, calc(100vw - 2rem));
+  max-height: calc(100vh - var(--nav-height) - 2rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* An empty tray covers the page corner; only real notifications take clicks. */
+  pointer-events: none;
 }
+.notification-tray > section { display: grid; gap: 0.5rem; pointer-events: none; }
+.notification-tray > section:empty { display: none; }
+.notification-tray > section > div:empty { display: none; }
+.notification-tray .feedback-message,
+.notification-tray .job-status-card { pointer-events: auto; }
+@media (max-width: 640px) {
+  .notification-tray {
+    left: 0.75rem;
+    right: 0.75rem;
+    width: auto;
+    top: calc(var(--nav-height) + 0.5rem);
+  }
+}
+
+/* ── Mutation Feedback ── */
+.mutation-feedback { display: grid; gap: 0.5rem; }
 .feedback-message {
   padding: 0.75rem 1rem;
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   color: #fff;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.28);
   backdrop-filter: blur(8px);
   font-size: 0.875rem;
   font-weight: 600;
 }
 .feedback-message[hidden] { display: none; }
+@keyframes notification-enter {
+  from { opacity: 0; transform: translateY(-0.5rem); }
+  to { opacity: 1; transform: none; }
+}
+.notification-tray .feedback-message,
+.notification-tray > #job-notifications > article {
+  animation: notification-enter 180ms ease-out;
+}
+.notification-tray .is-leaving {
+  opacity: 0;
+  transform: translateY(-0.35rem);
+  transition: opacity 200ms ease, transform 200ms ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .notification-tray .feedback-message,
+  .notification-tray > #job-notifications > article { animation: none; }
+  .notification-tray .is-leaving { transition: none; }
+}
 .feedback-success { background: rgba(16, 120, 87, 0.96); border-color: rgba(52, 211, 153, 0.5); }
 .feedback-pending { background: rgba(30, 64, 175, 0.96); border-color: rgba(96, 165, 250, 0.5); }
 .feedback-error {
@@ -1056,10 +1097,7 @@ details > :not(summary) { margin-top: 1rem; }
   pointer-events: none;
   opacity: 0.4;
 }
-.andy-btn-loading { display: none; align-items: center; gap: 0.35rem; }
 .andy-btn-idle { display: inline-flex; align-items: center; gap: 0.35rem; }
-.andy-card.htmx-request .andy-btn-idle { display: none; }
-.andy-card.htmx-request .andy-btn-loading { display: inline-flex; }
 .andy-card.htmx-request .andy-gen-btn {
   pointer-events: none;
   opacity: 0.8;
@@ -1215,6 +1253,63 @@ details > :not(summary) { margin-top: 1rem; }
   .job-status-heading { flex-direction: column; gap: 0.5rem; }
   .job-status-badge { align-self: flex-start; }
 }
+/* In the tray a job is a notification, not a report: the counters and
+   timestamps stay in Settings > Automation, which is the history view. */
+.notification-tray .job-status-card {
+  /* An opaque ground, not --bg-card: a floating card over live page content
+     has to be readable, and --bg-card is deliberately translucent. */
+  background: var(--bg-secondary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.28);
+}
+.notification-tray .job-status-meta { display: none; }
+/* flex:0 0 auto, or the badge's nowrap plus the fixed-width dismiss button
+   overflow the card instead of squeezing the title beside them. */
+.job-status-heading-end { flex: 0 0 auto; display: flex; align-items: center; gap: 0.25rem; }
+
+/* ── Onboarding AI extras ── */
+.enrichment-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.enrichment-step {
+  display: grid;
+  grid-template-columns: 1.25rem 1fr auto;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+}
+.enrichment-mark { text-align: center; }
+.enrichment-state { font-size: 0.8rem; }
+.enrichment-done .enrichment-mark { color: var(--green); }
+.enrichment-not_needed { opacity: 0.6; }
+
+/* ── LLM thinking level ── */
+.llm-reasoning {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+.llm-reasoning label { display: flex; flex-direction: column; gap: 0.35rem; font-size: 0.9rem; }
+.llm-reasoning select { min-width: 9rem; }
+.llm-reasoning small { flex: 1 1 16rem; }
+.notification-tray .job-status-heading p { font-size: 0.75rem; }
+.job-status-dismiss {
+  flex: 0 0 auto;
+  width: 1.75rem;
+  height: 1.75rem;
+  padding: 0;
+  margin-left: 0.35rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 1.1rem;
+  line-height: 1;
+}
+.job-status-dismiss:hover { background: var(--bg-surface); color: var(--text-primary); }
+/* The Settings history list is not dismissible - it is the record. */
+.job-status-list .job-status-dismiss { display: none; }
 
 /* ═══════════════════════════════════════════
    Experiments
@@ -2200,6 +2295,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   color: var(--text-primary);
 }
 .brick-card form .btn { align-self: flex-end; }
+.brick-card form .brick-date { align-self: flex-start; max-width: 14rem; }
+.brick-card form input[type="date"] {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
 .brick-card-summary {
   width: 100%;
   display: flex;

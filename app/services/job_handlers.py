@@ -1,19 +1,37 @@
 """Trusted production handlers for durable workload jobs."""
 
+import logging
 from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.db import set_setting
 from app.services.job_producers import EXPORT_SCOPES, EXPORT_SECTIONS, JOB_TRIGGERS
+from app.services.llm_jobs import paid_llm_job_key, paid_llm_trigger, run_paid_llm_job
 
 if TYPE_CHECKING:
     from app.services.job_worker import JobContext
+
+logger = logging.getLogger(__name__)
 
 
 def _exact_payload(payload: Mapping[str, Any], keys: set[str]) -> None:
     if set(payload) != keys:
         raise ValueError(f"Job payload must contain exactly: {', '.join(sorted(keys))}")
+
+
+def _iso_day(value: Any) -> str:
+    from datetime import date as calendar_date
+
+    if not isinstance(value, str):
+        raise ValueError("Stored job day must be an ISO date string")
+    try:
+        parsed = calendar_date.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError("Stored job day is not a valid date") from exc
+    if parsed.isoformat() != value:
+        raise ValueError("Stored job day must be in canonical YYYY-MM-DD form")
+    return value
 
 
 def _trigger(payload: Mapping[str, Any]) -> str:
@@ -89,3 +107,240 @@ async def handle_oura_sync(context: "JobContext", payload: Mapping[str, Any]) ->
         "failed_daily_endpoints": list(result.failed_daily_endpoints),
         "workouts_synced": result.workouts_synced,
     }
+
+
+async def handle_morning_briefing(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    from app.services.briefing import generate_briefing_text, save_briefing
+
+    _exact_payload(payload, {"day", "key_part", "trigger"})
+    trigger = paid_llm_trigger(payload["trigger"])
+    day = _iso_day(payload["day"])
+    key = paid_llm_job_key("morning_briefing", trigger, str(payload["key_part"]))
+
+    async def publish(content: str) -> Mapping[str, Any]:
+        return {"day": day, "chars": await save_briefing(context.db, day, content)}
+
+    result = await run_paid_llm_job(
+        context,
+        "morning_briefing",
+        key,
+        lambda: generate_briefing_text(context.db, day),
+        publish,
+    )
+    # Only a stored briefing may close the day, or one provider outage would
+    # silently skip the day entirely.
+    if trigger == "scheduled":
+        await set_setting(context.db, "briefing_last_day", day)
+    return result
+
+
+def _positive_id(value: Any, field: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value < 1:
+        raise ValueError(f"Stored job {field} must be a positive integer")
+    return value
+
+
+async def handle_wod_parse(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Parse one captured training note into library-constrained entries.
+
+    A deterministic parse failure still publishes: the provider was already
+    paid, and storing the empty result with its reason is what puts the confirm
+    screen - and its manual-entry path - back in front of the user. Only an
+    uncertain provider outcome withholds the write, because there the charge
+    itself is in doubt.
+    """
+    import json
+    from dataclasses import asdict
+
+    from app.services.llm import LLMCallAmbiguousError
+    from app.services.wod_parser import parse_wod
+
+    _exact_payload(payload, {"session_id"})
+    session_id = _positive_id(payload["session_id"], "session id")
+    key = paid_llm_job_key("wod_parse", str(session_id))
+
+    rows = await context.db.execute_fetchall(
+        "SELECT notes FROM training_sessions WHERE id = ?",
+        (session_id,),
+    )
+    if not rows or not (rows[0]["notes"] or "").strip():
+        raise ValueError("The captured training note is gone")
+    note = rows[0]["notes"]
+
+    async def produce() -> dict[str, Any]:
+        try:
+            parsed = await parse_wod(context.db, note)
+        except LLMCallAmbiguousError:
+            raise
+        except Exception as exc:
+            logger.warning("WOD parse failed for session %s: %s", session_id, exc)
+            return {"entries": [], "unmatched": [], "parse_error": str(exc), "dropped": 0}
+        return {
+            "entries": [asdict(entry) for entry in parsed.entries],
+            "unmatched": parsed.unmatched,
+            "parse_error": "",
+            "dropped": parsed.dropped,
+        }
+
+    async def publish(parsed: dict[str, Any]) -> Mapping[str, Any]:
+        cursor = await context.db.execute(
+            "UPDATE training_sessions SET wod_parsed = ? WHERE id = ? AND wod_parsed IS NULL",
+            (json.dumps(parsed), session_id),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("The training session already carries a parse result")
+        return {
+            "session_id": session_id,
+            "entries": len(parsed["entries"]),
+            "unmatched": len(parsed["unmatched"]),
+            "parsed": not parsed["parse_error"],
+        }
+
+    return await run_paid_llm_job(context, "wod_parse", key, produce, publish)
+
+
+async def handle_andy_generation(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    from app.services.andy import generate_andy_suggestions, save_andy_suggestions
+
+    _exact_payload(payload, {"day", "key_part"})
+    day = _iso_day(payload["day"])
+    key = paid_llm_job_key("andy_generation", day, str(payload["key_part"]))
+
+    async def publish(suggestions: dict[str, str]) -> Mapping[str, Any]:
+        return {"day": day, "filled": await save_andy_suggestions(context.db, day, suggestions)}
+
+    return await run_paid_llm_job(
+        context,
+        "andy_generation",
+        key,
+        lambda: generate_andy_suggestions(context.db, day),
+        publish,
+    )
+
+
+async def handle_experiment_summary(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    from app.services.experiment_summary import build_week_summary, save_week_summary
+
+    _exact_payload(payload, {"experiment_id", "week_number", "trigger"})
+    trigger = paid_llm_trigger(payload["trigger"])
+    experiment_id = _positive_id(payload["experiment_id"], "experiment id")
+    week_number = _positive_id(payload["week_number"], "week number")
+    key = paid_llm_job_key("experiment_summary", str(experiment_id), str(week_number), trigger)
+
+    async def publish(summary: str) -> Mapping[str, Any]:
+        return {
+            "experiment_id": experiment_id,
+            "week_number": week_number,
+            "chars": await save_week_summary(context.db, experiment_id, week_number, summary),
+        }
+
+    return await run_paid_llm_job(
+        context,
+        "experiment_summary",
+        key,
+        lambda: build_week_summary(context.db, experiment_id, week_number),
+        publish,
+    )
+
+
+async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Import one staged blood panel: at most two paid calls, then one write."""
+    from app.models.user_profile import ensure_profile, update_step5
+    from app.services.medical_import import (
+        MEDICAL_SOURCES,
+        MEDICAL_TEXT_MAX_CHARS,
+        discard_staged,
+        extract_pdf_markers,
+        parse_medical_text,
+        read_staged,
+        save_medical_markers,
+    )
+
+    _exact_payload(payload, {"source", "upload"})
+    source = payload["source"]
+    if source not in MEDICAL_SOURCES:
+        raise ValueError("Stored medical import source is invalid")
+    token = payload["upload"]
+    if not isinstance(token, str):
+        raise ValueError("Stored medical upload token must be a string")
+    key = paid_llm_job_key("medical_import", token)
+    # Outside the publish transaction: ensure_profile commits when it inserts,
+    # and a commit inside publish would split the write from its marker.
+    await ensure_profile(context.db)
+
+    async def produce() -> list:
+        raw = read_staged(context.user_id, token)
+        if source == "pdf":
+            text = await extract_pdf_markers(raw)
+        else:
+            text = raw.decode("utf-8", errors="replace")[:MEDICAL_TEXT_MAX_CHARS]
+        if not text.strip():
+            raise ValueError("The medical upload held nothing to import")
+        markers = await parse_medical_text(text)
+        if not markers:
+            # A produce-side failure: the charge happened, nothing is worth
+            # storing, and the message names what the user should check.
+            raise ValueError("No blood test markers were found in the upload")
+        return markers
+
+    async def publish(markers: list) -> Mapping[str, Any]:
+        imported = await save_medical_markers(context.db, markers)
+        if not imported:
+            raise ValueError("No blood test markers were found in the upload")
+        await update_step5(context.db, commit=False)
+        return {"markers": imported}
+
+    result = await run_paid_llm_job(context, "medical_import", key, produce, publish)
+    # The bytes exist only to be imported. Once they are, they go.
+    discard_staged(context.user_id, token)
+    return result
+
+
+async def handle_onboarding_enrichment(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Run every enrichment step that still owes work, one purchase at a time.
+
+    The steps are independent, so one failure must not cost the others. Each
+    publishes under its own key, so a retry re-buys only what is missing, and
+    the job as a whole reports the worst outcome it saw.
+    """
+    from app.models.user_profile import get_profile
+    from app.services.job_worker import AmbiguousJobError, VisibleJobError
+    from app.services.onboarding import enrichment_units
+
+    _exact_payload(payload, set())
+    profile = await get_profile(context.db) or {}
+    outcomes: dict[str, str] = {}
+    ambiguous: list[str] = []
+    failed: list[str] = []
+
+    for unit in await enrichment_units(context.db, profile):
+        try:
+            result = await run_paid_llm_job(
+                context,
+                "onboarding_enrichment",
+                unit["key"],
+                unit["produce"],
+                unit["publish"],
+            )
+        except AmbiguousJobError:
+            ambiguous.append(unit["step"])
+            outcomes[unit["step"]] = "uncertain"
+            continue
+        except VisibleJobError as exc:
+            failed.append(f"{unit['step']}: {exc.public_error}")
+            outcomes[unit["step"]] = "failed"
+            continue
+        except Exception:
+            logger.exception("Onboarding enrichment step %s failed", unit["step"])
+            failed.append(unit["step"])
+            outcomes[unit["step"]] = "failed"
+            continue
+        outcomes[unit["step"]] = "published" if result.get("published") else "already_published"
+        # The summary a step just wrote is context for the next one.
+        profile = await get_profile(context.db) or profile
+
+    if ambiguous:
+        raise AmbiguousJobError("Some AI steps may already have been charged: " + ", ".join(sorted(ambiguous)))
+    if failed:
+        raise VisibleJobError("Some AI steps did not finish: " + "; ".join(failed))
+    return {"steps": outcomes}

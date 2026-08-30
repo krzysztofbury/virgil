@@ -20,6 +20,8 @@ from app.user_db import close_user_db, open_user_db
 
 logger = logging.getLogger(__name__)
 
+BRIEFING_JOB_KIND = "morning_briefing"
+EXPERIMENTS_PER_TICK_MAX = 20
 TICK_SECONDS = 60
 USERS_PER_TICK_MAX = 100
 USERS_CONCURRENT_MAX = 4
@@ -106,18 +108,51 @@ async def _enqueue_oura_if_due(db, now: datetime) -> None:
         logger.exception("Failed to enqueue scheduled Oura sync")
 
 
+async def _enqueue_due_summaries(db) -> None:
+    """Queue one missing experiment week summary per active experiment.
+
+    Moved off the experiment detail GET: opening a page must not spend money,
+    and a page load is not a schedule.
+    """
+    from app.services.experiment_summary import enqueue_due_summary
+
+    rows = await db.execute_fetchall(
+        "SELECT id FROM experiments WHERE status = 'active' ORDER BY id LIMIT ?",
+        (EXPERIMENTS_PER_TICK_MAX,),
+    )
+    for row in rows:
+        try:
+            job_id = await enqueue_due_summary(db, row["id"])
+        except Exception:
+            logger.exception("Failed to enqueue a summary for experiment %s", row["id"])
+            continue
+        if job_id is not None:
+            logger.info("Experiment %s week summary job queued: %d", row["id"], job_id)
+            # One queued paid job per kind, so the rest wait for the next tick.
+            return
+
+
 async def _enqueue_due_jobs(db) -> None:
     now = datetime.now(UTC)
     await _enqueue_backup_if_due(db, now)
     await _enqueue_export_if_due(db, now)
     await _enqueue_oura_if_due(db, now)
+    await _enqueue_due_summaries(db)
 
 
-async def _run_briefing_task(db) -> None:
-    from app.services.briefing import generate_briefing
+async def _enqueue_briefing(db, day_iso: str) -> None:
+    """Queue the day's briefing. The scheduler never calls a paid provider
+    itself: a tick must stay short and must not retry a charge on its own."""
+    from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 
-    await generate_briefing(db)
-    logger.info("Scheduled morning briefing generated")
+    result = await enqueue_paid_llm_job(
+        db,
+        BRIEFING_JOB_KIND,
+        {"day": day_iso, "trigger": "scheduled", "key_part": day_iso},
+        idempotency_key=paid_llm_job_key(BRIEFING_JOB_KIND, "scheduled", day_iso),
+    )
+    if result.created:
+        logger.info("Scheduled morning briefing job queued: %d", result.job_id)
 
 
 # Morning briefings generate once per local day, but not before people wake up —
@@ -142,6 +177,8 @@ async def _check_and_run(db, user_id: str) -> None:
     now_iso = datetime.now(UTC).isoformat()
 
     # Morning briefing — once per local day, after BRIEFING_EARLIEST_HOUR.
+    # briefing_last_day is stamped by the handler once the briefing is stored,
+    # so a provider outage retries tomorrow instead of skipping the day.
     if await get_setting(db, "briefing_enabled", "0") == "1":
         from app.services.llm import llm_available
 
@@ -150,10 +187,11 @@ async def _check_and_run(db, user_id: str) -> None:
         if _briefing_due(datetime.now(), last_day, last_attempt) and await llm_available(db):
             await set_setting(db, "briefing_last_attempt", now_iso)
             try:
-                await _run_briefing_task(db)
-                await set_setting(db, "briefing_last_day", datetime.now().date().isoformat())
+                await _enqueue_briefing(db, datetime.now().date().isoformat())
+            except ActiveWorkloadConflictError:
+                logger.info("Scheduled briefing is waiting for queued briefing work")
             except Exception:
-                logger.exception("Scheduled briefing failed")
+                logger.exception("Failed to enqueue scheduled briefing")
 
 
 def _select_users_for_tick(users: list[dict]) -> list[dict]:

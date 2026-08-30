@@ -7,11 +7,29 @@ the real cause was a JSONDecodeError in parse_andy_response, not an auth error.
 """
 
 import sqlite3
+from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, drain_jobs, user_db_path
 
 from app.services.llm import parse_andy_response
+
+
+async def _available(_db) -> bool:
+    return True
+
+
+@pytest.fixture(autouse=True)
+def _clean_jobs(auth_client):
+    """drain_jobs runs whatever is queued, so no test may inherit another's work."""
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute("DELETE FROM jobs")
+        conn.execute("DELETE FROM llm_publications")
+        conn.commit()
+    finally:
+        conn.close()
+    yield
 
 
 def test_parse_plain_json():
@@ -38,22 +56,47 @@ def test_parse_rejects_non_json(bad):
         parse_andy_response(bad)
 
 
-def test_generate_andy_surfaces_error(auth_client):
+def test_generate_andy_refuses_without_a_provider_instead_of_queueing(auth_client):
+    """With no provider there is nothing to buy, so no job should exist to retry."""
     token = csrf_token(auth_client, "/daily")
     resp = auth_client.post(
         "/daily/generate-andy",
-        data={"date": "2026-07-07", "_csrf_token": token},
-        headers={"HX-Request": "true"},
+        data={"date": "2026-07-07", "job_nonce": "a" * 32, "_csrf_token": token},
         follow_redirects=False,
     )
-    assert resp.status_code == 500
-    assert resp.headers.get("HX-Retarget") == "#andy-error", "error must retarget to the visible container"
-    assert resp.headers.get("HX-Reswap") == "innerHTML"
-    assert resp.headers.get("X-Feedback-Swap") == "true"
-    assert resp.headers.get("X-Feedback-Message") == "Could not generate A.N.D.Y. suggestions."
-    # Exact reason varies by env (no provider / bad key / bad model), but an LLM
-    # error must be shown to the user, not swallowed into an empty redirect.
-    assert "LLM" in resp.text and "⚠" in resp.text, f"reason must be shown, got: {resp.text[:200]}"
+    assert resp.status_code == 303
+    assert "err=" in resp.headers["location"]
+    conn = sqlite3.connect(user_db_path())
+    try:
+        assert conn.execute("SELECT COUNT(*) FROM jobs WHERE kind = 'andy_generation'").fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_a_failed_generation_shows_its_reason_on_the_job_card(auth_client, monkeypatch):
+    """The failure has to stay visible: a silent one looks exactly like
+    "request fires, nothing fills", which is the regression this file exists for."""
+
+    async def broken(db, system_prompt, user_prompt, **kwargs):
+        raise ValueError("LLM authentication failed for model test/model")
+
+    monkeypatch.setattr("app.routers.daily.llm_available", _available)
+    monkeypatch.setattr("app.services.andy.call_llm", broken)
+
+    token = csrf_token(auth_client, "/daily")
+    resp = auth_client.post(
+        "/daily/generate-andy",
+        data={"date": "2026-07-07", "job_nonce": "b" * 32, "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    job_id = int(parse_qs(urlsplit(resp.headers["location"]).query)["job_id"][0])
+    drain_jobs()
+
+    card = auth_client.get(f"/api/jobs/{job_id}")
+    assert "Failed" in card.text
+    assert "LLM authentication failed" in card.text, "the reason must reach the user, not only the log"
+    assert "Retry" in card.text
 
 
 def test_generate_andy_sends_the_schedule_not_a_prescription(auth_client, monkeypatch):
@@ -97,19 +140,22 @@ def test_generate_andy_sends_the_schedule_not_a_prescription(auth_client, monkey
         captured["user_prompt"] = user_prompt
         return '{"andy_body_desc": "x", "andy_spirit_desc": "x", "andy_account_desc": "x", "andy_relations_desc": "x"}'
 
-    import app.services.llm as llm_module
+    # The suggestions are built in the worker now, so the stub belongs where
+    # that module bound the name.
+    monkeypatch.setattr("app.services.andy.call_llm", fake_call_llm)
 
-    monkeypatch.setattr(llm_module, "call_llm", fake_call_llm)
-
+    monkeypatch.setattr("app.routers.daily.llm_available", _available)
     token = csrf_token(auth_client, "/daily")
     try:
         resp = auth_client.post(
             "/daily/generate-andy",
-            data={"date": "2026-07-08", "_csrf_token": token},
+            data={"date": "2026-07-08", "job_nonce": "c" * 32, "_csrf_token": token},
             follow_redirects=False,
         )
         assert resp.status_code == 303
-        assert "user_prompt" in captured, "call_llm must have been invoked"
+        assert "user_prompt" not in captured, "the request must not wait on the provider"
+        drain_jobs()
+        assert "user_prompt" in captured, "the worker must have invoked call_llm"
         prompt = captured["user_prompt"]
 
         assert "--- Training plan ---" in prompt, "the schedule block must reach the planner"

@@ -5,7 +5,7 @@ import sqlite3
 from datetime import date
 from urllib.parse import parse_qs, urlsplit
 
-from conftest import csrf_token, plain_stat_value_for_label, stat_value_for_label, user_db_path
+from conftest import csrf_token, drain_jobs, plain_stat_value_for_label, stat_value_for_label, user_db_path
 
 from app.routers.training import MAX_CONFIRM_ENTRIES
 
@@ -476,6 +476,7 @@ def _capture_two_row_parse(auth_client, monkeypatch, note):
     )
     token = csrf_token(auth_client, "/training")
     auth_client.post("/training/wod", data={"date": date.today().isoformat(), "wod_text": note, "_csrf_token": token})
+    drain_jobs()
     return _sessions()[0]["id"], token
 
 

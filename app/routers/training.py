@@ -1,19 +1,22 @@
 import json
 import logging
 import sqlite3
-from dataclasses import asdict
 from datetime import date, timedelta
 from uuid import uuid4
 
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.job_producers import ActiveWorkloadConflictError
+from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 from app.services.wod_movements import resolve_movement
-from app.services.wod_parser import canonical_movements, parse_wod
+from app.services.wod_parser import canonical_movements
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
+
+WOD_PARSE_JOB_KIND = "wod_parse"
 
 logger = logging.getLogger(__name__)
 
@@ -214,8 +217,14 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
     return value
 
 
+async def _current_job(db, job_id: int | None) -> dict | None:
+    from app.routers.jobs import current_job_view
+
+    return await current_job_view(db, job_id)
+
+
 @router.get("/training", response_class=HTMLResponse)
-async def training_page(request: Request, page: int = 1):
+async def training_page(request: Request, page: int = 1, job_id: int | None = Query(None, ge=1)):
     db = get_user_db_from_request(request)
 
     # Sessions with a pending parse come first, and independently of the history
@@ -265,11 +274,22 @@ async def training_page(request: Request, page: int = 1):
         for s in sessions:
             s["entries"] = []
 
+    # A session whose parse is still queued looks exactly like a stranded one.
+    # Naming the difference is what stops the page offering manual entry for
+    # work that is about to arrive on its own.
+    parsing_rows = await db.execute_fetchall(
+        """SELECT json_extract(payload_json, '$.session_id') AS session_id FROM jobs
+           WHERE kind = ? AND status IN ('queued', 'running')""",
+        (WOD_PARSE_JOB_KIND,),
+    )
+    parsing_ids = {row["session_id"] for row in parsing_rows}
+
     for s in sessions:
+        s["parsing"] = s["id"] in parsing_ids
         # A session holding only the raw note: the parse never landed (a crash
         # between capture_wod's two commits) or the user discarded it. Offer
         # manual entry rather than leaving the note as the only record.
-        s["stranded"] = bool(s["notes"]) and not s["entries"] and not s["wod_parsed"]
+        s["stranded"] = bool(s["notes"]) and not s["entries"] and not s["wod_parsed"] and not s["parsing"]
 
     # --- KPIs: This Week ---
     today = date.today()
@@ -335,6 +355,7 @@ async def training_page(request: Request, page: int = 1):
             "capture_token": uuid4().hex,
             "pending_sessions": pending_sessions,
             "pending_overflow": pending_overflow,
+            "current_job": await _current_job(db, job_id),
             "page": page,
             "has_prev": page > 1,
             "has_next": has_next,
@@ -436,62 +457,82 @@ async def capture_wod(request: Request):
         if session_id is None:
             return error_redirect(request, "/training", "Nie udało się zapisać notatki treningowej.")
 
-    entries: list = []
-    unmatched: list[str] = []
-    dropped = 0
-    parse_error = ""
+    # The paid parse belongs to the worker. The note is already committed, so a
+    # parse that never runs costs structure, never the record - and the confirm
+    # screen waits for it instead of this request doing so.
     try:
-        parsed = await parse_wod(db, wod_text)
-        entries, unmatched, dropped = parsed.entries, parsed.unmatched, parsed.dropped
-    except Exception as exc:
-        # Broadened from `except ValueError`: parse_wod's own call chain raises
-        # more than ValueError — app/services/llm.py has bare asserts (missing
-        # content, max_tokens bounds), transport errors that aren't
-        # litellm.APIError subclasses, and canonical_movements() below now
-        # asserts a vocabulary bound (I5) that can also fire mid-parse. Any of
-        # those left this session's wod_parsed NULL forever: the GET confirm
-        # page 303s away when wod_parsed is unset, and at the time the only
-        # other writer always INSERTed a brand-new session, so there was no way
-        # to ever attach entries to this one again. That other writer is gone
-        # now (the confirm screen is the sole writer of training_entries),
-        # which makes this handler load-bearing rather than belt-and-braces:
-        # without it, a parse crash strands the session permanently.
-        # The INSERT+commit above already happened, so catching wider here
-        # weakens no ordering guarantee.
-        parse_error = str(exc)
-        logger.warning("WOD parse failed for session %s: %s", session_id, exc)
-
-    wod_parsed = json.dumps(
-        {
-            "entries": [asdict(e) for e in entries],
-            "unmatched": unmatched,
-            "parse_error": parse_error,
-            "dropped": dropped,
-        }
-    )
-    await db.execute("UPDATE training_sessions SET wod_parsed = ? WHERE id = ?", (wod_parsed, session_id))
-    await db.commit()
+        result = await enqueue_paid_llm_job(
+            db,
+            WOD_PARSE_JOB_KIND,
+            {"session_id": session_id},
+            idempotency_key=paid_llm_job_key(WOD_PARSE_JOB_KIND, str(session_id)),
+        )
+    except ActiveWorkloadConflictError:
+        return success_redirect(
+            request,
+            f"/training/wod/confirm/{session_id}",
+            "Notatka treningowa zapisana. Analiza wpisów już trwa.",
+        )
+    except Exception:
+        logger.exception("WOD parse enqueue failed for session %s", session_id)
+        return error_redirect(
+            request,
+            "/training",
+            "Notatka zapisana, ale analiza się nie zakolejkowała. Uzupełnij wpisy ręcznie.",
+        )
 
     return success_redirect(
         request,
-        f"/training/wod/confirm/{session_id}",
-        "Notatka treningowa zapisana. Sprawdź wpisy przed zatwierdzeniem.",
+        f"/training/wod/confirm/{session_id}?job_id={result.job_id}",
+        "Notatka treningowa zapisana. Analizuję wpisy.",
     )
 
 
+async def _parse_job_in_flight(db, session_id: int) -> bool:
+    """True while a queued or running parse still owes this session a result."""
+    rows = await db.execute_fetchall(
+        """SELECT 1 FROM jobs
+           WHERE kind = ? AND status IN ('queued', 'running')
+             AND json_extract(payload_json, '$.session_id') = ?
+           LIMIT 1""",
+        (WOD_PARSE_JOB_KIND, session_id),
+    )
+    return bool(rows)
+
+
 @router.get("/training/wod/confirm/{session_id}", response_class=HTMLResponse)
-async def wod_confirm_page(request: Request, session_id: int):
+async def wod_confirm_page(request: Request, session_id: int, job_id: int | None = Query(None, ge=1)):
     """Render the WOD confirmation screen from the STORED parse result.
 
-    Never re-parses: a GET (including a plain browser refresh) must never
-    invoke the LLM again — that's the whole point of persisting the result in
-    capture_wod rather than rendering it directly there.
+    Never parses: a GET (including a plain browser refresh) must never invoke
+    the LLM - that is the whole point of the worker persisting the result and
+    this page only reading it.
     """
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT id, date, wod_parsed FROM training_sessions WHERE id = ?", (session_id,))
     if not rows or not rows[0]["wod_parsed"]:
+        if rows and await _parse_job_in_flight(db, session_id):
+            # The note is safe and the parse is still owed. Wait here rather
+            # than bouncing the user to a page that cannot explain why.
+            return templates.TemplateResponse(
+                "wod_confirm.html",
+                {
+                    "request": request,
+                    "awaiting_parse": True,
+                    "session_id": session_id,
+                    "session_date": rows[0]["date"],
+                    "current_job": await _current_job(db, job_id),
+                },
+            )
         # Unknown session, or one not created by the WOD capture flow (no
-        # stored parse result to show) — nothing to confirm here.
+        # stored parse result to show) - nothing to confirm here.
+        #
+        # The waiting panel polls this route with hx-select="#wod-confirm-root".
+        # XHR follows a 303 transparently, so htmx would select that id out of
+        # /training, find nothing, and swap the panel away: a blank screen with
+        # no way forward. Tell htmx to navigate instead.
+        if request.headers.get("HX-Request") == "true":
+            return Response(status_code=200, headers={"HX-Redirect": "/training"})
         return RedirectResponse("/training", status_code=303)
 
     session = rows[0]

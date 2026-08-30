@@ -11,6 +11,44 @@ logger = logging.getLogger(__name__)
 litellm.suppress_debug_info = True
 
 
+class LLMCallAmbiguousError(RuntimeError):
+    """The provider may have accepted a paid request before transport failed."""
+
+
+REASONING_EFFORT_SETTING = "llm_reasoning_effort"
+DEFAULT_REASONING_EFFORT = "medium"
+# Ordered weakest to strongest, and deliberately only the values both provider
+# families accept as a literal. Gemini also takes 'minimal' and 'disable';
+# OpenAI rejects both with a 400 and lists 'none' in their place. 'xhigh' is the
+# mirror case, so _portable_effort() steps it down for everyone else.
+REASONING_EFFORTS = ("none", "low", "medium", "high", "xhigh")
+_OPENAI_ONLY_EFFORTS = {"xhigh"}
+
+
+def reasoning_effort_choice(value: str) -> str:
+    """Normalise a stored or submitted effort, falling back to the default."""
+    return value if value in REASONING_EFFORTS else DEFAULT_REASONING_EFFORT
+
+
+def _portable_effort(effort: str, model: str) -> str:
+    """Step an effort down to something the model's provider actually accepts.
+
+    litellm's drop_params removes unsupported PARAMETERS, never unsupported
+    values, so an effort the provider does not know reaches it and returns a
+    400 - the failure this replaces.
+    """
+    if effort in _OPENAI_ONLY_EFFORTS and not model.startswith(("openai/", "azure/", "gpt-", "o1", "o3", "o4")):
+        return "high"
+    return effort
+
+
+async def resolve_reasoning_effort(db) -> str:
+    """The user's chosen thinking budget, or the default when none is stored."""
+    from app.db import get_setting
+
+    return reasoning_effort_choice(await get_setting(db, REASONING_EFFORT_SETTING, DEFAULT_REASONING_EFFORT))
+
+
 async def get_active_provider(db) -> dict | None:
     """Return the user's active LLM provider from the DB, or None."""
     rows = await db.execute_fetchall("SELECT * FROM llm_providers WHERE is_active = 1 LIMIT 1")
@@ -63,8 +101,9 @@ async def call_llm(
     """Call an LLM using the resolved provider (user or internal fallback).
 
     json_mode=True asks the provider for a strict JSON object.
-    reasoning_effort ('disable'|'low'|'medium'|'high') caps the model's thinking
-    budget — litellm maps it to Gemini's thinking config ('disable' = 0 tokens).
+    reasoning_effort caps the model's thinking budget. Leave it None and the
+    user's Settings choice applies (default 'medium'); pass one of
+    REASONING_EFFORTS to override it for a single call.
     CAVEAT: with drop_params=True the flag is silently dropped for models
     litellm cannot map it for; those models think unbounded, eating max_tokens
     and truncating the answer — structured-task callers should therefore pass
@@ -73,13 +112,17 @@ async def call_llm(
     """
     assert max_tokens >= 1, f"max_tokens must be positive: {max_tokens}"
     assert max_tokens <= 65536, f"max_tokens beyond any provider cap: {max_tokens}"
+    # A stored setting falls back; an argument written in code does not. A typo
+    # there is a bug, and silently answering it with "medium" hides it.
+    assert reasoning_effort is None or reasoning_effort in REASONING_EFFORTS, (
+        f"reasoning_effort must be one of {REASONING_EFFORTS}: {reasoning_effort!r}"
+    )
+    effort = reasoning_effort or await resolve_reasoning_effort(db)
     model, api_key = await _resolve_provider(db)
 
-    kwargs: dict = {"drop_params": True}
+    kwargs: dict = {"drop_params": True, "reasoning_effort": _portable_effort(effort, model)}
     if json_mode:
         kwargs["response_format"] = {"type": "json_object"}
-    if reasoning_effort:
-        kwargs["reasoning_effort"] = reasoning_effort
 
     try:
         response = await litellm.acompletion(
@@ -98,9 +141,9 @@ async def call_llm(
     except litellm.RateLimitError:
         raise ValueError(f"LLM rate limit exceeded for model {model} — try again later") from None
     except litellm.Timeout:
-        raise ValueError(f"LLM request timed out for model {model}") from None
+        raise LLMCallAmbiguousError(f"LLM request timed out for model {model}") from None
     except litellm.APIError as exc:
-        raise ValueError(f"LLM API error for model {model}: {exc}") from exc
+        raise LLMCallAmbiguousError(f"LLM API outcome is uncertain for model {model}: {exc}") from exc
 
     choice = response.choices[0]
     finish = str(getattr(choice, "finish_reason", "") or "").lower()

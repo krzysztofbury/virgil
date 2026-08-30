@@ -1,11 +1,13 @@
 import calendar
 import logging
+import secrets
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_setting
+from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.streak import get_streak
 from app.user_db import get_user_db_from_request
@@ -21,7 +23,7 @@ AREA_LABELS = LIFE_AREA_LABELS
 
 
 @router.get("/", response_class=HTMLResponse)
-async def dashboard(request: Request):
+async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     db = get_user_db_from_request(request)
     today = date.today()
 
@@ -232,6 +234,10 @@ async def dashboard(request: Request):
         exp["end_date"] = end.isoformat()
         active_experiments.append(exp)
 
+    from app.routers.jobs import current_job_view
+
+    current_job = await current_job_view(db, job_id)
+
     # Morning briefing
     briefing_enabled = await get_setting(db, "briefing_enabled", "0") == "1"
     briefing_text = None
@@ -247,6 +253,8 @@ async def dashboard(request: Request):
             "today": today.isoformat(),
             "briefing_enabled": briefing_enabled,
             "briefing_text": briefing_text,
+            "briefing_nonce": secrets.token_hex(16),
+            "current_job": current_job,
             "today_log": today_log,
             "andy_done": andy_done,
             "andy_total": len(ANDY_KEYS),
@@ -279,26 +287,32 @@ async def offline_page(request: Request):
     return templates.TemplateResponse("offline.html", {"request": request})
 
 
-@router.post("/api/briefing/generate", response_class=HTMLResponse)
-async def generate_briefing_endpoint(request: Request):
-    from app.services.briefing import generate_briefing
+@router.post("/api/briefing/generate")
+async def generate_briefing_endpoint(request: Request, job_nonce: str = Form(...)):
+    """Queue the briefing. The provider call belongs to the worker, never to a
+    request the user is waiting on."""
+    from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm import llm_available
+    from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 
     db = get_user_db_from_request(request)
+    if not await llm_available(db):
+        return error_redirect(request, "/", "No AI provider is configured. Add one in Settings.")
     try:
-        content = await generate_briefing(db)
-        return templates.TemplateResponse(
-            "partials/briefing_card.html",
-            {"request": request, "briefing_text": content},
+        key = paid_llm_job_key("morning_briefing", "manual", job_nonce)
+    except ValueError:
+        return error_redirect(request, "/", "Reload the page and try again.")
+    day = date.today().isoformat()
+    try:
+        result = await enqueue_paid_llm_job(
+            db,
+            "morning_briefing",
+            {"day": day, "trigger": "manual", "key_part": job_nonce},
+            idempotency_key=key,
         )
+    except ActiveWorkloadConflictError:
+        return error_redirect(request, "/", "A briefing is already queued.")
     except Exception:
-        logger.exception("Briefing generation failed")
-        return HTMLResponse(
-            '<div class="text-muted" style="padding:0.5rem;">'
-            "Failed to generate briefing. Check LLM provider settings.</div>",
-            status_code=500,
-            headers={
-                "X-Feedback-Kind": "error",
-                "X-Feedback-Message": "Failed to generate briefing. Check LLM provider settings.",
-                "X-Feedback-Swap": "true",
-            },
-        )
+        logger.exception("Briefing enqueue failed")
+        return error_redirect(request, "/", "The briefing could not be queued. Try again.")
+    return success_redirect(request, f"/?job_id={result.job_id}", "Briefing queued.")

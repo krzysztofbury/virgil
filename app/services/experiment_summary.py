@@ -1,12 +1,13 @@
 import logging
-import time
 from datetime import date, timedelta
 
 from app.services.llm import call_llm, llm_available
 
-# Per-experiment cooldown to avoid hammering LLM on repeated page loads
-_last_attempt: dict[int, float] = {}
-_COOLDOWN_SECONDS = 300  # 5 minutes
+SUMMARY_JOB_KIND = "experiment_summary"
+SUMMARY_MAX_CHARS = 8000
+# One tick looks at this many due weeks before giving up, so the scan stays
+# bounded no matter how long an experiment is.
+SUMMARY_ENQUEUE_SCAN_MAX = 12
 
 logger = logging.getLogger(__name__)
 
@@ -24,8 +25,11 @@ async def get_existing_summaries(db, experiment_id: int) -> dict[int, str]:
     return {r["week_number"]: r["summary"] for r in rows}
 
 
-async def generate_week_summary(db, experiment_id: int, week_number: int) -> str:
-    """Collect cross-board metrics for a given experiment week and call LLM."""
+async def build_week_summary(db, experiment_id: int, week_number: int) -> str:
+    """Collect cross-board metrics for one experiment week and buy a summary.
+
+    Reads only, so a failure here leaves nothing to roll back.
+    """
     exp_rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))
     if not exp_rows:
         raise ValueError("Experiment not found")
@@ -178,61 +182,79 @@ async def generate_week_summary(db, experiment_id: int, week_number: int) -> str
 
 {"Provide a final experiment summary: did the experiment achieve its goals? What worked, what didn't? What to do next?" if is_final else "Summarize this week's progress. What went well? What needs attention? Any patterns in the biometric data?"}"""
 
-    try:
-        summary = await call_llm(db, system_prompt, user_prompt)
-    except Exception:
-        logger.exception("Failed to generate experiment summary")
-        raise
+    return await call_llm(db, system_prompt, user_prompt)
 
-    # Store the summary
+
+async def save_week_summary(db, experiment_id: int, week_number: int, summary: str) -> int:
+    """Store one week's summary. The caller owns the transaction, because the
+    summary and its publication marker have to commit together."""
+    text = summary.strip()[:SUMMARY_MAX_CHARS]
+    if not text:
+        raise ValueError("The provider returned an empty summary")
     await db.execute(
         """INSERT INTO experiment_summaries (experiment_id, week_number, summary)
            VALUES (?, ?, ?)
            ON CONFLICT(experiment_id, week_number) DO UPDATE SET summary = excluded.summary,
            created_at = datetime('now')""",
-        (experiment_id, week_number, summary),
+        (experiment_id, week_number, text),
     )
-    await db.commit()
-
-    return summary
+    return len(text)
 
 
-async def auto_generate_missing_summaries(db, experiment_id: int) -> list[int]:
-    """Check for completed weeks without summaries and generate them. Returns list of generated week numbers."""
-    if not await has_llm(db):
-        return []
-
-    # Cooldown: skip if we attempted this experiment within the last 5 minutes
-    now = time.monotonic()
-    last = _last_attempt.get(experiment_id, 0)
-    if now - last < _COOLDOWN_SECONDS:
-        return []
-    _last_attempt[experiment_id] = now
-
+async def due_summary_weeks(db, experiment_id: int) -> list[int]:
+    """Completed weeks of one experiment that still have no summary."""
     exp_rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))
     if not exp_rows:
         return []
     exp = dict(exp_rows[0])
-
-    today = date.today()
     start = date.fromisoformat(exp["start_date"])
     start_monday = start - timedelta(days=start.weekday())
-
+    today = date.today()
     existing = await get_existing_summaries(db, experiment_id)
-    generated = []
 
-    for wn in range(1, exp["num_weeks"] + 1):
-        week_end = start_monday + timedelta(weeks=wn - 1, days=6)
-        # Only generate for completed weeks (week_end is in the past)
+    due = []
+    for week_number in range(1, exp["num_weeks"] + 1):
+        week_end = start_monday + timedelta(weeks=week_number - 1, days=6)
         if week_end >= today:
             break
-        if wn in existing:
-            continue
-        try:
-            await generate_week_summary(db, experiment_id, wn)
-            generated.append(wn)
-        except Exception:
-            logger.exception("Failed to auto-generate summary for week %d", wn)
-            break  # Don't spam LLM on repeated failures
+        if week_number not in existing:
+            due.append(week_number)
+    return due
 
-    return generated
+
+async def enqueue_due_summary(db, experiment_id: int) -> int | None:
+    """Queue at most one missing week summary for this experiment.
+
+    One at a time on purpose: migration 029 allows a single queued paid job per
+    kind, and a completed experiment can be missing a dozen weeks at once. The
+    idempotency key is the week itself, so the queue - not a process-local
+    cooldown - is what stops the same week being bought twice. The old cooldown
+    lived in a module dict, which neither survived a restart nor separated one
+    user from another.
+    """
+    from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
+
+    if not await has_llm(db):
+        return None
+    weeks = await due_summary_weeks(db, experiment_id)
+
+    # Walk the due weeks rather than taking the first. A week that failed for
+    # good keeps its idempotency key, so re-enqueueing it returns the old job
+    # with created=False - and because nothing ever wrote its summary, it stays
+    # due forever. Stopping at weeks[0] made that one week own the queue and
+    # left every week behind it unbuyable for the life of the experiment.
+    for week_number in weeks[:SUMMARY_ENQUEUE_SCAN_MAX]:
+        try:
+            result = await enqueue_paid_llm_job(
+                db,
+                SUMMARY_JOB_KIND,
+                {"experiment_id": experiment_id, "week_number": week_number, "trigger": "scheduled"},
+                idempotency_key=paid_llm_job_key(SUMMARY_JOB_KIND, str(experiment_id), str(week_number), "scheduled"),
+            )
+        except ActiveWorkloadConflictError:
+            # Another summary already holds the single queued slot for this kind.
+            return None
+        if result.created:
+            return result.job_id
+    return None

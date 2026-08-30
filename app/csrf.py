@@ -32,7 +32,7 @@ CSRF_EXEMPT_PATTERNS = (
 )
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB
-# (app/routers/onboarding.py MAX_UPLOAD_BYTES) plus multipart framing overhead.
+# (app/services/medical_import.py MEDICAL_UPLOAD_MAX_BYTES) plus multipart framing overhead.
 MAX_URLENCODED_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
 MAX_MULTIPART_BODY_BYTES = 21 * 1024 * 1024  # 20 MB payload + framing
 

@@ -414,7 +414,9 @@ def test_parse_bounds_thinking_and_budgets_the_output(monkeypatch):
     asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "cindy"))
 
     assert seen.get("json_mode") is True
-    assert seen.get("reasoning_effort") == "disable", "thinking must be capped, not left to eat the output budget"
+    assert "reasoning_effort" not in seen, (
+        "the level is the user's Settings choice now; call_llm always sends one, so the parser must not pin it"
+    )
     assert seen.get("max_tokens", 0) >= 16384, (
         "the budget must clear a full AMRAP expansion plus whatever thinking litellm's drop_params lets through"
     )
@@ -427,10 +429,11 @@ def test_omitting_reasoning_effort_really_does_leave_thinking_at_the_default():
 
       1. Omitting reasoning_effort sends NO thinkingConfig, so Gemini 3 picks its
          own default level - it does not mean "no thinking". That is what ate the
-         old 4096-token allowance.
-      2. "disable" is clamped to thinkingLevel 'low', not dropped and not
-         honoured as off, because Gemini 3 Pro cannot disable thinking. So the
-         parser still pays for thinking and the max_tokens cap must absorb it.
+         old 4096-token allowance, and it is why call_llm now always sends a
+         level rather than leaving the choice to the provider.
+      2. The cheapest levels are clamped to thinkingLevel 'low', not honoured as
+         off, because Gemini 3 Pro cannot disable thinking. So the parser still
+         pays for thinking and the max_tokens cap must absorb it.
 
     If a litellm upgrade changes either - starts dropping the parameter, or gains
     a genuine off - this assertion is what should fail, so the max_tokens choice
@@ -450,8 +453,8 @@ def test_omitting_reasoning_effort_really_does_leave_thinking_at_the_default():
         return params.get("thinkingConfig")
 
     assert thinking_for() is None, "no reasoning_effort means no thinkingConfig, so the model's own default applies"
-    assert thinking_for(reasoning_effort="disable") == {"thinkingLevel": "low", "includeThoughts": False}, (
-        "'disable' is the cheapest level this model family offers, not off - the token cap must still cover thinking"
+    assert thinking_for(reasoning_effort="none") == {"thinkingLevel": "low", "includeThoughts": False}, (
+        "'none' is the cheapest level this model family offers, not off - the token cap must still cover thinking"
     )
 
 

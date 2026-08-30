@@ -1,7 +1,7 @@
 import logging
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.feedback import error_redirect, success_redirect
@@ -291,6 +291,12 @@ def _build_week_grid(
     return grid
 
 
+async def _current_job(db, job_id: int | None) -> dict | None:
+    from app.routers.jobs import current_job_view
+
+    return await current_job_view(db, job_id)
+
+
 @router.get("", response_class=HTMLResponse)
 async def experiments_list(request: Request):
     db = get_user_db_from_request(request)
@@ -467,7 +473,7 @@ async def create_experiment(
 
 
 @router.get("/{experiment_id}", response_class=HTMLResponse)
-async def experiment_detail(request: Request, experiment_id: int):
+async def experiment_detail(request: Request, experiment_id: int, job_id: int | None = Query(None, ge=1)):
     db = get_user_db_from_request(request)
 
     rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))
@@ -561,15 +567,11 @@ async def experiment_detail(request: Request, experiment_id: int):
     oura_rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     oura_connected = bool(oura_rows and oura_rows[0]["status"] == "connected")
 
-    # LLM summaries — auto-generate for completed weeks
-    from app.services.experiment_summary import (
-        auto_generate_missing_summaries,
-        get_existing_summaries,
-        has_llm,
-    )
+    # LLM summaries. A GET renders what exists and nothing else: missing weeks
+    # are queued by the scheduler, so opening this page can no longer spend money.
+    from app.services.experiment_summary import get_existing_summaries, has_llm
 
     llm_available = await has_llm(db)
-    await auto_generate_missing_summaries(db, experiment_id)
     summaries = await get_existing_summaries(db, experiment_id)
 
     return templates.TemplateResponse(
@@ -588,6 +590,7 @@ async def experiment_detail(request: Request, experiment_id: int):
             "oura_connected": oura_connected,
             "summaries": summaries,
             "llm_available": llm_available,
+            "current_job": await _current_job(db, job_id),
         },
     )
 
@@ -821,7 +824,10 @@ async def generate_summary(
     experiment_id: int,
     week_number: int = Form(...),
 ):
-    from app.services.experiment_summary import generate_week_summary
+    """Queue the summary. The provider call belongs to the worker."""
+    from app.services.experiment_summary import SUMMARY_JOB_KIND, has_llm
+    from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 
     db = get_user_db_from_request(request)
     experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
@@ -833,14 +839,25 @@ async def generate_summary(
     )
     if not week_rows:
         return error_redirect(request, f"/experiments/{experiment_id}", "Experiment week not found.")
-    try:
-        await generate_week_summary(db, experiment_id, week_number)
-    except Exception:
-        logger.exception("Failed to generate summary for experiment %s week %s", experiment_id, week_number)
+    if not await has_llm(db):
         return error_redirect(
-            request, f"/experiments/{experiment_id}", "Could not generate the week summary. Try again."
+            request, f"/experiments/{experiment_id}", "No AI provider is configured. Add one in Settings."
         )
-    return success_redirect(request, f"/experiments/{experiment_id}", "Week summary generated.")
+    try:
+        result = await enqueue_paid_llm_job(
+            db,
+            SUMMARY_JOB_KIND,
+            {"experiment_id": experiment_id, "week_number": week_number, "trigger": "manual"},
+            idempotency_key=paid_llm_job_key(SUMMARY_JOB_KIND, str(experiment_id), str(week_number), "manual"),
+        )
+    except ActiveWorkloadConflictError:
+        return error_redirect(request, f"/experiments/{experiment_id}", "Another week summary is already queued.")
+    except Exception:
+        logger.exception("Failed to enqueue summary for experiment %s week %s", experiment_id, week_number)
+        return error_redirect(
+            request, f"/experiments/{experiment_id}", "The week summary could not be queued. Try again."
+        )
+    return success_redirect(request, f"/experiments/{experiment_id}?job_id={result.job_id}", "Week summary queued.")
 
 
 @router.post("/{experiment_id}/import-workouts")

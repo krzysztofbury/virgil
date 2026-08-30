@@ -21,12 +21,6 @@
     {% endfor %}
 </nav>
 
-{% if current_job %}
-<section class="card job-activity-card" aria-label="Queued background work">
-    {% with job=current_job %}{% include "partials/job_status.html" %}{% endwith %}
-</section>
-{% endif %}
-
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
@@ -75,6 +69,21 @@
     {% else %}
     <p class="text-muted" style="margin-bottom: 0.75rem;">No providers configured.</p>
     {% endif %}
+
+    <form method="POST" action="/settings/llm/reasoning" class="llm-reasoning">
+        <label>Thinking level
+            <select name="reasoning_effort">
+                {% for effort in reasoning_efforts %}
+                <option value="{{ effort }}" {{ 'selected' if effort == reasoning_effort else '' }}>{{ effort }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn btn-sm btn-outline" data-pending-label="Saving...">Save</button>
+        <small class="text-muted">
+            How much the model may think before answering. Higher costs more and takes longer.
+            Providers that cannot do the level you pick fall back to their nearest one.
+        </small>
+    </form>
 
     <details>
         <summary style="cursor:pointer;font-weight:500;margin-bottom:0.75rem;">Add provider</summary>

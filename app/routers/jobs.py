@@ -25,6 +25,19 @@ _STATUS_LABELS = {
     "cancelled": "Cancelled",
     "needs_attention": "Needs review",
 }
+# Title-casing the kind reads as "Wod Parse" and "Andy Generation". These are
+# the names the user knows the features by.
+_KIND_LABELS = {
+    "andy_generation": "A.N.D.Y. suggestions",
+    "backup": "Backup",
+    "experiment_summary": "Experiment week summary",
+    "markdown_export": "Markdown export",
+    "medical_import": "Medical record import",
+    "morning_briefing": "Morning briefing",
+    "onboarding_enrichment": "Onboarding AI extras",
+    "oura_sync": "Oura sync",
+    "wod_parse": "Training note analysis",
+}
 _STATUS_DESCRIPTIONS = {
     "queued": "Waiting for a worker.",
     "running": "Work is in progress.",
@@ -48,7 +61,7 @@ def build_job_view(row: dict[str, Any]) -> dict[str, Any]:
     partial = row.get("outcome") == "partial"
     return {
         "id": row["id"],
-        "kind_label": row["kind"].replace("_", " ").title(),
+        "kind_label": _KIND_LABELS.get(row["kind"], row["kind"].replace("_", " ").title()),
         "status": status,
         "status_label": "Partial" if partial else _STATUS_LABELS[status],
         "description": (
@@ -68,6 +81,20 @@ def build_job_view(row: dict[str, Any]) -> dict[str, Any]:
         "poll_url": f"/api/jobs/{row['id']}?{query}",
         "retry_url": f"/api/jobs/{row['id']}/retry",
     }
+
+
+async def current_job_view(db, job_id: int | None) -> dict[str, Any] | None:
+    """The tray's view of one job, or None when there is nothing to report.
+
+    Every page that can enqueue work needs exactly this, and seven copies of it
+    is seven places for the projection to drift.
+    """
+    if job_id is None:
+        return None
+    from app.services.jobs import get_job_status
+
+    row = await get_job_status(db, job_id)
+    return build_job_view(row) if row is not None else None
 
 
 def _is_htmx(request: Request) -> bool:

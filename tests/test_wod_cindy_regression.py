@@ -22,7 +22,7 @@ import json
 import sqlite3
 
 import pytest
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, drain_jobs, user_db_path
 
 WOD_TEXT = (
     "ZZ crossfit:\n"
@@ -89,10 +89,14 @@ def _stub_raw(monkeypatch, raw: str):
 
 def _post(auth_client):
     token = csrf_token(auth_client, "/training")
-    return auth_client.post(
+    captured = auth_client.post(
         "/training/wod",
         data={"date": "2026-08-03", "duration_minutes": "75", "wod_text": WOD_TEXT, "_csrf_token": token},
     )
+    # The parse is a durable job now, so the confirm page is only settled once
+    # the worker has run.
+    drain_jobs()
+    return auth_client.get(captured.url)
 
 
 def test_complete_response_maps_the_whole_session(auth_client, monkeypatch):

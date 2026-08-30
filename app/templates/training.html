@@ -112,6 +112,13 @@
         </summary>
         <div style="padding: 0.5rem 0;">
             {% if s.notes %}<p style="margin-bottom:0.5rem;"><small>{{ s.notes }}</small></p>{% endif %}
+            {% if s.parsing %}
+            <p class="text-muted" role="status" aria-live="polite" style="margin-bottom:0.5rem;">
+                <span class="spinner" aria-hidden="true"></span>
+                Analizuję notatkę &mdash;
+                <a href="/training/wod/confirm/{{ s.id }}">poczekaj na wpisy</a>.
+            </p>
+            {% endif %}
             {% if s.stranded %}
             {# The note is here and nothing else is. Without this the session had
                no form, no "dokończ" link and no way to ever gain a set. #}

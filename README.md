@@ -337,12 +337,41 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 
 ### Settings (`/settings`)
 Six-tab settings page:
-- **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), feature flag modules (enable/disable optional modules like Feniks)
+- **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Feniks)
 - **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
 - **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
 - **Security** — MFA setup/disable (TOTP with QR code), sync log viewer
+
+## Background work
+
+No request waits on an LLM or on Oura. Backups, exports, Oura syncs and every
+paid AI call are **durable jobs**: the route (or the scheduler) writes what you
+asked for and returns; a bounded worker does the rest and survives a restart.
+
+**Paid AI work is treated differently from operational work.** Backups and syncs
+retry themselves; a paid call does not. A timeout or an API error does not prove
+the provider refused the request, so a second attempt could buy the same answer
+twice. Those kinds get one attempt, an explicit manual retry, and a warning on
+the card when the outcome is genuinely uncertain. A publication ledger records
+what already reached you and outlives job pruning, so even a crash between the
+write and job completion cannot cause a double charge.
+
+| Kind | Retry | Triggered by |
+|---|---|---|
+| `backup`, `markdown_export`, `oura_sync` | automatic, bounded | manual button, schedule, Oura webhook |
+| `morning_briefing` | manual | dashboard button, daily schedule |
+| `wod_parse` | manual | saving a training note |
+| `andy_generation` | manual | the AI button on Daily |
+| `experiment_summary` | manual | the scheduler, one missing week at a time; or the per-week button |
+| `onboarding_enrichment` | manual, per step | confirming onboarding |
+| `medical_import` | manual | uploading a blood panel in onboarding |
+
+Progress appears in the **notification tray** (top right). Confirmations fade
+after a few seconds; errors and unfinished jobs stay until you deal with them.
+Settings > Automation keeps the full recent-job history with the same retry
+controls.
 
 ## UI/UX
 
@@ -438,6 +467,9 @@ Current migrations:
 | 024 | `capture_token` | Adds idempotency tokens for WOD capture |
 | 025 | `goal_focus` | Adds the advisory current-focus state to goals |
 | 026 | `training_exercise_name_unique` | Merges safe race duplicates, preserves linked entries and makes movement resolution case-insensitively unique |
+| 027 | `jobs` | Adds the per-user durable job queue: bounded payloads, idempotency keys, single-runner claims with lease tokens, persisted retry timing |
+| 028 | `active_workload_jobs` | One queued job per operational workload kind (backup, export, Oura sync); reconciles v27 duplicates |
+| 029 | `llm_publications` | Adds the paid-LLM publication ledger, which outlives terminal job pruning, and one queued job per paid kind |
 
 ## Data Model
 
@@ -465,6 +497,8 @@ Current migrations:
 - `experiment_summaries` — AI-generated weekly experiment summaries
 - `integrations` — OAuth2 credentials + webhook secrets (Fernet-encrypted)
 - `llm_providers` — LLM API key storage (Fernet-encrypted)
+- `jobs` - the durable work queue: one row per unit of background work, with its status, attempts and lease
+- `llm_publications` - which paid LLM results already reached the user; outlives job pruning so a retry cannot buy the same answer twice
 - `sync_log` — export/sync audit trail
 
 ### Three-State Toggles
@@ -548,15 +582,23 @@ virgil/
 │   │   ├── life_scores.py    # /life-scores routes
 │   │   ├── goals.py          # /goals routes
 │   │   ├── experiments.py    # /experiments routes
+│   │   ├── jobs.py           # /api/jobs status partial + explicit retry
 │   │   └── settings.py       # /settings routes + theme API + webhook mgmt
 │   ├── services/
 │   │   ├── encryption.py     # Fernet encrypt/decrypt for secrets
 │   │   ├── oura_api.py       # Oura OAuth2 + API v2 client + sync
-│   │   ├── llm.py            # LLM API client (Claude/OpenAI/Gemini)
+│   │   ├── llm.py            # LLM API client (Claude/OpenAI/Gemini) + thinking level
+│   │   ├── llm_jobs.py       # Paid-LLM durability: publication ledger, one-attempt producers
+│   │   ├── jobs.py           # Durable job state transitions (enqueue/claim/complete/retry)
+│   │   ├── job_producers.py  # Canonical producers for operational workloads
+│   │   ├── job_handlers.py   # Trusted handlers, one per job kind
+│   │   ├── job_worker.py     # Bounded execution, lease fencing, handler registry
 │   │   ├── briefing.py       # AI morning briefing generation
+│   │   ├── andy.py           # A.N.D.Y. daily suggestions (context + prompts)
+│   │   ├── medical_import.py # Staged blood-panel upload, extraction and storage
 │   │   ├── markdown_export.py # On-demand scoped markdown export
 │   │   ├── markdown_import.py # Markdown → DB parsers (onboarding)
-│   │   ├── scheduler.py      # Background task loop (backup + Oura sync + markdown export)
+│   │   ├── scheduler.py      # Background task loop (enqueues due work, runs the job worker)
 │   │   ├── backup.py         # SQLite backup with rolling retention
 │   │   ├── experiment_summary.py # AI weekly summaries for experiments
 │   │   └── streak.py         # Feniks streak calculation

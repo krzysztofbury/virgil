@@ -4,7 +4,7 @@ unified timeline. A day-based streak cannot see edging, hence the daily log. The
 weekly 75% clean rate (Gola) and the never-resetting counter stay untouched."""
 
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 
 from conftest import csrf_token, user_db_path
 
@@ -203,3 +203,55 @@ def test_api_noporn_includes_daily_and_bricks(auth_client, monkeypatch):
     assert body["bricks_total"] >= 1
     brick = next(b for b in body["bricks"] if b["hook"] == "api-test-brick")
     assert "story" in brick and "craving" in brick
+
+
+def test_brick_form_offers_the_viewed_date_and_records_it(auth_client):
+    """A brick laid while reviewing an earlier day belongs to that day, not today."""
+    _enable_no_porn()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
+    html = auth_client.get(f"/feniks?date={yesterday}").text
+    assert f'<input type="date" name="date" value="{yesterday}" max="{date.today().isoformat()}"' in html
+    assert f'data-draft-key="feniks-brick:{yesterday}"' in html
+
+    token = csrf_token(auth_client, f"/feniks?date={yesterday}")
+    resp = auth_client.post(
+        "/feniks/bricks",
+        data={"date": yesterday, "hook": "brick dated by hand", "_csrf_token": token},
+        follow_redirects=False,
+    )
+
+    assert resp.status_code == 303
+    assert resp.headers["location"].startswith(f"/feniks?date={yesterday}")
+    assert _fetchall("SELECT date FROM feniks_bricks WHERE hook = ?", ("brick dated by hand",)) == [(yesterday,)]
+
+
+def test_brick_refuses_a_future_or_unparseable_date(auth_client):
+    _enable_no_porn()
+    token = csrf_token(auth_client, "/feniks")
+    before = _fetchall("SELECT COUNT(*) FROM feniks_bricks")[0][0]
+
+    for bad in ((date.today() + timedelta(days=1)).isoformat(), "not-a-date"):
+        resp = auth_client.post(
+            "/feniks/bricks",
+            data={"date": bad, "hook": "should not land", "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert resp.status_code == 303
+        assert "err=" in resp.headers["location"]
+
+    assert _fetchall("SELECT COUNT(*) FROM feniks_bricks")[0][0] == before
+
+
+def test_brick_normalises_a_compact_iso_date(auth_client):
+    """date.fromisoformat also accepts YYYYMMDD, which no longer sorts as text."""
+    _enable_no_porn()
+    token = csrf_token(auth_client, "/feniks")
+    day = date.today() - timedelta(days=3)
+
+    auth_client.post(
+        "/feniks/bricks",
+        data={"date": day.strftime("%Y%m%d"), "hook": "compact date", "_csrf_token": token},
+        follow_redirects=False,
+    )
+
+    assert _fetchall("SELECT date FROM feniks_bricks WHERE hook = ?", ("compact date",)) == [(day.isoformat(),)]

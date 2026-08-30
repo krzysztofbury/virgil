@@ -1,7 +1,6 @@
 """POST /training/wod — the note is persisted before the LLM is ever called."""
 
 import asyncio
-import concurrent.futures
 import json
 import re
 import sqlite3
@@ -9,7 +8,7 @@ from datetime import date
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, drain_jobs, user_db_path
 
 from app.routers.training import MAX_CONFIRM_ENTRIES, SEED_ROWS_ON_PARSE_FAILURE
 
@@ -94,6 +93,8 @@ def test_saves_raw_text_and_shows_parsed_entries(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
     # Mapping-sensitive: "Thruster" alone is a false-positive magnet — it is one of
     # the 31 canonical movements rendered as an <option> in every entry row's
@@ -118,6 +119,8 @@ def test_note_survives_an_llm_failure(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
     latest = _sessions()[0]
     assert latest["notes"] == "5x5 back squat 70, potem metcon", "raw text must be persisted before parsing"
@@ -146,6 +149,8 @@ def test_garbled_llm_response_still_saves_the_note(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
     latest = _sessions()[0]
     assert latest["notes"] == "3 rundy: 10 burpees, 15 kb swing 24", "raw text must survive a garbled LLM reply"
@@ -191,6 +196,8 @@ def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200, "the crash must not 500 — it must land on the confirm screen via the PRG redirect"
     assert "connection reset by peer" in resp.text or "parsowanie" in resp.text.lower()
     latest = _sessions()[0]
@@ -198,34 +205,16 @@ def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
     assert latest["wod_parsed"], "wod_parsed must be set even on a non-ValueError crash, or the confirm GET 303s away"
 
 
-def test_insert_precedes_parse_a_baseexception_still_cannot_erase_the_note(auth_client, monkeypatch):
-    """The branch's headline invariant: the training_sessions INSERT+commit must
-    precede parse_wod, not just for the ValueError/Exception paths (I3's
-    broadened `except Exception` absorbs those, so they no longer prove
-    anything escapes) but for BaseException and process death, which
-    `except Exception` cannot catch either.
+def test_a_cancelled_parse_cannot_erase_or_fabricate_anything(auth_client, monkeypatch):
+    """The branch's headline invariant, now that the parse left the request.
 
-    `pytest.raises(RuntimeError)` used to be the sole oracle for this ordering,
-    by way of an escaping exception. I3 broadened the handler so nothing
-    escapes anymore, and nothing replaced the oracle — this invariant has lost
-    its coverage three times on this branch. asyncio.CancelledError inherits
-    from BaseException (Python 3.8+), so stubbing call_llm to raise it
-    reproduces exactly the case `except Exception` cannot absorb: the
-    exception must escape capture_wod entirely, all the way through the test
-    client, and the session row must already exist despite that.
-
-    (TestClient runs the ASGI app on a background event loop and bridges it to
-    this thread via a concurrent.futures.Future; a BaseException raised inside
-    the coroutine marks that asyncio Task cancelled, so what actually surfaces
-    here is concurrent.futures.CancelledError, not the original
-    asyncio.CancelledError instance — that's a property of the thread bridge,
-    not of capture_wod. Either way, SOME exception escaping is the proof that
-    `except Exception` did not swallow it; a 200 response would mean it did.)
-
-    If the INSERT+commit is ever moved to after the try/except (so parse_wod
-    runs first), this crash pre-empts the INSERT and no session row is ever
-    created — this test must then fail even though every other WOD capture
-    test stays green.
+    The note is committed by the route and the parse is bought by the worker,
+    so the ordering that used to be a code-reading exercise is structural. What
+    still needs proving is the worker half: a BaseException mid-parse -
+    asyncio.CancelledError is the case `except Exception` cannot absorb, and
+    the one Watchtower recreating the container actually produces - must leave
+    the note untouched, wod_parsed NULL, and the job asking for review rather
+    than silently retrying a call that may already have been charged.
     """
     import app.services.wod_parser as wp
 
@@ -235,28 +224,38 @@ def test_insert_precedes_parse_a_baseexception_still_cannot_erase_the_note(auth_
     monkeypatch.setattr(wp, "call_llm", boom)
     token = csrf_token(auth_client, "/training")
     before = len(_sessions())
-    wod_text = "cancelled-error ordering repro: 5 rund 10 burpee"
+    wod_text = "ZZ cancelled-error ordering repro: 5 rund 10 burpee"
 
-    with pytest.raises((asyncio.CancelledError, concurrent.futures.CancelledError)):
-        auth_client.post(
-            "/training/wod",
-            data={
-                "date": "2026-07-30",
-                "duration_minutes": "50",
-                "wod_text": wod_text,
-                "_csrf_token": token,
-            },
-        )
+    response = auth_client.post(
+        "/training/wod",
+        data={
+            "date": "2026-07-30",
+            "duration_minutes": "50",
+            "wod_text": wod_text,
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert response.status_code == 303, "the request never waits on the provider, so it cannot fail with it"
 
     sessions = _sessions()
-    assert len(sessions) == before + 1, (
-        "the training_sessions row must be committed BEFORE parse_wod runs, "
-        "so it survives even a BaseException that escapes capture_wod entirely"
-    )
+    assert len(sessions) == before + 1
     assert sessions[0]["notes"] == wod_text
+
+    drain_jobs()
+
+    sessions = _sessions()
+    assert sessions[0]["notes"] == wod_text, "the note must survive a crashed parse"
     assert sessions[0]["wod_parsed"] is None, (
-        "wod_parsed is only written after the try/except returns; a crash that "
-        "escapes must leave it NULL, not fabricate a parse result"
+        "a crash that escapes the handler must leave wod_parsed NULL, not fabricate a parse result"
+    )
+    job = _query("SELECT status FROM jobs WHERE kind = 'wod_parse' ORDER BY id DESC LIMIT 1")
+    assert job and job[0]["status"] == "needs_attention", (
+        "an interrupted paid call is uncertain, so it waits for a human rather than retrying itself"
+    )
+    key = f"wod_parse:{sessions[0]['id']}"
+    assert _query("SELECT COUNT(*) AS c FROM llm_publications WHERE idempotency_key = ?", (key,))[0]["c"] == 0, (
+        "nothing was published, so a manual retry must be free to try again"
     )
 
 
@@ -278,6 +277,7 @@ def test_empty_text_creates_no_session(auth_client):
         data={"date": "2026-07-30", "duration_minutes": "60", "wod_text": "   ", "_csrf_token": token},
         follow_redirects=False,
     )
+    drain_jobs()
     assert resp.status_code == 303
     assert len(_sessions()) == before
 
@@ -295,6 +295,8 @@ def test_no_llm_provider_still_saves_the_note(auth_client):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
     assert _sessions()[0]["notes"] == "row 2k, potem 3 rundy"
 
@@ -311,6 +313,8 @@ def test_unmatched_movements_are_surfaced(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert "Devil Press" in resp.text
 
 
@@ -332,6 +336,8 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
     assert "Devil Press" in resp.text
     assert 'name="entry_0_movement"' in resp.text, "the unmatched movement must render as an editable row"
@@ -365,6 +371,7 @@ def test_all_rows_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     resp = auth_client.post(
@@ -423,6 +430,8 @@ def test_parsed_entry_select_offers_a_skip_option(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
     assert 'name="entry_0_movement"' in resp.text
     # Scoped to entry_0's own <select> — the unmatched-row select already had
@@ -463,6 +472,7 @@ def test_skipping_a_parsed_entry_drops_only_that_row(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     resp = auth_client.post(
@@ -548,6 +558,7 @@ def test_wod_redirects_to_confirm_and_get_does_not_reparse(auth_client, monkeypa
         },
         follow_redirects=False,
     )
+    drain_jobs()
     assert resp.status_code == 303, "POST /training/wod must Post/Redirect/Get, not render HTML directly"
     location = resp.headers["location"]
     assert location.startswith("/training/wod/confirm/")
@@ -659,6 +670,8 @@ def test_parse_failure_still_offers_a_usable_entry_row(auth_client, monkeypatch)
             "_csrf_token": token,
         },
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert resp.status_code == 200
 
     assert 'action="/training/wod/confirm"' in resp.text, (
@@ -691,6 +704,7 @@ def test_seeded_row_can_actually_save_an_entry(auth_client, monkeypatch):
             "_csrf_token": token,
         },
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
@@ -730,6 +744,7 @@ def test_blank_submit_does_not_strand_the_session(auth_client, monkeypatch):
         "/training/wod",
         data={"date": "2026-07-28", "wod_text": "ZZ blank submit probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
     assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
 
@@ -773,6 +788,8 @@ def test_seed_row_field_names_match_what_the_route_reads(auth_client, monkeypatc
         "/training/wod",
         data={"date": "2026-07-27", "wod_text": "ZZ seed field names", "_csrf_token": token},
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     form_html = resp.text[resp.text.index('action="/training/wod/confirm"') :]
     form_html = form_html[: form_html.index("</form>")]
     names = set(re.findall(r'name="(entry_0_[a-z_]+)"', form_html))
@@ -855,6 +872,7 @@ def test_named_but_unresolvable_movement_does_not_strand_the_session(auth_client
         "/training/wod",
         data={"date": "2026-07-25", "wod_text": "ZZ unresolvable probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
@@ -899,6 +917,7 @@ def test_discard_is_a_supported_exit(auth_client, monkeypatch):
         "/training/wod",
         data={"date": "2026-07-24", "wod_text": "ZZ discard probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
     before = _query("SELECT COUNT(*) AS n FROM training_entries")[0]["n"]
 
@@ -936,6 +955,8 @@ def test_discard_button_is_offered_on_the_confirm_screen(auth_client, monkeypatc
         "/training/wod",
         data={"date": "2026-07-23", "wod_text": "ZZ discard button probe", "_csrf_token": token},
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert 'name="action" value="discard"' in resp.text
 
 
@@ -948,10 +969,14 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
         "/training/wod",
         data={"date": date.today().isoformat(), "wod_text": "ZZ pending link probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     page = auth_client.get("/training").text
-    assert f"/training/wod/confirm/{session_id}" in page, (
+    # Match the whole href: a bare substring for session 10 also matches the
+    # link for session 103, which made both halves of this test unreliable once
+    # the shared database held three-digit ids.
+    assert f'href="/training/wod/confirm/{session_id}"' in page, (
         "a session with a pending parse must be reachable from /training"
     )
 
@@ -967,7 +992,7 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
         "ORDER BY date DESC LIMIT 1"
     )
     assert settled, "precondition: at least one settled session must exist for the control to mean anything"
-    assert f"/training/wod/confirm/{settled[0]['id']}" not in page, (
+    assert f'href="/training/wod/confirm/{settled[0]["id"]}"' not in page, (
         "a session with no pending parse must not be offered a 'dokończ' link"
     )
 
@@ -1053,6 +1078,7 @@ def test_discard_works_when_the_parse_holds_an_out_of_range_value(auth_client, m
         "/training/wod",
         data={"date": "2026-07-21", "wod_text": "ZZ out-of-range discard probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     # Control: saving really is refused for this parse — otherwise the test
@@ -1120,6 +1146,8 @@ def test_entry_count_is_server_rendered_not_javascript_only(auth_client, monkeyp
         "/training/wod",
         data={"date": "2026-07-20", "wod_text": "ZZ static entry_count probe", "_csrf_token": token},
     )
+    drain_jobs()
+    resp = auth_client.get(resp.url)
     assert 'name="entry_count"' in resp.text
     assert re.search(r'name="entry_count"[^>]*\svalue="\d+"', resp.text), (
         "entry_count must carry a server-rendered value, not only an Alpine binding"
@@ -1136,6 +1164,7 @@ def test_missing_entry_count_reports_the_right_cause(auth_client, monkeypatch):
         "/training/wod",
         data={"date": "2026-07-19", "wod_text": "ZZ blank entry_count probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
     resp = auth_client.post(
         "/training/wod/confirm",
@@ -1167,6 +1196,7 @@ def test_discard_on_a_settled_session_is_a_logged_no_op(auth_client, monkeypatch
         "/training/wod",
         data={"date": date.today().isoformat(), "wod_text": "ZZ discard no-op probe", "_csrf_token": token},
     )
+    drain_jobs()
     session_id = _sessions()[0]["id"]
 
     def discard():

@@ -15,6 +15,7 @@ from app.db import get_feature_flags, get_setting, set_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.encryption import decrypt, encrypt
+from app.services.llm import REASONING_EFFORT_SETTING, REASONING_EFFORTS, resolve_reasoning_effort
 from app.services.oura_api import (
     create_webhook_subscription,
     ensure_valid_token,
@@ -56,12 +57,10 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         "job_nonce": secrets.token_hex(16),
     }
 
-    if job_id is not None and tab != "automation":
-        from app.routers.jobs import build_job_view
-        from app.services.jobs import get_job_status
+    from app.routers.jobs import current_job_view
 
-        job = await get_job_status(db, job_id)
-        context["current_job"] = build_job_view(job) if job is not None else None
+    if tab != "automation":
+        context["current_job"] = await current_job_view(db, job_id)
 
     if tab == "general":
         providers = await db.execute_fetchall("SELECT * FROM llm_providers ORDER BY created_at DESC")
@@ -76,6 +75,8 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["second_brain_path"] = SECOND_BRAIN_PATH
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
+        context["reasoning_efforts"] = list(REASONING_EFFORTS)
+        context["reasoning_effort"] = await resolve_reasoning_effort(db)
 
     elif tab == "configuration":
         from app.library_validation import LIBRARY_SECTIONS
@@ -552,7 +553,7 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=automation", "Backup could not be queued. Try again.")
     return success_redirect(
         request,
-        f"/settings?tab=automation&job_id={result.job_id}#job-status-{result.job_id}",
+        f"/settings?tab=automation&job_id={result.job_id}",
         "Backup queued.",
     )
 
@@ -593,7 +594,7 @@ async def trigger_export(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=data", "Export could not be queued. Try again.")
     return success_redirect(
         request,
-        f"/settings?tab=data&job_id={result.job_id}#job-status-{result.job_id}",
+        f"/settings?tab=data&job_id={result.job_id}",
         f"{scope.capitalize()} export queued.",
     )
 
@@ -763,6 +764,15 @@ async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
         return error_redirect(request, "/settings?tab=general", "LLM provider was not activated.")
     await db.commit()
     return success_redirect(request, "/settings?tab=general", "LLM provider activated.")
+
+
+@router.post("/settings/llm/reasoning")
+async def save_llm_reasoning(request: Request, reasoning_effort: str = Form(...)):
+    if reasoning_effort not in REASONING_EFFORTS:
+        return error_redirect(request, "/settings?tab=general", "Choose one of the listed thinking levels.")
+    db = get_user_db_from_request(request)
+    await set_setting(db, REASONING_EFFORT_SETTING, reasoning_effort)
+    return success_redirect(request, "/settings?tab=general", "Thinking level saved.")
 
 
 @router.post("/settings/llm/delete")
@@ -949,7 +959,7 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=integrations", "Oura sync could not be queued.")
     return success_redirect(
         request,
-        f"/settings?tab=integrations&job_id={result.job_id}#job-status-{result.job_id}",
+        f"/settings?tab=integrations&job_id={result.job_id}",
         "Oura sync queued.",
     )
 
