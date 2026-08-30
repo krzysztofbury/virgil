@@ -1097,10 +1097,7 @@ details > :not(summary) { margin-top: 1rem; }
   pointer-events: none;
   opacity: 0.4;
 }
-.andy-btn-loading { display: none; align-items: center; gap: 0.35rem; }
 .andy-btn-idle { display: inline-flex; align-items: center; gap: 0.35rem; }
-.andy-card.htmx-request .andy-btn-idle { display: none; }
-.andy-card.htmx-request .andy-btn-loading { display: inline-flex; }
 .andy-card.htmx-request .andy-gen-btn {
   pointer-events: none;
   opacity: 0.8;

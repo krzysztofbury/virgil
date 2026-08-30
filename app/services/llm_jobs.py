@@ -151,7 +151,7 @@ async def run_paid_llm_job(
     crash can leave the answer either fully visible or fully absent, never a
     charge with nothing to show for it.
     """
-    from app.services.job_worker import AmbiguousJobError
+    from app.services.job_worker import AmbiguousJobError, VisibleJobError
     from app.services.llm import LLMCallAmbiguousError
 
     if await llm_result_published(context.db, kind, idempotency_key):
@@ -167,6 +167,11 @@ async def run_paid_llm_job(
         raise AmbiguousJobError(
             "The AI provider may already have charged for this request. Check it before retrying."
         ) from exc
+    except ValueError as exc:
+        # The provider boundary and the response parser both raise ValueError
+        # with messages this project authored - a missing key, a rate limit, a
+        # truncated answer. Those name the fix, so they belong on the card.
+        raise VisibleJobError(str(exc) or exc.__class__.__name__) from exc
 
     await context.db.execute("BEGIN IMMEDIATE")
     try:

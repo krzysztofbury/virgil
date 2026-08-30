@@ -52,6 +52,7 @@ DbCloser = Callable[[aiosqlite.Connection], Awaitable[None]]
 
 # Payload data can never select an import path or arbitrary callable.
 from app.services.job_handlers import (  # noqa: E402
+    handle_andy_generation,
     handle_backup,
     handle_markdown_export,
     handle_morning_briefing,
@@ -61,6 +62,7 @@ from app.services.job_handlers import (  # noqa: E402
 
 JOB_HANDLERS: Mapping[str, JobHandler] = MappingProxyType(
     {
+        "andy_generation": handle_andy_generation,
         "backup": handle_backup,
         "markdown_export": handle_markdown_export,
         "morning_briefing": handle_morning_briefing,
@@ -74,6 +76,21 @@ class AmbiguousJobError(RuntimeError):
     """The handler may have completed an external side effect."""
 
     def __init__(self, public_error: str = "Job outcome needs review.") -> None:
+        super().__init__(public_error)
+        self.public_error = public_error
+
+
+class VisibleJobError(RuntimeError):
+    """A handler failure whose message the handler certifies as safe to show.
+
+    Everything else fails with a generic message, because an arbitrary
+    exception string can carry payload or credential fragments. A paid LLM call
+    is the case worth the exception: "check your API key" is the whole answer,
+    and hiding it in a container log is what made a failed generation
+    indistinguishable from one that silently did nothing.
+    """
+
+    def __init__(self, public_error: str) -> None:
         super().__init__(public_error)
         self.public_error = public_error
 
@@ -269,6 +286,16 @@ async def _execute_claimed_job(
             job["claim_token"],
             exc.public_error,
             ambiguous=True,
+        )
+        return JobRunResult(job["id"], status or "lease_lost")
+    except VisibleJobError as exc:
+        logger.warning("Job %d (%s) failed: %s", job["id"], job["kind"], exc)
+        status = await fail_job(
+            control_db,
+            job["id"],
+            job["claim_token"],
+            exc.public_error,
+            retry_delay_seconds=_retry_delay_seconds(job),
         )
         return JobRunResult(job["id"], status or "lease_lost")
     except Exception:

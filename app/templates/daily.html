@@ -69,20 +69,19 @@
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
             <h3 style="margin:0;">A.N.D.Y.</h3>
             {% if llm_configured %}
-            <button type="button" class="btn btn-sm btn-outline andy-gen-btn"
-                    id="andy-gen-btn"
-                    hx-post="/daily/generate-andy"
-                    hx-vals='{"date": "{{ date }}"}'
-                    hx-target="body"
-                    hx-swap="none"
-                    hx-indicator="#andy-card"
-                    title="Generate with AI">
-                <span class="andy-btn-idle"><i data-lucide="sparkles" style="width:14px;height:14px;"></i> AI</span>
-                <span class="andy-btn-loading"><span class="spinner"></span> Generating...</span>
-            </button>
+            <form method="POST" action="/daily/generate-andy" hx-post="/daily/generate-andy" hx-swap="none"
+                  style="margin:0;">
+                <input type="hidden" name="date" value="{{ date }}">
+                <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
+                <button type="submit" class="btn btn-sm btn-outline andy-gen-btn"
+                        id="andy-gen-btn"
+                        data-pending-label="Queueing..."
+                        title="Generate with AI">
+                    <span class="andy-btn-idle"><i data-lucide="sparkles" style="width:14px;height:14px;"></i> AI</span>
+                </button>
+            </form>
             {% endif %}
         </div>
-        <div id="andy-error"></div>
 
         {% set andy_icons = {'andy_body': 'andy-body', 'andy_spirit': 'andy-spirit', 'andy_account': 'andy-self', 'andy_relations': 'andy-relations'} %}
         {% macro andy_row(name, label, status, desc) %}

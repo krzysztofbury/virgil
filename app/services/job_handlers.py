@@ -197,3 +197,22 @@ async def handle_wod_parse(context: "JobContext", payload: Mapping[str, Any]) ->
         }
 
     return await run_paid_llm_job(context, "wod_parse", key, produce, publish)
+
+
+async def handle_andy_generation(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    from app.services.andy import generate_andy_suggestions, save_andy_suggestions
+
+    _exact_payload(payload, {"day", "key_part"})
+    day = _iso_day(payload["day"])
+    key = paid_llm_job_key("andy_generation", day, str(payload["key_part"]))
+
+    async def publish(suggestions: dict[str, str]) -> Mapping[str, Any]:
+        return {"day": day, "filled": await save_andy_suggestions(context.db, day, suggestions)}
+
+    return await run_paid_llm_job(
+        context,
+        "andy_generation",
+        key,
+        lambda: generate_andy_suggestions(context.db, day),
+        publish,
+    )

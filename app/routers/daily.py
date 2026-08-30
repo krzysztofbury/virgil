@@ -1,22 +1,21 @@
 import logging
-import os
+import secrets
 from datetime import date as date_module
 from datetime import timedelta
-from html import escape
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app.config import SECOND_BRAIN_PATH
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.llm import llm_available
-from app.services.training_schedule import schedule_block
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+ANDY_JOB_KIND = "andy_generation"
 
 DAYS_PL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -36,7 +35,7 @@ DONE_FIELDS = (
 
 @router.get("/daily", response_class=HTMLResponse)
 @router.get("/daily/{day}", response_class=HTMLResponse)
-async def daily_page(request: Request, day: str | None = None):
+async def daily_page(request: Request, day: str | None = None, job_id: int | None = Query(None, ge=1)):
     try:
         target = date_module.fromisoformat(day) if day else date_module.today()
     except (ValueError, TypeError):
@@ -56,6 +55,14 @@ async def daily_page(request: Request, day: str | None = None):
     day_name = DAYS_PL[target.weekday()]
 
     llm_configured = await llm_available(db)
+
+    current_job = None
+    if job_id is not None:
+        from app.routers.jobs import build_job_view
+        from app.services.jobs import get_job_status
+
+        job = await get_job_status(db, job_id)
+        current_job = build_job_view(job) if job is not None else None
 
     # Per-habit current streaks
     habit_fields = [
@@ -141,6 +148,8 @@ async def daily_page(request: Request, day: str | None = None):
             "measurements": measurements,
             "is_saturday": is_saturday,
             "llm_configured": llm_configured,
+            "current_job": current_job,
+            "job_nonce": secrets.token_hex(16),
             "habit_streaks": habit_streaks,
             "heatmap_data": heatmap_data,
             "done_count": sum(1 for field in DONE_FIELDS if log and log[field] == "done"),
@@ -231,131 +240,35 @@ async def save_daily(
 
 
 @router.post("/daily/generate-andy")
-async def generate_andy(request: Request, date: str = Form(...)):
+async def generate_andy(request: Request, date: str = Form(...), job_nonce: str = Form(...)):
+    """Queue the suggestions. The provider call belongs to the worker."""
+    from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
+
     if not valid_date(date):
         return error_redirect(request, "/daily", "Invalid planning date.")
-    from app.services.llm import call_llm, parse_andy_response
+    day = date_module.fromisoformat(date).isoformat()
 
     db = get_user_db_from_request(request)
-    target = date
-    target_date = date_module.fromisoformat(target)
-    day_name = DAYS_PL[target_date.weekday()]
-
-    # Build context from DB instead of markdown files
-    context_parts: list[str] = []
-
-    # 1. Goals context
-    areas = await db.execute_fetchall("SELECT * FROM goal_areas ORDER BY display_order")
-    goals = await db.execute_fetchall("SELECT * FROM goals ORDER BY area_id, horizon, display_order")
-    if goals:
-        goals_map: dict[tuple, list] = {}
-        for g in goals:
-            g = dict(g)
-            goals_map.setdefault((g["area_id"], g["horizon"]), []).append(g["content"])
-        goal_lines = ["--- Goals ---"]
-        for a in areas:
-            a = dict(a)
-            for horizon in ("1yr", "3yr", "10yr"):
-                items = goals_map.get((a["id"], horizon), [])
-                if items:
-                    goal_lines.append(f"{a['name']} ({horizon}):")
-                    for item in items:
-                        goal_lines.append(f"  - {item}")
-        context_parts.append("\n".join(goal_lines))
-
-    # 2. Current week daily logs
-    monday = target_date - timedelta(days=target_date.weekday())
-    sunday = monday + timedelta(days=6)
-    week_logs = await db.execute_fetchall(
-        "SELECT * FROM daily_logs WHERE date BETWEEN ? AND ? ORDER BY date",
-        (monday.isoformat(), sunday.isoformat()),
-    )
-    if week_logs:
-        week_lines = ["--- This Week ---"]
-        for row in week_logs:
-            r = dict(row)
-            energy = r.get("energy", "?")
-            week_lines.append(
-                f"{r['date']}: energy={energy}, body={r.get('andy_body_desc', '')}, "
-                f"spirit={r.get('andy_spirit_desc', '')}, account={r.get('andy_account_desc', '')}, "
-                f"relations={r.get('andy_relations_desc', '')}"
-            )
-        context_parts.append("\n".join(week_lines))
-
-    # 3. Weekly training schedule + what has actually been logged.
-    # This used to list every non-archived, non-ad_hoc row of training_exercises
-    # as a prescription. That block described a basement kettlebell program the
-    # user no longer follows, and the rows outlive the program by design (they
-    # anchor training_entries), so the staleness had no natural end. See
-    # app/services/training_schedule.py.
-    context_parts.append(await schedule_block(db, target_date))
-
-    # 4. plan.md from disk (user-written, not generated)
-    if SECOND_BRAIN_PATH:
-        plan_path = os.path.join(SECOND_BRAIN_PATH, "plan.md")
-        if os.path.isfile(plan_path):
-            with open(plan_path, encoding="utf-8") as f:
-                context_parts.append(f"--- plan.md ---\n{f.read()[:3000]}")
-
-    system_prompt = (
-        "You are a personal daily planner. Based on the user's goals, weekly plan, training schedule, "
-        "and current week's data, suggest specific actions for today. "
-        "Respond ONLY with valid JSON, no markdown fences. "
-        'The JSON must have exactly these keys: "andy_body_desc", "andy_spirit_desc", "andy_account_desc", "andy_relations_desc". '
-        "Each value should be a concise task description in English (max 60 chars)."
-    )
-
-    user_parts = [f"Date: {target} ({day_name})\n"]
-    for part in context_parts:
-        user_parts.append(part + "\n")
-    user_prompt = "\n".join(user_parts)
-
-    keys = ("andy_body_desc", "andy_spirit_desc", "andy_account_desc", "andy_relations_desc")
+    if not await llm_available(db):
+        return error_redirect(request, f"/daily/{day}", "No AI provider is configured. Add one in Settings.")
     try:
-        # The thinking budget is the user's Settings choice, not a hardcoded
-        # 'disable': OpenAI rejects that value outright with a 400.
-        # Generous max_tokens regardless: when litellm cannot map
-        # reasoning_effort for a model (e.g. newer Gemini flashes), drop_params
-        # discards the flag and the model thinks unbounded — a 2048 budget then
-        # truncates mid-JSON.
-        raw = await call_llm(db, system_prompt, user_prompt, json_mode=True, max_tokens=8192)
-        data = parse_andy_response(raw)
-        if not any((data.get(k) or "").strip() for k in keys):
-            raise ValueError("AI returned no suggestions (empty response)")
-
-        await db.execute(
-            """
-            INSERT INTO daily_logs (date, andy_body_desc, andy_spirit_desc, andy_account_desc, andy_relations_desc)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(date) DO UPDATE SET
-                andy_body_desc=excluded.andy_body_desc, andy_spirit_desc=excluded.andy_spirit_desc,
-                andy_account_desc=excluded.andy_account_desc, andy_relations_desc=excluded.andy_relations_desc,
-                updated_at=datetime('now')
-            """,
-            (target, *(data.get(k, "") for k in keys)),
+        key = paid_llm_job_key(ANDY_JOB_KIND, day, job_nonce)
+    except ValueError:
+        return error_redirect(request, f"/daily/{day}", "Reload the page and try again.")
+    try:
+        result = await enqueue_paid_llm_job(
+            db,
+            ANDY_JOB_KIND,
+            {"day": day, "key_part": job_nonce},
+            idempotency_key=key,
         )
-        await db.commit()
-    except Exception as exc:
-        # Never swallow silently — a hidden failure looks exactly like "request fires,
-        # nothing fills". Surface the reason in the card so the user (and logs) see it.
-        logger.exception("Failed to generate A.N.D.Y. suggestions")
-        msg = str(exc) or exc.__class__.__name__
-        if request.headers.get("HX-Request"):
-            return HTMLResponse(
-                f'<div class="andy-error-msg" style="color:var(--danger,#ef4444);'
-                f'font-size:var(--text-sm);margin-top:0.5rem;">⚠ {escape(msg)}</div>',
-                status_code=500,
-                headers={
-                    "HX-Retarget": "#andy-error",
-                    "HX-Reswap": "innerHTML",
-                    "X-Feedback-Kind": "error",
-                    "X-Feedback-Message": "Could not generate A.N.D.Y. suggestions.",
-                    "X-Feedback-Swap": "true",
-                },
-            )
-        return error_redirect(request, f"/daily/{target}", "Could not generate A.N.D.Y. suggestions.")
-
-    return success_redirect(request, f"/daily/{target}", "A.N.D.Y. suggestions generated.")
+    except ActiveWorkloadConflictError:
+        return error_redirect(request, f"/daily/{day}", "A.N.D.Y. suggestions are already queued.")
+    except Exception:
+        logger.exception("A.N.D.Y. enqueue failed")
+        return error_redirect(request, f"/daily/{day}", "The suggestions could not be queued. Try again.")
+    return success_redirect(request, f"/daily/{day}?job_id={result.job_id}", "A.N.D.Y. suggestions queued.")
 
 
 @router.post("/daily/measurements")
