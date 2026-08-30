@@ -550,6 +550,28 @@ async def list_recent_job_statuses(db: aiosqlite.Connection, *, limit: int = 8) 
     return [_job_status_projection(row) for row in rows]
 
 
+JOB_ACTIVE_LIST_LIMIT = 5
+
+
+async def list_active_job_statuses(
+    db: aiosqlite.Connection, *, limit: int = JOB_ACTIVE_LIST_LIMIT
+) -> list[dict[str, Any]]:
+    """Work that has not finished yet, oldest first.
+
+    The tray needs this on every page: a queued job the user cannot see is
+    indistinguishable from one that never got queued.
+    """
+    if not isinstance(limit, int) or isinstance(limit, bool) or not 1 <= limit <= JOB_STATUS_LIST_LIMIT_MAX:
+        raise ValueError(f"Job status limit must be between 1 and {JOB_STATUS_LIST_LIMIT_MAX}")
+    rows = await db.execute_fetchall(
+        """SELECT id, kind, status, attempts, max_attempts, last_error,
+                  created_at, started_at, finished_at, result_json
+           FROM jobs WHERE status IN ('queued', 'running') ORDER BY created_at, id LIMIT ?""",
+        (limit,),
+    )
+    return [_job_status_projection(row) for row in rows]
+
+
 async def prune_terminal_jobs(
     db: aiosqlite.Connection,
     kind: str,

@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, Response
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
-from app.services.jobs import get_job_status, retry_job
+from app.services.jobs import get_job_status, list_active_job_statuses, retry_job
 from app.user_db import get_user_db_from_request
 
 router = APIRouter(prefix="/api/jobs")
@@ -114,6 +114,33 @@ def _render_job(request: Request, row: dict[str, Any], *, status_code: int = 200
 
 def _not_found() -> HTMLResponse:
     return HTMLResponse("Job not found.", status_code=404, headers=_NO_STORE)
+
+
+@router.get("/active", response_class=HTMLResponse)
+async def active_jobs(request: Request):
+    """Everything still running, plus the outcome of whatever this page started.
+
+    The tray used to show only the job named in the URL, so a refresh or a click
+    elsewhere lost sight of queued work entirely - which looks exactly like the
+    job never being queued at all.
+    """
+    db = get_user_db_from_request(request)
+    jobs = [build_job_view(row) for row in await list_active_job_statuses(db)]
+
+    # Whatever this page just enqueued stays visible once it settles, so the
+    # outcome does not vanish the moment the job leaves the queue.
+    named = request.query_params.get("job_id", "")
+    if named.isdigit() and not any(str(job["id"]) == named for job in jobs):
+        row = await get_job_status(db, int(named))
+        if row is not None:
+            jobs.append(build_job_view(row))
+
+    return templates.TemplateResponse(
+        request,
+        "partials/job_notifications.html",
+        {"jobs": jobs},
+        headers=_NO_STORE,
+    )
 
 
 @router.get("/{job_id}", response_class=HTMLResponse)

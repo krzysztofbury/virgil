@@ -1,0 +1,5 @@
+{#- Cards only: the tray section owns the polling and is never replaced, so it
+    can keep a load trigger without re-firing on every swap. Rendering nothing
+    when idle keeps the section :empty, which is what collapses it. -#}
+{%- set in_tray = true -%}
+{%- for job in jobs %}{% include "partials/job_status.html" %}{% endfor -%}

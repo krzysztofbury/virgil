@@ -70,19 +70,22 @@
     <p class="text-muted" style="margin-bottom: 0.75rem;">No providers configured.</p>
     {% endif %}
 
-    <form method="POST" action="/settings/llm/reasoning" class="llm-reasoning">
-        <label>Thinking level
-            <select name="reasoning_effort">
-                {% for effort in reasoning_efforts %}
-                <option value="{{ effort }}" {{ 'selected' if effort == reasoning_effort else '' }}>{{ effort }}</option>
-                {% endfor %}
-            </select>
-        </label>
-        <button type="submit" class="btn btn-sm btn-outline" data-pending-label="Saving...">Save</button>
-        <small class="text-muted">
-            How much the model may think before answering. Higher costs more and takes longer.
-            Providers that cannot do the level you pick fall back to their nearest one.
-        </small>
+    {# An ordered scale, so it reads as one: pick a level and it saves. A select
+       plus a Save button made three unrelated controls out of one decision.
+       Each chip carries its own value and the server re-renders the choice, so
+       there is no client state to drift and this still works without scripts. #}
+    <form method="POST" action="/settings/llm/reasoning" class="thinking-level">
+        <div class="thinking-level-head">
+            <span class="thinking-level-title" id="thinking-level-title">Thinking level</span>
+            <small class="text-muted">How much the model may think before answering. Higher levels cost more and take longer.</small>
+        </div>
+        <div class="thinking-level-scale" role="group" aria-labelledby="thinking-level-title">
+            {% for effort in reasoning_efforts %}
+            <button type="submit" name="reasoning_effort" value="{{ effort }}" data-level="{{ effort }}"
+                    class="level-chip {{ 'selected' if effort == reasoning_effort else '' }}"
+                    aria-pressed="{{ 'true' if effort == reasoning_effort else 'false' }}">{{ effort }}</button>
+            {% endfor %}
+        </div>
     </form>
 
     <details>

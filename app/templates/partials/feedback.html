@@ -9,5 +9,13 @@
         <div id="feedback-status" role="status" aria-live="polite" aria-atomic="true">{% if feedback_message %}<div class="feedback-message feedback-success" data-feedback-autodismiss><span data-feedback-text>{{ feedback_message }}</span></div>{% endif %}</div>
         <div id="feedback-error" role="alert" aria-live="assertive" aria-atomic="true">{% if feedback_error %}<div class="feedback-message feedback-error"><span data-feedback-text>{{ feedback_error }}</span><button type="button" class="feedback-dismiss" data-feedback-dismiss aria-label="Dismiss error">&times;</button></div>{% endif %}</div>
     </section>
-    <section id="job-notifications" class="job-notifications" aria-label="Background work">{% if tray_job %}{% with job=tray_job %}{% include "partials/job_status.html" %}{% endwith %}{% endif %}</section>
+    {#- The tray asks for its own contents, so queued work is visible on every
+        page instead of only where the URL happens to name a job. The section
+        itself is never swapped, which is what lets it keep polling. -#}
+    <section id="job-notifications" class="job-notifications" aria-label="Background work"
+             hx-get="/api/jobs/active{{ '?job_id=' ~ tray_job.id if tray_job else '' }}"
+             hx-trigger="load, every 15s"
+             hx-target="this"
+             hx-swap="innerHTML"
+             hx-sync="this:replace">{% with jobs = [tray_job] if tray_job else [] %}{% include "partials/job_notifications.html" %}{% endwith %}</section>
 </div>
