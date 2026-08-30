@@ -54,25 +54,17 @@
         <div class="briefing-content">
             {{ briefing_text | md_block }}
         </div>
-        <div style="margin-top:0.75rem;display:flex;gap:0.5rem;">
-            <button type="button" class="btn btn-outline btn-sm"
-                    hx-post="/api/briefing/generate"
-                    hx-target="#briefing-body"
-                    hx-swap="innerHTML"
-                    hx-indicator="#briefing-spinner">
-                Regenerate
-            </button>
-        </div>
         {% else %}
         <p class="text-muted" style="margin-bottom:0.75rem;">No briefing generated yet for today.</p>
-        <button type="button" class="btn btn-primary btn-sm"
-                hx-post="/api/briefing/generate"
-                hx-target="#briefing-body"
-                hx-swap="innerHTML"
-                hx-indicator="#briefing-spinner">
-            Generate Briefing
-        </button>
         {% endif %}
+        <form method="POST" action="/api/briefing/generate" hx-post="/api/briefing/generate" hx-swap="none"
+              style="margin-top:0.75rem;">
+            <input type="hidden" name="job_nonce" value="{{ briefing_nonce }}">
+            <button type="submit" class="btn {{ 'btn-outline' if briefing_text else 'btn-primary' }} btn-sm"
+                    data-pending-label="Queueing...">
+                {{ 'Regenerate' if briefing_text else 'Generate Briefing' }}
+            </button>
+        </form>
     </div>
 </div>
 {% endif %}

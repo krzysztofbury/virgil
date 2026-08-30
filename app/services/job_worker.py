@@ -51,12 +51,18 @@ DbOpener = Callable[[str], Awaitable[aiosqlite.Connection]]
 DbCloser = Callable[[aiosqlite.Connection], Awaitable[None]]
 
 # Payload data can never select an import path or arbitrary callable.
-from app.services.job_handlers import handle_backup, handle_markdown_export, handle_oura_sync  # noqa: E402
+from app.services.job_handlers import (  # noqa: E402
+    handle_backup,
+    handle_markdown_export,
+    handle_morning_briefing,
+    handle_oura_sync,
+)
 
 JOB_HANDLERS: Mapping[str, JobHandler] = MappingProxyType(
     {
         "backup": handle_backup,
         "markdown_export": handle_markdown_export,
+        "morning_briefing": handle_morning_briefing,
         "oura_sync": handle_oura_sync,
     }
 )

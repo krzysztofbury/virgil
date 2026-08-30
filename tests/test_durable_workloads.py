@@ -417,9 +417,11 @@ def test_backup_job_recovers_after_dead_claim_and_process_restart(monkeypatch, t
 
 def test_production_registry_contains_only_migrated_workloads():
     from app.services.job_worker import JOB_HANDLERS
+    from app.services.llm_jobs import PAID_LLM_JOB_KINDS
 
-    assert set(JOB_HANDLERS) == {BACKUP_JOB_KIND, MARKDOWN_EXPORT_JOB_KIND, OURA_SYNC_JOB_KIND}
-    assert json.dumps(sorted(JOB_HANDLERS)) == '["backup", "markdown_export", "oura_sync"]'
+    operational = {BACKUP_JOB_KIND, MARKDOWN_EXPORT_JOB_KIND, OURA_SYNC_JOB_KIND}
+    assert set(JOB_HANDLERS) - operational <= set(PAID_LLM_JOB_KINDS), "only known kinds may reach a handler"
+    assert json.dumps(sorted(JOB_HANDLERS)) == '["backup", "markdown_export", "morning_briefing", "oura_sync"]'
 
 
 def test_webhook_jobs_coalesce_queued_work_and_leave_one_successor_while_running(tmp_path):

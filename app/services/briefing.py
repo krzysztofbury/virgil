@@ -67,12 +67,11 @@ async def _gather_context(db) -> str:
     return "\n".join(parts)
 
 
-async def generate_briefing(db) -> str:
-    """Generate a morning briefing using the active LLM provider.
+BRIEFING_MAX_CHARS = 8000
 
-    Returns the briefing text and caches it in daily_briefings.
-    """
-    today_iso = date.today().isoformat()
+
+async def generate_briefing_text(db, day_iso: str) -> str:
+    """Buy one briefing from the provider. No writes, so nothing to roll back."""
     context = await _gather_context(db)
 
     system_prompt = (
@@ -82,18 +81,23 @@ async def generate_briefing(db) -> str:
         "today's body metrics if available, and one actionable suggestion for the day. "
         "Be warm but direct. Use markdown formatting (bold for emphasis)."
     )
-    user_prompt = f"Today is {today_iso}. Here is my current data:\n\n{context}"
+    user_prompt = f"Today is {day_iso}. Here is my current data:\n\n{context}"
 
-    content = await call_llm(db, system_prompt, user_prompt)
+    return await call_llm(db, system_prompt, user_prompt)
 
+
+async def save_briefing(db, day_iso: str, content: str) -> int:
+    """Store one day's briefing. The caller owns the transaction, because the
+    briefing and its publication marker have to commit together."""
+    text = content.strip()[:BRIEFING_MAX_CHARS]
+    if not text:
+        raise ValueError("The provider returned an empty briefing")
     await db.execute(
         "INSERT INTO daily_briefings (date, content) VALUES (?, ?) "
         "ON CONFLICT(date) DO UPDATE SET content = excluded.content, created_at = datetime('now')",
-        (today_iso, content),
+        (day_iso, text),
     )
-    await db.commit()
-
-    return content
+    return len(text)
 
 
 async def get_cached_briefing(db) -> str | None:
