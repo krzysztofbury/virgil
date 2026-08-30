@@ -462,7 +462,7 @@ async def capture_wod(request: Request):
             return error_redirect(request, "/training", "Nie udało się zapisać notatki treningowej.")
 
     # The paid parse belongs to the worker. The note is already committed, so a
-    # parse that never runs costs structure, never the record — and the confirm
+    # parse that never runs costs structure, never the record - and the confirm
     # screen waits for it instead of this request doing so.
     try:
         result = await enqueue_paid_llm_job(
@@ -509,7 +509,7 @@ async def wod_confirm_page(request: Request, session_id: int, job_id: int | None
     """Render the WOD confirmation screen from the STORED parse result.
 
     Never parses: a GET (including a plain browser refresh) must never invoke
-    the LLM — that is the whole point of the worker persisting the result and
+    the LLM - that is the whole point of the worker persisting the result and
     this page only reading it.
     """
     db = get_user_db_from_request(request)

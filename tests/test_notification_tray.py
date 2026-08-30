@@ -126,3 +126,15 @@ def test_enqueue_redirect_no_longer_scrolls_to_a_now_fixed_card(auth_client):
     sources = "\n".join(path.read_text() for path in routers.glob("*.py"))
 
     assert not re.search(r"#job-status-\{", sources), "a fixed tray card has nothing to scroll to"
+
+
+def test_every_job_kind_reports_under_the_name_the_user_knows(auth_client):
+    """Title-casing the kind read as "Wod Parse" and "Andy Generation"."""
+    from app.routers.jobs import _KIND_LABELS
+    from app.services.job_worker import JOB_HANDLERS
+
+    assert set(JOB_HANDLERS) <= set(_KIND_LABELS), "a registered kind with no label falls back to its slug"
+    job_id = _insert_job(user_db_path(), "queued", kind="wod_parse")
+    response = auth_client.get(f"/oura?job_id={job_id}")
+    assert "Training note analysis" in response.text
+    assert "Wod Parse" not in response.text

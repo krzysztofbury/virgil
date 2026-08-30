@@ -333,7 +333,7 @@
     <ul class="enrichment-steps">
         {% for item in enrichment %}
         <li class="enrichment-step enrichment-{{ item.state }}">
-            <span class="enrichment-mark" aria-hidden="true">{{ '✓' if item.state == 'done' else ('–' if item.state == 'not_needed' else '·') }}</span>
+            <span class="enrichment-mark" aria-hidden="true">{{ '✓' if item.state == 'done' else ('-' if item.state == 'not_needed' else '·') }}</span>
             <span>{{ item.label }}</span>
             <span class="text-muted enrichment-state">
                 {{ {'done': 'ready', 'waiting': 'not yet', 'not_needed': 'nothing to use'}[item.state] }}

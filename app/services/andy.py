@@ -93,7 +93,7 @@ async def generate_andy_suggestions(db, day_iso: str) -> dict[str, str]:
 
     # Generous max_tokens: when litellm cannot map reasoning_effort for a model
     # (e.g. newer Gemini flashes), drop_params discards the flag and the model
-    # thinks unbounded — a 2048 budget then truncates mid-JSON.
+    # thinks unbounded - a 2048 budget then truncates mid-JSON.
     raw = await call_llm(db, _SYSTEM_PROMPT, "\n".join(user_parts), json_mode=True, max_tokens=8192)
     data = parse_andy_response(raw)
     suggestions = {key: str(data.get(key) or "").strip()[:ANDY_VALUE_MAX] for key in ANDY_KEYS}

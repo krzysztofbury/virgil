@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Every paid LLM call now runs as a durable job.** Morning briefings, training
+  note analysis, A.N.D.Y. suggestions, experiment week summaries, onboarding
+  enrichment and medical record import all leave the request path: routes and
+  the scheduler persist intent and enqueue, and the worker performs the provider
+  call. Paid kinds get one attempt and manual retry, because a timeout does not
+  prove the provider refused the request. Migration 029 adds a publication
+  ledger that outlives terminal job pruning, so a crash between a domain write
+  and job completion cannot buy the same answer twice, and permits one queued
+  paid job per kind.
+- **The onboarding screen reports each AI extra and offers to skip them.**
+  Enrichment became four independently published steps, so a retry re-buys only
+  what is missing and one failing step no longer costs the others. Step 6 shows
+  each as ready, not yet, or nothing to use, beside an explicit
+  "Continue without AI".
+- **The thinking budget is a setting.** Settings > General offers none, low,
+  medium, high and xhigh, defaulting to medium, and steps xhigh down for
+  providers that reject it.
 - **Backup, markdown export and Oura sync now run as durable workloads.**
   Manual routes, schedules and HMAC-verified webhooks only enqueue bounded,
   restart-safe jobs; a static worker registry performs external I/O with automatic
@@ -47,6 +64,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   degraded state through `/healthz`.
 
 ### Fixed
+- **Structured LLM calls no longer fail outright on OpenAI models.** Every
+  caller pinned `reasoning_effort="disable"`, which Gemini accepts and OpenAI
+  rejects with "Unsupported value". litellm's `drop_params` removes unsupported
+  parameters, never unsupported values, so the call failed rather than degrading.
+- **Confirmations disappear on their own and stop moving the page.** Feedback
+  and background-job cards share one fixed top-right tray outside the document
+  flow. A success fades after four seconds, with hover and focus holding the
+  timer open; errors and unfinished work still wait for the user. A job no
+  longer grows a new section inside the page that started it, while Settings >
+  Automation keeps the full history.
+- **A brick can carry the day the urge happened.** The No Porn brick form posted
+  a hidden date fixed to today, so a brick laid while reviewing an earlier day
+  landed on the wrong day. The date is now a field, defaulted to the day on
+  screen, capped at today and normalised before it is stored.
+- **Opening an experiment no longer spends money.** The detail page bought a
+  summary for every completed week that lacked one, guarded only by a
+  process-local cooldown dictionary that neither survived a restart nor
+  separated users. The scheduler queues one missing week at a time instead.
+- **Medical uploads stay out of the job queue.** The bytes are staged under the
+  user's own directory and the payload carries an opaque token, so a blood panel
+  never reaches the jobs table, the status UI or the logs. The handler deletes
+  them once the markers are stored and prunes anything left after a day.
 - **Manual Oura sync no longer reports partial domain results as success.** The
   browser receives visible success, partial-failure, or exception feedback from
   the same native/HTMX contract.

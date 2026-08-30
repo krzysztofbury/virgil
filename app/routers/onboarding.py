@@ -338,7 +338,7 @@ async def confirm_onboarding(request: Request):
     mark_onboarding_complete()
 
     if not INTERNAL_LLM_KEY:
-        logger.warning("No VIRGIL_INTERNAL_LLM_KEY set — skipping LLM enrichment")
+        logger.warning("No VIRGIL_INTERNAL_LLM_KEY set - skipping LLM enrichment")
         return success_redirect(request, "/", "Onboarding complete.")
 
     try:

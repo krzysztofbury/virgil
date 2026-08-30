@@ -1256,11 +1256,17 @@ details > :not(summary) { margin-top: 1rem; }
 /* In the tray a job is a notification, not a report: the counters and
    timestamps stay in Settings > Automation, which is the history view. */
 .notification-tray .job-status-card {
+  /* An opaque ground, not --bg-card: a floating card over live page content
+     has to be readable, and --bg-card is deliberately translucent. */
+  background: var(--bg-secondary);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   box-shadow: 0 10px 25px rgba(0,0,0,0.28);
-  background: var(--bg-card);
 }
 .notification-tray .job-status-meta { display: none; }
-.job-status-heading-end { display: flex; align-items: center; gap: 0.25rem; }
+/* flex:0 0 auto, or the badge's nowrap plus the fixed-width dismiss button
+   overflow the card instead of squeezing the title beside them. */
+.job-status-heading-end { flex: 0 0 auto; display: flex; align-items: center; gap: 0.25rem; }
 
 /* ── Onboarding AI extras ── */
 .enrichment-steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
