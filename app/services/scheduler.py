@@ -6,6 +6,16 @@ from datetime import UTC, datetime
 
 from app.central_db import get_active_users
 from app.db import get_setting, set_setting
+from app.services.job_producers import (
+    BACKUP_JOB_KIND,
+    MARKDOWN_EXPORT_JOB_KIND,
+    OURA_SYNC_JOB_KIND,
+    ActiveWorkloadConflictError,
+    enqueue_backup_job,
+    enqueue_markdown_export_job,
+    enqueue_oura_sync_job,
+    scheduled_job_key,
+)
 from app.user_db import close_user_db, open_user_db
 
 logger = logging.getLogger(__name__)
@@ -30,34 +40,77 @@ def _hours_since(iso_str: str) -> float:
         return float("inf")
 
 
-async def _run_backup_task(db) -> None:
-    from app.services.backup import run_backup
-
-    await run_backup(db)
-
-
-async def _run_oura_sync_task(db) -> None:
-    from app.services.oura_api import sync_oura_from_api
-
-    result = await sync_oura_from_api(db)
-    if not result.complete:
-        logger.warning(
-            "Scheduled Oura sync partial: %d days, failed_daily=%s, workouts_synced=%s",
-            result.days,
-            result.failed_daily_endpoints,
-            result.workouts_synced,
+async def _enqueue_backup_if_due(db, now: datetime) -> None:
+    try:
+        if await get_setting(db, "backup_enabled", "1") != "1":
+            return
+        interval = float(await get_setting(db, "backup_interval_hours", "24"))
+        if _hours_since(await get_setting(db, "backup_last_run", "")) < interval:
+            return
+        result = await enqueue_backup_job(
+            db,
+            trigger="scheduled",
+            idempotency_key=scheduled_job_key(BACKUP_JOB_KIND, interval, now=now),
         )
-        return
-    logger.info("Scheduled Oura sync complete: %d days", result.days)
+        if result.created:
+            logger.info("Scheduled backup job queued: %d", result.job_id)
+    except ActiveWorkloadConflictError:
+        logger.info("Scheduled backup is waiting for queued backup work")
+    except Exception:
+        logger.exception("Failed to enqueue scheduled backup")
 
 
-async def _run_export_task(db, user_id: str) -> None:
-    from app.services.markdown_export import export_filename_for, write_export
+async def _enqueue_export_if_due(db, now: datetime) -> None:
+    try:
+        if await get_setting(db, "export_enabled", "0") != "1":
+            return
+        interval = float(await get_setting(db, "export_interval_hours", "6"))
+        if _hours_since(await get_setting(db, "export_last_run", "")) < interval:
+            return
+        result = await enqueue_markdown_export_job(
+            db,
+            trigger="scheduled",
+            scope="weekly",
+            sections=None,
+            idempotency_key=scheduled_job_key(MARKDOWN_EXPORT_JOB_KIND, interval, now=now),
+        )
+        if result.created:
+            logger.info("Scheduled markdown export job queued: %d", result.job_id)
+    except ActiveWorkloadConflictError:
+        logger.info("Scheduled markdown export is waiting for queued export work")
+    except Exception:
+        logger.exception("Failed to enqueue scheduled markdown export")
 
-    # Per-user filename — all users share one SECOND_BRAIN_PATH.
-    filename = await export_filename_for(db, user_id)
-    await write_export(db, scope="weekly", filename=filename)
-    logger.info("Scheduled markdown export complete: %s", filename)
+
+async def _enqueue_oura_if_due(db, now: datetime) -> None:
+    try:
+        if await get_setting(db, "oura_sync_enabled", "0") != "1":
+            return
+        rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
+        if not rows or rows[0]["status"] != "connected":
+            return
+        interval = float(await get_setting(db, "oura_sync_interval_hours", "6"))
+        if _hours_since(await get_setting(db, "oura_sync_last_run", "")) < interval:
+            return
+        result = await enqueue_oura_sync_job(
+            db,
+            trigger="scheduled",
+            days_back=30,
+            idempotency_key=scheduled_job_key(OURA_SYNC_JOB_KIND, interval, now=now),
+        )
+        if result.created:
+            logger.info("Scheduled Oura sync job queued: %d", result.job_id)
+    except ActiveWorkloadConflictError:
+        logger.info("Scheduled Oura sync is waiting for queued Oura work")
+    except Exception:
+        logger.exception("Failed to enqueue scheduled Oura sync")
+
+
+async def _enqueue_due_jobs(db) -> None:
+    now = datetime.now(UTC)
+    await _enqueue_backup_if_due(db, now)
+    await _enqueue_export_if_due(db, now)
+    await _enqueue_oura_if_due(db, now)
 
 
 async def _run_briefing_task(db) -> None:
@@ -85,45 +138,8 @@ def _briefing_due(now: datetime, last_day: str, last_attempt: str) -> bool:
 
 
 async def _check_and_run(db, user_id: str) -> None:
-    """Check all scheduled tasks and run those that are due."""
+    """Run scheduled work that has not migrated to durable jobs yet."""
     now_iso = datetime.now(UTC).isoformat()
-
-    # Backup — enabled by default: losing months of health data to an SD-card
-    # hiccup is a worse failure than a few megabytes of pruned snapshots.
-    if await get_setting(db, "backup_enabled", "1") == "1":
-        interval = float(await get_setting(db, "backup_interval_hours", "24"))
-        last_run = await get_setting(db, "backup_last_run", "")
-        if _hours_since(last_run) >= interval:
-            try:
-                await _run_backup_task(db)
-                await set_setting(db, "backup_last_run", now_iso)
-            except Exception:
-                logger.exception("Scheduled backup failed")
-
-    # Markdown export (virgil.md → second-brain for OpenClaw)
-    if await get_setting(db, "export_enabled", "0") == "1":
-        interval = float(await get_setting(db, "export_interval_hours", "6"))
-        last_run = await get_setting(db, "export_last_run", "")
-        if _hours_since(last_run) >= interval:
-            try:
-                await _run_export_task(db, user_id)
-                await set_setting(db, "export_last_run", now_iso)
-            except Exception:
-                logger.exception("Scheduled markdown export failed")
-
-    # Oura auto-sync
-    if await get_setting(db, "oura_sync_enabled", "0") == "1":
-        # Check that Oura is actually connected
-        oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
-        if oura_row and oura_row[0]["status"] == "connected":
-            interval = float(await get_setting(db, "oura_sync_interval_hours", "6"))
-            last_run = await get_setting(db, "oura_sync_last_run", "")
-            if _hours_since(last_run) >= interval:
-                try:
-                    await _run_oura_sync_task(db)
-                    await set_setting(db, "oura_sync_last_run", now_iso)
-                except Exception:
-                    logger.exception("Scheduled Oura sync failed")
 
     # Morning briefing — once per local day, after BRIEFING_EARLIEST_HOUR.
     if await get_setting(db, "briefing_enabled", "0") == "1":
@@ -160,6 +176,7 @@ async def _run_scheduled_user(user: dict, semaphore: asyncio.Semaphore) -> None:
         user_db = None
         try:
             user_db = await open_user_db(user["db_filename"])
+            await _enqueue_due_jobs(user_db)
             await run_jobs_for_user(
                 user_db,
                 user["id"],

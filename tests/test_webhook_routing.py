@@ -12,6 +12,7 @@ import hmac
 import json
 import os
 import sqlite3
+import time
 import uuid
 
 from conftest import user_db_path
@@ -62,12 +63,14 @@ def _cleanup(webhook_id: str) -> None:
     conn = sqlite3.connect(user_db_path())
     try:
         conn.execute("DELETE FROM integrations WHERE provider = 'oura'")
+        conn.execute("DELETE FROM jobs")
         conn.commit()
     finally:
         conn.close()
 
 
-def _signed_headers(body: bytes, timestamp: str = "1234567890", secret: str = CLIENT_SECRET) -> dict:
+def _signed_headers(body: bytes, timestamp: str | None = None, secret: str = CLIENT_SECRET) -> dict:
+    timestamp = timestamp or str(int(time.time()))
     signature = hmac.new(secret.encode(), timestamp.encode() + body, hashlib.sha256).hexdigest().upper()
     return {"x-oura-signature": signature, "x-oura-timestamp": timestamp, "content-type": "application/json"}
 
@@ -104,9 +107,9 @@ def test_verification_challenge_get(auth_client):
         _cleanup(webhook_id)
 
 
-def test_event_hmac_and_background_sync(auth_client):
+def test_event_hmac_and_durable_coalescing(auth_client):
     """Events: spec-correct HMAC over timestamp+body keyed with the client
-    secret; the endpoint answers immediately (sync is backgrounded) and is both
+    secret; the endpoint answers immediately (sync is queued) and is both
     public (no session) and CSRF-exempt — no token is sent here."""
     webhook_id = uuid.uuid4().hex
     _seed_webhook(webhook_id)
@@ -122,17 +125,45 @@ def test_event_hmac_and_background_sync(auth_client):
         resp = auth_client.post(url, content=body, headers=_signed_headers(body, secret="wrong-secret"))
         assert resp.status_code == 403
 
-        # Valid signature → accepted immediately (sync runs out-of-band and
-        # fails harmlessly without a real token).
+        stale = str(int(time.time()) - 301)
+        assert auth_client.post(url, content=body, headers=_signed_headers(body, stale)).status_code == 403
+        assert auth_client.post(url, content=body, headers=_signed_headers(body, "not-a-time")).status_code == 403
+
+        # Valid signature creates one durable job without running Oura inline.
         resp = auth_client.post(url, content=body, headers=_signed_headers(body))
         assert resp.status_code == 200
-        assert resp.json()["status"] in ("accepted", "debounced")
+        assert resp.json() == {"status": "accepted"}
+
+        db = sqlite3.connect(user_db_path())
+        try:
+            jobs = db.execute("SELECT kind, payload_json, retry_policy, status FROM jobs ORDER BY id").fetchall()
+        finally:
+            db.close()
+        assert jobs == [("oura_sync", '{"days_back":2,"trigger":"webhook"}', "automatic", "queued")]
 
         # Lowercase hex signatures are equivalent (case-insensitive compare).
         lower = {**_signed_headers(body)}
         lower["x-oura-signature"] = lower["x-oura-signature"].lower()
         resp = auth_client.post(url, content=body, headers=lower)
         assert resp.status_code == 200
+        assert resp.json() == {"status": "debounced"}
+
+        db = sqlite3.connect(user_db_path())
+        try:
+            db.execute(
+                "UPDATE jobs SET status = 'cancelled', finished_at = datetime('now'), updated_at = datetime('now')"
+            )
+            db.commit()
+        finally:
+            db.close()
+        resp = auth_client.post(url, content=body, headers=lower)
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "debounced"}
+
+        newer_body = json.dumps({"event_type": "update", "data_type": "daily_activity"}).encode()
+        resp = auth_client.post(url, content=newer_body, headers=_signed_headers(newer_body))
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "accepted"}
 
         # Unsupported data type is ignored before any sync is scheduled.
         body = json.dumps({"event_type": "update", "data_type": "tag"}).encode()

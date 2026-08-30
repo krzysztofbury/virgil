@@ -40,16 +40,23 @@ def build_job_view(row: dict[str, Any]) -> dict[str, Any]:
     if status not in _STATUS_LABELS:
         raise ValueError(f"Unsupported job status: {status}")
     version_source = "\0".join(
-        str(row[field]) for field in ("status", "attempts", "max_attempts", "last_error", "finished_at")
+        str(row.get(field, ""))
+        for field in ("status", "attempts", "max_attempts", "last_error", "finished_at", "outcome")
     )
     version = hashlib.sha256(version_source.encode()).hexdigest()[:32]
     query = urlencode({"known_version": version})
+    partial = row.get("outcome") == "partial"
     return {
         "id": row["id"],
         "kind_label": row["kind"].replace("_", " ").title(),
         "status": status,
-        "status_label": _STATUS_LABELS[status],
-        "description": _STATUS_DESCRIPTIONS[status],
+        "status_label": "Partial" if partial else _STATUS_LABELS[status],
+        "description": (
+            "Sync completed with partial data; existing data from failed sources was preserved."
+            if partial
+            else _STATUS_DESCRIPTIONS[status]
+        ),
+        "display_status": "partial" if partial else status,
         "attempts": row["attempts"],
         "max_attempts": row["max_attempts"],
         "last_error": row["last_error"] if status in _RETRYABLE_STATUSES else "",

@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import sqlite3
 import time
 import uuid
@@ -140,14 +141,22 @@ def _validate_central_snapshot(
         actual.close()
 
 
-def _prune_backups(stem: str, max_copies: int, directory: Path | None = None) -> None:
+def _prune_backups(
+    stem: str,
+    max_copies: int,
+    directory: Path | None = None,
+    protected: Path | None = None,
+) -> None:
     """Remove oldest backups for one database beyond max_copies."""
     directory = directory if directory is not None else BACKUP_DIR
     if not directory.exists():
         return
     backups = sorted(directory.glob(f"{stem}-*.db"), key=lambda p: p.name)
     while len(backups) > max_copies:
-        oldest = backups.pop(0)
+        oldest = next((path for path in backups if path != protected), None)
+        if oldest is None:
+            break
+        backups.remove(oldest)
         # The scheduler and a manual "Backup Now" can prune the same stem in
         # parallel threads — losing the unlink race must not fail the backup.
         oldest.unlink(missing_ok=True)
@@ -171,7 +180,7 @@ def _timestamp() -> str:
     return datetime.now(UTC).strftime("%Y-%m-%dT%H%M")
 
 
-async def run_backup(db) -> Path:
+async def run_backup(db, *, artifact_timestamp: str | None = None) -> Path:
     """Create a consistent SQLite backup of THIS connection's database and prune old copies.
 
     The source path is derived from the connection itself (PRAGMA database_list),
@@ -182,12 +191,15 @@ async def run_backup(db) -> Path:
     src_path = await db_main_path(db)
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stem = Path(src_path).stem
-    dst = BACKUP_DIR / f"{stem}-{_timestamp()}.db"
+    timestamp = artifact_timestamp or _timestamp()
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{4}(?:-j\d{20})?", timestamp):
+        raise ValueError("Backup artifact timestamp must use YYYY-MM-DDTHHMM with an optional fixed-width job suffix")
+    dst = BACKUP_DIR / f"{stem}-{timestamp}.db"
 
-    await asyncio.to_thread(_do_backup, src_path, str(dst))
+    await asyncio.to_thread(_publish_backup, src_path, dst, lambda _path: None)
 
     max_copies = int(await get_setting(db, "backup_max_copies", "7"))
-    await asyncio.to_thread(_prune_backups, stem, max_copies)
+    await asyncio.to_thread(_prune_backups, stem, max_copies, None, dst)
 
     logger.info("Backup created: %s", dst.name)
     return dst

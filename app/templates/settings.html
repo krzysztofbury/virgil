@@ -21,6 +21,12 @@
     {% endfor %}
 </nav>
 
+{% if current_job %}
+<section class="card job-activity-card" aria-label="Queued background work">
+    {% with job=current_job %}{% include "partials/job_status.html" %}{% endwith %}
+</section>
+{% endif %}
+
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
@@ -329,6 +335,7 @@
     <p style="margin-bottom:0.5rem;"><strong>Client ID:</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
     <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
         <form method="POST" action="/settings/oura/sync" style="margin:0;">
+            <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
             <button type="submit" class="btn btn-primary btn-sm">Sync Now</button>
         </form>
         <form method="POST" action="/settings/oura/disconnect" style="margin:0;">
@@ -422,6 +429,7 @@
     <div class="card-header"><h3>Export to Markdown</h3></div>
     <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Generate <code>{{ export_filename }}</code> in second-brain directory for LLM review.</p>
     <form method="POST" action="/settings/export">
+        <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
         <div style="margin-bottom: 0.75rem;">
             <label style="font-weight:600;margin-bottom:0.5rem;">Scope</label>
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
@@ -493,6 +501,7 @@
 <!-- ═══ AUTOMATION TAB ═══ -->
 
 <form method="POST" action="/settings/automation">
+    <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
     <!-- Backup -->
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header"><h3>Automated Backup</h3></div>

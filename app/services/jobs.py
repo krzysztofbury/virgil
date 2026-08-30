@@ -9,6 +9,7 @@ import json
 import math
 import re
 import secrets
+import sqlite3
 from collections.abc import AsyncIterator, Mapping
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
@@ -26,10 +27,26 @@ JOB_JSON_DEPTH_MAX = 20
 JOB_JSON_NODES_MAX = 1024
 JOB_CLOCK_SKEW_SECONDS_MAX = 300
 JOB_STATUS_LIST_LIMIT_MAX = 20
+JOB_TERMINAL_HISTORY_MAX = 100
 
 _KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _RETRY_POLICIES = {"automatic", "manual"}
 _EXPLICIT_RETRY_STATUSES = {"failed", "cancelled", "needs_attention"}
+_SINGLE_QUEUED_SUCCESSOR_KINDS = {"backup", "markdown_export", "oura_sync"}
+_SINGLE_QUEUED_SUCCESSOR_INDEX = "idx_jobs_queued_workload_kind"
+_WORKLOAD_TRIGGERS = {"manual", "scheduled", "webhook"}
+_EXPORT_SCOPES = {"weekly", "monthly", "yearly", "all"}
+_EXPORT_SECTIONS = {
+    "daily_logs",
+    "training",
+    "body_measurements",
+    "feniks",
+    "oura",
+    "life_scores",
+    "experiments",
+    "bloodwork",
+    "goals",
+}
 
 
 class IdempotencyConflictError(ValueError):
@@ -280,6 +297,88 @@ async def complete_job(
         return cursor.rowcount == 1
 
 
+def _successor_covers_running(kind: str, running_json: str, successor_json: str) -> bool:
+    try:
+        running = json.loads(running_json)
+        successor = json.loads(successor_json)
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(running, dict) or not isinstance(successor, dict):
+        return False
+    if kind == "backup":
+        return (
+            set(running) == set(successor) == {"trigger"}
+            and running["trigger"]
+            in {
+                "manual",
+                "scheduled",
+            }
+            and successor["trigger"] in {"manual", "scheduled"}
+        )
+    if kind == "oura_sync":
+        running_days = running.get("days_back")
+        successor_days = successor.get("days_back")
+        return (
+            set(running) == set(successor) == {"days_back", "trigger"}
+            and running["trigger"] in _WORKLOAD_TRIGGERS
+            and successor["trigger"] in _WORKLOAD_TRIGGERS
+            and isinstance(running_days, int)
+            and not isinstance(running_days, bool)
+            and isinstance(successor_days, int)
+            and not isinstance(successor_days, bool)
+            and 1 <= running_days <= successor_days <= 30
+        )
+    if kind == "markdown_export":
+        if set(running) != set(successor) or set(running) != {"scope", "sections", "trigger"}:
+            return False
+        if running["trigger"] not in {"manual", "scheduled"} or successor["trigger"] not in {"manual", "scheduled"}:
+            return False
+        if running["scope"] not in _EXPORT_SCOPES or successor["scope"] != running["scope"]:
+            return False
+        for sections in (running["sections"], successor["sections"]):
+            if sections is not None and (
+                not isinstance(sections, list)
+                or sections != sorted(set(sections))
+                or any(section not in _EXPORT_SECTIONS for section in sections)
+            ):
+                return False
+        return running["sections"] == successor["sections"]
+    return False
+
+
+async def _has_covering_queued_successor(
+    db: aiosqlite.Connection,
+    kind: str,
+    running_payload_json: str,
+    now_text: str,
+) -> bool:
+    if kind not in _SINGLE_QUEUED_SUCCESSOR_KINDS:
+        return False
+    indexes = await db.execute_fetchall(
+        "SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = ?",
+        (_SINGLE_QUEUED_SUCCESSOR_INDEX,),
+    )
+    if not indexes:
+        return False
+    rows = await db.execute_fetchall(
+        "SELECT id, payload_json FROM jobs WHERE kind = ? AND status = 'queued' ORDER BY id LIMIT 1",
+        (kind,),
+    )
+    if not rows:
+        return False
+    if _successor_covers_running(kind, running_payload_json, rows[0]["payload_json"]):
+        return True
+    cursor = await db.execute(
+        """UPDATE jobs
+           SET status = 'cancelled', last_error = 'Did not cover interrupted running work.',
+               finished_at = ?, updated_at = ?
+           WHERE id = ? AND status = 'queued'""",
+        (now_text, now_text, rows[0]["id"]),
+    )
+    assert cursor.rowcount == 1, "queued successor changed during an immediate transaction"
+    return False
+
+
 async def fail_job(
     db: aiosqlite.Connection,
     job_id: int,
@@ -300,7 +399,7 @@ async def fail_job(
 
     async with _immediate_transaction(db):
         rows = await db.execute_fetchall(
-            """SELECT attempts, max_attempts, retry_policy FROM jobs
+            """SELECT kind, payload_json, attempts, max_attempts, retry_policy FROM jobs
                WHERE id = ? AND status = 'running' AND claim_token = ? AND locked_at <= ?""",
             (job_id, token, now_text),
         )
@@ -310,7 +409,8 @@ async def fail_job(
         if ambiguous:
             status = "needs_attention"
         elif row["retry_policy"] == "automatic" and row["attempts"] < row["max_attempts"]:
-            status = "queued"
+            has_successor = await _has_covering_queued_successor(db, row["kind"], row["payload_json"], now_text)
+            status = "failed" if has_successor else "queued"
         else:
             status = "failed"
         finished_at = None if status == "queued" else now_text
@@ -356,18 +456,21 @@ async def retry_job(
     ):
         raise ValueError("expected_attempts must be between 0 and 100")
     now_text = _timestamp(_transition_time(now))
-    async with _immediate_transaction(db):
-        cursor = await db.execute(
-            """UPDATE jobs
-               SET status = 'queued',
-                   max_attempts = CASE WHEN attempts >= max_attempts THEN max_attempts + 1 ELSE max_attempts END,
-                   run_after = ?, locked_at = NULL, locked_by = NULL, claim_token = NULL,
-                   last_error = '', result_json = '{}', finished_at = NULL, updated_at = ?
-               WHERE id = ? AND status = ? AND attempts = ?
-                  AND (attempts < max_attempts OR max_attempts < 100)""",
-            (now_text, now_text, job_id, expected_status, expected_attempts),
-        )
-        return cursor.rowcount == 1
+    try:
+        async with _immediate_transaction(db):
+            cursor = await db.execute(
+                """UPDATE jobs
+                   SET status = 'queued',
+                       max_attempts = CASE WHEN attempts >= max_attempts THEN max_attempts + 1 ELSE max_attempts END,
+                       run_after = ?, locked_at = NULL, locked_by = NULL, claim_token = NULL,
+                       last_error = '', result_json = '{}', finished_at = NULL, updated_at = ?
+                   WHERE id = ? AND status = ? AND attempts = ?
+                      AND (attempts < max_attempts OR max_attempts < 100)""",
+                (now_text, now_text, job_id, expected_status, expected_attempts),
+            )
+            return cursor.rowcount == 1
+    except sqlite3.IntegrityError:
+        return False
 
 
 async def recover_stale_jobs(
@@ -392,7 +495,7 @@ async def recover_stale_jobs(
 
     async with _immediate_transaction(db):
         rows = await db.execute_fetchall(
-            """SELECT id, claim_token, attempts, max_attempts, retry_policy FROM jobs
+            """SELECT id, kind, payload_json, claim_token, attempts, max_attempts, retry_policy FROM jobs
                WHERE status = 'running' AND locked_at <= ?
                ORDER BY locked_at, id LIMIT ?""",
             (cutoff, limit),
@@ -401,7 +504,8 @@ async def recover_stale_jobs(
             if row["retry_policy"] == "manual":
                 status = "needs_attention"
             elif row["attempts"] < row["max_attempts"]:
-                status = "queued"
+                has_successor = await _has_covering_queued_successor(db, row["kind"], row["payload_json"], now_text)
+                status = "failed" if has_successor else "queued"
             else:
                 status = "failed"
             finished_at = None if status == "queued" else now_text
@@ -427,11 +531,11 @@ async def get_job_status(db: aiosqlite.Connection, job_id: int) -> dict[str, Any
     """Return only fields safe for the session-authenticated status UI."""
     rows = await db.execute_fetchall(
         """SELECT id, kind, status, attempts, max_attempts, last_error,
-                  created_at, started_at, finished_at
+                  created_at, started_at, finished_at, result_json
            FROM jobs WHERE id = ?""",
         (job_id,),
     )
-    return dict(rows[0]) if rows else None
+    return _job_status_projection(rows[0]) if rows else None
 
 
 async def list_recent_job_statuses(db: aiosqlite.Connection, *, limit: int = 8) -> list[dict[str, Any]]:
@@ -439,11 +543,48 @@ async def list_recent_job_statuses(db: aiosqlite.Connection, *, limit: int = 8) 
         raise ValueError(f"Job status limit must be between 1 and {JOB_STATUS_LIST_LIMIT_MAX}")
     rows = await db.execute_fetchall(
         """SELECT id, kind, status, attempts, max_attempts, last_error,
-                  created_at, started_at, finished_at
+                  created_at, started_at, finished_at, result_json
            FROM jobs ORDER BY created_at DESC, id DESC LIMIT ?""",
         (limit,),
     )
-    return [dict(row) for row in rows]
+    return [_job_status_projection(row) for row in rows]
+
+
+async def prune_terminal_jobs(
+    db: aiosqlite.Connection,
+    kind: str,
+    *,
+    keep: int = JOB_TERMINAL_HISTORY_MAX,
+) -> int:
+    normalized_kind = _kind(kind)
+    if not isinstance(keep, int) or isinstance(keep, bool) or not 1 <= keep <= JOB_TERMINAL_HISTORY_MAX:
+        raise ValueError(f"Terminal job history must be between 1 and {JOB_TERMINAL_HISTORY_MAX}")
+    async with _immediate_transaction(db):
+        cursor = await db.execute(
+            """DELETE FROM jobs
+               WHERE kind = ? AND status IN ('succeeded', 'failed', 'cancelled', 'needs_attention')
+                 AND id NOT IN (
+                     SELECT id FROM jobs
+                     WHERE kind = ? AND status IN ('succeeded', 'failed', 'cancelled', 'needs_attention')
+                     ORDER BY id DESC LIMIT ?
+                 )""",
+            (normalized_kind, normalized_kind, keep),
+        )
+        return cursor.rowcount
+
+
+def _job_status_projection(row: Mapping[str, Any]) -> dict[str, Any]:
+    projected = dict(row)
+    raw_result = projected.pop("result_json", "{}")
+    projected["outcome"] = ""
+    if projected["kind"] == "oura_sync" and projected["status"] == "succeeded":
+        try:
+            result = json.loads(raw_result)
+        except (TypeError, ValueError):
+            result = {}
+        if isinstance(result, dict) and result.get("complete") is False:
+            projected["outcome"] = "partial"
+    return projected
 
 
 def decode_job_payload(job: Mapping[str, Any]) -> dict[str, Any]:

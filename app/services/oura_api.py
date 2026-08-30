@@ -457,6 +457,22 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
     if failed:
         logger.warning("Oura sync partial: endpoints failed, preserving their columns: %s", sorted(failed))
 
+    workouts_synced = True
+    workouts = []
+    try:
+        workouts = await fetch_oura_workouts(token, start.isoformat(), end.isoformat())
+    except OuraAuthError:
+        logger.warning("Oura token rejected during workout sync - marking integration as error")
+        await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
+        await db.commit()
+        raise
+    except OuraFetchError:
+        logger.warning("Oura workout endpoint unavailable or not authorized - skipping workout sync")
+        workouts_synced = False
+    except Exception:
+        logger.exception("Failed to fetch Oura workouts")
+        workouts_synced = False
+
     count = 0
     affected_months = set()
     for day_str, data in daily.items():
@@ -516,44 +532,31 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
             (month, *(monthly_values[column] for column in _ALL_MONTHLY_COLUMNS)),
         )
 
-    # Sync workouts
-    workouts_synced = True
-    try:
-        workouts = await fetch_oura_workouts(token, start.isoformat(), end.isoformat())
-        for w in workouts:
-            await db.execute(
-                """INSERT INTO oura_workouts (date, activity, duration_minutes, calories,
-                    distance_meters, intensity, start_datetime, end_datetime, oura_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(oura_id) DO UPDATE SET
-                    date=excluded.date, activity=excluded.activity,
-                    duration_minutes=excluded.duration_minutes, calories=excluded.calories,
-                    distance_meters=excluded.distance_meters, intensity=excluded.intensity,
-                    start_datetime=excluded.start_datetime, end_datetime=excluded.end_datetime""",
-                (
-                    w["date"],
-                    w["activity"],
-                    w["duration_minutes"],
-                    w["calories"],
-                    w["distance_meters"],
-                    w["intensity"],
-                    w["start_datetime"],
-                    w["end_datetime"],
-                    w["oura_id"],
-                ),
-            )
-        await _auto_populate_experiments(db)
-    except OuraAuthError:
-        logger.warning("Oura token rejected during workout sync — marking integration as error")
-        await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
-        await db.commit()
-        raise
-    except OuraFetchError:
-        logger.warning("Oura workout endpoint unavailable or not authorized — skipping workout sync")
-        workouts_synced = False
-    except Exception:
-        logger.exception("Failed to sync Oura workouts")
-        workouts_synced = False
+    # Every external fetch is complete before the first domain write, so job
+    # heartbeats never observe a SQLite transaction held across network I/O.
+    for workout in workouts:
+        await db.execute(
+            """INSERT INTO oura_workouts (date, activity, duration_minutes, calories,
+                distance_meters, intensity, start_datetime, end_datetime, oura_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(oura_id) DO UPDATE SET
+                date=excluded.date, activity=excluded.activity,
+                duration_minutes=excluded.duration_minutes, calories=excluded.calories,
+                distance_meters=excluded.distance_meters, intensity=excluded.intensity,
+                start_datetime=excluded.start_datetime, end_datetime=excluded.end_datetime""",
+            (
+                workout["date"],
+                workout["activity"],
+                workout["duration_minutes"],
+                workout["calories"],
+                workout["distance_meters"],
+                workout["intensity"],
+                workout["start_datetime"],
+                workout["end_datetime"],
+                workout["oura_id"],
+            ),
+        )
+    await _auto_populate_experiments(db)
 
     # Update last_sync_at
     now = datetime.now(UTC).isoformat()

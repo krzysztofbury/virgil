@@ -1167,7 +1167,7 @@ details > :not(summary) { margin-top: 1rem; }
 }
 .job-status-queued, .job-status-running { border-left-color: var(--job-info); }
 .job-status-succeeded { border-left-color: var(--job-success); }
-.job-status-failed, .job-status-needs-attention { border-left-color: var(--job-warning); }
+.job-status-failed, .job-status-needs-attention, .job-status-partial { border-left-color: var(--job-warning); }
 .job-status-cancelled { border-left-color: var(--text-tertiary); }
 .job-status-heading {
   display: flex;
@@ -1189,7 +1189,7 @@ details > :not(summary) { margin-top: 1rem; }
 }
 .job-status-badge-queued, .job-status-badge-running { color: var(--job-info); background: rgba(83, 155, 245, 0.12); }
 .job-status-badge-succeeded { color: var(--job-success); background: rgba(44, 182, 125, 0.12); }
-.job-status-badge-failed, .job-status-badge-needs-attention { color: var(--job-warning); background: rgba(229, 169, 64, 0.12); }
+.job-status-badge-failed, .job-status-badge-needs-attention, .job-status-badge-partial { color: var(--job-warning); background: rgba(229, 169, 64, 0.12); }
 .job-status-badge-cancelled { color: var(--text-secondary); background: var(--bg-surface); }
 .job-status-meta {
   display: flex;

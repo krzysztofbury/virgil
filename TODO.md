@@ -200,8 +200,17 @@ explicit decision to support accounts outside the trusted household.
         TigerStyle review passed before push.
       - [ ] **Phase 3D - Workload migration:** move Oura, backup/export and LLM
         calls one kind at a time, with an explicit retry policy for each kind.
-- [ ] **Phase 4 — Oura lifecycle hardening:** timestamp replay protection,
-      subscription expiry tracking, renewal and periodic reconciliation.
+        - [x] Backup, markdown export and manual/scheduled/webhook Oura sync use
+          bounded automatic-retry jobs with replay-safe publication and one
+          queued successor per kind. Completed on
+          `fix/reliability-phase-3d-workload-jobs`; 650 tests, real-browser
+          desktop/mobile smoke and final TigerStyle review passed.
+        - [ ] Paid LLM workloads remain on the request path and require manual
+          retry at an ambiguous provider boundary.
+- [ ] **Phase 4 - Oura lifecycle hardening:**
+      - [x] Signed delivery timestamp replay protection and persistent delivery
+        fingerprints shipped with Phase 3D operational workloads.
+      - [ ] Subscription expiry tracking, renewal and periodic reconciliation.
 - [ ] **Phase 5 — Recovery and data ownership:** versioned JSON transfer,
       validated `.db` restore, freshness status, off-NAS copy and restore drill.
 - [ ] **Phase 6 — Explicit offline and accessible shell:** read-only offline
@@ -227,7 +236,8 @@ explicit decision to support accounts outside the trusted household.
 
 ### P1 — Durable job model for LLM/sync/backup work
 
-**Roadmap status:** Phases 3A-3C complete; Phase 3D remains.
+**Roadmap status:** Phases 3A-3C and Phase 3D operational workloads are complete;
+paid LLM workload migration remains.
 **Goal:** No user-facing request ever blocks on an LLM or Oura call; work survives restarts; no automatic duplicate LLM cost at an ambiguous provider boundary.
 **Shipped in Phase 3A:** migration 027 and the durable state-transition service:
 bounded JSON payload/result/error fields, idempotent enqueue with semantic conflict
@@ -243,8 +253,13 @@ recent-job list in Settings, accessible HTMX polling that ignores heartbeat-only
 updates, and explicit retry controls with additional ambiguous-outcome confirmation.
 Retry authorization uses an atomic status-and-attempt comparison so stale forms
 cannot requeue a newer attempt.
-**Plan remaining:** onboarding enrichment, A.N.D.Y., experiment summaries,
-briefings, Oura sync, backup and export become explicit job kinds.
+**Shipped in Phase 3D:** backup, markdown export and Oura sync are explicit
+automatic-retry job kinds. Manual routes, schedules and Oura webhooks enqueue
+only; filesystem and network I/O runs in the static worker registry. Queue
+growth, terminal history and retries are bounded, while Oura partial outcomes
+stay visible without exposing job payloads.
+**Plan remaining:** onboarding enrichment, A.N.D.Y., experiment summaries and
+briefings become explicit paid-LLM job kinds with ambiguity-safe manual retry.
 **Deliverables remaining:** onboarding progress screen with per-step status + retry + "continue without AI"; idempotency keys per (kind, date); workload-level crash/restart tests.
 
 ### P1 — Recovery & data-ownership story

@@ -450,6 +450,9 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
         async def legacy_tasks(db, user_id):
             calls.append(("legacy", db, user_id))
 
+        async def enqueue_jobs(db):
+            calls.append(("enqueue", db))
+
         async def central_backup():
             calls.append(("central",))
 
@@ -459,6 +462,7 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
         monkeypatch.setattr(scheduler, "get_active_users", active_users)
         monkeypatch.setattr(scheduler, "open_user_db", open_db)
         monkeypatch.setattr(scheduler, "close_user_db", close_db)
+        monkeypatch.setattr(scheduler, "_enqueue_due_jobs", enqueue_jobs)
         monkeypatch.setattr(scheduler, "_check_and_run", legacy_tasks)
         monkeypatch.setattr(worker_module, "run_jobs_for_user", run_jobs)
         monkeypatch.setattr(backup_module, "maybe_backup_central", central_backup)
@@ -469,9 +473,11 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
     calls, worker_id = asyncio.run(scenario())
     assert calls == [
         ("open", "one.db"),
+        ("enqueue", "one.db"),
         ("jobs", "one.db", "1", "one.db", worker_id),
         ("close", "one.db"),
         ("open", "two.db"),
+        ("enqueue", "two.db"),
         ("jobs", "two.db", "2", "two.db", worker_id),
         ("legacy", "two.db", "2"),
         ("close", "two.db"),
@@ -535,6 +541,7 @@ def test_scheduler_runs_users_with_bounded_concurrency(monkeypatch):
         monkeypatch.setattr(scheduler, "get_active_users", active_users)
         monkeypatch.setattr(scheduler, "open_user_db", open_db)
         monkeypatch.setattr(scheduler, "close_user_db", no_op)
+        monkeypatch.setattr(scheduler, "_enqueue_due_jobs", no_op)
         monkeypatch.setattr(scheduler, "_check_and_run", no_op)
         monkeypatch.setattr(worker_module, "run_jobs_for_user", run_jobs)
         monkeypatch.setattr(backup_module, "maybe_backup_central", no_op)

@@ -1,5 +1,8 @@
+import asyncio
 import os
+import uuid
 from datetime import date, timedelta
+from pathlib import Path
 
 from app.config import SECOND_BRAIN_PATH
 from app.db import get_setting
@@ -488,6 +491,15 @@ def valid_export_filename(filename: str) -> bool:
     return filename.endswith(".md") and len(filename) > len(".md")
 
 
+def _publish_markdown(path: Path, content: str) -> None:
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        temporary.write_text(content, encoding="utf-8")
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 async def export_filename_for(db, user_id: str) -> str:
     """Per-user export filename, DERIVED from identity — never user-chosen.
 
@@ -515,12 +527,9 @@ async def write_export(db, scope: str = "weekly", sections: set[str] | None = No
     content = await export_markdown(db, scope, sections=sections)
 
     if SECOND_BRAIN_PATH:
-        path = os.path.join(SECOND_BRAIN_PATH, filename)
-        tmp = path + ".tmp"
+        path = Path(SECOND_BRAIN_PATH) / filename
         try:
-            with open(tmp, "w", encoding="utf-8") as f:
-                f.write(content)
-            os.replace(tmp, path)
+            await asyncio.to_thread(_publish_markdown, path, content)
         except OSError as exc:
             await db.execute(
                 "INSERT INTO sync_log (file_name, status, message) VALUES (?, 'error', ?)",

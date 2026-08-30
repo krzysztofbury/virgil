@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Backup, markdown export and Oura sync now run as durable workloads.**
+  Manual routes, schedules and HMAC-verified webhooks only enqueue bounded,
+  restart-safe jobs; a static worker registry performs external I/O with automatic
+  retries. Migration 028 permits one queued successor per workload kind, safely
+  reconciles v27 duplicates and keeps interrupted work from losing a wider scope.
+  Backup and export publication is replay-safe, Oura partial results remain
+  visible, and webhook deliveries have persistent fingerprints plus timestamp
+  replay protection.
 - **Durable jobs now have session-scoped status and explicit retry controls.**
   Settings shows a bounded recent-job list with accessible HTMX polling for
   active work and no worker, payload or idempotency metadata. Failed work can be

@@ -1,7 +1,8 @@
 import logging
+import secrets
 from datetime import date, timedelta
 
-from fastapi import APIRouter, Form, Request
+from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
@@ -63,7 +64,7 @@ def readiness_baseline(rows: list[dict], today_score: int | None) -> dict:
 
 @router.get("/oura", response_class=HTMLResponse)
 @router.get("/oura/{metric}", response_class=HTMLResponse)
-async def oura_page(request: Request, metric: str = "sleep_score"):
+async def oura_page(request: Request, metric: str = "sleep_score", job_id: int | None = Query(None, ge=1)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT * FROM oura_monthly ORDER BY month")
     data = [dict(r) for r in rows]
@@ -76,6 +77,14 @@ async def oura_page(request: Request, metric: str = "sleep_score"):
     # Check Oura connection status
     oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     oura_connected = oura_row[0]["status"] == "connected" if oura_row else False
+
+    current_job = None
+    if job_id is not None:
+        from app.routers.jobs import build_job_view
+        from app.services.jobs import get_job_status
+
+        job = await get_job_status(db, job_id)
+        current_job = build_job_view(job) if job is not None else None
 
     # Today's daily data (fall back to yesterday for activity/steps)
     today_str = date.today().isoformat()
@@ -127,6 +136,8 @@ async def oura_page(request: Request, metric: str = "sleep_score"):
             "values": values,
             "data": data,
             "oura_connected": oura_connected,
+            "current_job": current_job,
+            "job_nonce": secrets.token_hex(16),
             "oura_today": oura_today,
             "baseline": baseline,
             "yesterday_fallback": yesterday_fallback,
@@ -215,21 +226,25 @@ async def delete_oura(request: Request, month: str = Form(...)):
 
 
 @router.post("/oura/api-sync")
-async def oura_api_sync(request: Request):
-    from app.services.oura_api import sync_oura_from_api
+async def oura_api_sync(request: Request, job_nonce: str = Form(...)):
+    from app.services.job_producers import OURA_SYNC_JOB_KIND, enqueue_oura_sync_job, manual_job_key
 
     db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
+    if not rows or rows[0]["status"] != "connected":
+        return error_redirect(request, "/oura", "Oura is not connected.")
     try:
-        result = await sync_oura_from_api(db)
-        logger.info("Oura API sync from oura page: %d days", result.days)
-    except Exception:
-        logger.exception("Oura API sync failed")
-        return error_redirect(request, "/oura", "Oura sync failed. Try again.")
-    if not result.complete:
-        return error_redirect(
-            request,
-            "/oura",
-            "Oura sync was partial. Existing data for failed sources was preserved.",
+        result = await enqueue_oura_sync_job(
+            db,
+            trigger="manual",
+            days_back=30,
+            idempotency_key=manual_job_key(OURA_SYNC_JOB_KIND, job_nonce),
         )
-    day_word = "day" if result.days == 1 else "days"
-    return success_redirect(request, "/oura", f"Oura sync completed: {result.days} {day_word}")
+    except Exception:
+        logger.exception("Oura API sync enqueue failed")
+        return error_redirect(request, "/oura", "Oura sync could not be queued. Try again.")
+    return success_redirect(
+        request,
+        f"/oura?job_id={result.job_id}#job-status-{result.job_id}",
+        "Oura sync queued.",
+    )

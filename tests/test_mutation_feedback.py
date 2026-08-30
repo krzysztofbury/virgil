@@ -1,13 +1,15 @@
 """Shared mutation feedback must be bounded, accessible, and transport-aware."""
 
 import ast
+import re
+import sqlite3
 from pathlib import Path
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from tests.conftest import csrf_token
+from tests.conftest import csrf_token, user_db_path
 
 
 def test_mutation_handlers_do_not_return_silent_redirects():
@@ -99,74 +101,64 @@ def test_base_feedback_is_accessible_persistent_and_escaped(auth_client):
     assert "x" * 241 not in feedback, "the read boundary must enforce the same 240-character cap"
 
 
-def test_oura_sync_native_success_redirects_with_visible_feedback(auth_client, monkeypatch):
-    from app.services.oura_api import OuraSyncResult
+@pytest.fixture
+def connected_oura(auth_client):
+    db = sqlite3.connect(user_db_path())
+    try:
+        db.execute("DELETE FROM jobs")
+        db.execute("DELETE FROM integrations WHERE provider = 'oura'")
+        db.execute(
+            "INSERT INTO integrations (provider, client_id, client_secret_enc, status) "
+            "VALUES ('oura', 'client', 'secret', 'connected')"
+        )
+        db.commit()
+    finally:
+        db.close()
+    yield
+    db = sqlite3.connect(user_db_path())
+    try:
+        db.execute("DELETE FROM jobs")
+        db.execute("DELETE FROM integrations WHERE provider = 'oura'")
+        db.commit()
+    finally:
+        db.close()
 
-    async def fake_sync(_db):
-        return OuraSyncResult(days=4, failed_daily_endpoints=(), workouts_synced=True)
 
-    monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", fake_sync)
+def _job_nonce(html: str) -> str:
+    match = re.search(r'name="job_nonce" value="([0-9a-f]{32})"', html)
+    assert match
+    return match.group(1)
+
+
+def test_oura_sync_native_queues_with_visible_feedback(auth_client, connected_oura):
+    page = auth_client.get("/oura")
     response = auth_client.post(
         "/oura/api-sync",
-        data={"_csrf_token": csrf_token(auth_client, "/oura")},
+        data={"_csrf_token": csrf_token(auth_client, "/oura"), "job_nonce": _job_nonce(page.text)},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
-    assert parse_qs(urlsplit(response.headers["location"]).query) == {"msg": ["Oura sync completed: 4 days"]}
+    target = urlsplit(response.headers["location"])
+    assert target.path == "/oura"
+    assert parse_qs(target.query)["msg"] == ["Oura sync queued."]
+    assert parse_qs(target.query)["job_id"]
 
 
-def test_oura_sync_partial_result_is_not_reported_as_success(auth_client, monkeypatch):
-    from app.services.oura_api import OuraSyncResult
-
-    async def fake_sync(_db):
-        return OuraSyncResult(days=3, failed_daily_endpoints=("sleep",), workouts_synced=False)
-
-    monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", fake_sync)
+def test_oura_sync_htmx_queues_with_hx_redirect(auth_client, connected_oura):
+    page = auth_client.get("/oura")
     response = auth_client.post(
         "/oura/api-sync",
-        data={"_csrf_token": csrf_token(auth_client, "/oura")},
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 303
-    query = parse_qs(urlsplit(response.headers["location"]).query)
-    assert "msg" not in query
-    assert query == {"err": ["Oura sync was partial. Existing data for failed sources was preserved."]}
-
-
-def test_oura_sync_exception_is_visible_and_detail_free(auth_client, monkeypatch):
-    async def fake_sync(_db):
-        raise RuntimeError("secret provider response")
-
-    monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", fake_sync)
-    response = auth_client.post(
-        "/oura/api-sync",
-        data={"_csrf_token": csrf_token(auth_client, "/oura")},
-        follow_redirects=False,
-    )
-
-    assert response.status_code == 303
-    assert parse_qs(urlsplit(response.headers["location"]).query) == {"err": ["Oura sync failed. Try again."]}
-    assert "secret" not in response.headers["location"]
-
-
-def test_oura_sync_htmx_uses_hx_redirect(auth_client, monkeypatch):
-    from app.services.oura_api import OuraSyncResult
-
-    async def fake_sync(_db):
-        return OuraSyncResult(days=1, failed_daily_endpoints=(), workouts_synced=True)
-
-    monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", fake_sync)
-    response = auth_client.post(
-        "/oura/api-sync",
-        data={"_csrf_token": csrf_token(auth_client, "/oura")},
+        data={"_csrf_token": csrf_token(auth_client, "/oura"), "job_nonce": _job_nonce(page.text)},
         headers={"HX-Request": "true"},
         follow_redirects=False,
     )
 
     assert response.status_code == 200
-    assert parse_qs(urlsplit(response.headers["HX-Redirect"]).query) == {"msg": ["Oura sync completed: 1 day"]}
+    target = urlsplit(response.headers["HX-Redirect"])
+    assert target.path == "/oura"
+    assert parse_qs(target.query)["msg"] == ["Oura sync queued."]
+    assert parse_qs(target.query)["job_id"]
     assert response.text == ""
 
 
