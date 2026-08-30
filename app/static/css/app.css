@@ -2266,6 +2266,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   color: var(--text-primary);
 }
 .brick-card form .btn { align-self: flex-end; }
+.brick-card form .brick-date { align-self: flex-start; max-width: 14rem; }
+.brick-card form input[type="date"] {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-input);
+  color: var(--text-primary);
+}
 .brick-card-summary {
   width: 100%;
   display: flex;

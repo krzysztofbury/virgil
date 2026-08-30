@@ -78,9 +78,11 @@
         <span class="brick-plus" :class="{ open: open }">+</span>
     </button>
     <form method="POST" action="/feniks/bricks" hx-post="/feniks/bricks" hx-swap="none" x-show="open" x-cloak
-          data-draft-key="feniks-brick:{{ today }}" data-draft-fields="hook,story">
-        <input type="hidden" name="date" value="{{ today }}">
+          data-draft-key="feniks-brick:{{ form_date }}" data-draft-fields="hook,story">
         <input type="hidden" name="craving" :value="craving === null ? '' : craving">
+        <label class="brick-date">When did you survive it?
+            <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required>
+        </label>
         <label>Name this brick <small class="text-muted">&mdash; the words you'll stand on next time</small>
             <input type="text" name="hook" maxlength="200" required
                    placeholder="e.g. Walked it off &mdash; urge gone in 20 min">

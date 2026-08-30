@@ -21,6 +21,21 @@ async def require_feniks(request: Request):
 router = APIRouter(dependencies=[Depends(require_feniks)])
 
 
+def _past_or_today(value: str) -> str | None:
+    """Normalise a form date, or None if it is unparseable or still ahead.
+
+    Normalising matters because date.fromisoformat also accepts compact and
+    week forms, which no longer compare correctly as plain text.
+    """
+    from datetime import date as calendar_date
+
+    try:
+        parsed = calendar_date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed.isoformat() if parsed <= calendar_date.today() else None
+
+
 @router.get("/feniks", response_class=HTMLResponse)
 async def feniks_page(request: Request):
     edit_date = request.query_params.get("date")
@@ -160,8 +175,15 @@ async def save_brick(
 ):
     """A brick = one urge survived, in Gola's structure. The hook (hak
     pamięciowy) is what makes it retrievable under pressure — required."""
-    if not valid_date(date) or not hook.strip():
+    if not hook.strip():
         return error_redirect(request, "/feniks", "Name the brick before saving it.")
+    # The page can be opened on an earlier day, so the brick carries its own
+    # date instead of always landing on today. A future one is always a typo:
+    # the urge has not happened yet.
+    entry_date = _past_or_today(date)
+    if entry_date is None:
+        return error_redirect(request, "/feniks", "Give the brick a date of today or earlier.")
+    date = entry_date
     hook = truncate(hook.strip(), 200)
     story = truncate(story, 2000)
     craving_val = clamp(craving, 0, 10)
@@ -173,7 +195,7 @@ async def save_brick(
     await db.commit()
     return success_redirect(
         request,
-        "/feniks",
+        f"/feniks?date={date}",
         "Brick added.",
         clear_draft=f"feniks-brick:{date}",
     )
