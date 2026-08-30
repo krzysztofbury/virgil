@@ -83,6 +83,20 @@ def build_job_view(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+async def current_job_view(db, job_id: int | None) -> dict[str, Any] | None:
+    """The tray's view of one job, or None when there is nothing to report.
+
+    Every page that can enqueue work needs exactly this, and seven copies of it
+    is seven places for the projection to drift.
+    """
+    if job_id is None:
+        return None
+    from app.services.jobs import get_job_status
+
+    row = await get_job_status(db, job_id)
+    return build_job_view(row) if row is not None else None
+
+
 def _is_htmx(request: Request) -> bool:
     return request.headers.get("HX-Request") == "true"
 

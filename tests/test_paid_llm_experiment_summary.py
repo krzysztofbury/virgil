@@ -257,3 +257,43 @@ def test_a_stored_summary_payload_is_validated(payload, monkeypatch):
             await db.close()
 
     asyncio.run(scenario())
+
+
+def test_a_permanently_failed_week_does_not_block_the_weeks_behind_it(monkeypatch):
+    """Head-of-line blocking: week 1 is always due, so it must not own the queue.
+
+    A failed job keeps its idempotency key, so re-enqueueing week 1 returns the
+    old job with created=False. Stopping there left weeks 2..N unbuyable for the
+    life of the experiment, and week 1 stays in due_summary_weeks forever
+    because nothing ever wrote its summary.
+    """
+    experiment_id = _seed_experiment()
+    monkeypatch.setattr("app.services.experiment_summary.has_llm", _available)
+    _stub(monkeypatch)
+
+    async def scenario():
+        db = await _db()
+        try:
+            first = await enqueue_due_summary(db, experiment_id)
+            assert first is not None
+            return first
+        finally:
+            await db.close()
+
+    first = asyncio.run(scenario())
+    # The worker ran week 1 and it failed for good: terminal, no summary stored.
+    db = sqlite3.connect(user_db_path())
+    try:
+        db.execute(
+            "UPDATE jobs SET status = 'failed', attempts = 1, started_at = datetime('now'), "
+            "finished_at = datetime('now'), last_error = 'provider refused' WHERE id = ?",
+            (first,),
+        )
+        db.commit()
+    finally:
+        db.close()
+
+    second = asyncio.run(scenario())
+    assert second is not None and second != first, "week 2 must still be reachable"
+    queued = _rows("SELECT payload_json FROM jobs WHERE id = ?", (second,))[0]["payload_json"]
+    assert '"week_number":2' in queued

@@ -56,13 +56,9 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
 
     llm_configured = await llm_available(db)
 
-    current_job = None
-    if job_id is not None:
-        from app.routers.jobs import build_job_view
-        from app.services.jobs import get_job_status
+    from app.routers.jobs import current_job_view
 
-        job = await get_job_status(db, job_id)
-        current_job = build_job_view(job) if job is not None else None
+    current_job = await current_job_view(db, job_id)
 
     # Per-habit current streaks
     habit_fields = [

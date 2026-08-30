@@ -78,13 +78,9 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
     oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     oura_connected = oura_row[0]["status"] == "connected" if oura_row else False
 
-    current_job = None
-    if job_id is not None:
-        from app.routers.jobs import build_job_view
-        from app.services.jobs import get_job_status
+    from app.routers.jobs import current_job_view
 
-        job = await get_job_status(db, job_id)
-        current_job = build_job_view(job) if job is not None else None
+    current_job = await current_job_view(db, job_id)
 
     # Today's daily data (fall back to yesterday for activity/steps)
     today_str = date.today().isoformat()

@@ -973,7 +973,10 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
     session_id = _sessions()[0]["id"]
 
     page = auth_client.get("/training").text
-    assert f"/training/wod/confirm/{session_id}" in page, (
+    # Match the whole href: a bare substring for session 10 also matches the
+    # link for session 103, which made both halves of this test unreliable once
+    # the shared database held three-digit ids.
+    assert f'href="/training/wod/confirm/{session_id}"' in page, (
         "a session with a pending parse must be reachable from /training"
     )
 
@@ -989,7 +992,7 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
         "ORDER BY date DESC LIMIT 1"
     )
     assert settled, "precondition: at least one settled session must exist for the control to mean anything"
-    assert f"/training/wod/confirm/{settled[0]['id']}" not in page, (
+    assert f'href="/training/wod/confirm/{settled[0]["id"]}"' not in page, (
         "a session with no pending parse must not be offered a 'dokończ' link"
     )
 

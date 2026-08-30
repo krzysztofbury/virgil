@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from uuid import uuid4
 
 from fastapi import APIRouter, Query, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
@@ -217,14 +217,10 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
     return value
 
 
-async def _job_view(db, job_id: int | None) -> dict | None:
-    if job_id is None:
-        return None
-    from app.routers.jobs import build_job_view
-    from app.services.jobs import get_job_status
+async def _current_job(db, job_id: int | None) -> dict | None:
+    from app.routers.jobs import current_job_view
 
-    job = await get_job_status(db, job_id)
-    return build_job_view(job) if job is not None else None
+    return await current_job_view(db, job_id)
 
 
 @router.get("/training", response_class=HTMLResponse)
@@ -359,7 +355,7 @@ async def training_page(request: Request, page: int = 1, job_id: int | None = Qu
             "capture_token": uuid4().hex,
             "pending_sessions": pending_sessions,
             "pending_overflow": pending_overflow,
-            "current_job": await _job_view(db, job_id),
+            "current_job": await _current_job(db, job_id),
             "page": page,
             "has_prev": page > 1,
             "has_next": has_next,
@@ -525,11 +521,18 @@ async def wod_confirm_page(request: Request, session_id: int, job_id: int | None
                     "awaiting_parse": True,
                     "session_id": session_id,
                     "session_date": rows[0]["date"],
-                    "current_job": await _job_view(db, job_id),
+                    "current_job": await _current_job(db, job_id),
                 },
             )
         # Unknown session, or one not created by the WOD capture flow (no
-        # stored parse result to show) — nothing to confirm here.
+        # stored parse result to show) - nothing to confirm here.
+        #
+        # The waiting panel polls this route with hx-select="#wod-confirm-root".
+        # XHR follows a 303 transparently, so htmx would select that id out of
+        # /training, find nothing, and swap the panel away: a blank screen with
+        # no way forward. Tell htmx to navigate instead.
+        if request.headers.get("HX-Request") == "true":
+            return Response(status_code=200, headers={"HX-Redirect": "/training"})
         return RedirectResponse("/training", status_code=303)
 
     session = rows[0]

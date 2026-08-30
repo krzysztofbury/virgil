@@ -5,6 +5,9 @@ from app.services.llm import call_llm, llm_available
 
 SUMMARY_JOB_KIND = "experiment_summary"
 SUMMARY_MAX_CHARS = 8000
+# One tick looks at this many due weeks before giving up, so the scan stays
+# bounded no matter how long an experiment is.
+SUMMARY_ENQUEUE_SCAN_MAX = 12
 
 logger = logging.getLogger(__name__)
 
@@ -235,16 +238,23 @@ async def enqueue_due_summary(db, experiment_id: int) -> int | None:
     if not await has_llm(db):
         return None
     weeks = await due_summary_weeks(db, experiment_id)
-    if not weeks:
-        return None
-    week_number = weeks[0]
-    try:
-        result = await enqueue_paid_llm_job(
-            db,
-            SUMMARY_JOB_KIND,
-            {"experiment_id": experiment_id, "week_number": week_number, "trigger": "scheduled"},
-            idempotency_key=paid_llm_job_key(SUMMARY_JOB_KIND, str(experiment_id), str(week_number), "scheduled"),
-        )
-    except ActiveWorkloadConflictError:
-        return None
-    return result.job_id if result.created else None
+
+    # Walk the due weeks rather than taking the first. A week that failed for
+    # good keeps its idempotency key, so re-enqueueing it returns the old job
+    # with created=False - and because nothing ever wrote its summary, it stays
+    # due forever. Stopping at weeks[0] made that one week own the queue and
+    # left every week behind it unbuyable for the life of the experiment.
+    for week_number in weeks[:SUMMARY_ENQUEUE_SCAN_MAX]:
+        try:
+            result = await enqueue_paid_llm_job(
+                db,
+                SUMMARY_JOB_KIND,
+                {"experiment_id": experiment_id, "week_number": week_number, "trigger": "scheduled"},
+                idempotency_key=paid_llm_job_key(SUMMARY_JOB_KIND, str(experiment_id), str(week_number), "scheduled"),
+            )
+        except ActiveWorkloadConflictError:
+            # Another summary already holds the single queued slot for this kind.
+            return None
+        if result.created:
+            return result.job_id
+    return None

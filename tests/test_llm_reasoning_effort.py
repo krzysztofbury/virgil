@@ -168,3 +168,14 @@ def test_no_call_site_pins_a_provider_specific_level():
         if path.name == "llm.py":
             continue
         assert 'reasoning_effort="disable"' not in path.read_text(), path
+
+
+def test_an_explicit_level_written_in_code_must_be_real():
+    """The setting falls back; a hardcoded argument does not. That asymmetry is
+    the point: a stored value can be stale, a literal in the source is a typo."""
+
+    async def scenario():
+        await call_llm(_FakeDB("low"), "system", "user", reasoning_effort="disable")
+
+    with pytest.raises(AssertionError, match="reasoning_effort must be one of"):
+        asyncio.run(scenario())

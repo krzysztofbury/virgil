@@ -56,6 +56,12 @@ GOAL_CATEGORY_MAP = {
 }
 
 
+async def _current_job(db, job_id: int | None) -> dict | None:
+    from app.routers.jobs import current_job_view
+
+    return await current_job_view(db, job_id)
+
+
 @router.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, step: int = 0, job_id: int | None = Query(None, ge=1)):
     step = max(0, min(6, step))
@@ -91,20 +97,10 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
             "profile": profile,
             "goals": goals,
             "has_internal_llm": has_internal_llm,
-            "current_job": await _job_view(db, job_id),
+            "current_job": await _current_job(db, job_id),
             "enrichment": await enrichment_progress(db),
         },
     )
-
-
-async def _job_view(db, job_id: int | None) -> dict | None:
-    if job_id is None:
-        return None
-    from app.routers.jobs import build_job_view
-    from app.services.jobs import get_job_status
-
-    job = await get_job_status(db, job_id)
-    return build_job_view(job) if job is not None else None
 
 
 @router.post("/onboarding/step/1")

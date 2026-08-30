@@ -112,7 +112,12 @@ async def call_llm(
     """
     assert max_tokens >= 1, f"max_tokens must be positive: {max_tokens}"
     assert max_tokens <= 65536, f"max_tokens beyond any provider cap: {max_tokens}"
-    effort = reasoning_effort_choice(reasoning_effort) if reasoning_effort else await resolve_reasoning_effort(db)
+    # A stored setting falls back; an argument written in code does not. A typo
+    # there is a bug, and silently answering it with "medium" hides it.
+    assert reasoning_effort is None or reasoning_effort in REASONING_EFFORTS, (
+        f"reasoning_effort must be one of {REASONING_EFFORTS}: {reasoning_effort!r}"
+    )
+    effort = reasoning_effort or await resolve_reasoning_effort(db)
     model, api_key = await _resolve_provider(db)
 
     kwargs: dict = {"drop_params": True, "reasoning_effort": _portable_effort(effort, model)}

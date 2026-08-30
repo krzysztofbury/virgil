@@ -234,13 +234,9 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         exp["end_date"] = end.isoformat()
         active_experiments.append(exp)
 
-    current_job = None
-    if job_id is not None:
-        from app.routers.jobs import build_job_view
-        from app.services.jobs import get_job_status
+    from app.routers.jobs import current_job_view
 
-        job = await get_job_status(db, job_id)
-        current_job = build_job_view(job) if job is not None else None
+    current_job = await current_job_view(db, job_id)
 
     # Morning briefing
     briefing_enabled = await get_setting(db, "briefing_enabled", "0") == "1"

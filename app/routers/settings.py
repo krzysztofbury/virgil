@@ -57,12 +57,10 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         "job_nonce": secrets.token_hex(16),
     }
 
-    if job_id is not None and tab != "automation":
-        from app.routers.jobs import build_job_view
-        from app.services.jobs import get_job_status
+    from app.routers.jobs import current_job_view
 
-        job = await get_job_status(db, job_id)
-        context["current_job"] = build_job_view(job) if job is not None else None
+    if tab != "automation":
+        context["current_job"] = await current_job_view(db, job_id)
 
     if tab == "general":
         providers = await db.execute_fetchall("SELECT * FROM llm_providers ORDER BY created_at DESC")

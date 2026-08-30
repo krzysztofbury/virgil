@@ -282,3 +282,31 @@ def test_no_request_path_parses_a_wod():
 
     source = Path("app/routers/training.py").read_text()
     assert not re.search(r"\bawait parse_wod\(", source), "the route must only enqueue the parse"
+
+
+def test_a_failed_parse_takes_the_waiting_screen_somewhere_useful(auth_client, monkeypatch):
+    """The waiting panel polls itself. Once the job is terminal the session has
+    no parse and no job, so the GET redirects - and an HTMX poll that follows a
+    redirect selects #wod-confirm-root out of a page that has none, which blanks
+    the panel and leaves the user on an empty screen with no way forward."""
+
+    async def uncertain(db, system_prompt, user_prompt, **kwargs):
+        raise LLMCallAmbiguousError("timed out")
+
+    # An uncertain outcome is the one that withholds the write, so the session
+    # keeps a NULL wod_parsed while its job is already terminal.
+    monkeypatch.setattr(wod_parser, "call_llm", uncertain)
+    session_id, job_id = _capture(auth_client, "PJ parse that times out")
+    drain_jobs()
+
+    polled = auth_client.get(
+        f"/training/wod/confirm/{session_id}",
+        headers={"HX-Request": "true"},
+        follow_redirects=False,
+    )
+
+    assert polled.headers.get("HX-Redirect") == "/training", (
+        "an HTMX poll must be told to navigate, not handed a page it cannot select from"
+    )
+    plain = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
+    assert plain.status_code == 303, "a plain browser GET keeps its redirect"

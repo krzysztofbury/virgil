@@ -291,6 +291,12 @@ def _build_week_grid(
     return grid
 
 
+async def _current_job(db, job_id: int | None) -> dict | None:
+    from app.routers.jobs import current_job_view
+
+    return await current_job_view(db, job_id)
+
+
 @router.get("", response_class=HTMLResponse)
 async def experiments_list(request: Request):
     db = get_user_db_from_request(request)
@@ -466,16 +472,6 @@ async def create_experiment(
     return success_redirect(request, f"/experiments/{exp_id}", "Experiment created.")
 
 
-async def _job_view(db, job_id: int | None) -> dict | None:
-    if job_id is None:
-        return None
-    from app.routers.jobs import build_job_view
-    from app.services.jobs import get_job_status
-
-    job = await get_job_status(db, job_id)
-    return build_job_view(job) if job is not None else None
-
-
 @router.get("/{experiment_id}", response_class=HTMLResponse)
 async def experiment_detail(request: Request, experiment_id: int, job_id: int | None = Query(None, ge=1)):
     db = get_user_db_from_request(request)
@@ -594,7 +590,7 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
             "oura_connected": oura_connected,
             "summaries": summaries,
             "llm_available": llm_available,
-            "current_job": await _job_view(db, job_id),
+            "current_job": await _current_job(db, job_id),
         },
     )
 
