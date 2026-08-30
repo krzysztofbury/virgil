@@ -368,10 +368,12 @@ write and job completion cannot cause a double charge.
 | `onboarding_enrichment` | manual, per step | confirming onboarding |
 | `medical_import` | manual | uploading a blood panel in onboarding |
 
-Progress appears in the **notification tray** (top right). Confirmations fade
-after a few seconds; errors and unfinished jobs stay until you deal with them.
-Settings > Automation keeps the full recent-job history with the same retry
-controls.
+Progress appears in the **notification tray** (top right). The tray polls
+`/api/jobs/active`, so anything still queued or running is visible on every
+page, not only where you started it, together with the outcome of whatever the
+current page enqueued. Confirmations fade after a few seconds; errors and
+unfinished jobs stay until you deal with them. Settings > Automation keeps the
+full recent-job history with the same retry controls.
 
 ## UI/UX
 

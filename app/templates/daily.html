@@ -69,17 +69,19 @@
         <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
             <h3 style="margin:0;">A.N.D.Y.</h3>
             {% if llm_configured %}
-            <form method="POST" action="/daily/generate-andy" hx-post="/daily/generate-andy" hx-swap="none"
-                  style="margin:0;">
-                <input type="hidden" name="date" value="{{ date }}">
-                <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
-                <button type="submit" class="btn btn-sm btn-outline andy-gen-btn"
-                        id="andy-gen-btn"
-                        data-pending-label="Queueing..."
-                        title="Generate with AI">
-                    <span class="andy-btn-idle"><i data-lucide="sparkles" style="width:14px;height:14px;"></i> AI</span>
-                </button>
-            </form>
+            {# The card sits inside #daily-form, and one form nested inside
+               another is invalid HTML that browsers flatten: the button then
+               submitted the whole daily log to the wrong place as a GET. The
+               form= attribute keeps the button here and its owner outside,
+               which is legal and needs no script. Same trap as the Backup Now
+               button in settings.html. #}
+            <button type="submit" form="andy-generate-form"
+                    class="btn btn-sm btn-outline andy-gen-btn"
+                    id="andy-gen-btn"
+                    data-pending-label="Queueing..."
+                    title="Generate with AI">
+                <span class="andy-btn-idle"><i data-lucide="sparkles" style="width:14px;height:14px;"></i> AI</span>
+            </button>
             {% endif %}
         </div>
 
@@ -142,6 +144,14 @@
         </div>
     </div>
 </form>
+
+{% if llm_configured %}
+<form id="andy-generate-form" method="POST" action="/daily/generate-andy"
+      hx-post="/daily/generate-andy" hx-swap="none" hidden>
+    <input type="hidden" name="date" value="{{ date }}">
+    <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
+</form>
+{% endif %}
 
 <!-- Your trends: reference, not today's work. Safe to collapse - streaks and
      the heatmap are divs, no canvas. -->

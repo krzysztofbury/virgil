@@ -3,7 +3,9 @@
      class="job-status-card job-status-{{ job.display_status | replace('_', '-') }}"
      data-job-id="{{ job.id }}"
      data-job-status="{{ job.status }}"
-     {% if job.polling %}
+     {# In the tray the whole section polls as one, so a card must not also poll
+        itself: two swaps racing on the same node drop one of them. #}
+     {% if job.polling and not in_tray %}
      hx-get="{{ job.poll_url }}"
      hx-trigger="every 8s"
      hx-target="this"
