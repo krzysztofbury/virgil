@@ -16,6 +16,7 @@ def test_json_export_includes_all_user_tables(auth_client):
         "daily_briefings",
         "exercise_library",
         "app_settings",
+        "goal_reps",
     ):
         assert table in data, f"{table} missing from JSON export"
     # Credentials must never be exported.

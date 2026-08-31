@@ -252,6 +252,64 @@ def test_experiments_active_has_metrics(auth_client):
         _delete_api_experiment(exp_id)
 
 
+def test_experiment_api_pairs_target_with_the_same_calendar_week(auth_client, monkeypatch):
+    from datetime import date as real_date
+
+    class FixedDate(real_date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 8, 31)  # Monday
+
+    monkeypatch.setattr("app.routers.api.date", FixedDate)
+    conn = sqlite3.connect(user_db_path())
+    try:
+        exp_id = conn.execute(
+            "INSERT INTO experiments (title, start_date, num_weeks, status) VALUES (?, ?, 2, 'active')",
+            ("Calendar week probe", "2026-08-26"),  # Wednesday in the previous calendar week
+        ).lastrowid
+        conn.execute(
+            "INSERT INTO experiment_weeks (experiment_id, week_number, label) VALUES (?, 1, 'First')", (exp_id,)
+        )
+        conn.execute(
+            "INSERT INTO experiment_weeks (experiment_id, week_number, label) VALUES (?, 2, 'Second')", (exp_id,)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        body = auth_client.get("/api/experiments/active", headers=KEY).json()
+        experiment = next(item for item in body["experiments"] if item["id"] == exp_id)
+        assert experiment["week"] == 2
+        assert experiment["week_window"] == {"from": "2026-08-31", "to": "2026-09-06"}
+        assert experiment["week_target"]["label"] == "Second"
+
+        class BeforeDate(real_date):
+            @classmethod
+            def today(cls):
+                return cls(2026, 8, 20)
+
+        monkeypatch.setattr("app.routers.api.date", BeforeDate)
+        before = auth_client.get("/api/experiments/active", headers=KEY).json()
+        experiment = next(item for item in before["experiments"] if item["id"] == exp_id)
+        assert experiment["week"] == 1
+        assert experiment["week_window"] == {"from": "2026-08-24", "to": "2026-08-30"}
+        assert experiment["week_target"]["label"] == "First"
+
+        class AfterDate(real_date):
+            @classmethod
+            def today(cls):
+                return cls(2026, 9, 20)
+
+        monkeypatch.setattr("app.routers.api.date", AfterDate)
+        after = auth_client.get("/api/experiments/active", headers=KEY).json()
+        experiment = next(item for item in after["experiments"] if item["id"] == exp_id)
+        assert experiment["week"] == 2
+        assert experiment["week_window"] == {"from": "2026-08-31", "to": "2026-09-06"}
+        assert experiment["week_target"]["label"] == "Second"
+    finally:
+        _delete_api_experiment(exp_id)
+
+
 def test_api_post_entry_requires_key(auth_client):
     exp_id, metric_id, _ = _seed_api_experiment()
     try:

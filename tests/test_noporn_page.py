@@ -35,3 +35,27 @@ def test_removed_elements_gone(auth_client):
     assert "Milestones" not in html, "Milestones tab must stay removed"
     assert "tab = 'journal'" not in html, "tab navigation retired by the single-flow redesign"
     assert "tab = 'pleasures'" not in html
+
+
+def test_clean_day_note_is_visible_in_the_timeline(auth_client):
+    _enable_no_porn()
+    db_file = next(iter(_USERS_DIR.glob("*.db")))
+    conn = sqlite3.connect(db_file)
+    try:
+        conn.execute(
+            "INSERT INTO feniks_daily(date, used, minutes, edging, note) VALUES('2026-08-30', 0, NULL, 0, ?) ",
+            ("legacy clean measurement remains visible",),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    try:
+        html = auth_client.get("/feniks").text
+        assert "legacy clean measurement remains visible" in html
+    finally:
+        conn = sqlite3.connect(db_file)
+        try:
+            conn.execute("DELETE FROM feniks_daily WHERE date = '2026-08-30'")
+            conn.commit()
+        finally:
+            conn.close()

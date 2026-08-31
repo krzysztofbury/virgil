@@ -8,7 +8,7 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import get_user_db_from_request
-from app.validation import OptionalFormInt, clamp, truncate, valid_date
+from app.validation import OptionalFormInt, clamp, truncate
 
 logger = logging.getLogger(__name__)
 
@@ -74,8 +74,10 @@ async def feniks_page(request: Request):
     daily = await db.execute_fetchall("SELECT * FROM feniks_daily ORDER BY date DESC LIMIT 60")
     daily = [dict(r) for r in daily]
 
-    form_date = edit_date if edit_date and valid_date(edit_date) else today.isoformat()
-    form_daily = next((d for d in daily if d["date"] == form_date), None)
+    form_date = _past_or_today(edit_date) if edit_date else today.isoformat()
+    form_date = form_date or today.isoformat()
+    form_rows = await db.execute_fetchall("SELECT * FROM feniks_daily WHERE date = ?", (form_date,))
+    form_daily = dict(form_rows[0]) if form_rows else None
 
     # Unified timeline: bricks surface above the day row they belong to
     timeline_dates = sorted({d["date"] for d in daily} | {b["date"] for b in bricks}, reverse=True)
@@ -125,12 +127,23 @@ async def save_daily(
     consistent with the daily log. A historical relapse event without a daily
     row is history, not corruption.
     """
-    if not valid_date(date) or used not in ("0", "1"):
+    entry_date = _past_or_today(date)
+    if entry_date is None or used not in ("0", "1"):
         return error_redirect(request, "/feniks", "Choose a valid date and day outcome.")
+    date = entry_date
     used_val = int(used)
     edging_val = 1 if edging == "1" else 0
     minutes_val = clamp(minutes, 0, 1440)
     note = truncate(note, 500)
+    if used_val and (minutes_val is None or minutes_val < 5):
+        return error_redirect(
+            request,
+            f"/feniks?date={date}",
+            "Watched means at least 5 total minutes. Record a shorter exposure as clean and add it to the note.",
+        )
+    if not used_val:
+        minutes_val = None
+        edging_val = 0
     db = get_user_db_from_request(request)
     await db.execute(
         """
@@ -199,3 +212,40 @@ async def save_brick(
         "Brick added.",
         clear_draft=f"feniks-brick:{date}",
     )
+
+
+@router.post("/feniks/bricks/{brick_id}/edit")
+async def edit_brick(
+    request: Request,
+    brick_id: int,
+    date: str = Form(...),
+    hook: str = Form(""),
+    story: str = Form(""),
+    craving: OptionalFormInt = None,
+):
+    entry_date = _past_or_today(date)
+    if entry_date is None:
+        return error_redirect(request, "/feniks", "Give the brick a date of today or earlier.")
+    if not hook.strip():
+        return error_redirect(request, f"/feniks?date={entry_date}", "Name the brick before saving it.")
+    db = get_user_db_from_request(request)
+    cursor = await db.execute(
+        "UPDATE feniks_bricks SET date = ?, hook = ?, craving = ?, story = ? WHERE id = ?",
+        (entry_date, truncate(hook.strip(), 200), clamp(craving, 0, 10), truncate(story, 2000), brick_id),
+    )
+    await db.commit()
+    if cursor.rowcount == 0:
+        return error_redirect(request, f"/feniks?date={entry_date}", "Brick was not found.")
+    return success_redirect(request, f"/feniks?date={entry_date}", "Brick updated.")
+
+
+@router.post("/feniks/bricks/{brick_id}/delete")
+async def delete_brick(request: Request, brick_id: int):
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT date FROM feniks_bricks WHERE id = ?", (brick_id,))
+    if not rows:
+        return error_redirect(request, "/feniks", "Brick was not found.")
+    entry_date = rows[0]["date"]
+    await db.execute("DELETE FROM feniks_bricks WHERE id = ?", (brick_id,))
+    await db.commit()
+    return success_redirect(request, f"/feniks?date={entry_date}", "Brick removed from your history.")

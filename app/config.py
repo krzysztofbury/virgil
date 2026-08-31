@@ -51,7 +51,7 @@ TRUSTED_PROXY_IPS = frozenset(
     address.strip() for address in os.environ.get("VIRGIL_TRUSTED_PROXY_IPS", "").split(",") if address.strip()
 )
 
-# Read-only REST API (machine-to-machine). Empty key = API disabled.
+# Machine-to-machine REST API. Empty key = API disabled.
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
 API_USER_EMAIL = os.environ.get("VIRGIL_API_USER_EMAIL", "").strip().lower()
 # /api/noporn returns intimate journal/relapse content — a leaked API key should

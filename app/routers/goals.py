@@ -3,8 +3,20 @@ from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.goal_data import (
+    GOAL_STATUSES,
+    REP_PERIODS,
+    GoalDataError,
+    create_goal,
+    create_rep,
+    delete_goal_record,
+    delete_rep_record,
+    transition_rep,
+    update_goal,
+    update_rep,
+)
 from app.user_db import get_user_db_from_request
-from app.validation import OptionalFormInt, truncate
+from app.validation import OptionalFormInt
 
 router = APIRouter()
 
@@ -50,6 +62,21 @@ async def goals_page(request: Request, horizon: str = DEFAULT_HORIZON):
     for g in rows:
         goals_by_area.setdefault(g["area_id"], []).append(dict(g))
 
+    pending_reps = [
+        dict(r)
+        for r in await db.execute_fetchall(
+            "SELECT r.*, g.content AS goal_content FROM goal_reps r JOIN goals g ON g.id = r.goal_id "
+            "WHERE r.status = 'pending' ORDER BY r.due_date, r.id LIMIT 100"
+        )
+    ]
+    rep_history = [
+        dict(r)
+        for r in await db.execute_fetchall(
+            "SELECT r.*, g.content AS goal_content FROM goal_reps r JOIN goals g ON g.id = r.goal_id "
+            "WHERE r.status != 'pending' ORDER BY r.updated_at DESC, r.id DESC LIMIT 30"
+        )
+    ]
+
     return templates.TemplateResponse(
         "goals.html",
         {
@@ -63,6 +90,10 @@ async def goals_page(request: Request, horizon: str = DEFAULT_HORIZON):
             "focus": focus,
             "focus_limit": FOCUS_SOFT_LIMIT,
             "focus_over": len(focus) > FOCUS_SOFT_LIMIT,
+            "goal_statuses": GOAL_STATUSES,
+            "rep_periods": REP_PERIODS,
+            "pending_reps": pending_reps,
+            "rep_history": rep_history,
         },
     )
 
@@ -76,49 +107,73 @@ async def toggle_focus(request: Request, goal_id: int = Form(...), horizon: str 
     """
     destination = f"/goals?horizon={_safe_horizon(horizon)}"
     db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT status FROM goals WHERE id = ?", (goal_id,))
+    if not rows:
+        return error_redirect(request, destination, "Goal was not found.")
+    if rows[0]["status"] != "active":
+        return error_redirect(request, destination, "Only active goals can be added to current focus.")
     cursor = await db.execute(
-        "UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ?", (goal_id,)
+        "UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ? AND status = 'active'",
+        (goal_id,),
     )
     await db.commit()
     if cursor.rowcount == 0:
-        return error_redirect(request, destination, "Goal was not found.")
+        return error_redirect(request, destination, "Goal focus changed concurrently. Try again.")
     return success_redirect(request, destination, "Goal focus updated.")
 
 
 @router.post("/goals/save")
 async def save_goal(
     request: Request,
-    goal_id: OptionalFormInt = None,
     area_id: int = Form(...),
     horizon: str = Form(...),
     content: str = Form(...),
     display_order: int = Form(0),
+    status: str = Form("active"),
+    start_date: str = Form(""),
+    end_date: str = Form(""),
 ):
-    if horizon not in HORIZON_KEYS:
-        return error_redirect(request, "/goals", "Choose a valid goal horizon.")
-    content = truncate(content, 2000)
-    if not content.strip():
-        return error_redirect(request, "/goals", "Goal content is required.")
     db = get_user_db_from_request(request)
-    if goal_id is not None:
-        cursor = await db.execute(
-            "UPDATE goals SET content = ?, display_order = ?, updated_at = datetime('now') WHERE id = ?",
-            (content.strip(), display_order, goal_id),
+    try:
+        await create_goal(
+            db,
+            area_id=area_id,
+            horizon=horizon,
+            content=content,
+            display_order=display_order,
+            status=status,
+            start_date=start_date,
+            end_date=end_date,
         )
-        if cursor.rowcount == 0:
-            await db.commit()
-            return error_redirect(request, f"/goals?horizon={horizon}", "Goal was not found.")
-    else:
-        area = await db.execute_fetchall("SELECT 1 FROM goal_areas WHERE id = ?", (area_id,))
-        if not area:
-            return error_redirect(request, f"/goals?horizon={horizon}", "Goal area was not found.")
-        await db.execute(
-            "INSERT INTO goals (area_id, horizon, content, display_order) VALUES (?, ?, ?, ?)",
-            (area_id, horizon, content.strip(), display_order),
-        )
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.message)
     await db.commit()
     # Back to the horizon the goal belongs to, not to the default one.
     return success_redirect(request, f"/goals?horizon={horizon}", "Goal saved.")
+
+
+@router.post("/goals/details")
+async def save_goal_details(
+    request: Request,
+    goal_id: int = Form(...),
+    horizon: str = Form(...),
+    status: str = Form("active"),
+    start_date: str = Form(""),
+    end_date: str = Form(""),
+):
+    db = get_user_db_from_request(request)
+    try:
+        await update_goal(
+            db,
+            goal_id,
+            {"status": status, "start_date": start_date, "end_date": end_date},
+        )
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.message)
+    await db.commit()
+    return success_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", "Goal details saved.")
 
 
 @router.post("/goals/update-inline")
@@ -127,12 +182,12 @@ async def update_goal_inline(
     goal_id: int = Form(...),
     content: str = Form(...),
 ):
-    content = truncate(content, 2000)
     db = get_user_db_from_request(request)
-    await db.execute(
-        "UPDATE goals SET content = ?, updated_at = datetime('now') WHERE id = ?",
-        (content.strip(), goal_id),
-    )
+    try:
+        await update_goal(db, goal_id, {"content": content})
+    except GoalDataError as exc:
+        await db.rollback()
+        return PlainTextResponse(exc.message, status_code=exc.status_code)
     await db.commit()
     return PlainTextResponse("saved")
 
@@ -141,8 +196,74 @@ async def update_goal_inline(
 async def delete_goal(request: Request, goal_id: int = Form(...), horizon: str = Form(DEFAULT_HORIZON)):
     destination = f"/goals?horizon={_safe_horizon(horizon)}"
     db = get_user_db_from_request(request)
-    cursor = await db.execute("DELETE FROM goals WHERE id = ?", (goal_id,))
+    try:
+        await delete_goal_record(db, goal_id)
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, destination, exc.message)
     await db.commit()
-    if cursor.rowcount == 0:
-        return error_redirect(request, destination, "Goal was not found.")
     return success_redirect(request, destination, "Goal deleted.")
+
+
+@router.post("/goals/reps/save")
+async def save_goal_rep(
+    request: Request,
+    goal_id: int = Form(...),
+    content: str = Form(...),
+    period: str = Form("month"),
+    due_date: str = Form(...),
+    notes: str = Form(""),
+    rep_id: OptionalFormInt = None,
+):
+    db = get_user_db_from_request(request)
+    try:
+        if rep_id is None:
+            await create_rep(
+                db,
+                goal_id=goal_id,
+                content=content,
+                period=period,
+                due_date=due_date,
+                notes=notes,
+            )
+        else:
+            await update_rep(
+                db,
+                rep_id,
+                {"goal_id": goal_id, "content": content, "period": period, "due_date": due_date, "notes": notes},
+            )
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, "/goals", exc.message)
+    await db.commit()
+    return success_redirect(request, "/goals", "Execution rep saved.")
+
+
+@router.post("/goals/reps/{rep_id}/transition")
+async def transition_goal_rep(
+    request: Request,
+    rep_id: int,
+    action: str = Form(...),
+    due_date: str = Form(""),
+    period: str = Form(""),
+):
+    db = get_user_db_from_request(request)
+    try:
+        await transition_rep(db, rep_id, action, due_date=due_date or None, period=period or None)
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, "/goals", exc.message)
+    await db.commit()
+    return success_redirect(request, "/goals", f"Execution rep {action}d.")
+
+
+@router.post("/goals/reps/{rep_id}/delete")
+async def delete_goal_rep(request: Request, rep_id: int):
+    db = get_user_db_from_request(request)
+    try:
+        await delete_rep_record(db, rep_id)
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, "/goals", exc.message)
+    await db.commit()
+    return success_redirect(request, "/goals", "Execution rep removed.")

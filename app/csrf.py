@@ -19,7 +19,7 @@ SAFE_METHODS = frozenset({b"GET", b"HEAD", b"OPTIONS", b"TRACE"})
 # API writes authenticate via the X-API-Key header, never cookies — CSRF does not
 # apply (browsers cannot attach custom headers cross-site without a CORS preflight).
 # Exact paths live here; parametrized ones need PATTERNS below.
-CSRF_EXEMPT_PATHS = frozenset({"/api/oura/webhook", "/api/library"})
+CSRF_EXEMPT_PATHS = frozenset({"/api/oura/webhook", "/api/library", "/api/goals", "/api/goal-reps"})
 # Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.
 CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 # Anchored, one numeric segment: a broad prefix/suffix match would silently exempt
@@ -29,6 +29,9 @@ CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 CSRF_EXEMPT_PATTERNS = (
     re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
     re.compile(r"^/api/library/[0-9]+\Z"),
+    re.compile(r"^/api/goals/[0-9]+\Z"),
+    re.compile(r"^/api/goal-reps/[0-9]+\Z"),
+    re.compile(r"^/api/goal-reps/[0-9]+/transition\Z"),
 )
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB

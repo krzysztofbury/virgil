@@ -188,9 +188,38 @@ CREATE TABLE IF NOT EXISTS goals (
     area_id INTEGER NOT NULL REFERENCES goal_areas(id),
     horizon TEXT NOT NULL CHECK(horizon IN ('1yr','3yr','10yr')),
     content TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 0 CHECK(active IN (0, 1)),
+    status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active','paused','completed','abandoned')),
+    start_date TEXT,
+    end_date TEXT,
+    completed_at TEXT,
+    parent_goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL,
+    source TEXT NOT NULL DEFAULT 'manual',
+    source_ref TEXT NOT NULL DEFAULT '',
     display_order INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS goal_reps (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER NOT NULL REFERENCES goals(id) ON DELETE CASCADE,
+    content TEXT NOT NULL CHECK(length(trim(content)) BETWEEN 1 AND 2000),
+    period TEXT NOT NULL CHECK(period IN ('day','week','month','quarter','year')),
+    period_start TEXT NOT NULL,
+    period_end TEXT NOT NULL,
+    due_date TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','carried','skipped')),
+    completed_at TEXT,
+    carried_from_id INTEGER REFERENCES goal_reps(id) ON DELETE SET NULL,
+    notes TEXT NOT NULL DEFAULT '',
+    source TEXT NOT NULL DEFAULT 'manual',
+    source_ref TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    CHECK(period_start <= due_date AND due_date <= period_end),
+    CHECK((status = 'completed' AND completed_at IS NOT NULL) OR
+          (status != 'completed' AND completed_at IS NULL))
 );
 
 CREATE TABLE IF NOT EXISTS sync_log (
@@ -203,6 +232,7 @@ CREATE TABLE IF NOT EXISTS sync_log (
 
 CREATE TABLE IF NOT EXISTS experiments (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL,
     title TEXT NOT NULL,
     description TEXT DEFAULT '',
     start_date TEXT NOT NULL,

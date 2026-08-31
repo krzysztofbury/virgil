@@ -9,6 +9,7 @@ from urllib.parse import urlencode
 import httpx
 
 from app.services.encryption import decrypt, encrypt
+from app.services.experiment_weeks import experiment_calendar
 
 logger = logging.getLogger(__name__)
 
@@ -353,7 +354,7 @@ async def _auto_populate_experiments(db):
     for row in exp_rows:
         exp = dict(row)
         start = date.fromisoformat(exp["start_date"])
-        end = start + timedelta(weeks=exp["num_weeks"])
+        _, end = experiment_calendar(start, exp["num_weeks"])
 
         # Get duration metrics with source_match configured — Oura workouts are
         # minutes, so only duration metrics may auto-import.
@@ -376,7 +377,7 @@ async def _auto_populate_experiments(db):
 
         # Get Oura workouts in the experiment date range
         workout_rows = await db.execute_fetchall(
-            "SELECT * FROM oura_workouts WHERE date >= ? AND date < ?",
+            "SELECT * FROM oura_workouts WHERE date >= ? AND date <= ?",
             (start.isoformat(), end.isoformat()),
         )
 

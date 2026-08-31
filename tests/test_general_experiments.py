@@ -122,6 +122,37 @@ def test_boolean_upsert_one_per_day(auth_client):
         _cleanup(exp_id)
 
 
+def test_browser_rejects_entries_outside_calendar_experiment_window(auth_client):
+    from app.services.experiment_weeks import experiment_calendar
+
+    exp_id, token = _create_general(auth_client)
+    try:
+        metric_id = _metrics(exp_id)[0]["id"]
+        conn = sqlite3.connect(user_db_path())
+        try:
+            start_value, num_weeks = conn.execute(
+                "SELECT start_date, num_weeks FROM experiments WHERE id = ?", (exp_id,)
+            ).fetchone()
+        finally:
+            conn.close()
+        _, end = experiment_calendar(date.fromisoformat(start_value), num_weeks)
+        response = auth_client.post(
+            f"/experiments/{exp_id}/entry",
+            data={
+                "date": (end + timedelta(days=1)).isoformat(),
+                "metric_id": metric_id,
+                "value": "1",
+                "_csrf_token": token,
+            },
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert "err=" in response.headers["location"]
+        assert _entries(exp_id) == []
+    finally:
+        _cleanup(exp_id)
+
+
 def test_count_accumulates_and_scale_bounds(auth_client):
     exp_id, token = _create_general(auth_client)
     try:

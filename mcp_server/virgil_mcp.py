@@ -1,7 +1,7 @@
 # /// script
 # requires-python = ">=3.12"
 # dependencies = [
-#     "mcp>=1.2",
+#     "mcp>=2,<3",
 #     "httpx>=0.27",
 # ]
 # ///
@@ -30,14 +30,14 @@ Register in Claude Code:
 import os
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
 API_URL = os.environ.get("VIRGIL_API_URL", "").rstrip("/")
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
 CF_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
 CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 
-mcp = FastMCP("virgil")
+mcp = MCPServer("virgil")
 
 
 def _headers() -> dict:
@@ -118,6 +118,186 @@ def get_experiments() -> dict:
     count=events, boolean=daily yes/no, scale=0-10 rating), target (target_value per
     target_period: day/week/total) and logged_today / logged_week / logged_total."""
     return _get("/api/experiments/active")
+
+
+@mcp.tool()
+def get_goal_areas() -> dict:
+    """Goal-area IDs and labels. Read this before creating a goal when the area ID is unknown."""
+    return _get("/api/goal-areas")
+
+
+@mcp.tool()
+def get_goals(status: str = "", focus: bool | None = None, limit: int = 100) -> dict:
+    """Canonical goals with lifecycle, date windows, pending-rep counts, and linked experiments.
+    `status` is active/paused/completed/abandoned. `focus` filters the starred current-focus set.
+    Results are bounded to 1-200 rows."""
+    params: dict = {"limit": limit}
+    if status:
+        params["status"] = status
+    if focus is not None:
+        params["focus"] = focus
+    return _get("/api/goals", params=params)
+
+
+@mcp.tool()
+def add_goal(
+    area_id: int,
+    horizon: str,
+    content: str,
+    status: str = "active",
+    start_date: str = "",
+    end_date: str = "",
+    focus: bool = False,
+    idempotency_key: str = "",
+    parent_goal_id: int | None = None,
+) -> dict:
+    """Create a canonical goal. Horizons are 1yr/3yr/10yr; status is
+    active/paused/completed/abandoned. Dates use YYYY-MM-DD. Reuse a non-empty
+    idempotency_key when retrying the same write."""
+    return _post(
+        "/api/goals",
+        {
+            "area_id": area_id,
+            "horizon": horizon,
+            "content": content,
+            "status": status,
+            "start_date": start_date or None,
+            "end_date": end_date or None,
+            "focus": focus,
+            "idempotency_key": idempotency_key,
+            "parent_goal_id": parent_goal_id,
+        },
+    )
+
+
+@mcp.tool()
+def update_goal(
+    goal_id: int,
+    area_id: int | None = None,
+    horizon: str | None = None,
+    content: str | None = None,
+    status: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
+    focus: bool | None = None,
+    parent_goal_id: int | None = None,
+    clear_parent: bool = False,
+) -> dict:
+    """Update only the supplied goal fields. Pass an empty start_date/end_date to clear that boundary,
+    or clear_parent=true to remove the parent link."""
+    if clear_parent and parent_goal_id is not None:
+        raise ValueError("parent_goal_id and clear_parent cannot be used together")
+    payload = {
+        key: value
+        for key, value in (
+            ("area_id", area_id),
+            ("horizon", horizon),
+            ("content", content),
+            ("status", status),
+            ("start_date", start_date),
+            ("end_date", end_date),
+            ("focus", focus),
+            ("parent_goal_id", parent_goal_id),
+        )
+        if value is not None
+    }
+    if clear_parent:
+        payload["parent_goal_id"] = None
+    if not payload:
+        raise ValueError("update_goal needs at least one field to change")
+    return _patch(f"/api/goals/{goal_id}", payload)
+
+
+@mcp.tool()
+def delete_goal(goal_id: int) -> dict:
+    """Delete a goal only when it has no execution history. Otherwise mark it abandoned."""
+    return _delete(f"/api/goals/{goal_id}")
+
+
+@mcp.tool()
+def get_goal_reps(status: str = "", goal_id: int | None = None, limit: int = 50) -> dict:
+    """Bounded execution-rep history. Status is pending/completed/carried/skipped.
+    Use status='pending' for the current queue. Weeks always mean Monday through Sunday."""
+    params: dict = {"limit": limit}
+    if status:
+        params["status"] = status
+    if goal_id is not None:
+        params["goal_id"] = goal_id
+    return _get("/api/goal-reps", params=params)
+
+
+@mcp.tool()
+def add_goal_rep(
+    goal_id: int,
+    content: str,
+    period: str,
+    due_date: str,
+    notes: str = "",
+    idempotency_key: str = "",
+) -> dict:
+    """Add a pending one-off execution rep. Period is day/week/month/quarter/year;
+    due_date is YYYY-MM-DD and determines the canonical period bounds. Calendar weeks
+    are Monday through Sunday. Reuse idempotency_key when retrying the same write."""
+    return _post(
+        "/api/goal-reps",
+        {
+            "goal_id": goal_id,
+            "content": content,
+            "period": period,
+            "due_date": due_date,
+            "notes": notes,
+            "idempotency_key": idempotency_key,
+        },
+    )
+
+
+@mcp.tool()
+def update_goal_rep(
+    rep_id: int,
+    goal_id: int | None = None,
+    content: str | None = None,
+    period: str | None = None,
+    due_date: str | None = None,
+    notes: str | None = None,
+) -> dict:
+    """Edit a pending execution rep. Terminal reps are immutable history."""
+    payload = {
+        key: value
+        for key, value in (
+            ("goal_id", goal_id),
+            ("content", content),
+            ("period", period),
+            ("due_date", due_date),
+            ("notes", notes),
+        )
+        if value is not None
+    }
+    if not payload:
+        raise ValueError("update_goal_rep needs at least one field to change")
+    return _patch(f"/api/goal-reps/{rep_id}", payload)
+
+
+@mcp.tool()
+def transition_goal_rep(
+    rep_id: int,
+    action: str,
+    due_date: str = "",
+    period: str = "",
+) -> dict:
+    """Complete, skip, or carry a pending rep. Carry requires a new due_date and
+    creates a new pending rep while preserving the original as carried history."""
+    payload: dict = {"action": action}
+    if due_date:
+        payload["due_date"] = due_date
+    if period:
+        payload["period"] = period
+    return _post(f"/api/goal-reps/{rep_id}/transition", payload)
+
+
+@mcp.tool()
+def delete_goal_rep(rep_id: int) -> dict:
+    """Delete a pending execution rep only when it is outside a carry chain."""
+    return _delete(f"/api/goal-reps/{rep_id}")
 
 
 @mcp.tool()

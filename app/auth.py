@@ -35,6 +35,12 @@ PUBLIC_PATHS = frozenset(
         "/api/oura/today",
         "/api/habits",
         "/api/experiments/active",
+        "/api/goal-areas",
+        "/api/goals",
+        "/api/goals/{goal_id}",
+        "/api/goal-reps",
+        "/api/goal-reps/{rep_id}",
+        "/api/goal-reps/{rep_id}/transition",
         # Inventory entry only (tests assert every API route is enumerated here);
         # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
         "/api/experiments/{experiment_id}/entries",
@@ -63,6 +69,9 @@ PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
 PUBLIC_PATTERNS = (
     re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
     re.compile(r"^/api/library/[0-9]+\Z"),
+    re.compile(r"^/api/goals/[0-9]+\Z"),
+    re.compile(r"^/api/goal-reps/[0-9]+\Z"),
+    re.compile(r"^/api/goal-reps/[0-9]+/transition\Z"),
 )
 
 BCRYPT_ROUNDS = 12

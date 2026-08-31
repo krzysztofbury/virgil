@@ -166,7 +166,7 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
-| `VIRGIL_API_KEY` | (empty) | REST API key: read endpoints + experiment-entry logging (empty = API disabled) |
+| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, and exercise-library writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
 | `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
@@ -271,8 +271,10 @@ history across two exercises and halve your Personal Bests.
 
 ### No Porn (`/feniks`)
 Recovery tracker (hidden by default — enable in Settings > General > Modules), built as a single flow: one day question, one brick capture, one timeline.
+- **Measurement contract** - watched means at least five total minutes of intentional viewing. Shorter exposure stays clean and belongs in the always-visible note. A brick is one distinct decision episode resolved before exposure; background desire alone is not a brick and no specific coping action is required.
 - **Bricks hero** — count of urges survived; each brick carries a required memory hook, craving (0-10) and a short story (Gola's brick method). The days-clean streak and a Monday-to-Sunday week strip show below.
-- **Day log** — one question: *Clean day* or *I watched*; watching reveals minutes, an edging toggle and an optional one-line trigger/feeling note. Marking a day as watched records its relapse event once; correcting it back to clean removes only that marker.
+- **Brick corrections** - records can be edited or removed with confirmation.
+- **Day log** - one question: *Clean day* or *I watched*; watching reveals minutes and an edging toggle. Marking a day as watched records its relapse event once; correcting it back to clean removes only that marker and clears watched-only fields.
 - **Weekly clean rate** — a slip doesn't erase the week
 - **Timeline** — days and their bricks together, newest first
 
@@ -301,7 +303,7 @@ views cannot drift apart.
 Periodic self-assessment across 8 life areas with power level composite score and radar chart visualization.
 
 ### Goals (`/goals`)
-Goal mapping across 8 life areas with 1yr/3yr/10yr horizons. Inline editing support.
+Canonical goals and one-off execution reps across 8 life areas with 1yr/3yr/10yr horizons.
 
 - **Current focus** - star a goal from any area or any horizon to bring it here.
   The limit is advisory: above three the page says so and still saves the fourth,
@@ -310,6 +312,15 @@ Goal mapping across 8 life areas with 1yr/3yr/10yr horizons. Inline editing supp
 - Areas with nothing in the selected horizon render as one compact line each
 - **One `Add goal` flow** that asks for the area and the horizon, replacing the
   24 always-open inputs the empty state used to render
+- Goal status and start/end windows make active, paused, completed, and abandoned
+  outcomes explicit
+- **Execution reps** carry a day/week/month/quarter/year period, due date, and
+  pending/completed/carried/skipped state. Carrying preserves the old record and
+  creates the next pending rep. Calendar weeks always run Monday through Sunday
+- Repeated metrics remain experiments, which can optionally link back to a goal;
+  one-off calendar commitments remain reps rather than fake experiment counters
+- REST and MCP 2.x provide bounded goal/rep reads plus idempotent create, update,
+  delete, complete, carry, and skip writes
 
 ### Experiments (`/experiments`)
 Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
