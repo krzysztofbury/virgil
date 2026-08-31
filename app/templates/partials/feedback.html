@@ -14,7 +14,7 @@
         itself is never swapped, which is what lets it keep polling. -#}
     <section id="job-notifications" class="job-notifications" aria-label="Background work"
              hx-get="/api/jobs/active{{ '?job_id=' ~ tray_job.id if tray_job else '' }}"
-             hx-trigger="load, every 15s"
+             hx-trigger="load"
              hx-target="this"
              hx-swap="innerHTML"
              hx-sync="this:replace">{% with jobs = [tray_job] if tray_job else [], tray_query = ('?job_id=' ~ tray_job.id) if tray_job else '' %}{% include "partials/job_notifications.html" %}{% endwith %}</section>
