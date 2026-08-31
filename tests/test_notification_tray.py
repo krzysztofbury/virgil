@@ -102,6 +102,8 @@ def test_shared_js_dismisses_only_success_and_terminal_job_notifications():
     assert "TOAST_DISMISS_MS = 4000" in js
     assert "'#job-notifications [data-job-status=\"succeeded\"]'" in js
     assert 'data-job-status="failed"' not in js, "a failure must stay until it is read"
+    assert "refreshAndySuggestions(node)" in js, "A.N.D.Y. completion must refresh its card"
+    assert "clearNamedJob(target)" in js, "dismissing a named terminal job must stop it from returning"
     scan = js[js.index("function armAutoDismiss") : js.index("function scanNotifications")]
     assert "mouseenter" in scan and "focusin" in scan, "hover and focus must hold the timer open"
 
@@ -167,6 +169,16 @@ def test_the_outcome_of_what_this_page_started_stays_visible(auth_client):
     assert "Retry anyway" in listing.text
 
 
+def test_a_successful_named_job_is_not_carried_into_the_next_poll(auth_client):
+    finished = _insert_job(user_db_path(), "succeeded", kind="andy_generation")
+
+    listing = auth_client.get(f"/api/jobs/active?job_id={finished}")
+
+    assert f'data-job-id="{finished}"' in listing.text, "the successful outcome is announced once"
+    assert 'data-job-kind="andy_generation"' in listing.text
+    assert f'/api/jobs/active?job_id={finished}' not in listing.text, "the next poll must not resurrect it"
+
+
 def test_the_tray_asks_for_its_own_contents_on_every_page(auth_client):
     """A section that replaces itself cannot keep a load trigger without
     re-firing, so the section stays put and only its cards are swapped."""
@@ -175,7 +187,8 @@ def test_the_tray_asks_for_its_own_contents_on_every_page(auth_client):
     section = section[: section.index("</section>")]
 
     assert 'hx-get="/api/jobs/active' in section
-    assert 'hx-trigger="load, every 15s"' in section, "the tray must fill itself when the page opens"
+    assert 'hx-trigger="load"' in section, "the tray must fill itself when the page opens"
+    assert 'hx-trigger="load, every' not in section, "the response poller owns recurring requests"
     assert 'hx-swap="innerHTML"' in section, "swapping the section away would kill its own polling"
 
 

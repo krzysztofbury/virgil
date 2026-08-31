@@ -2,6 +2,7 @@
 <div id="job-status-body-{{ job.id }}"
      class="job-status-card job-status-{{ job.display_status | replace('_', '-') }}"
      data-job-id="{{ job.id }}"
+     data-job-kind="{{ job.kind }}"
      data-job-status="{{ job.status }}"
      {# In the tray the whole section polls as one, so a card must not also poll
         itself: two swaps racing on the same node drop one of them. #}

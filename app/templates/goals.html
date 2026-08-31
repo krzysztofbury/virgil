@@ -1,194 +1,247 @@
 {% extends "base.html" %}
 {% block title %}Virgil - Goals{% endblock %}
 
-{# One goal row, used by the focus set and by every area listing. The star is a
-   form, not a link: it changes state. #}
-{% macro goal_row(g, horizon) %}
-<div class="goal-row">
-    <form method="POST" action="/goals/toggle-focus" style="margin:0;flex-shrink:0;">
-        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-        <input type="hidden" name="goal_id" value="{{ g.id }}">
-        <input type="hidden" name="horizon" value="{{ horizon }}">
-        <button type="submit" class="goal-focus-btn{{ ' is-active' if g.active else '' }}"
-                title="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
-                aria-pressed="{{ 'true' if g.active else 'false' }}"
-                {{ 'disabled' if g.status != 'active' else '' }}>&#9733;</button>
-    </form>
-    <input type="text" class="goal-input" value="{{ g.content|strip_md }}"
-           hx-post="/goals/update-inline"
-           hx-trigger="blur changed, keydown[key=='Enter'] changed"
-           hx-vals='{"goal_id": "{{ g.id }}"}'
-           hx-swap="none"
-           hx-indicator="closest .goal-row"
-            name="content">
-    <form method="POST" action="/goals/delete" style="margin: 0; flex-shrink: 0;"
-          onsubmit="return confirm('Delete this goal? Goals with execution history must be marked abandoned instead.')">
-        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-        <input type="hidden" name="goal_id" value="{{ g.id }}">
-        <input type="hidden" name="horizon" value="{{ horizon }}">
-        <button type="submit" class="goal-delete-btn">&times;</button>
-    </form>
-</div>
-<div class="text-muted" style="font-size:var(--text-xs);margin:0.2rem 0 0.5rem 2.4rem;">
-    {{ g.status }}{% if g.start_date or g.end_date %} &middot; {{ g.start_date or 'open' }} to {{ g.end_date or 'open' }}{% endif %}
-</div>
-<details style="margin:0 0 0.75rem 2.4rem;">
-    <summary>Goal details and execution rep</summary>
-    <form method="POST" action="/goals/details" style="margin-top:0.5rem;">
-        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-        <input type="hidden" name="goal_id" value="{{ g.id }}">
-        <input type="hidden" name="horizon" value="{{ g.horizon }}">
-        <div class="grid">
-            <label>Status<select name="status">{% for value in goal_statuses %}<option value="{{ value }}" {{ 'selected' if g.status == value else '' }}>{{ value }}</option>{% endfor %}</select></label>
-            <label>Starts<input type="date" name="start_date" value="{{ g.start_date or '' }}"></label>
-            <label>Ends<input type="date" name="end_date" value="{{ g.end_date or '' }}"></label>
+{% macro goal_item(g, horizon, show_details=true) %}
+<article class="goal-item{{ ' goal-item-focused' if g.active else '' }}">
+    <div class="goal-main">
+        <form method="POST" action="/goals/toggle-focus" class="goal-icon-form">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="goal_id" value="{{ g.id }}">
+            <input type="hidden" name="horizon" value="{{ horizon }}">
+            <button type="submit" class="goal-focus-btn{{ ' is-active' if g.active else '' }}"
+                    title="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
+                    aria-label="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
+                    aria-pressed="{{ 'true' if g.active else 'false' }}"
+                    {{ 'disabled' if g.status != 'active' else '' }}>
+                <i data-lucide="star"></i>
+            </button>
+        </form>
+        <input type="text" class="goal-input" value="{{ g.content|strip_md }}"
+               hx-post="/goals/update-inline"
+               hx-trigger="blur changed, keydown[key=='Enter'] changed"
+               hx-vals='{"goal_id": "{{ g.id }}"}'
+               hx-swap="none"
+               hx-indicator="closest .goal-item"
+               name="content"
+               aria-label="Goal">
+        <form method="POST" action="/goals/delete" class="goal-icon-form"
+              onsubmit="return confirm('Delete this goal? Goals with execution history must be marked abandoned instead.')">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="goal_id" value="{{ g.id }}">
+            <input type="hidden" name="horizon" value="{{ horizon }}">
+            <button type="submit" class="goal-delete-btn" title="Delete goal" aria-label="Delete goal">
+                <i data-lucide="trash-2"></i>
+            </button>
+        </form>
+    </div>
+    <div class="goal-meta">
+        <span class="goal-status goal-status-{{ g.status }}">{{ g.status|capitalize }}</span>
+        {% if g.start_date or g.end_date %}
+        <span class="goal-date"><i data-lucide="calendar-range"></i>{{ g.start_date or 'Open' }} to {{ g.end_date or 'Open' }}</span>
+        {% endif %}
+    </div>
+    {% if show_details %}
+    <details class="goal-details">
+        <summary>Details and execution</summary>
+        <div class="goal-details-panel">
+            <form method="POST" action="/goals/details" class="goal-detail-form">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <input type="hidden" name="goal_id" value="{{ g.id }}">
+                <input type="hidden" name="horizon" value="{{ g.horizon }}">
+                <div class="goal-form-grid goal-form-grid-details">
+                    <label class="goal-field">Status
+                        <select name="status">
+                            {% for value in goal_statuses %}<option value="{{ value }}" {{ 'selected' if g.status == value else '' }}>{{ value|capitalize }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <label class="goal-field">Starts
+                        <input type="date" name="start_date" value="{{ g.start_date or '' }}">
+                    </label>
+                    <label class="goal-field">Ends
+                        <input type="date" name="end_date" value="{{ g.end_date or '' }}">
+                    </label>
+                </div>
+                <button type="submit" class="btn btn-secondary btn-sm">Save details</button>
+            </form>
+            {% if g.status in ('active', 'paused') %}
+            <form method="POST" action="/goals/reps/save" class="goal-rep-form">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <input type="hidden" name="goal_id" value="{{ g.id }}">
+                <label class="goal-field">New execution rep
+                    <input type="text" name="content" maxlength="2000" placeholder="What is the next concrete action?" required>
+                </label>
+                <div class="goal-form-grid goal-form-grid-rep">
+                    <label class="goal-field">Period
+                        <select name="period">{% for value in rep_periods %}<option value="{{ value }}" {{ 'selected' if value == 'month' else '' }}>{{ value|capitalize }}</option>{% endfor %}</select>
+                    </label>
+                    <label class="goal-field">Due
+                        <input type="date" name="due_date" required>
+                    </label>
+                    <button type="submit" class="btn btn-primary btn-sm">Add rep</button>
+                </div>
+            </form>
+            {% endif %}
         </div>
-        <button type="submit" class="btn btn-secondary btn-sm">Save goal details</button>
-    </form>
-    {% if g.status in ('active', 'paused') %}
-    <form method="POST" action="/goals/reps/save" style="margin-top:0.75rem;">
-        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-        <input type="hidden" name="goal_id" value="{{ g.id }}">
-        <label>New execution rep<input type="text" name="content" maxlength="2000" required></label>
-        <div class="grid">
-            <label>Period<select name="period">{% for value in rep_periods %}<option value="{{ value }}" {{ 'selected' if value == 'month' else '' }}>{{ value }}</option>{% endfor %}</select></label>
-            <label>Due<input type="date" name="due_date" required></label>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm">Add execution rep</button>
-    </form>
+    </details>
     {% endif %}
-</details>
+</article>
 {% endmacro %}
 
 {% block content %}
-<div class="page-header">
-    <h1>Life Goals Map</h1>
-</div>
-
-<!-- Current focus: the answer to "what am I working on now", which a grid of 8
-     areas by 3 horizons cannot give. Advisory by decision - the page warns above
-     the limit and blocks nothing, so no goal is ever refused to satisfy a cap. -->
-<div class="card" style="margin-bottom: 1.25rem;">
-    <div class="card-header">
-        <h3>Current focus</h3>
-        <small class="text-muted">Up to {{ focus_limit }} goals, any area or horizon. Star a goal to bring it here.</small>
+<header class="goal-page-header">
+    <div>
+        <span class="goal-eyebrow">Direction and execution</span>
+        <h1>Life Goals Map</h1>
+        <p>Keep the destination visible, then turn it into the next concrete rep.</p>
     </div>
+</header>
+
+<section class="goal-focus-panel" aria-labelledby="current-focus-title">
+    <div class="goal-section-header">
+        <div class="goal-section-heading">
+            <span class="goal-section-icon"><i data-lucide="crosshair"></i></span>
+            <div>
+                <h2 id="current-focus-title">Current focus</h2>
+                <p>Star up to {{ focus_limit }} goals you are actively moving now.</p>
+            </div>
+        </div>
+        <span class="goal-count{{ ' is-over' if focus_over else '' }}">{{ focus|length }} / {{ focus_limit }}</span>
+    </div>
+    {% if focus_over %}
+    <p class="form-error goal-focus-warning" role="status">{{ focus | length }} goals starred. Focus works best at {{ focus_limit }} or fewer.</p>
+    {% endif %}
     {% if focus %}
-        {% if focus_over %}
-        <p class="form-error" role="status">{{ focus | length }} goals starred. Focus works best at
-        {{ focus_limit }} or fewer - nothing is blocked, this is a nudge.</p>
-        {% endif %}
+    <div class="goal-focus-grid">
         {% for g in focus %}
-        <div class="goal-focus-item">
-            <small class="text-muted">{{ g.area_icon }} {{ g.area_name }} &middot; {{ g.horizon }}</small>
-            {{ goal_row(g, horizon) }}
+        <div class="goal-focus-card">
+            <span class="goal-area-label">{{ g.area_icon }} {{ g.area_name }} <span>{{ g.horizon }}</span></span>
+            {{ goal_item(g, horizon, false) }}
         </div>
         {% endfor %}
+    </div>
     {% else %}
-    <p class="text-muted">Nothing starred yet. Star a goal below to bring it here.</p>
+    <div class="goal-empty-state">
+        <span class="goal-empty-icon"><i data-lucide="star"></i></span>
+        <div><strong>No goals in focus</strong><p>Star a goal below to keep it within reach.</p></div>
+    </div>
     {% endif %}
-</div>
+</section>
 
-<!-- Horizon switch: one at a time. All three at once is what made this page
-     3356 px of identical inputs on a phone. -->
-<div class="tabs">
-    {% for h_key, h_label in horizons %}
-    <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}">{{ h_label }}</a>
-    {% endfor %}
-</div>
-
-<!-- One add flow, which asks for the area and the horizon, instead of one input
-     per area-horizon pair. The empty state used to render 24 of those. -->
-<details style="margin-bottom: 1.25rem;">
-    <summary>Add goal</summary>
-    <form method="POST" action="/goals/save" style="margin-top: 0.5rem;">
-        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-        <div class="grid">
-            <div>
-                <label>Area
-                    <select name="area_id" required>
-                        {% for area in areas %}<option value="{{ area.id }}">{{ area.name }}</option>{% endfor %}
-                    </select>
+<div class="goal-controls">
+    <nav class="goal-horizons" aria-label="Goal horizon">
+        <span>Horizon</span>
+        <div class="tabs">
+            {% for h_key, h_label in horizons %}
+            <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}" {{ 'aria-current="page"' if horizon == h_key else '' }}>{{ h_label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+    <details class="goal-create">
+        <summary><i data-lucide="plus"></i> Add goal</summary>
+        <form method="POST" action="/goals/save" class="goal-create-form">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <label class="goal-field goal-field-content">Goal
+                <input type="text" name="content" placeholder="New goal..." required>
+            </label>
+            <div class="goal-form-grid goal-form-grid-create">
+                <label class="goal-field">Area
+                    <select name="area_id" required>{% for area in areas %}<option value="{{ area.id }}">{{ area.icon }} {{ area.name }}</option>{% endfor %}</select>
+                </label>
+                <label class="goal-field">Horizon
+                    <select name="horizon" required>{% for h_key, h_label in horizons %}<option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_label }}</option>{% endfor %}</select>
+                </label>
+                <label class="goal-field">Status
+                    <select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value|capitalize }}</option>{% endfor %}</select>
+                </label>
+                <label class="goal-field">Starts
+                    <input type="date" name="start_date">
+                </label>
+                <label class="goal-field">Ends
+                    <input type="date" name="end_date">
                 </label>
             </div>
-            <div>
-                <label>Horizon
-                    <select name="horizon" required>
-                        {% for h_key, h_label in horizons %}
-                        <option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_label }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-            </div>
-        </div>
-        <input type="text" name="content" placeholder="New goal..." class="goal-input" required
-               style="margin-top: 0.5rem;">
-        <div class="grid" style="margin-top:0.5rem;">
-            <label>Status<select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></label>
-            <label>Starts<input type="date" name="start_date"></label>
-            <label>Ends<input type="date" name="end_date"></label>
-        </div>
-        <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Add goal</button>
-    </form>
-</details>
+            <button type="submit" class="btn btn-primary">Create goal</button>
+        </form>
+    </details>
+</div>
 
 {% if pending_reps %}
-<div class="card" style="margin-bottom:1.25rem;">
-    <div class="card-header"><h3>Pending execution reps</h3><small class="text-muted">One-off commitments, ordered by due date.</small></div>
-    {% for rep in pending_reps %}
-    <div style="padding:0.65rem 0;border-bottom:1px solid var(--border);">
-        <strong>{{ rep.content }}</strong>
-        <div class="text-muted" style="font-size:var(--text-xs);">Due {{ rep.due_date }} &middot; {{ rep.period }} &middot; {{ rep.goal_content|strip_md }}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.4rem;">
-            {% for action in ('complete', 'skip') %}
-            <form method="POST" action="/goals/reps/{{ rep.id }}/transition" style="margin:0;">
-                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                <input type="hidden" name="action" value="{{ action }}">
-                <button type="submit" class="btn btn-secondary btn-sm">{{ action }}</button>
-            </form>
-            {% endfor %}
-            <form method="POST" action="/goals/reps/{{ rep.id }}/transition" style="display:flex;gap:0.4rem;margin:0;">
-                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                <input type="hidden" name="action" value="carry">
-                <input type="hidden" name="period" value="{{ rep.period }}">
-                <input type="date" name="due_date" required style="width:auto;margin:0;">
-                <button type="submit" class="btn btn-secondary btn-sm">carry</button>
-            </form>
+<section class="card goal-reps-card" aria-labelledby="pending-reps-title">
+    <div class="goal-section-header">
+        <div class="goal-section-heading">
+            <span class="goal-section-icon goal-section-icon-warm"><i data-lucide="list-checks"></i></span>
+            <div><h2 id="pending-reps-title">Execution queue</h2><p>Concrete commitments, ordered by due date.</p></div>
         </div>
+        <span class="goal-count">{{ pending_reps|length }}</span>
     </div>
-    {% endfor %}
-</div>
+    <div class="goal-rep-list">
+        {% for rep in pending_reps %}
+        <article class="goal-rep-item">
+            <div class="goal-rep-date"><span>{{ rep.period }}</span><strong>{{ rep.due_date }}</strong></div>
+            <div class="goal-rep-content"><strong>{{ rep.content }}</strong><p>{{ rep.goal_content|strip_md }}</p></div>
+            <div class="goal-rep-actions">
+                <form method="POST" action="/goals/reps/{{ rep.id }}/transition">
+                    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                    <input type="hidden" name="action" value="complete">
+                    <button type="submit" class="btn btn-primary btn-sm"><i data-lucide="check"></i> Complete</button>
+                </form>
+                <form method="POST" action="/goals/reps/{{ rep.id }}/transition">
+                    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                    <input type="hidden" name="action" value="skip">
+                    <button type="submit" class="btn btn-outline btn-sm">Skip</button>
+                </form>
+                <details class="goal-carry">
+                    <summary>Carry</summary>
+                    <form method="POST" action="/goals/reps/{{ rep.id }}/transition">
+                        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                        <input type="hidden" name="action" value="carry">
+                        <input type="hidden" name="period" value="{{ rep.period }}">
+                        <input type="date" name="due_date" aria-label="New due date" required>
+                        <button type="submit" class="btn btn-secondary btn-sm">Move rep</button>
+                    </form>
+                </details>
+            </div>
+        </article>
+        {% endfor %}
+    </div>
+</section>
 {% endif %}
 
-{% if rep_history %}
-<details class="card" style="margin-bottom:1.25rem;">
-    <summary>Execution rep history</summary>
-    {% for rep in rep_history %}
-    <div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
-        <strong>{{ rep.content }}</strong> <span class="text-muted">{{ rep.status }} &middot; {{ rep.due_date }}</span>
-    </div>
+<div class="goal-area-grid">
+    {% for area in areas_with_goals %}
+    <section class="card goal-area-card">
+        <div class="goal-area-header">
+            <div><span class="goal-area-icon">{{ area.icon }}</span><h2>{{ area.name }}</h2></div>
+            <span class="goal-count">{{ goals_by_area.get(area.id, [])|length }}</span>
+        </div>
+        <div class="goal-list">
+            {% for g in goals_by_area.get(area.id, []) %}
+            {{ goal_item(g, horizon) }}
+            {% endfor %}
+        </div>
+    </section>
     {% endfor %}
+</div>
+
+{% if rep_history %}
+<details class="card goal-history">
+    <summary>Execution history <span>{{ rep_history|length }} recent</span></summary>
+    <div class="goal-history-list">
+        {% for rep in rep_history %}
+        <div><span class="goal-status goal-status-{{ rep.status }}">{{ rep.status|capitalize }}</span><strong>{{ rep.content }}</strong><time>{{ rep.due_date }}</time></div>
+        {% endfor %}
+    </div>
 </details>
 {% endif %}
 
-{% for area in areas_with_goals %}
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ area.icon }} {{ area.name }}</h3></div>
-    {% for g in goals_by_area.get(area.id, []) %}
-    {{ goal_row(g, horizon) }}
-    {% endfor %}
-</div>
-{% endfor %}
-
 {% if areas_without_goals %}
-<div class="card">
-    <div class="card-header">
-        <h3>Nothing in this horizon</h3>
-        <small class="text-muted">Use Add goal above to fill one of these.</small>
+<section class="goal-empty-areas">
+    <div><h2>Open areas</h2><p>No goals in the selected horizon yet.</p></div>
+    <div class="goal-empty-area-list">
+        {% for area in areas_without_goals %}
+        <div class="goal-area-empty">{{ area.icon }} {{ area.name }}</div>
+        {% endfor %}
     </div>
-    {% for area in areas_without_goals %}
-    <div class="goal-area-empty">{{ area.icon }} {{ area.name }}</div>
-    {% endfor %}
-</div>
+</section>
 {% endif %}
 {% endblock %}

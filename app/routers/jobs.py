@@ -61,6 +61,7 @@ def build_job_view(row: dict[str, Any]) -> dict[str, Any]:
     partial = row.get("outcome") == "partial"
     return {
         "id": row["id"],
+        "kind": row["kind"],
         "kind_label": _KIND_LABELS.get(row["kind"], row["kind"].replace("_", " ").title()),
         "status": status,
         "status_label": "Partial" if partial else _STATUS_LABELS[status],
@@ -140,15 +141,21 @@ async def active_jobs(request: Request):
     # Whatever this page just enqueued stays visible once it settles, so the
     # outcome does not vanish the moment the job leaves the queue.
     named = request.query_params.get("job_id", "")
-    if named.isdigit() and not any(str(job["id"]) == named for job in jobs):
+    named_status = next((job["status"] for job in jobs if str(job["id"]) == named), "")
+    if named.isdigit() and not named_status:
         row = await get_job_status(db, int(named))
         if row is not None:
+            named_status = row["status"]
             jobs.append(build_job_view(row))
+
+    # A successful result is announced once, then the next poll returns to the
+    # active queue. Keeping its id here resurrects the toast after dismissal.
+    tray_query = f"?job_id={named}" if named.isdigit() and named_status != "succeeded" else ""
 
     return templates.TemplateResponse(
         request,
         "partials/job_notifications.html",
-        {"jobs": jobs, "tray_query": f"?job_id={named}" if named.isdigit() else ""},
+        {"jobs": jobs, "tray_query": tray_query},
         headers=_NO_STORE,
     )
 

@@ -53,13 +53,29 @@ if (window.htmx) window.htmx.config.timeout = HTMX_TIMEOUT_MS;
 var TOAST_DISMISS_MS = 4000;
 var JOB_TOAST_DISMISS_MS = 6000;
 var TOAST_LEAVE_MS = 220;
+var refreshedAndyJobs = new Set();
 
 function dismissNotification(node) {
     var target = (node && node.closest('#job-notifications article')) || node;
     if (!target || target.dataset.dismissing === 'true') return;
+    var forgotNamedJob = clearNamedJob(target);
     target.dataset.dismissing = 'true';
     target.classList.add('is-leaving');
     window.setTimeout(function() { target.remove(); }, TOAST_LEAVE_MS);
+    if (forgotNamedJob && window.htmx) {
+        htmx.ajax('GET', '/api/jobs/active', { target: '#job-notifications', swap: 'innerHTML' });
+    }
+}
+
+function clearNamedJob(node) {
+    var statusNode = node && (node.matches('[data-job-id]') ? node : node.querySelector('[data-job-id]'));
+    if (!statusNode) return false;
+    var params = new URLSearchParams(window.location.search);
+    if (params.get('job_id') !== statusNode.dataset.jobId) return false;
+    params.delete('job_id');
+    var query = params.toString();
+    history.replaceState(null, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
+    return true;
 }
 
 // Hover and focus hold the timer open, so a notification cannot vanish out from
@@ -91,8 +107,37 @@ function scanNotifications() {
     // Polling replaces the body div, not the article, so a job re-arms only
     // once it actually reaches a terminal success.
     document.querySelectorAll('#job-notifications [data-job-status="succeeded"]').forEach(function(node) {
+        clearNamedJob(node);
+        if (node.dataset.jobKind === 'andy_generation') refreshAndySuggestions(node);
         armAutoDismiss(node, JOB_TOAST_DISMISS_MS);
     });
+}
+
+function refreshAndySuggestions(jobNode) {
+    var jobId = jobNode.dataset.jobId;
+    if (!jobId || refreshedAndyJobs.has(jobId) || !document.getElementById('andy-card')) return;
+    refreshedAndyJobs.add(jobId);
+    fetch(window.location.pathname, { headers: { 'X-Requested-With': 'fetch' } })
+        .then(function(response) {
+            if (!response.ok) throw new Error('A.N.D.Y. refresh failed');
+            return response.text();
+        })
+        .then(function(html) {
+            var page = new DOMParser().parseFromString(html, 'text/html');
+            ['andy-card', 'andy-generate-form'].forEach(function(id) {
+                var current = document.getElementById(id);
+                var replacement = page.getElementById(id);
+                if (!current || !replacement) return;
+                current.replaceWith(replacement);
+                if (window.htmx) htmx.process(replacement);
+                initDatePickers(replacement);
+            });
+            if (typeof lucide !== 'undefined') lucide.createIcons();
+        })
+        .catch(function() {
+            refreshedAndyJobs.delete(jobId);
+            showFeedback('Suggestions are ready, but the daily card could not refresh.', 'error');
+        });
 }
 
 function renderFeedback(region, message, className, dismissible) {
