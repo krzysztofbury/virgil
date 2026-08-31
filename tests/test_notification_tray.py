@@ -176,7 +176,7 @@ def test_a_successful_named_job_is_not_carried_into_the_next_poll(auth_client):
 
     assert f'data-job-id="{finished}"' in listing.text, "the successful outcome is announced once"
     assert 'data-job-kind="andy_generation"' in listing.text
-    assert f'/api/jobs/active?job_id={finished}' not in listing.text, "the next poll must not resurrect it"
+    assert f"/api/jobs/active?job_id={finished}" not in listing.text, "the next poll must not resurrect it"
 
 
 def test_the_tray_asks_for_its_own_contents_on_every_page(auth_client):
