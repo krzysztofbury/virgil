@@ -247,7 +247,7 @@ function restoreNetworkDrafts() {
 }
 
 function pendingControl(form, fallback) {
-    return form._feedbackSubmitter || fallback || null;
+    return (form && form._feedbackSubmitter) || fallback || null;
 }
 
 function markPending(form, control) {

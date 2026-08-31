@@ -216,10 +216,12 @@ async def _seed(db) -> None:
         ("5/7 Consistency Sprint", "Hit the target on at least 5 of 7 days.", d(4), 4),
     )
     exp_id = cur.lastrowid
-    await db.execute(
-        "INSERT INTO experiment_weeks (experiment_id, week_number, label, target_min, target_max) VALUES (?,1,'',?,?)",
-        (exp_id, 10, 14),
-    )
+    for week_number in range(1, 5):
+        await db.execute(
+            "INSERT INTO experiment_weeks (experiment_id, week_number, label, target_min, target_max) "
+            "VALUES (?,?,'',?,?)",
+            (exp_id, week_number, 10, 14),
+        )
     cur = await db.execute(
         "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, display_order) "
         "VALUES (?,?,?,'duration',0)",

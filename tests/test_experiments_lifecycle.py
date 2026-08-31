@@ -100,4 +100,8 @@ def test_elapsed_percent_is_day_based(auth_client):
     block = html[html.index("ZZ Elapsed Probe") :]
     percent = block[: block.index("% elapsed")].split(">")[-1].strip()
     assert percent != "0", "four days into a 28-day experiment is not 0% elapsed"
-    assert int(percent) == round(4 / 28 * 100)
+    from app.services.experiment_weeks import experiment_calendar
+
+    _, end = experiment_calendar(date.fromisoformat(start), 4)
+    active_days = (end - date.fromisoformat(start)).days + 1
+    assert int(percent) == round(4 / active_days * 100)

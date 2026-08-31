@@ -9,6 +9,7 @@ from fastapi.responses import HTMLResponse
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.experiment_weeks import experiment_calendar, experiment_week_number
 from app.services.streak import get_streak
 from app.user_db import get_user_db_from_request
 
@@ -211,12 +212,12 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     for er in exp_rows:
         exp = dict(er)
         start = date.fromisoformat(exp["start_date"])
-        end = start + timedelta(weeks=exp["num_weeks"])
+        _, end = experiment_calendar(start, exp["num_weeks"])
         if today < start:
             current_week = 0
             exp["not_started"] = True
         else:
-            current_week = min(exp["num_weeks"], (today - start).days // 7 + 1)
+            current_week = experiment_week_number(start, exp["num_weeks"], today)
             exp["not_started"] = False
         total_row = await db.execute_fetchall(
             "SELECT COALESCE(SUM(CASE WHEN eat.kind = 'duration' THEN ee.value ELSE 0 END), 0) as minutes, "

@@ -51,13 +51,26 @@ def test_full_form_is_open_when_there_is_no_one_tap_path(auth_client):
     assert "open" in html[tag_open:start], "with no quick-log the full form must render open"
 
 
+def test_duration_week_without_target_is_not_marked_complete(auth_client):
+    exp_id = _experiment(kind="duration")
+    html = auth_client.get(f"/experiments/{exp_id}").text
+    current = html[html.index("exp-week-current") :]
+    current = current[: current.index("exp-week-row", 1)]
+    assert "no target" in current
+    assert "complete" not in current
+    assert '<span class="exp-day-weekday">Mon</span>' in html
+
+
 def test_stats_bar_shows_three_things(auth_client):
     exp_id = _experiment()
     html = auth_client.get(f"/experiments/{exp_id}").text
     bar = html[html.index("exp-stats-bar") : html.index("exp-quicklog")]
     assert bar.count("exp-stat-label") == 3, "outcome, target and time remaining - no more"
     assert "DAYS LEFT" in bar
-    assert "Week 1 of 4" in html, "the week must be stated in words, not as 0% elapsed"
+    from app.services.experiment_weeks import experiment_week_number
+
+    expected_week = experiment_week_number(date.today() - timedelta(days=3), 4, date.today())
+    assert f"Week {expected_week} of 4" in html, "targets advance on Monday-Sunday calendar boundaries"
 
 
 def test_destructive_actions_are_secondary(auth_client):

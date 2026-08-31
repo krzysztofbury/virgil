@@ -177,6 +177,7 @@ def test_shared_js_distinguishes_transport_and_http_failures(client):
     assert "DRAFT_COUNT_MAX = 12" in source
     assert "event.defaultPrevented" in source
     assert "form._feedbackSubmitter = control" in source
+    assert "(form && form._feedbackSubmitter)" in source
 
 
 def test_mutation_forms_declare_pending_and_bounded_draft_contract(auth_client):

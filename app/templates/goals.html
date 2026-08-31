@@ -11,7 +11,8 @@
         <input type="hidden" name="horizon" value="{{ horizon }}">
         <button type="submit" class="goal-focus-btn{{ ' is-active' if g.active else '' }}"
                 title="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
-                aria-pressed="{{ 'true' if g.active else 'false' }}">&#9733;</button>
+                aria-pressed="{{ 'true' if g.active else 'false' }}"
+                {{ 'disabled' if g.status != 'active' else '' }}>&#9733;</button>
     </form>
     <input type="text" class="goal-input" value="{{ g.content|strip_md }}"
            hx-post="/goals/update-inline"
@@ -19,14 +20,44 @@
            hx-vals='{"goal_id": "{{ g.id }}"}'
            hx-swap="none"
            hx-indicator="closest .goal-row"
-           name="content">
-    <form method="POST" action="/goals/delete" style="margin: 0; flex-shrink: 0;">
+            name="content">
+    <form method="POST" action="/goals/delete" style="margin: 0; flex-shrink: 0;"
+          onsubmit="return confirm('Delete this goal? Goals with execution history must be marked abandoned instead.')">
         <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <input type="hidden" name="goal_id" value="{{ g.id }}">
         <input type="hidden" name="horizon" value="{{ horizon }}">
         <button type="submit" class="goal-delete-btn">&times;</button>
     </form>
 </div>
+<div class="text-muted" style="font-size:var(--text-xs);margin:0.2rem 0 0.5rem 2.4rem;">
+    {{ g.status }}{% if g.start_date or g.end_date %} &middot; {{ g.start_date or 'open' }} to {{ g.end_date or 'open' }}{% endif %}
+</div>
+<details style="margin:0 0 0.75rem 2.4rem;">
+    <summary>Goal details and execution rep</summary>
+    <form method="POST" action="/goals/details" style="margin-top:0.5rem;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="goal_id" value="{{ g.id }}">
+        <input type="hidden" name="horizon" value="{{ g.horizon }}">
+        <div class="grid">
+            <label>Status<select name="status">{% for value in goal_statuses %}<option value="{{ value }}" {{ 'selected' if g.status == value else '' }}>{{ value }}</option>{% endfor %}</select></label>
+            <label>Starts<input type="date" name="start_date" value="{{ g.start_date or '' }}"></label>
+            <label>Ends<input type="date" name="end_date" value="{{ g.end_date or '' }}"></label>
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">Save goal details</button>
+    </form>
+    {% if g.status in ('active', 'paused') %}
+    <form method="POST" action="/goals/reps/save" style="margin-top:0.75rem;">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="goal_id" value="{{ g.id }}">
+        <label>New execution rep<input type="text" name="content" maxlength="2000" required></label>
+        <div class="grid">
+            <label>Period<select name="period">{% for value in rep_periods %}<option value="{{ value }}" {{ 'selected' if value == 'month' else '' }}>{{ value }}</option>{% endfor %}</select></label>
+            <label>Due<input type="date" name="due_date" required></label>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">Add execution rep</button>
+    </form>
+    {% endif %}
+</details>
 {% endmacro %}
 
 {% block content %}
@@ -92,9 +123,53 @@
         </div>
         <input type="text" name="content" placeholder="New goal..." class="goal-input" required
                style="margin-top: 0.5rem;">
+        <div class="grid" style="margin-top:0.5rem;">
+            <label>Status<select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value }}</option>{% endfor %}</select></label>
+            <label>Starts<input type="date" name="start_date"></label>
+            <label>Ends<input type="date" name="end_date"></label>
+        </div>
         <button type="submit" class="btn btn-primary btn-sm" style="margin-top: 0.5rem;">Add goal</button>
     </form>
 </details>
+
+{% if pending_reps %}
+<div class="card" style="margin-bottom:1.25rem;">
+    <div class="card-header"><h3>Pending execution reps</h3><small class="text-muted">One-off commitments, ordered by due date.</small></div>
+    {% for rep in pending_reps %}
+    <div style="padding:0.65rem 0;border-bottom:1px solid var(--border);">
+        <strong>{{ rep.content }}</strong>
+        <div class="text-muted" style="font-size:var(--text-xs);">Due {{ rep.due_date }} &middot; {{ rep.period }} &middot; {{ rep.goal_content|strip_md }}</div>
+        <div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.4rem;">
+            {% for action in ('complete', 'skip') %}
+            <form method="POST" action="/goals/reps/{{ rep.id }}/transition" style="margin:0;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <input type="hidden" name="action" value="{{ action }}">
+                <button type="submit" class="btn btn-secondary btn-sm">{{ action }}</button>
+            </form>
+            {% endfor %}
+            <form method="POST" action="/goals/reps/{{ rep.id }}/transition" style="display:flex;gap:0.4rem;margin:0;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <input type="hidden" name="action" value="carry">
+                <input type="hidden" name="period" value="{{ rep.period }}">
+                <input type="date" name="due_date" required style="width:auto;margin:0;">
+                <button type="submit" class="btn btn-secondary btn-sm">carry</button>
+            </form>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% if rep_history %}
+<details class="card" style="margin-bottom:1.25rem;">
+    <summary>Execution rep history</summary>
+    {% for rep in rep_history %}
+    <div style="padding:0.5rem 0;border-bottom:1px solid var(--border);">
+        <strong>{{ rep.content }}</strong> <span class="text-muted">{{ rep.status }} &middot; {{ rep.due_date }}</span>
+    </div>
+    {% endfor %}
+</details>
+{% endif %}
 
 {% for area in areas_with_goals %}
 <div class="card" style="margin-bottom: 1rem;">

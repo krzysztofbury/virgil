@@ -3,9 +3,7 @@
 Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
-Most GET endpoints are read-only. Writes: POST /api/experiments/{id}/entries
-(experiment logging) and full CRUD on /api/library — the exercise dictionary
-the training picker and the WOD parser (app/services/wod_parser.py) both draw from.
+Writes cover canonical goals/reps, experiment logging, and exercise-library CRUD.
 """
 
 import hmac
@@ -20,6 +18,19 @@ from pydantic import BaseModel, ConfigDict
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
 from app.library_validation import LibraryWriteError, normalize_tag, normalize_tags, validate_library_write
+from app.services.experiment_weeks import experiment_calendar, experiment_week_number
+from app.services.goal_data import (
+    GOAL_STATUSES,
+    REP_STATUSES,
+    GoalDataError,
+    create_goal,
+    create_rep,
+    delete_goal_record,
+    delete_rep_record,
+    transition_rep,
+    update_goal,
+    update_rep,
+)
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
@@ -145,6 +156,291 @@ def _metric_logged(kind: str, entries: list[dict], lo: str, hi: str) -> int | fl
     return sum(e["value"] for e in sel)
 
 
+class ApiGoalCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    area_id: int
+    horizon: str
+    content: str
+    status: str = "active"
+    start_date: str | None = None
+    end_date: str | None = None
+    focus: bool = False
+    idempotency_key: str = ""
+    parent_goal_id: int | None = None
+
+
+class ApiGoalPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    area_id: int | None = None
+    horizon: str | None = None
+    content: str | None = None
+    status: str | None = None
+    start_date: str | None = None
+    end_date: str | None = None
+    focus: bool | None = None
+    display_order: int | None = None
+    parent_goal_id: int | None = None
+
+
+class ApiRepCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    goal_id: int
+    content: str
+    period: str
+    due_date: str
+    notes: str = ""
+    idempotency_key: str = ""
+
+
+class ApiRepPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    goal_id: int | None = None
+    content: str | None = None
+    period: str | None = None
+    due_date: str | None = None
+    notes: str | None = None
+
+
+class ApiRepTransition(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    action: str
+    due_date: str | None = None
+    period: str | None = None
+
+
+def _goal_error(exc: GoalDataError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.message)
+
+
+async def _goals_with_context(db, where: str = "", params: tuple = (), limit: int = 100) -> list[dict]:
+    rows = await db.execute_fetchall(
+        "SELECT g.*, a.name AS area_name, a.icon AS area_icon, "
+        "(SELECT COUNT(*) FROM goal_reps r WHERE r.goal_id = g.id AND r.status = 'pending') AS pending_reps "
+        "FROM goals g JOIN goal_areas a ON a.id = g.area_id "
+        f"{where} ORDER BY g.active DESC, g.updated_at DESC, g.id DESC LIMIT ?",
+        (*params, limit),
+    )
+    goals = [dict(row) for row in rows]
+    if not goals:
+        return goals
+    ids = [goal["id"] for goal in goals]
+    placeholders = ",".join("?" * len(ids))
+    experiments = await db.execute_fetchall(
+        f"SELECT id, goal_id, title, status, start_date, num_weeks FROM experiments WHERE goal_id IN ({placeholders}) "
+        "ORDER BY status, start_date, id",
+        ids,
+    )
+    by_goal: dict[int, list[dict]] = {}
+    for experiment in experiments:
+        by_goal.setdefault(experiment["goal_id"], []).append(dict(experiment))
+    for goal in goals:
+        goal["experiments"] = by_goal.get(goal["id"], [])
+    return goals
+
+
+@router.get("/goal-areas")
+async def api_goal_areas(db: ApiDb):
+    rows = await db.execute_fetchall("SELECT id, name, icon, display_order FROM goal_areas ORDER BY display_order, id")
+    return {"areas": [dict(row) for row in rows]}
+
+
+@router.get("/goals")
+async def api_goals(
+    db: ApiDb,
+    status: str | None = Query(None),
+    focus: bool | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+):
+    """Goals with explicit lifecycle, date windows, pending-rep counts and linked experiments."""
+    clauses: list[str] = []
+    params: list = []
+    if status is not None:
+        if status not in GOAL_STATUSES:
+            raise HTTPException(status_code=422, detail=f"status must be one of: {', '.join(GOAL_STATUSES)}")
+        clauses.append("g.status = ?")
+        params.append(status)
+    if focus is not None:
+        clauses.append("g.active = ?")
+        params.append(1 if focus else 0)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    goals = await _goals_with_context(db, where, tuple(params), limit)
+    return {"goals": goals, "limit": limit}
+
+
+@router.get("/goals/{goal_id}")
+async def api_goal(goal_id: int, db: ApiDb):
+    goals = await _goals_with_context(db, "WHERE g.id = ?", (goal_id,), 1)
+    if not goals:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return goals[0]
+
+
+@router.post("/goals")
+async def api_create_goal(payload: ApiGoalCreate, db: ApiDb):
+    try:
+        goal, created = await create_goal(
+            db,
+            area_id=payload.area_id,
+            horizon=payload.horizon,
+            content=payload.content,
+            status=payload.status,
+            start_date=payload.start_date,
+            end_date=payload.end_date,
+            active=payload.focus,
+            source="api",
+            source_ref=payload.idempotency_key or str(uuid4()),
+            parent_goal_id=payload.parent_goal_id,
+        )
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    goal["created"] = created
+    return goal
+
+
+@router.patch("/goals/{goal_id}")
+async def api_update_goal(goal_id: int, payload: ApiGoalPatch, db: ApiDb):
+    changes = payload.model_dump(exclude_unset=True)
+    if "focus" in changes:
+        changes["active"] = changes.pop("focus")
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one goal field")
+    try:
+        goal = await update_goal(db, goal_id, changes)
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    return goal
+
+
+@router.delete("/goals/{goal_id}")
+async def api_delete_goal(goal_id: int, db: ApiDb):
+    try:
+        await delete_goal_record(db, goal_id)
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    return {"deleted": True, "goal_id": goal_id}
+
+
+async def _rep_by_id(db, rep_id: int) -> dict | None:
+    rows = await db.execute_fetchall(
+        "SELECT r.*, g.content AS goal_content, "
+        "(SELECT child.id FROM goal_reps child WHERE child.carried_from_id = r.id) AS carried_to_id "
+        "FROM goal_reps r JOIN goals g ON g.id = r.goal_id WHERE r.id = ?",
+        (rep_id,),
+    )
+    return dict(rows[0]) if rows else None
+
+
+@router.get("/goal-reps")
+async def api_goal_reps(
+    db: ApiDb,
+    status: str | None = Query(None),
+    goal_id: int | None = Query(None, ge=1),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """Bounded execution-rep history. Use status=pending for the current queue."""
+    clauses: list[str] = []
+    params: list = []
+    if status is not None:
+        if status not in REP_STATUSES:
+            raise HTTPException(status_code=422, detail=f"status must be one of: {', '.join(REP_STATUSES)}")
+        clauses.append("r.status = ?")
+        params.append(status)
+    if goal_id is not None:
+        clauses.append("r.goal_id = ?")
+        params.append(goal_id)
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = await db.execute_fetchall(
+        "SELECT r.*, g.content AS goal_content, "
+        "(SELECT child.id FROM goal_reps child WHERE child.carried_from_id = r.id) AS carried_to_id "
+        "FROM goal_reps r JOIN goals g ON g.id = r.goal_id "
+        f"{where} ORDER BY CASE r.status WHEN 'pending' THEN 0 ELSE 1 END, r.due_date, r.updated_at DESC, r.id DESC LIMIT ?",
+        (*params, limit),
+    )
+    return {"reps": [dict(row) for row in rows], "limit": limit}
+
+
+@router.get("/goal-reps/{rep_id}")
+async def api_goal_rep(rep_id: int, db: ApiDb):
+    rep = await _rep_by_id(db, rep_id)
+    if rep is None:
+        raise HTTPException(status_code=404, detail="Goal rep not found")
+    return rep
+
+
+@router.post("/goal-reps")
+async def api_create_goal_rep(payload: ApiRepCreate, db: ApiDb):
+    try:
+        rep, created = await create_rep(
+            db,
+            goal_id=payload.goal_id,
+            content=payload.content,
+            period=payload.period,
+            due_date=payload.due_date,
+            notes=payload.notes,
+            source="api",
+            source_ref=payload.idempotency_key or str(uuid4()),
+        )
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    rep["created"] = created
+    return rep
+
+
+@router.patch("/goal-reps/{rep_id}")
+async def api_update_goal_rep(rep_id: int, payload: ApiRepPatch, db: ApiDb):
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one rep field")
+    try:
+        rep = await update_rep(db, rep_id, changes)
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    return rep
+
+
+@router.post("/goal-reps/{rep_id}/transition")
+async def api_transition_goal_rep(rep_id: int, payload: ApiRepTransition, db: ApiDb):
+    try:
+        rep, carried_to = await transition_rep(
+            db,
+            rep_id,
+            payload.action,
+            due_date=payload.due_date,
+            period=payload.period,
+        )
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    return {"rep": rep, "carried_to": carried_to}
+
+
+@router.delete("/goal-reps/{rep_id}")
+async def api_delete_goal_rep(rep_id: int, db: ApiDb):
+    try:
+        await delete_rep_record(db, rep_id)
+    except GoalDataError as exc:
+        await db.rollback()
+        raise _goal_error(exc) from exc
+    await db.commit()
+    return {"deleted": True, "rep_id": rep_id}
+
+
 @router.get("/experiments/active")
 async def api_experiments_active(db: ApiDb):
     """Active experiments: current-week minutes vs target plus per-metric progress
@@ -155,10 +451,12 @@ async def api_experiments_active(db: ApiDb):
     for row in exps:
         exp = dict(row)
         start = date.fromisoformat(exp["start_date"])
-        end = start + timedelta(weeks=exp["num_weeks"]) - timedelta(days=1)
-        week_no = max(1, min(((today - start).days // 7) + 1, exp["num_weeks"]))
-        week_start = start + timedelta(days=(week_no - 1) * 7)
+        start_monday, end = experiment_calendar(start, exp["num_weeks"])
+        week_no = experiment_week_number(start, exp["num_weeks"], today)
+        week_start = start_monday + timedelta(weeks=week_no - 1)
         week_end = week_start + timedelta(days=6)
+        logged_start = max(week_start, start)
+        logged_end = min(week_end, end)
 
         target_rows = await db.execute_fetchall(
             "SELECT label, target_min, target_max FROM experiment_weeks WHERE experiment_id = ? AND week_number = ?",
@@ -169,7 +467,7 @@ async def api_experiments_active(db: ApiDb):
             "COUNT(*) AS entries "
             "FROM experiment_entries ee JOIN experiment_activity_types eat ON ee.activity_type_id = eat.id "
             "WHERE ee.experiment_id = ? AND ee.date BETWEEN ? AND ?",
-            (exp["id"], week_start.isoformat(), week_end.isoformat()),
+            (exp["id"], logged_start.isoformat(), logged_end.isoformat()),
         )
 
         metric_rows = await db.execute_fetchall(
@@ -183,11 +481,9 @@ async def api_experiments_active(db: ApiDb):
                 (exp["id"],),
             )
         ]
-        # Per-metric weeks are Monday-aligned (same window the web grid and
-        # per-metric targets use) — NOT the legacy start-anchored week_window
-        # that the minutes fields keep for backward compatibility.
-        cal_week_start = today - timedelta(days=today.weekday())
-        cal_week_end = cal_week_start + timedelta(days=6)
+        # All agent-facing weekly progress uses the same Monday-Sunday window.
+        cal_week_start = logged_start
+        cal_week_end = logged_end
         metrics = []
         for mr in metric_rows:
             m = dict(mr)
@@ -212,6 +508,7 @@ async def api_experiments_active(db: ApiDb):
         result.append(
             {
                 "id": exp["id"],
+                "goal_id": exp["goal_id"],
                 "title": exp["title"],
                 "start_date": exp["start_date"],
                 "week": week_no,
@@ -259,6 +556,8 @@ async def api_log_entry(experiment_id: int, payload: ApiEntryIn, db: ApiDb):
         matches = [dict(m) for m in metric_rows if m["name"].casefold() == wanted]
     if not matches:
         raise HTTPException(status_code=404, detail="Metric not found in this experiment")
+    if len(matches) > 1:
+        raise HTTPException(status_code=409, detail="Metric name is ambiguous; use its numeric id")
     metric = matches[0]  # deterministic: first by display_order
 
     entry_date = payload.date or date.today().isoformat()
@@ -268,7 +567,7 @@ async def api_log_entry(experiment_id: int, payload: ApiEntryIn, db: ApiDb):
     # all progress windows — a silent success an MCP client can't notice.
     exp = dict(exp_rows[0])
     exp_start = date.fromisoformat(exp["start_date"])
-    exp_end = exp_start + timedelta(weeks=exp["num_weeks"]) - timedelta(days=1)
+    _, exp_end = experiment_calendar(exp_start, exp["num_weeks"])
     if not (exp_start.isoformat() <= entry_date <= exp_end.isoformat()):
         raise HTTPException(
             status_code=422,
@@ -431,8 +730,8 @@ async def api_noporn(
         (since,),
     )
     bricks = await db.execute_fetchall(
-        "SELECT date, hook, craving, story FROM feniks_bricks WHERE date >= ? ORDER BY date DESC, id DESC",
-        (since,),
+        "SELECT id, date, hook, craving, story FROM feniks_bricks WHERE date BETWEEN ? AND ? ORDER BY date DESC, id DESC",
+        (since, today.isoformat()),
     )
     bricks_total = (await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks"))[0]["c"]
     return {

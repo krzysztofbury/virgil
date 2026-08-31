@@ -2,6 +2,7 @@ import logging
 from datetime import date, timedelta
 
 from app.db import get_setting
+from app.services.experiment_weeks import experiment_week_number
 from app.services.llm import call_llm
 from app.services.streak import get_streak
 
@@ -60,7 +61,7 @@ async def _gather_context(db) -> str:
         for row in exps:
             exp = dict(row)
             start = date.fromisoformat(exp["start_date"])
-            week = max(1, min(exp["num_weeks"], (today - start).days // 7 + 1))
+            week = experiment_week_number(start, exp["num_weeks"], today)
             exp_strs.append(f"{exp['title']} (week {week}/{exp['num_weeks']})")
         parts.append(f"Active experiments: {'; '.join(exp_strs)}")
 

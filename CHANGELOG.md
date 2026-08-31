@@ -8,6 +8,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Goals and execution reps are canonical Virgil data.** Migration 031 adds
+  explicit goal lifecycle and date windows, first-class one-off reps with
+  calendar periods, due dates, completion/carry/skip transitions, and optional
+  goal links for repeated-metric experiments. Browser, REST, and MCP writes use
+  one validation contract; API writes support idempotency keys and history is
+  bounded.
+- **The MCP server targets Python SDK 2.x.** The PEP 723 dependency is bounded to
+  `mcp>=2,<3`, uses `MCPServer`, and exposes goal-area, goal, and execution-rep
+  read/write tools.
+- **Feniks states its measurement contract next to the forms.** Watched means at
+  least five total minutes of intentional viewing, shorter exposure can be
+  recorded as a clean-day note, and a brick is one distinct decision episode
+  resolved before exposure. Brick records now support correction and removal.
 - **Every paid LLM call now runs as a durable job.** Morning briefings, training
   note analysis, A.N.D.Y. suggestions, experiment week summaries, onboarding
   enrichment and medical record import all leave the request path: routes and
@@ -65,6 +78,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   degraded state through `/healthz`.
 
 ### Fixed
+- **Clean Feniks days no longer retain hidden watched-only measurements.** Saving
+  clean clears minutes and edging while preserving the day note. Migration 030
+  applies the same sanitation to existing rows.
+- **Goal bootstrap and experiment metrics are replay-safe and unambiguous.** The
+  current and legacy `cele.md` formats import idempotently, existing duplicate
+  goals merge without losing focus, and duplicate metric names are renamed while
+  preserving their IDs and logged entries. Future duplicate metric writes are
+  refused.
 - **Structured LLM calls no longer fail outright on OpenAI models.** Every
   caller pinned `reasoning_effort="disable"`, which Gemini accepts and OpenAI
   rejects with "Unsupported value". litellm's `drop_params` removes unsupported

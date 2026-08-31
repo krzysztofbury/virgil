@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.experiment_weeks import experiment_calendar, experiment_week_number
 from app.user_db import get_user_db_from_request
 from app.validation import (
     METRIC_KINDS,
@@ -72,7 +73,7 @@ def _metric_progress(metric: dict, entries: list[dict], exp_start: date, num_wee
     if metric["kind"] not in ("count", "boolean") or not metric["target_value"]:
         return None
     tv, period = metric["target_value"], metric["target_period"]
-    exp_end = exp_start + timedelta(weeks=num_weeks) - timedelta(days=1)
+    _, exp_end = experiment_calendar(exp_start, num_weeks)
     week_start = today - timedelta(days=today.weekday())
     windows = {
         "total": (exp_start, exp_end),
@@ -89,7 +90,8 @@ def _metric_progress(metric: dict, entries: list[dict], exp_start: date, num_wee
         # Both window and denominator clamp to the experiment end, so stray
         # post-end entries (API accepts any in-window date) can't yield 15/14.
         window_end = min(today, exp_end)
-        elapsed = max(1, min((today - exp_start).days + 1, num_weeks * 7))
+        active_days = (exp_end - exp_start).days + 1
+        elapsed = max(1, min((today - exp_start).days + 1, active_days))
         all_mine = [e for e in entries if e["activity_type_id"] == metric["id"] and e["value"] == 1]
         done = len({e["date"] for e in all_mine if exp_start.isoformat() <= e["date"] <= window_end.isoformat()})
         return {
@@ -218,6 +220,7 @@ def _build_week_grid(
             days.append(
                 {
                     "date": day_str,
+                    "weekday": ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")[d],
                     "is_today": is_today,
                     "entries": day_entries,
                     "total_mins": duration_mins,
@@ -244,6 +247,9 @@ def _build_week_grid(
         elif not has_duration:
             status = f"{len(week_entries)} logged"
             status_class = "active" if is_current else "muted"
+        elif target_min <= 0:
+            status = f"{week_total}m logged" if week_total else "no target"
+            status_class = "muted"
         elif is_past or (is_current and week_total >= target_min):
             if week_total >= target_min:
                 status = "complete"
@@ -350,17 +356,16 @@ async def experiments_list(request: Request):
 
     for exp in experiments:
         start = date.fromisoformat(exp["start_date"])
-        end = start + timedelta(weeks=exp["num_weeks"])
+        _, end = experiment_calendar(start, exp["num_weeks"])
         exp["start_fmt"] = _fmt_date(start)
         exp["end_fmt"] = _fmt_date(end)
-        elapsed_weeks = max(0, (today - start).days // 7)
-        exp["weeks_done"] = min(elapsed_weeks, exp["num_weeks"])
-        exp["current_week"] = max(1, min(exp["num_weeks"], (today - start).days // 7 + 1))
+        exp["current_week"] = experiment_week_number(start, exp["num_weeks"], today)
+        exp["weeks_done"] = 0 if today < start else exp["num_weeks"] if today > end else exp["current_week"] - 1
         # Day-based on purpose. weeks_done/num_weeks rendered "0% elapsed" for the
         # whole of week 1, right next to a "Week 1/4" label saying the opposite.
         # The label the template prints is "% elapsed", so it has to measure
         # elapsed time.
-        total_days = exp["num_weeks"] * 7
+        total_days = (end - start).days + 1
         elapsed_days = min(max((today - start).days + 1, 0), total_days)
         exp["progress_pct"] = round(elapsed_days / total_days * 100) if total_days else 0
         exp["activity_types"] = types_by_exp.get(exp["id"], [])
@@ -377,7 +382,14 @@ async def experiments_list(request: Request):
 
 @router.get("/new", response_class=HTMLResponse)
 async def new_experiment_form(request: Request):
-    return templates.TemplateResponse("experiment_new.html", {"request": request, "today": date.today().isoformat()})
+    db = get_user_db_from_request(request)
+    goals = await db.execute_fetchall(
+        "SELECT id, content FROM goals WHERE status = 'active' ORDER BY active DESC, updated_at DESC"
+    )
+    return templates.TemplateResponse(
+        "experiment_new.html",
+        {"request": request, "today": date.today().isoformat(), "goals": [dict(row) for row in goals]},
+    )
 
 
 @router.post("/create")
@@ -396,6 +408,7 @@ async def create_experiment(
     metric_periods: list[str] = Form(default=[]),  # noqa: B008
     source_matches: list[str] = Form(default=[]),  # noqa: B008
     week_labels: str = Form(""),
+    goal_id: OptionalFormInt = None,
 ):
     if not valid_date(start_date):
         return error_redirect(request, "/experiments/new", "Choose a valid experiment start date.")
@@ -427,16 +440,23 @@ async def create_experiment(
         )
         if metric is not None:
             metrics.append(metric)
+    normalized_names = [metric["name"].casefold() for metric in metrics]
+    if len(normalized_names) != len(set(normalized_names)):
+        return error_redirect(request, "/experiments/new", "Metric names must be unique within an experiment.")
 
     if not any(m["kind"] == "duration" for m in metrics):
         target_min = target_max = 0
         week_labels = ""
 
     db = get_user_db_from_request(request)
+    if goal_id is not None:
+        goal = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,))
+        if not goal:
+            return error_redirect(request, "/experiments/new", "Linked goal was not found.")
 
     cursor = await db.execute(
-        "INSERT INTO experiments (title, description, start_date, num_weeks) VALUES (?, ?, ?, ?)",
-        (title.strip(), description, start_date, num_weeks),
+        "INSERT INTO experiments (goal_id, title, description, start_date, num_weeks) VALUES (?, ?, ?, ?, ?)",
+        (goal_id, title.strip(), description, start_date, num_weeks),
     )
     exp_id = cursor.lastrowid
 
@@ -509,7 +529,7 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
 
     # Compute stats
     start = date.fromisoformat(experiment["start_date"])
-    end = start + timedelta(weeks=experiment["num_weeks"])
+    _, end = experiment_calendar(start, experiment["num_weeks"])
     today = date.today()
 
     kinds_by_id = {at["id"]: at["kind"] for at in activity_types}
@@ -519,8 +539,8 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
     target_total = (
         sum((w.get("target_min", 0) + w.get("target_max", 0)) // 2 for w in weeks) if weeks and has_duration else 0
     )
-    elapsed_weeks = max(0, min(experiment["num_weeks"], (today - start).days // 7))
-    current_week = max(1, min(experiment["num_weeks"], (today - start).days // 7 + 1))
+    current_week = experiment_week_number(start, experiment["num_weeks"], today)
+    elapsed_weeks = 0 if today < start else experiment["num_weeks"] if today > end else current_week - 1
 
     # Kind-aware per-metric stats
     type_stats = []
@@ -544,8 +564,8 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
 
     # Days left, not weeks done: "0 weeks done" through the whole of week 1 reads
     # as no progress, next to a "Week 1 of 4" label that says the opposite.
-    total_days = experiment["num_weeks"] * 7
-    days_left = max(0, total_days - max(0, (today - start).days + 1))
+    total_days = (end - start).days + 1
+    days_left = max(0, (end - max(today, start)).days + (1 if today < start else 0))
 
     stats = {
         "total_minutes": total_minutes,
@@ -611,10 +631,18 @@ async def edit_experiment_form(request: Request, experiment_id: int):
             (experiment_id,),
         )
     ]
+    goals = [
+        dict(row)
+        for row in await db.execute_fetchall(
+            "SELECT id, content, status FROM goals WHERE status IN ('active', 'paused') OR id = ? "
+            "ORDER BY active DESC, updated_at DESC",
+            (experiment["goal_id"] or -1,),
+        )
+    ]
 
     return templates.TemplateResponse(
         "experiment_edit.html",
-        {"request": request, "experiment": experiment, "metrics": metrics},
+        {"request": request, "experiment": experiment, "metrics": metrics, "goals": goals},
     )
 
 
@@ -627,6 +655,7 @@ async def edit_experiment(
     start_date: str = Form(...),
     num_weeks: int = Form(...),
     status: str = Form("active"),
+    goal_id: OptionalFormInt = None,
 ):
     if not valid_date(start_date):
         return error_redirect(request, f"/experiments/{experiment_id}/edit", "Choose a valid experiment start date.")
@@ -647,9 +676,13 @@ async def edit_experiment(
     rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
     if not rows:
         return error_redirect(request, "/experiments", "Experiment not found.")
+    if goal_id is not None:
+        goal = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,))
+        if not goal:
+            return error_redirect(request, f"/experiments/{experiment_id}/edit", "Linked goal was not found.")
     await db.execute(
-        "UPDATE experiments SET title = ?, description = ?, start_date = ?, num_weeks = ?, status = ? WHERE id = ?",
-        (title, truncate(description, 2000), start_date, num_weeks, status, experiment_id),
+        "UPDATE experiments SET goal_id = ?, title = ?, description = ?, start_date = ?, num_weeks = ?, status = ? WHERE id = ?",
+        (goal_id, title, truncate(description, 2000), start_date, num_weeks, status, experiment_id),
     )
 
     # Resync weeks: drop rows beyond the new horizon, add missing ones.
@@ -692,6 +725,15 @@ async def add_metric(
     rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
     if not rows:
         return error_redirect(request, "/experiments", "Experiment not found.")
+    existing = await db.execute_fetchall(
+        "SELECT name FROM experiment_activity_types WHERE experiment_id = ?", (experiment_id,)
+    )
+    if any(row["name"].casefold() == metric["name"].casefold() for row in existing):
+        return error_redirect(
+            request,
+            f"/experiments/{experiment_id}/edit",
+            "Metric names must be unique within an experiment.",
+        )
     order_rows = await db.execute_fetchall(
         "SELECT COALESCE(MAX(display_order), 0) AS mx FROM experiment_activity_types WHERE experiment_id = ?",
         (experiment_id,),
@@ -739,6 +781,16 @@ async def update_metric(
     metric = _normalize_metric(name, color, rows[0]["kind"], target_value, target_period, source_match)
     if metric is None:
         return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric name is required.")
+    siblings = await db.execute_fetchall(
+        "SELECT name FROM experiment_activity_types WHERE experiment_id = ? AND id != ?",
+        (experiment_id, metric_id),
+    )
+    if any(row["name"].casefold() == metric["name"].casefold() for row in siblings):
+        return error_redirect(
+            request,
+            f"/experiments/{experiment_id}/edit",
+            "Metric names must be unique within an experiment.",
+        )
     cursor = await db.execute(
         "UPDATE experiment_activity_types SET name = ?, color = ?, target_value = ?, target_period = ?, source_match = ? "
         "WHERE id = ? AND experiment_id = ?",
@@ -783,12 +835,25 @@ async def add_entry(
     value: str = Form("1"),
     notes: str = Form(""),
 ):
+    from datetime import date as calendar_date
+
     if not valid_date(date):
         return error_redirect(request, f"/experiments/{experiment_id}", "Choose a valid entry date.")
     db = get_user_db_from_request(request)
-    experiment_rows = await db.execute_fetchall("SELECT id FROM experiments WHERE id = ?", (experiment_id,))
+    experiment_rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))
     if not experiment_rows:
         return error_redirect(request, f"/experiments/{experiment_id}", "Experiment not found.")
+    experiment = dict(experiment_rows[0])
+    if experiment["status"] != "active":
+        return error_redirect(request, f"/experiments/{experiment_id}", "Only active experiments accept entries.")
+    experiment_start = calendar_date.fromisoformat(experiment["start_date"])
+    _, experiment_end = experiment_calendar(experiment_start, experiment["num_weeks"])
+    if not (experiment_start.isoformat() <= date <= experiment_end.isoformat()):
+        return error_redirect(
+            request,
+            f"/experiments/{experiment_id}",
+            f"Entry date must be between {experiment_start} and {experiment_end}.",
+        )
     rows = await db.execute_fetchall(
         "SELECT kind FROM experiment_activity_types WHERE id = ? AND experiment_id = ?", (metric_id, experiment_id)
     )

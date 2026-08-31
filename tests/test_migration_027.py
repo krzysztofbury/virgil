@@ -157,7 +157,7 @@ def test_migration_recovers_after_each_ddl_boundary(tmp_path, completed_indexes)
     assert set(importlib.import_module("app.migrations.027_jobs")._INDEX_SQL) <= asyncio.run(scenario())
 
 
-def test_full_migration_chain_records_029(tmp_path):
+def test_full_migration_chain_records_latest_version(tmp_path):
     async def scenario():
         from app.migrations.runner import run_migrations
 
@@ -175,7 +175,7 @@ def test_full_migration_chain_records_029(tmp_path):
             await db.close()
 
     marker, tables = asyncio.run(scenario())
-    assert marker == (29, "029_llm_publications.py")
+    assert marker == (31, "031_canonical_goals.py")
     assert tables == {"jobs", "llm_publications"}
 
 

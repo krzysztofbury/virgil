@@ -20,6 +20,14 @@
             <input type="text" id="description" name="description" placeholder="8-week zone 2 + HIIT plan">
         </div>
 
+        <div style="margin-bottom: 0.75rem;">
+            <label for="goal_id">Linked goal <small class="text-muted">optional</small></label>
+            <select id="goal_id" name="goal_id">
+                <option value="">No linked goal</option>
+                {% for goal in goals %}<option value="{{ goal.id }}">{{ goal.content|strip_md }}</option>{% endfor %}
+            </select>
+        </div>
+
         <div class="grid">
             <div>
                 <label for="start_date">Start Date</label>

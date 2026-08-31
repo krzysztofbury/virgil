@@ -133,6 +133,7 @@
             {% set has_oura = day.entries|selectattr("source", "equalto", "oura")|list|length > 0 if day.entries else false %}
             <div class="exp-day {{ 'exp-day-today' if day.is_today else '' }} {{ 'exp-day-filled' if day.color else '' }} {{ 'exp-day-marked' if day.dots else '' }}"
                  {% if day.color %}style="background: {{ day.color }};{{ ' border: 2px dashed rgba(255,255,255,0.6);' if has_oura else '' }}"{% endif %}>
+                <span class="exp-day-weekday">{{ day.weekday }}</span>
                 {% if day.label %}
                 <span class="exp-day-label">{{ day.label }}</span>
                 {% endif %}
@@ -153,7 +154,8 @@
                 <div>
                     {% if week.has_duration %}
                     <span class="exp-week-summary" @dblclick="editing = true" title="Double-click to edit targets">
-                        <strong>{{ week.total }}m</strong> / {{ week.target_min }}&ndash;{{ week.target_max }}m
+                        <strong>{{ week.total }}m</strong> /
+                        {% if week.target_min or week.target_max %}{{ week.target_min }}&ndash;{{ week.target_max }}m{% else %}no target{% endif %}
                     </span>
                     <div class="progress-bar" style="height: 5px;">
                         <div class="fill {{ 'exp-bar-success' if week.status_class == 'success' else '' }}"

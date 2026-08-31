@@ -7,6 +7,7 @@ from datetime import date
 import litellm
 
 from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
+from app.services.goal_data import create_goal
 
 logger = logging.getLogger(__name__)
 
@@ -207,7 +208,7 @@ async def _expand_goals(db, llm_summary: str | None) -> list:
     if not rows:
         return []
 
-    goals_text = "\n".join(f"- {row['area_name']}: {row['content']}" for row in rows)
+    goals_text = "\n".join(f"- goal_id={row['id']} | {row['area_name']}: {row['content']}" for row in rows)
 
     context = f"User profile: {llm_summary}\n\n" if llm_summary else ""
 
@@ -217,7 +218,7 @@ async def _expand_goals(db, llm_summary: str | None) -> list:
         "- Level 2 (3-year, ~35% of the end goal): A meaningful intermediate milestone.\n"
         "- Level 1 (1-year, ~10% of the end goal): A concrete, achievable first step.\n\n"
         "Return ONLY valid JSON, no markdown fences. Format:\n"
-        '[{"area_name": "...", "level2": "...", "level1": "..."}]\n'
+        '[{"goal_id": 123, "level2": "...", "level1": "..."}]\n'
         "Write goals in the same language as the input.",
         f"{context}End goals (Level 3):\n{goals_text}",
         max_tokens=2048,
@@ -243,21 +244,28 @@ async def _save_goal_levels(db, goal_levels: list) -> int:
     for item in goal_levels:
         if not isinstance(item, dict):
             continue
-        area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (item.get("area_name", ""),))
-        if not area_row:
+        goal_id = item.get("goal_id")
+        if not isinstance(goal_id, int):
             continue
-        area_id = area_row[0]["id"]
+        parent_rows = await db.execute_fetchall("SELECT id, area_id FROM goals WHERE id = ?", (goal_id,))
+        if not parent_rows:
+            continue
+        parent = parent_rows[0]
 
         for horizon, key in [("3yr", "level2"), ("1yr", "level1")]:
             content = item.get(key, "")
             if content:
-                await db.execute(
-                    """INSERT INTO goals (area_id, horizon, content, display_order)
-                       VALUES (?, ?, ?, 1)
-                       ON CONFLICT DO NOTHING""",
-                    (area_id, horizon, content),
+                _, created = await create_goal(
+                    db,
+                    area_id=parent["area_id"],
+                    horizon=horizon,
+                    content=str(content),
+                    display_order=1,
+                    source="onboarding",
+                    source_ref=f"goal-expansion:{goal_id}:{horizon}",
+                    parent_goal_id=goal_id,
                 )
-                written += 1
+                written += int(created)
     return written
 
 

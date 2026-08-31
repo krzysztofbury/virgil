@@ -616,6 +616,7 @@ async def trigger_import(request: Request):
         await import_all(db)
         return success_redirect(request, "/settings?tab=data", "Import completed.")
     except Exception:
+        await db.rollback()
         logger.exception("Import failed")
         return error_redirect(request, "/settings?tab=data", "Import failed. Try again.")
 
@@ -677,6 +678,7 @@ EXPORT_TABLES = [
     "life_scores",
     "goal_areas",
     "goals",
+    "goal_reps",
     "experiments",
     "experiment_activity_types",
     "experiment_weeks",

@@ -68,7 +68,7 @@ def test_daily_used_creates_relapse_event_once(auth_client):
     for _ in range(2):
         auth_client.post(
             "/feniks/daily",
-            data={"date": day, "used": "1", "_csrf_token": token},
+            data={"date": day, "used": "1", "minutes": "5", "_csrf_token": token},
             follow_redirects=False,
         )
 
@@ -103,7 +103,7 @@ def test_daily_correction_to_clean_removes_marker_relapse(auth_client):
     for used in ("1", "0"):
         auth_client.post(
             "/feniks/daily",
-            data={"date": day, "used": used, "_csrf_token": token},
+            data={"date": day, "used": used, "minutes": "5", "_csrf_token": token},
             follow_redirects=False,
         )
 
@@ -123,7 +123,7 @@ def test_daily_correction_preserves_foreign_relapse(auth_client):
     for used in ("1", "0"):
         auth_client.post(
             "/feniks/daily",
-            data={"date": day, "used": used, "_csrf_token": token},
+            data={"date": day, "used": used, "minutes": "5", "_csrf_token": token},
             follow_redirects=False,
         )
 
@@ -184,6 +184,8 @@ def test_page_is_single_flow(auth_client):
     assert "Journal Entry" not in html, "journal form is retired from the UI"
     assert "Two Pleasures" not in html, "pleasures form is retired from the UI"
     assert "Report relapse" not in html, "separate relapse form folded into the day log"
+    assert "at least 5 total minutes" in html
+    assert "one distinct decision episode" in html
 
 
 def test_api_noporn_includes_daily_and_bricks(auth_client, monkeypatch):
@@ -255,3 +257,90 @@ def test_brick_normalises_a_compact_iso_date(auth_client):
     )
 
     assert _fetchall("SELECT date FROM feniks_bricks WHERE hook = ?", ("compact date",)) == [(day.isoformat(),)]
+
+
+def test_clean_day_clears_watched_only_values_but_keeps_short_exposure_note(auth_client):
+    _enable_no_porn()
+    token = csrf_token(auth_client, "/feniks")
+    day = (date.today() - timedelta(days=4)).isoformat()
+
+    auth_client.post(
+        "/feniks/daily",
+        data={
+            "date": day,
+            "used": "1",
+            "minutes": "12",
+            "edging": "1",
+            "note": "watched record",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    auth_client.post(
+        "/feniks/daily",
+        data={
+            "date": day,
+            "used": "0",
+            "minutes": "12",
+            "edging": "1",
+            "note": "brief accidental exposure under five minutes",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+
+    assert _fetchall("SELECT used, minutes, edging, note FROM feniks_daily WHERE date = ?", (day,)) == [
+        (0, None, 0, "brief accidental exposure under five minutes")
+    ]
+
+
+def test_watched_requires_at_least_five_minutes(auth_client):
+    _enable_no_porn()
+    token = csrf_token(auth_client, "/feniks")
+    day = (date.today() - timedelta(days=5)).isoformat()
+
+    for minutes in ("", "4"):
+        resp = auth_client.post(
+            "/feniks/daily",
+            data={"date": day, "used": "1", "minutes": minutes, "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert "err=" in resp.headers["location"]
+
+    assert _fetchall("SELECT id FROM feniks_daily WHERE date = ?", (day,)) == []
+
+
+def test_brick_can_be_corrected_and_removed(auth_client):
+    _enable_no_porn()
+    token = csrf_token(auth_client, "/feniks")
+    day = (date.today() - timedelta(days=2)).isoformat()
+    auth_client.post(
+        "/feniks/bricks",
+        data={"date": day, "hook": "before correction", "craving": "9", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    brick_id = _fetchall("SELECT id FROM feniks_bricks WHERE hook = 'before correction'")[0][0]
+
+    updated = auth_client.post(
+        f"/feniks/bricks/{brick_id}/edit",
+        data={
+            "date": day,
+            "hook": "after correction",
+            "craving": "6",
+            "story": "corrected detail",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert updated.status_code == 303
+    assert _fetchall("SELECT hook, craving, story FROM feniks_bricks WHERE id = ?", (brick_id,)) == [
+        ("after correction", 6, "corrected detail")
+    ]
+
+    removed = auth_client.post(
+        f"/feniks/bricks/{brick_id}/delete",
+        data={"_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert removed.status_code == 303
+    assert _fetchall("SELECT id FROM feniks_bricks WHERE id = ?", (brick_id,)) == []

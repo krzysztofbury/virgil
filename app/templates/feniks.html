@@ -6,6 +6,12 @@
     <h1>No Porn</h1>
 </div>
 
+<div class="card" style="margin-bottom: 1rem;">
+    <strong>Measurement contract</strong>
+    <p class="text-muted" style="margin:0.35rem 0 0;">Watched means at least 5 total minutes of intentional viewing in one day. A shorter exposure stays a clean outcome; record it in the day note.</p>
+    <p class="text-muted" style="margin:0.35rem 0 0;">A brick is one distinct decision episode resolved before exposure. Background desire alone is not a brick, and no particular coping action is required.</p>
+</div>
+
 <!-- Hero: bricks are the progress unit; streak is context, not the scoreboard -->
 <div class="streak-hero">
     <div class="streak-number">{{ bricks_total }}</div>
@@ -50,7 +56,8 @@
         <div class="day-detail" x-show="used === '1'" x-cloak>
             <div class="day-detail-row">
                 <label class="field-inline">Minutes
-                    <input type="number" name="minutes" min="0" max="1440" inputmode="numeric" placeholder="~"
+                    <input type="number" name="minutes" min="5" max="1440" inputmode="numeric" placeholder="5+"
+                           :required="used === '1'"
                            value="{{ form_daily.minutes if form_daily and form_daily.minutes is not none else '' }}">
                 </label>
                 <label class="switch-label">
@@ -62,10 +69,11 @@
                     Edging <small class="text-muted">(no finish, kept it going)</small>
                 </label>
             </div>
-            <input type="text" name="note" maxlength="500" class="day-note"
-                   placeholder="One line: trigger &middot; feeling (optional)"
-                   value="{{ form_daily.note if form_daily and form_daily.note else '' }}">
         </div>
+        <label>Day note <small class="text-muted">short exposure, trigger, or context (optional)</small>
+            <input type="text" name="note" maxlength="500" class="day-note"
+                   value="{{ form_daily.note if form_daily and form_daily.note else '' }}">
+        </label>
         <button type="submit" class="btn btn-primary day-save" :disabled="used === null"
                 x-text="used === null ? 'Pick one above' : 'Save {{ 'today' if form_date == today else form_date }}'">Save</button>
     </form>
@@ -117,6 +125,22 @@
                 <div>
                     <strong>{{ b.hook }}</strong>
                     {% if b.story %}<div class="timeline-note">{{ (b.story or '')[:120] }}{{ '...' if (b.story or '')|length > 120 else '' }}</div>{% endif %}
+                    <details style="margin-top:0.35rem;">
+                        <summary>Edit record</summary>
+                        <form method="POST" action="/feniks/bricks/{{ b.id }}/edit" style="margin-top:0.5rem;">
+                            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                            <label>Date<input type="date" name="date" value="{{ b.date }}" max="{{ today }}" required></label>
+                            <label>Name<input type="text" name="hook" value="{{ b.hook }}" maxlength="200" required></label>
+                            <label>Craving 0-10<input type="number" name="craving" value="{{ b.craving if b.craving is not none else '' }}" min="0" max="10"></label>
+                            <label>Story<textarea name="story" rows="3">{{ b.story or '' }}</textarea></label>
+                            <button type="submit" class="btn btn-secondary btn-sm">Save correction</button>
+                        </form>
+                        <form method="POST" action="/feniks/bricks/{{ b.id }}/delete" style="margin-top:0.5rem;"
+                              onsubmit="return confirm('Remove this brick from your history? This only corrects your record.')">
+                            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Remove record</button>
+                        </form>
+                    </details>
                 </div>
             </div>
             {% endfor %}
@@ -128,8 +152,8 @@
                     {% if t.day.used %}
                     {{ (t.day.minutes ~ ' min') if t.day.minutes is not none else '' }}
                     {{ '&middot; edging' | safe if t.day.edging else '' }}
-                    {% if t.day.note %}<div class="timeline-note">{{ t.day.note }}</div>{% endif %}
                     {% endif %}
+                    {% if t.day.note %}<div class="timeline-note">{{ t.day.note }}</div>{% endif %}
                 </div>
             </div>
             {% endif %}

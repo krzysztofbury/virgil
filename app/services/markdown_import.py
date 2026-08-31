@@ -1,11 +1,13 @@
 """Import data from existing markdown files into SQLite."""
 
 import contextlib
+import hashlib
 import os
 import re
 from datetime import date
 
 from app.config import SECOND_BRAIN_PATH
+from app.services.goal_data import create_goal, create_rep, update_goal
 
 
 async def import_liczby(db):
@@ -101,8 +103,6 @@ async def import_liczby(db):
         await _save_daily_log(db, current_date, current_log)
         if measurements:
             await _save_measurements(db, current_date, measurements)
-
-    await db.commit()
 
 
 async def _save_daily_log(db, date_str, log):
@@ -213,8 +213,6 @@ async def import_noporn(db):
             day_num = int(m.group(2))
             completed = 1 if cb == "x" else 0
             await db.execute("UPDATE feniks_milestones SET completed = ? WHERE day_number = ?", (completed, day_num))
-
-    await db.commit()
 
 
 async def import_oura(db):
@@ -328,8 +326,6 @@ async def import_oura(db):
         """,
             vals,
         )
-
-    await db.commit()
 
 
 async def import_badania(db):
@@ -464,8 +460,6 @@ async def import_badania(db):
         elif not line.startswith("*") and not line.startswith("-") and line.strip() and not line.startswith("#"):
             current_marker = None
 
-    await db.commit()
-
 
 async def import_snapply(db):
     """Parse snapply.md -> life_scores."""
@@ -533,19 +527,24 @@ async def import_snapply(db):
         ),
     )
 
-    await db.commit()
-
 
 async def import_cele(db):
-    """Parse cele.md -> goals."""
+    """One-time, idempotent bootstrap from legacy or current cele.md.
+
+    Virgil owns goals and reps after this import. Markdown export is a generated
+    read-only view and is deliberately not parsed back as a synchronization loop.
+    """
     path = os.path.join(SECOND_BRAIN_PATH, "cele.md")
     if not os.path.exists(path):
+        return
+    marker = await db.execute_fetchall("SELECT value FROM app_settings WHERE key = 'cele_bootstrap_version'")
+    if marker and marker[0]["value"] == "1":
         return
 
     with open(path, encoding="utf-8") as f:
         content = f.read()
 
-    area_map = {
+    legacy_area_map = {
         "PLANOWANIE ŻYCIA": "Planowanie Życia",
         "DUCHOWOŚĆ": "Duchowość",
         "ZDROWIE": "Zdrowie",
@@ -556,55 +555,208 @@ async def import_cele(db):
         "RODZINA": "Rodzina",
     }
 
-    current_area = None
-    current_horizon = None
-    order = 0
+    current_area_map = {
+        "CIAŁO": "Zdrowie",
+        "DUCH": "Duchowość",
+        "KONTO": "Praca",
+        "RELACJE": "Rodzina",
+    }
 
-    for line in content.split("\n"):
-        # Area header
-        am = re.match(r"^## .+ OBSZAR \d+: (.+)", line)
-        if am:
-            area_label = am.group(1).strip()
-            for key, name in area_map.items():
-                if key in area_label:
-                    current_area = name
-                    break
+    async def area_id(name: str) -> int | None:
+        rows = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (name,))
+        return rows[0]["id"] if rows else None
+
+    async def upsert_imported_goal(
+        *,
+        area_name: str,
+        horizon: str,
+        goal_content: str,
+        source_ref: str,
+        display_order: int = 0,
+        start_date: str | None = None,
+        end_date: str | None = None,
+    ) -> dict | None:
+        identifier = await area_id(area_name)
+        if identifier is None:
+            return None
+        by_source = await db.execute_fetchall(
+            "SELECT * FROM goals WHERE source = 'second_brain' AND source_ref = ?", (source_ref,)
+        )
+        if by_source:
+            return await update_goal(
+                db,
+                by_source[0]["id"],
+                {
+                    "area_id": identifier,
+                    "horizon": horizon,
+                    "content": goal_content,
+                    "status": "active",
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "display_order": display_order,
+                },
+            )
+        identity = " ".join(goal_content.split()).casefold()
+        candidates = await db.execute_fetchall(
+            "SELECT * FROM goals WHERE area_id = ? AND horizon = ?", (identifier, horizon)
+        )
+        existing = next((row for row in candidates if " ".join(row["content"].split()).casefold() == identity), None)
+        if existing:
+            await db.execute(
+                "UPDATE goals SET source = 'second_brain', source_ref = ? WHERE id = ?",
+                (source_ref, existing["id"]),
+            )
+            return await update_goal(
+                db,
+                existing["id"],
+                {"status": "active", "start_date": start_date, "end_date": end_date},
+            )
+        goal, _ = await create_goal(
+            db,
+            area_id=identifier,
+            horizon=horizon,
+            content=goal_content,
+            status="active",
+            start_date=start_date,
+            end_date=end_date,
+            display_order=display_order,
+            source="second_brain",
+            source_ref=source_ref,
+        )
+        return goal
+
+    current_sections: list[dict] = []
+    imported_goal_ids: list[int] = []
+    section: dict | None = None
+    for line in content.splitlines():
+        heading = re.match(r"^## (CIAŁO|DUCH|KONTO|RELACJE)\s+-\s+(.+)$", line)
+        if heading:
+            section = {"key": heading.group(1), "content": heading.group(2).strip(), "reps": [], "window": None}
+            current_sections.append(section)
             continue
-
-        # Horizon
-        hm = re.match(r"^\*\*Poziom \d+ \((\d+)\s*(rok|lata?|lat)", line)
-        if hm:
-            num = int(hm.group(1))
-            if num == 1:
-                current_horizon = "1yr"
-            elif num == 3:
-                current_horizon = "3yr"
-            elif num == 10:
-                current_horizon = "10yr"
-            order = 0
+        if section is None:
             continue
+        window = re.match(r"^\*\*Okno:\*\*\s+(.+)$", line)
+        if window:
+            section["window"] = window.group(1).strip()
+            continue
+        numbered = re.match(r"^\d+\.\s+(.+)$", line)
+        if numbered and section["key"] == "KONTO":
+            section["reps"].append(numbered.group(1).strip())
+        elif line.startswith("- ") and section["key"] == "RELACJE":
+            section["reps"].append(line[2:].strip())
 
-        # Goal item
-        if current_area and current_horizon and line.startswith("- "):
-            content_text = line[2:].strip()
-            if content_text:
-                # Get area id
-                row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (current_area,))
-                if row:
-                    area_id = row[0]["id"]
+    def parse_window(value: str | None) -> tuple[str | None, str | None]:
+        if not value:
+            return None, None
+        match = re.match(r"(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?-(\d{1,2})\.(\d{1,2})\.(\d{4})", value)
+        if not match:
+            return None, None
+        start_day, start_month, start_year, end_day, end_month, end_year = match.groups()
+        end = date(int(end_year), int(end_month), int(end_day))
+        year = int(start_year) if start_year else end.year
+        start = date(year, int(start_month), int(start_day))
+        if start > end and start_year is None:
+            start = start.replace(year=end.year - 1)
+        return start.isoformat(), end.isoformat()
+
+    def rep_due_date(rep_content: str, start_value: str | None, end_value: str | None) -> str:
+        match = re.search(r"\bdo\s+(\d{1,2})\.(\d{1,2})(?:\.(\d{4}))?", rep_content, re.IGNORECASE)
+        window_start = date.fromisoformat(start_value) if start_value else None
+        window_end = date.fromisoformat(end_value) if end_value else None
+        fallback_date = window_end or window_start or date.today()
+        if not match:
+            return fallback_date.isoformat()
+        day, month, year = match.groups()
+        if year:
+            return date(int(year), int(month), int(day)).isoformat()
+        if window_start and window_end:
+            candidates = []
+            for candidate_year in range(window_start.year, window_end.year + 1):
+                with contextlib.suppress(ValueError):
+                    candidate = date(candidate_year, int(month), int(day))
+                    if window_start <= candidate <= window_end:
+                        candidates.append(candidate)
+            if len(candidates) == 1:
+                return candidates[0].isoformat()
+            if len(candidates) > 1:
+                raise ValueError(f"Ambiguous yearless rep deadline: {match.group(0)}")
+        return date(fallback_date.year, int(month), int(day)).isoformat()
+
+    if current_sections:
+        for item in current_sections:
+            start_date, end_date = parse_window(item["window"])
+            goal = await upsert_imported_goal(
+                area_name=current_area_map[item["key"]],
+                horizon="1yr",
+                goal_content=item["content"],
+                source_ref=f"cele:current:{item['key'].casefold()}",
+                start_date=start_date,
+                end_date=end_date,
+            )
+            if goal is None:
+                continue
+            imported_goal_ids.append(goal["id"])
+            for rep_content in item["reps"]:
+                digest = hashlib.sha256(" ".join(rep_content.split()).casefold().encode()).hexdigest()[:24]
+                await create_rep(
+                    db,
+                    goal_id=goal["id"],
+                    content=rep_content,
+                    period="month",
+                    due_date=rep_due_date(rep_content, start_date, end_date),
+                    source="second_brain",
+                    source_ref=f"cele:rep:{item['key'].casefold()}:{digest}",
+                )
+    else:
+        current_area = None
+        current_horizon = None
+        order = 0
+        for line in content.splitlines():
+            area_match = re.match(r"^## .+ OBSZAR \d+: (.+)", line)
+            if area_match:
+                current_area = next(
+                    (name for key, name in legacy_area_map.items() if key in area_match.group(1).strip()), None
+                )
+                continue
+            horizon_match = re.match(r"^\*\*Poziom \d+ \((\d+)\s*(rok|lata?|lat)", line)
+            if horizon_match:
+                current_horizon = {1: "1yr", 3: "3yr", 10: "10yr"}.get(int(horizon_match.group(1)))
+                order = 0
+                continue
+            if current_area and current_horizon and line.startswith("- "):
+                goal_content = line[2:].strip()
+                if goal_content:
                     order += 1
-                    await db.execute(
-                        "INSERT INTO goals (area_id, horizon, content, display_order) VALUES (?, ?, ?, ?)",
-                        (area_id, current_horizon, content_text, order),
+                    digest = hashlib.sha256(
+                        f"{current_area}\x1f{current_horizon}\x1f{' '.join(goal_content.split()).casefold()}".encode()
+                    ).hexdigest()[:24]
+                    goal = await upsert_imported_goal(
+                        area_name=current_area,
+                        horizon=current_horizon,
+                        goal_content=goal_content,
+                        source_ref=f"cele:legacy:{digest}",
+                        display_order=order,
                     )
+                    if goal is not None:
+                        imported_goal_ids.append(goal["id"])
 
-    await db.commit()
+    if imported_goal_ids:
+        await db.execute(
+            "INSERT INTO app_settings(key, value, updated_at) VALUES('cele_bootstrap_version', '1', datetime('now')) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at"
+        )
 
 
 async def import_all(db):
-    await import_badania(db)
-    await import_oura(db)
-    await import_liczby(db)
-    await import_noporn(db)
-    await import_snapply(db)
-    await import_cele(db)
+    try:
+        await import_badania(db)
+        await import_oura(db)
+        await import_liczby(db)
+        await import_noporn(db)
+        await import_snapply(db)
+        await import_cele(db)
+    except Exception:
+        await db.rollback()
+        raise
+    await db.commit()

@@ -491,6 +491,25 @@ retry.
 
 ## Feniks
 - [x] Progress graph (streak timeline with red dots at relapse points)
+- [x] **Make the Feniks measurement contract explicit and correctable.** `used`
+      means at least 5 total minutes of intentional viewing in a day. Shorter
+      exposure stays clean and can be recorded in the always-visible note. A
+      brick is one distinct decision episode resolved before exposure. Clean
+      saves clear minutes and edging; bricks can be edited or removed with
+      confirmation. Migration 030 sanitizes existing clean rows.
+
+## Goals and reps as canonical data
+
+- [x] **Make Virgil the source of truth for goals and execution reps.** Migration
+      031 adds goal lifecycle and date windows, first-class calendar reps with
+      completion/carry/skip history, and optional goal links on experiments.
+- [x] Add complete REST and MCP read/write coverage for goals and reps. API lists
+      are bounded, writes accept idempotency keys, weeks are Monday-Sunday, and
+      duplicate metric names are migrated and refused on future writes.
+- [x] Migrate and deduplicate existing imported goals/reps. The `cele.md`
+      bootstrap accepts the current and legacy formats idempotently; generated
+      goal markdown is explicitly read-only and the review ledger stays outside
+      Virgil.
 
 ## Data & Reliability
 - [x] Automated daily backup (SQLite → `data/backups/` with rolling retention)

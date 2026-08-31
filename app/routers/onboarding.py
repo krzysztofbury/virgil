@@ -16,6 +16,7 @@ from app.models.user_profile import (
     update_step3,
     update_step4,
 )
+from app.services.goal_data import create_goal, update_goal
 from app.user_db import get_user_db_from_request
 from app.validation import truncate
 
@@ -181,12 +182,22 @@ async def save_step3(
         area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (area_name,))
         if area_row:
             area_id = area_row[0]["id"]
-            await db.execute(
-                """INSERT INTO goals (area_id, horizon, content, display_order)
-                   VALUES (?, '10yr', ?, 1)
-                   ON CONFLICT DO NOTHING""",
-                (area_id, content),
+            existing = await db.execute_fetchall(
+                "SELECT id FROM goals WHERE source = 'onboarding' AND source_ref = ?",
+                (f"end-goal:{category}",),
             )
+            if existing:
+                await update_goal(db, existing[0]["id"], {"content": content})
+            else:
+                await create_goal(
+                    db,
+                    area_id=area_id,
+                    horizon="10yr",
+                    content=content,
+                    display_order=1,
+                    source="onboarding",
+                    source_ref=f"end-goal:{category}",
+                )
 
     await db.commit()
 

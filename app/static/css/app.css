@@ -1553,6 +1553,7 @@ details > :not(summary) { margin-top: 1rem; }
   font-size: 0.65rem;
   text-shadow: 0 1px 3px rgba(0,0,0,0.6);
 }
+.exp-day-weekday { display: none; }
 
 .exp-week-progress {
   display: flex;
@@ -2062,6 +2063,19 @@ kbd {
   .exp-week-progress { text-align: left; }
   .exp-days { gap: 3px; }
   .exp-day { min-height: 28px; }
+  .exp-day-weekday {
+    display: block;
+    position: absolute;
+    top: 2px;
+    left: 3px;
+    color: inherit;
+    font-size: 0.5rem;
+    font-weight: 600;
+  }
+  .goal-delete-btn {
+    color: var(--text-primary);
+    opacity: 1;
+  }
   .exp-card-stats { gap: 1rem; }
   .exp-log-form .grid { grid-template-columns: 1fr; }
 
