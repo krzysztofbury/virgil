@@ -1,4 +1,3 @@
-import asyncio
 import csv
 import io
 import json
@@ -17,7 +16,6 @@ from app.main import templates
 from app.services.encryption import decrypt, encrypt
 from app.services.llm import REASONING_EFFORT_SETTING, REASONING_EFFORTS, resolve_reasoning_effort
 from app.services.oura_api import (
-    create_webhook_subscription,
     ensure_valid_token,
     exchange_code,
     get_oura_auth_url,
@@ -105,18 +103,16 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["library_all_tags"] = sorted({tr["tag"] for tr in tag_rows})
 
     elif tab == "integrations":
+        from app.central_db import get_subscription_registration
+
         oura_row = await db.execute_fetchall("SELECT * FROM integrations WHERE provider = 'oura'")
         context["oura_integration"] = dict(oura_row[0]) if oura_row else None
         oura_sync_enabled = await get_setting(db, "oura_sync_enabled", "0")
         context["oura_sync_enabled"] = oura_sync_enabled == "1"
-        # Webhook info — the callback URL carries a per-user opaque id.
-        webhook_id = await get_setting(db, "oura_webhook_id", "")
-        if context["oura_integration"] and context["oura_integration"].get("webhook_secret") and webhook_id:
-            context["webhook_enabled"] = True
-            context["webhook_url"] = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
-        else:
-            context["webhook_enabled"] = False
-            context["webhook_url"] = ""
+        registration = await get_subscription_registration(request.state.user["id"], "oura")
+        context["webhook_registration"] = registration
+        context["webhook_enabled"] = registration is not None
+        context["webhook_url"] = registration["endpoint"] if registration else ""
 
     elif tab == "data":
         from app.services.markdown_export import export_filename_for
@@ -813,7 +809,7 @@ async def factory_reset(request: Request):
     """
     import uuid
 
-    from app.central_db import delete_webhook_routes, update_user
+    from app.central_db import heartbeat_user_lifecycle, update_user, user_lifecycle_operation
     from app.user_db import create_user_db, delete_user_db
 
     user = getattr(request.state, "user", None)
@@ -821,18 +817,28 @@ async def factory_reset(request: Request):
         return error_redirect(request, "/login", "Sign in again before resetting data.")
 
     db = get_user_db_from_request(request)
-    async with _oura_webhook_lock:
-        await _reconcile_oura_subscriptions(db)
-        await delete_webhook_routes(user["id"])
+    async with user_lifecycle_operation(user["id"], "factory-reset") as lifecycle_claim:
+        if lifecycle_claim is None:
+            return error_redirect(
+                request, "/settings?tab=security", "Another account operation is already in progress."
+            )
+        if not await _disable_subscription_now(db, user["id"], "factory-reset"):
+            return error_redirect(
+                request,
+                "/settings?tab=security",
+                "Factory reset stopped because remote subscriptions could not be removed. Try again later.",
+            )
+        if not await heartbeat_user_lifecycle(user["id"], lifecycle_claim):
+            raise RuntimeError("Factory reset lifecycle lease was lost before database replacement")
 
-    old_filename = user["db_filename"]
-    new_filename = f"{uuid.uuid4()}.db"
-    await create_user_db(new_filename)
-    await update_user(user["id"], db_filename=new_filename)
-    delete_user_db(old_filename)
+        old_filename = user["db_filename"]
+        new_filename = f"{uuid.uuid4()}.db"
+        await create_user_db(new_filename)
+        await update_user(user["id"], db_filename=new_filename)
+        delete_user_db(old_filename)
 
-    logger.info("Factory reset completed for user %s", user["email"])
-    return success_redirect(request, "/onboarding", "Factory reset completed. Start onboarding again.")
+        logger.info("Factory reset completed for user %s", user["email"])
+        return success_redirect(request, "/onboarding", "Factory reset completed. Start onboarding again.")
 
 
 # --- Oura Integration ---
@@ -849,18 +855,33 @@ async def save_oura_credentials(
     if not client_id or not client_secret:
         return error_redirect(request, "/settings?tab=integrations", "Oura client ID and client secret are required.")
 
-    db = get_user_db_from_request(request)
-    await db.execute(
-        """INSERT INTO integrations (provider, client_id, client_secret_enc, scopes, status)
-        VALUES ('oura', ?, ?, ?, 'configured')
-        ON CONFLICT(provider) DO UPDATE SET
-            client_id=excluded.client_id, client_secret_enc=excluded.client_secret_enc,
-            scopes=excluded.scopes, status='configured',
-            access_token_enc='', refresh_token_enc='', token_expires_at=''""",
-        (client_id, encrypt(client_secret), "daily heartrate session spo2 sleep workout"),
-    )
-    await db.commit()
-    return success_redirect(request, "/settings?tab=integrations", "Oura credentials saved.")
+    from app.central_db import get_subscription_registration, user_lifecycle_operation
+
+    user_id = request.state.user["id"]
+    async with user_lifecycle_operation(user_id, "oura-credentials") as lifecycle_claim:
+        if lifecycle_claim is None:
+            return error_redirect(
+                request, "/settings?tab=integrations", "Another account operation is already in progress."
+            )
+        if await get_subscription_registration(user_id, "oura"):
+            return error_redirect(
+                request,
+                "/settings?tab=integrations",
+                "Disable the Oura webhook before changing application credentials.",
+            )
+
+        db = get_user_db_from_request(request)
+        await db.execute(
+            """INSERT INTO integrations (provider, client_id, client_secret_enc, scopes, status)
+            VALUES ('oura', ?, ?, ?, 'configured')
+            ON CONFLICT(provider) DO UPDATE SET
+                client_id=excluded.client_id, client_secret_enc=excluded.client_secret_enc,
+                scopes=excluded.scopes, status='configured',
+                access_token_enc='', refresh_token_enc='', token_expires_at=''""",
+            (client_id, encrypt(client_secret), "daily heartrate session spo2 sleep workout"),
+        )
+        await db.commit()
+        return success_redirect(request, "/settings?tab=integrations", "Oura credentials saved.")
 
 
 @router.get("/settings/oura/connect")
@@ -931,22 +952,38 @@ async def oura_callback(request: Request, code: str = Query(...), state: str = Q
 
 @router.post("/settings/oura/disconnect")
 async def oura_disconnect(request: Request):
-    db = get_user_db_from_request(request)
-    rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
-    if not rows:
-        return error_redirect(request, "/settings?tab=integrations", "Oura integration is not configured.")
-    if rows[0]["status"] != "connected":
-        return error_redirect(request, "/settings?tab=integrations", "Oura is not connected.")
+    from app.central_db import heartbeat_user_lifecycle, user_lifecycle_operation
 
-    cursor = await db.execute(
-        """UPDATE integrations SET access_token_enc = '', refresh_token_enc = '',
-           token_expires_at = '', status = 'configured' WHERE provider = 'oura'"""
-    )
-    if cursor.rowcount != 1:
-        await db.rollback()
-        return error_redirect(request, "/settings?tab=integrations", "Oura was not disconnected.")
-    await db.commit()
-    return success_redirect(request, "/settings?tab=integrations", "Oura disconnected.")
+    user_id = request.state.user["id"]
+    async with user_lifecycle_operation(user_id, "oura-disconnect") as lifecycle_claim:
+        if lifecycle_claim is None:
+            return error_redirect(
+                request, "/settings?tab=integrations", "Another account operation is already in progress."
+            )
+        db = get_user_db_from_request(request)
+        rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
+        if not rows:
+            return error_redirect(request, "/settings?tab=integrations", "Oura integration is not configured.")
+        if rows[0]["status"] != "connected":
+            return error_redirect(request, "/settings?tab=integrations", "Oura is not connected.")
+        if not await _disable_subscription_now(db, user_id, "disconnect"):
+            return error_redirect(
+                request,
+                "/settings?tab=integrations",
+                "Oura was not disconnected because remote subscriptions could not be removed.",
+            )
+        if not await heartbeat_user_lifecycle(user_id, lifecycle_claim):
+            raise RuntimeError("Oura disconnect lifecycle lease was lost")
+
+        cursor = await db.execute(
+            """UPDATE integrations SET access_token_enc = '', refresh_token_enc = '',
+               token_expires_at = '', status = 'configured' WHERE provider = 'oura'"""
+        )
+        if cursor.rowcount != 1:
+            await db.rollback()
+            return error_redirect(request, "/settings?tab=integrations", "Oura was not disconnected.")
+        await db.commit()
+        return success_redirect(request, "/settings?tab=integrations", "Oura disconnected.")
 
 
 @router.post("/settings/oura/sync")
@@ -993,76 +1030,60 @@ async def _oura_client_credentials(db) -> tuple[str, str] | None:
     return rows[0]["client_id"], decrypt(rows[0]["client_secret_enc"])
 
 
-# Serializes every reconcile + enable across users. Without it, user A's
-# reconcile can snapshot known_ids, then user B enables concurrently — B's
-# fresh id is missing from A's stale snapshot and gets deleted as an orphan.
-# Single-process app, so one event-loop lock suffices.
-_oura_webhook_lock = asyncio.Lock()
+async def _disable_subscription_now(db, user_id: str, trigger: str) -> bool:
+    from app.central_db import get_subscription_registration
+    from app.services.subscriptions import disable_subscription, reconcile_subscription
 
-
-async def _reconcile_oura_subscriptions(db) -> None:
-    """Best-effort removal of THIS USER'S stale subscriptions from Oura.
-
-    Covers the user's current/previous webhook id, the legacy endpoint, and
-    orphaned ids no user owns. Other users' callbacks are left alone — several
-    users may share one Oura OAuth app, and a blanket wipe of every
-    subscription on this deployment would silently kill their sync.
-    Callers must hold _oura_webhook_lock.
-    """
-    assert _oura_webhook_lock.locked(), "reconcile requires _oura_webhook_lock"
-    creds = await _oura_client_credentials(db)
-    if not creds:
-        return
-    client_id, client_secret = creds
+    if not await get_subscription_registration(user_id, "oura"):
+        return True
+    await disable_subscription(user_id, "oura")
     try:
-        from app.central_db import get_all_webhook_ids
-        from app.services.oura_api import delete_stale_subscriptions
-
-        own_id = await get_setting(db, "oura_webhook_id", "")
-        own_ids = {own_id} if own_id else set()
-        known_ids = await get_all_webhook_ids()
-        removed = await delete_stale_subscriptions(client_id, client_secret, BASE_URL, own_ids, known_ids)
-        if removed:
-            logger.info("Removed %d stale Oura webhook subscription(s)", removed)
+        result = await reconcile_subscription(
+            user_id,
+            "oura",
+            db,
+            worker_id=f"settings:{trigger}:{user_id}",
+        )
     except Exception:
-        logger.exception("Failed to reconcile Oura webhook subscriptions (continuing anyway)")
+        logger.exception("Immediate Oura subscription disable failed")
+        return False
+    return result is not None and result.status == "disabled"
 
 
 @router.post("/settings/oura/webhook/enable")
 async def enable_oura_webhook(request: Request):
-    from app.central_db import create_webhook_route, delete_webhook_routes
+    from app.central_db import create_webhook_route, get_subscription_registration, user_lifecycle_operation
+    from app.services.subscriptions import enable_subscription, reconcile_subscription
 
     db = get_user_db_from_request(request)
     user = request.state.user
-    # Events can only be synced with a live token, so require a connected
-    # integration even though subscription management uses app credentials.
-    token = await ensure_valid_token(db)
-    creds = await _oura_client_credentials(db)
-    if not token or not creds:
-        return error_redirect(request, "/settings?tab=integrations", "Connect Oura again before enabling the webhook.")
+    async with user_lifecycle_operation(user["id"], "oura-webhook-enable") as lifecycle_claim:
+        if lifecycle_claim is None:
+            return error_redirect(
+                request, "/settings?tab=integrations", "Another account operation is already in progress."
+            )
+        # Events can only be synced with a live token, so require a connected
+        # integration even though subscription management uses app credentials.
+        token = await ensure_valid_token(db)
+        creds = await _oura_client_credentials(db)
+        if not token or not creds:
+            return error_redirect(
+                request, "/settings?tab=integrations", "Connect Oura again before enabling the webhook."
+            )
 
-    existing_webhook_id = await get_setting(db, "oura_webhook_id", "")
-    existing_webhook = await db.execute_fetchall("SELECT webhook_secret FROM integrations WHERE provider = 'oura'")
-    if existing_webhook_id and existing_webhook and existing_webhook[0]["webhook_secret"]:
-        return error_redirect(request, "/settings?tab=integrations", "Oura webhook is already enabled.")
-    client_id, client_secret = creds
-
-    # The lock spans reconcile AND registration: another user's concurrent
-    # enable must not slip a fresh id between our known_ids snapshot and the
-    # orphan deletions.
-    async with _oura_webhook_lock:
-        # Reconcile first: leftovers from earlier attempts (or the legacy
-        # endpoint) keep delivering to dead callbacks and can conflict with
-        # re-registration.
-        await _reconcile_oura_subscriptions(db)
-
-        # Per-user callback URL: the opaque id routes the public webhook to
-        # this user's database (see app/routers/oura_webhook.py).
+        if await get_subscription_registration(user["id"], "oura"):
+            return error_redirect(request, "/settings?tab=integrations", "Oura webhook is already enabled.")
+        client_id, _client_secret = creds
         verification_token = secrets.token_urlsafe(32)
-        webhook_id = await create_webhook_route(user["id"])
-        callback_url = f"{BASE_URL}/api/oura/webhook/{webhook_id}"
-
-        # Store the secret (encrypted) first so the verification challenge can match it
+        webhook_id = await create_webhook_route(user["id"], "oura", lifecycle_claim=lifecycle_claim)
+        callback_url = f"{BASE_URL.rstrip('/')}/api/oura/webhook/{webhook_id}"
+        await enable_subscription(
+            user["id"],
+            "oura",
+            callback_url,
+            client_id,
+            lifecycle_claim=lifecycle_claim,
+        )
         await db.execute(
             "UPDATE integrations SET webhook_secret = ? WHERE provider = 'oura'",
             (encrypt(verification_token),),
@@ -1070,47 +1091,45 @@ async def enable_oura_webhook(request: Request):
         await set_setting(db, "oura_webhook_id", webhook_id)
 
         try:
-            result = await create_webhook_subscription(client_id, client_secret, callback_url, verification_token)
-            logger.info(
-                "Oura webhook subscriptions created: %d ok, %d failed",
-                len(result["created"]),
-                len(result["failed"]),
+            result = await reconcile_subscription(
+                user["id"],
+                "oura",
+                db,
+                worker_id=f"settings:enable:{user['id']}",
             )
-            if result["failed"]:
-                # Partial coverage is a degraded state the user must see — the
-                # missing data types will silently never push events.
-                failed_types = ", ".join(sorted({data_type for _, data_type, _ in result["failed"]}))
-                return error_redirect(
-                    request,
-                    "/settings?tab=integrations",
-                    f"Webhook partially enabled; no events for: {failed_types}. Disable it and retry.",
-                )
-            return success_redirect(request, "/settings?tab=integrations", "Oura webhook enabled.")
         except Exception:
-            logger.exception("Failed to create Oura webhook subscription")
-            # Roll back local state since no subscription exists
-            await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
-            await set_setting(db, "oura_webhook_id", "")
-            await delete_webhook_routes(user["id"])
-            return error_redirect(request, "/settings?tab=integrations", "Oura webhook registration failed. Try again.")
+            logger.exception("Immediate Oura subscription enable failed")
+            return error_redirect(
+                request,
+                "/settings?tab=integrations",
+                "Webhook setup is pending and will retry automatically.",
+            )
+        if result is None:
+            return success_redirect(request, "/settings?tab=integrations", "Webhook setup queued.")
+        if result.status == "active":
+            return success_redirect(request, "/settings?tab=integrations", "Oura webhook enabled.")
+        return error_redirect(
+            request, "/settings?tab=integrations", "Webhook is partially active and will retry automatically."
+        )
 
 
 @router.post("/settings/oura/webhook/disable")
 async def disable_oura_webhook(request: Request):
-    from app.central_db import delete_webhook_routes
-
     db = get_user_db_from_request(request)
     user = request.state.user
+    from app.central_db import get_subscription_registration, user_lifecycle_operation
 
-    rows = await db.execute_fetchall("SELECT webhook_secret FROM integrations WHERE provider = 'oura'")
-    webhook_id = await get_setting(db, "oura_webhook_id", "")
-    if not webhook_id and (not rows or not rows[0]["webhook_secret"]):
-        return error_redirect(request, "/settings?tab=integrations", "Oura webhook is not enabled.")
-
-    async with _oura_webhook_lock:
-        await _reconcile_oura_subscriptions(db)
-
-        await db.execute("UPDATE integrations SET webhook_secret = '' WHERE provider = 'oura'")
-        await set_setting(db, "oura_webhook_id", "")
-        await delete_webhook_routes(user["id"])
-    return success_redirect(request, "/settings?tab=integrations", "Oura webhook disabled.")
+    async with user_lifecycle_operation(user["id"], "oura-webhook-disable") as lifecycle_claim:
+        if lifecycle_claim is None:
+            return error_redirect(
+                request, "/settings?tab=integrations", "Another account operation is already in progress."
+            )
+        if not await get_subscription_registration(user["id"], "oura"):
+            return error_redirect(request, "/settings?tab=integrations", "Oura webhook is not enabled.")
+        if await _disable_subscription_now(db, user["id"], "manual"):
+            return success_redirect(request, "/settings?tab=integrations", "Oura webhook disabled.")
+        return error_redirect(
+            request,
+            "/settings?tab=integrations",
+            "Webhook disable is pending and will retry automatically.",
+        )

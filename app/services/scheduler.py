@@ -25,6 +25,8 @@ EXPERIMENTS_PER_TICK_MAX = 20
 TICK_SECONDS = 60
 USERS_PER_TICK_MAX = 100
 USERS_CONCURRENT_MAX = 4
+SUBSCRIPTIONS_PER_TICK_MAX = 10
+SUBSCRIPTIONS_CONCURRENT_MAX = 2
 WORKER_ID = f"{socket.gethostname()[:60]}:{os.getpid()}"
 _user_offset = 0
 
@@ -235,6 +237,7 @@ async def _run_scheduled_user(user: dict, semaphore: asyncio.Semaphore) -> None:
 async def scheduler_tick() -> None:
     """Run one bounded scheduler and durable-worker pass."""
     from app.services.backup import maybe_backup_central
+    from app.services.subscriptions import reconcile_due_subscriptions
 
     users = await get_active_users()
     selected_users = _select_users_for_tick(users)
@@ -242,6 +245,15 @@ async def scheduler_tick() -> None:
         logger.warning("Scheduler rotating batch: processing %d of %d users", len(selected_users), len(users))
     semaphore = asyncio.Semaphore(USERS_CONCURRENT_MAX)
     await asyncio.gather(*(_run_scheduled_user(user, semaphore) for user in selected_users))
+
+    try:
+        await reconcile_due_subscriptions(
+            worker_id=WORKER_ID,
+            limit=SUBSCRIPTIONS_PER_TICK_MAX,
+            concurrency=SUBSCRIPTIONS_CONCURRENT_MAX,
+        )
+    except Exception:
+        logger.exception("Subscription lifecycle scheduler pass failed")
 
     # Per-user backups never cover the registry. This function self-limits to
     # once per 24 hours.

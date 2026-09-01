@@ -359,16 +359,32 @@
     <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
             <h4 style="margin:0;font-size:0.9rem;">Webhook (Real-time sync)</h4>
-            {% if webhook_enabled %}
+            {% if webhook_registration and webhook_registration.desired_state == 'disabled' %}
+            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">Disabling</span>
+            {% elif webhook_registration and webhook_registration.status == 'active' %}
             <span class="flag-normal" style="font-weight:600;font-size:0.75rem;">Active</span>
+            {% elif webhook_registration and webhook_registration.status == 'degraded' %}
+            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">Partial</span>
+            {% elif webhook_registration and webhook_registration.status == 'error' %}
+            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">Retrying</span>
+            {% elif webhook_enabled %}
+            <span class="text-muted" style="font-weight:600;font-size:0.75rem;">Pending</span>
             {% endif %}
         </div>
         {% if webhook_enabled %}
         <div style="margin-bottom:0.5rem;">
             <small class="text-muted">Listening at <code style="font-size:0.75rem;">{{ webhook_url }}</code></small>
+            {% if webhook_registration.renewal_due_at %}
+            <small class="text-muted" style="display:block;">Next subscription renewal: {{ webhook_registration.renewal_due_at[:16] }}</small>
+            {% endif %}
+            {% if webhook_registration.last_error %}
+            <small class="flag-h" style="display:block;">{{ webhook_registration.last_error }}</small>
+            {% endif %}
         </div>
         <form method="POST" action="/settings/oura/webhook/disable" style="margin:0;">
-            <button type="submit" class="btn btn-outline btn-sm">Disable Webhook</button>
+            <button type="submit" class="btn btn-outline btn-sm">
+                {% if webhook_registration.desired_state == 'disabled' %}Retry Disable{% else %}Disable Webhook{% endif %}
+            </button>
         </form>
         {% else %}
         <p class="text-muted" style="font-size:0.75rem;margin-bottom:0.5rem;">

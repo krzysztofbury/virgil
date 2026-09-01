@@ -5,7 +5,13 @@ import logging
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
-from app.central_db import delete_user, get_all_users, get_user_by_id, update_user
+from app.central_db import (
+    delete_user_if_unsubscribed,
+    disable_user_if_unsubscribed,
+    get_all_users,
+    get_user_by_id,
+    update_user,
+)
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
@@ -52,9 +58,15 @@ async def disable_user(request: Request, user_id: str):
     _validate_user_id(user_id)
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", "Your account cannot be disabled from the admin panel.")
-    if not await get_user_by_id(user_id):
+    result = await disable_user_if_unsubscribed(user_id)
+    if result == "not_found":
         return error_redirect(request, "/admin/users", "User account was not found.")
-    await update_user(user_id, is_active=0)
+    if result == "busy":
+        return error_redirect(request, "/admin/users", "Another account operation is already in progress.")
+    if result == "subscribed":
+        return error_redirect(
+            request, "/admin/users", "Disable the user's remote subscriptions before disabling the account."
+        )
     return success_redirect(request, "/admin/users", "User account disabled.")
 
 
@@ -75,8 +87,14 @@ async def delete_user_route(request: Request, user_id: str):
     # Prevent self-deletion.
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", "Your account cannot be deleted from the admin panel.")
-    db_filename = await delete_user(user_id)
-    if not db_filename:
+    result, db_filename = await delete_user_if_unsubscribed(user_id)
+    if result == "busy":
+        return error_redirect(request, "/admin/users", "Another account operation is already in progress.")
+    if result == "subscribed":
+        return error_redirect(
+            request, "/admin/users", "Disable the user's remote subscriptions before deleting the account."
+        )
+    if result == "not_found" or not db_filename:
         return error_redirect(request, "/admin/users", "User account was not found.")
     delete_user_db(db_filename)
     return success_redirect(request, "/admin/users", "User account deleted.")
