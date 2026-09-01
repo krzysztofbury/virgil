@@ -457,6 +457,8 @@ Virgil uses a numbered migration system instead of `CREATE TABLE IF NOT EXISTS`:
 - The `schema_migrations` table tracks applied versions
 - On startup, `run_migrations()` discovers and applies pending migrations in order
 - Each migration is committed individually and idempotent (safe to run on existing databases)
+- Central registry migrations follow the same contract in `app/central_migrations/`
+  and are tracked separately in `central_schema_migrations`
 
 Current migrations:
 | Version | Name | Description |
@@ -491,11 +493,20 @@ Current migrations:
 | 028 | `active_workload_jobs` | One queued job per operational workload kind (backup, export, Oura sync); reconciles v27 duplicates |
 | 029 | `llm_publications` | Adds the paid-LLM publication ledger, which outlives terminal job pruning, and one queued job per paid kind |
 
+Central registry migrations:
+| Version | Name | Description |
+|---|---|---|
+| 001 | `baseline` | Records the existing users and webhook routing schema as the central baseline |
+| 002 | `provider_subscriptions` | Adds desired-state subscription registrations, item-level renewal metadata, fenced claims and user lifecycle leases |
+
 ## Data Model
 
 ### Central Database (`virgil-central.db`)
 - `users` — identities, bcrypt password hashes, roles, TOTP secrets, per-user DB filenames
 - `webhook_routes` — opaque webhook ids → user mapping for public Oura callbacks
+- `provider_subscription_registrations` - provider-neutral desired state, reconcile status and claim fencing per user/provider
+- `provider_subscription_items` - provider-owned remote identifiers and renewal metadata per subscription item
+- `user_lifecycle_leases` - serializes subscription changes with credential replacement, disconnect, reset and account deletion
 
 ### Per-User Tables
 - `schema_migrations` — applied migration versions
@@ -540,7 +551,14 @@ Virgil connects to the Oura API v2 via OAuth2 for automatic daily health data sy
 2. Virgil registers one subscription per handled `(event_type, data_type)` pair with the Oura API, using a **per-user callback URL** (`/api/oura/webhook/{id}`) that routes events to the right user's database
 3. Oura sends a verification challenge — Virgil responds to complete registration
 4. Subsequent data events trigger a 2-day sync window with HMAC-SHA256 signature verification against the user's encrypted webhook secret
-5. To remove, click "Disable Webhook" — Virgil deletes its subscriptions from Oura
+5. The scheduler reconciles remote state, renews each subscription before expiry and retries degraded or interrupted work
+6. To remove, click "Disable Webhook" - Virgil confirms remote teardown before credentials or user data can be replaced
+
+Subscription orchestration is provider-neutral. The coordinator owns desired
+state, bounded retries, leases and atomic publication; the Oura adapter owns
+discovery, callback matching, renewal and teardown semantics. Settings reports
+pending, active, partial, retrying and disabling states instead of treating a
+partially registered webhook as fully active.
 
 **Note**: Your `VIRGIL_BASE_URL` must be publicly reachable for Oura to deliver webhook events.
 
@@ -590,6 +608,7 @@ virgil/
 │   │   ├── 004_add_webhook_columns.py
 │   │   ├── 005_feature_flags.py
 │   │   └── 006_training_overhaul.py
+│   ├── central_migrations/    # Versioned central registry migrations
 │   ├── routers/
 │   │   ├── auth.py           # /login, /signup, /logout, /mfa routes
 │   │   ├── dashboard.py      # / route + sparkline data + /offline
@@ -607,6 +626,8 @@ virgil/
 │   ├── services/
 │   │   ├── encryption.py     # Fernet encrypt/decrypt for secrets
 │   │   ├── oura_api.py       # Oura OAuth2 + API v2 client + sync
+│   │   ├── oura_subscriptions.py # Oura subscription lifecycle adapter
+│   │   ├── subscriptions.py  # Provider-neutral lifecycle coordinator
 │   │   ├── llm.py            # LLM API client (Claude/OpenAI/Gemini) + thinking level
 │   │   ├── llm_jobs.py       # Paid-LLM durability: publication ledger, one-attempt producers
 │   │   ├── jobs.py           # Durable job state transitions (enqueue/claim/complete/retry)

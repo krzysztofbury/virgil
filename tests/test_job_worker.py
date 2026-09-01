@@ -422,6 +422,7 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
         import app.services.backup as backup_module
         import app.services.job_worker as worker_module
         import app.services.scheduler as scheduler
+        import app.services.subscriptions as subscription_module
 
         users = [
             {"id": "1", "email": "one@example.com", "db_filename": "one.db"},
@@ -456,6 +457,10 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
         async def central_backup():
             calls.append(("central",))
 
+        async def subscription_pass(*, worker_id, limit, concurrency):
+            calls.append(("subscriptions", worker_id, limit, concurrency))
+            return []
+
         monkeypatch.setattr(scheduler, "USERS_PER_TICK_MAX", 2)
         monkeypatch.setattr(scheduler, "USERS_CONCURRENT_MAX", 1)
         monkeypatch.setattr(scheduler, "_user_offset", 0)
@@ -466,6 +471,7 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
         monkeypatch.setattr(scheduler, "_check_and_run", legacy_tasks)
         monkeypatch.setattr(worker_module, "run_jobs_for_user", run_jobs)
         monkeypatch.setattr(backup_module, "maybe_backup_central", central_backup)
+        monkeypatch.setattr(subscription_module, "reconcile_due_subscriptions", subscription_pass)
 
         await scheduler.scheduler_tick()
         return calls, scheduler.WORKER_ID
@@ -481,6 +487,7 @@ def test_scheduler_tick_bounds_users_isolates_failures_and_closes_connections(mo
         ("jobs", "two.db", "2", "two.db", worker_id),
         ("legacy", "two.db", "2"),
         ("close", "two.db"),
+        ("subscriptions", worker_id, 10, 2),
         ("central",),
     ]
 

@@ -39,7 +39,7 @@ def test_pending_discovery_does_not_modify_unversioned_database(tmp_path):
 
         db = await _create_unversioned_registry(tmp_path / "central.db")
         try:
-            assert await count_pending_migrations(db) == 1
+            assert await count_pending_migrations(db) == 2
             tracking = await db.execute_fetchall(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'central_schema_migrations'"
             )
@@ -60,9 +60,18 @@ def test_fresh_database_gets_baseline_and_version_record(tmp_path):
             tables = {
                 row["name"] for row in await db.execute_fetchall("SELECT name FROM sqlite_master WHERE type = 'table'")
             }
-            assert {"users", "webhook_routes", "central_schema_migrations"} <= tables
+            assert {
+                "users",
+                "webhook_routes",
+                "provider_subscription_registrations",
+                "provider_subscription_items",
+                "central_schema_migrations",
+            } <= tables
             versions = await db.execute_fetchall("SELECT version, name FROM central_schema_migrations")
-            assert [(row["version"], row["name"]) for row in versions] == [(1, "001_baseline.py")]
+            assert [(row["version"], row["name"]) for row in versions] == [
+                (1, "001_baseline.py"),
+                (2, "002_provider_subscriptions.py"),
+            ]
         finally:
             await db.close()
 
@@ -86,7 +95,65 @@ def test_unversioned_registry_upgrades_without_losing_data(tmp_path):
                 }
             ]
             versions = await db.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1]
+            assert [row["version"] for row in versions] == [1, 2]
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
+def test_existing_webhook_route_is_backfilled_as_pending_subscription(tmp_path):
+    async def run():
+        from app.central_migrations.runner import run_migrations
+
+        db = await _create_unversioned_registry(tmp_path / "central.db")
+        try:
+            await db.execute(
+                "INSERT INTO webhook_routes (webhook_id, user_id, provider) VALUES (?, ?, 'oura')",
+                ("a" * 32, "11111111-1111-1111-1111-111111111111"),
+            )
+            await db.execute(
+                "INSERT INTO webhook_routes (webhook_id, user_id, provider) VALUES (?, ?, 'oura')",
+                ("b" * 32, "11111111-1111-1111-1111-111111111111"),
+            )
+            await db.commit()
+            await run_migrations(db)
+            rows = await db.execute_fetchall(
+                """SELECT user_id, provider, desired_state, status, endpoint
+                   FROM provider_subscription_registrations"""
+            )
+            assert [dict(row) for row in rows] == [
+                {
+                    "user_id": "11111111-1111-1111-1111-111111111111",
+                    "provider": "oura",
+                    "desired_state": "enabled",
+                    "status": "pending",
+                    "endpoint": "",
+                }
+            ]
+            routes = await db.execute_fetchall("SELECT webhook_id FROM webhook_routes ORDER BY webhook_id")
+            assert [row["webhook_id"] for row in routes] == ["a" * 32, "b" * 32]
+        finally:
+            await db.close()
+
+    asyncio.run(run())
+
+
+def test_disabled_user_webhook_route_is_backfilled_for_teardown(tmp_path):
+    async def run():
+        from app.central_migrations.runner import run_migrations
+
+        db = await _create_unversioned_registry(tmp_path / "central.db")
+        try:
+            await db.execute(
+                "INSERT INTO webhook_routes (webhook_id, user_id, provider) VALUES (?, ?, 'oura')",
+                ("a" * 32, "11111111-1111-1111-1111-111111111111"),
+            )
+            await db.execute("UPDATE users SET is_active = 0")
+            await db.commit()
+            await run_migrations(db)
+            rows = await db.execute_fetchall("SELECT desired_state, status FROM provider_subscription_registrations")
+            assert [dict(row) for row in rows] == [{"desired_state": "disabled", "status": "disabling"}]
         finally:
             await db.close()
 
@@ -126,7 +193,7 @@ def test_failed_migration_rolls_back_schema_and_version_then_retries(tmp_path, m
         try:
             await run_migrations(reopened)
             versions = await reopened.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1]
+            assert [row["version"] for row in versions] == [1, 2]
         finally:
             await reopened.close()
 
@@ -390,7 +457,10 @@ def test_concurrent_central_initialization_serializes_snapshot_and_migration(tmp
         try:
             await asyncio.gather(migrate_central_db(first), migrate_central_db(second))
             versions = await first.execute_fetchall("SELECT version, name FROM central_schema_migrations")
-            assert [(row["version"], row["name"]) for row in versions] == [(1, "001_baseline.py")]
+            assert [(row["version"], row["name"]) for row in versions] == [
+                (1, "001_baseline.py"),
+                (2, "002_provider_subscriptions.py"),
+            ]
         finally:
             await first.close()
             await second.close()
@@ -496,7 +566,7 @@ def test_real_upgrade_failure_snapshots_rolls_back_and_quarantines_app(tmp_path,
         try:
             await central_db.migrate_central_db(recovered)
             versions = await recovered.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1]
+            assert [row["version"] for row in versions] == [1, 2]
         finally:
             await recovered.close()
 

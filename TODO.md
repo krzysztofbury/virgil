@@ -31,7 +31,7 @@ correctly so the PWA cache busts on every deploy.
 **Deliverables:**
 - [x] `.github/workflows/release.yml` — test gate → buildx → push to GHCR (`GITHUB_TOKEN`, `packages: write`); tags: `latest`, `sha-<short>`, `v*` on git tags; `ci.yml` narrowed to PRs/feature branches
 - [x] `docker-compose.yml`: `image: ghcr.io/krzysztofbury/virgil:latest` (build: kept for local dev), `watchtower` service (label-scoped, 5-min poll, cleanup)
-- [ ] One-time on QNAP: `docker login ghcr.io` with a `read:packages` PAT; remove the repo from QSync; copy the new compose + .env
+- [x] One-time on QNAP: `docker login ghcr.io` with a `read:packages` PAT; remove the repo from QSync; copy the new compose + .env
 - [x] README deploy section rewritten (registry flow, auto-deploy, force-update + rollback recipes)
 - [ ] Optional: deploy notification (ntfy/Slack/WhatsApp) step in the workflow
 
@@ -211,10 +211,13 @@ explicit decision to support accounts outside the trusted household.
           ledger and one queued job per paid kind; `LLMCallAmbiguousError` keeps
           an uncertain provider outcome out of an automatic second charge.
           Completed on `fix/reliability-phase-3d-llm-jobs`.
-- [ ] **Phase 4 - Oura lifecycle hardening:**
+- [x] **Phase 4 - Provider subscription lifecycle hardening:**
       - [x] Signed delivery timestamp replay protection and persistent delivery
         fingerprints shipped with Phase 3D operational workloads.
-      - [ ] Subscription expiry tracking, renewal and periodic reconciliation.
+      - [x] Provider-neutral desired-state reconciliation, item-level renewal
+        metadata, bounded provider adapters, restart-safe leases and periodic
+        scheduling. Oura now tracks and renews all subscription pairs; future
+        providers own their discovery, matching, renewal and teardown semantics.
 - [ ] **Phase 5 — Recovery and data ownership:** versioned JSON transfer,
       validated `.db` restore, freshness status, off-NAS copy and restore drill.
 - [ ] **Phase 6 — Explicit offline and accessible shell:** read-only offline
@@ -339,9 +342,9 @@ retry.
 ### Deferred security/reliability (from reviews)
 
 - [ ] Complete restore flow (part of the P1 recovery story above)
-- [ ] Central DB migration system (today: `CREATE TABLE IF NOT EXISTS` only) — needed before more central schema changes
-- [ ] Webhook subscription auto-renewal (Oura subscriptions carry `expiration_time`) + periodic reconciliation of subscription state
-- [ ] Replay protection on webhook events (check `x-oura-timestamp` freshness)
+- [x] Central DB migration system (roadmap Phase 1)
+- [x] Webhook subscription auto-renewal and periodic provider-state reconciliation (roadmap Phase 4)
+- [x] Replay protection on webhook events (`x-oura-timestamp` freshness and delivery fingerprints)
 - [ ] Pin CDN assets with SRI or self-host; move CSP off `unsafe-inline`/`unsafe-eval` (blocked by Alpine.js)
 - [ ] Pin Docker base images by digest; `uv sync --frozen` in CI
 - [x] Encrypt central TOTP secrets (done — lazy migration on next MFA enable)

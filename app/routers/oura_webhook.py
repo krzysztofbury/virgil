@@ -23,6 +23,7 @@ from fastapi.responses import JSONResponse, Response
 from app.central_db import get_webhook_route
 from app.services.encryption import decrypt
 from app.services.job_producers import WEBHOOK_TIMESTAMP_SKEW_SECONDS, enqueue_oura_sync_job, webhook_oura_job_key
+from app.services.oura_subscriptions import OURA_SUBSCRIPTION_DATA_TYPES
 from app.user_db import close_user_db, open_user_db
 
 logger = logging.getLogger(__name__)
@@ -31,16 +32,7 @@ router = APIRouter()
 
 # Oura event payloads carry event_type (create/update/delete) and data_type
 # (which collection changed). We sync on the data types we store.
-SUPPORTED_DATA_TYPES = frozenset(
-    {
-        "daily_sleep",
-        "daily_readiness",
-        "daily_activity",
-        "daily_stress",
-        "sleep",
-        "workout",
-    }
-)
+SUPPORTED_DATA_TYPES = frozenset(OURA_SUBSCRIPTION_DATA_TYPES)
 
 _WEBHOOK_ID_RE = re.compile(r"^[0-9a-f]{32}$")
 
@@ -78,7 +70,7 @@ async def oura_webhook_verify(request: Request, webhook_id: str):
     """Subscription verification challenge (Oura sends this on subscribe)."""
     if not _WEBHOOK_ID_RE.match(webhook_id):
         return Response("Not found", status_code=404)
-    user = await get_webhook_route(webhook_id)
+    user = await get_webhook_route(webhook_id, provider="oura")
     if not user:
         return Response("Not found", status_code=404)
 
@@ -105,7 +97,7 @@ async def oura_webhook_event(request: Request, webhook_id: str):
     """HMAC-verified event delivery that durably coalesces sync work."""
     if not _WEBHOOK_ID_RE.match(webhook_id):
         return Response("Not found", status_code=404)
-    user = await get_webhook_route(webhook_id)
+    user = await get_webhook_route(webhook_id, provider="oura")
     if not user:
         return Response("Not found", status_code=404)
 

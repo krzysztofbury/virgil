@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Remote subscription lifecycle is provider-neutral and self-healing.** Central
+  migration 002 adds desired state, item-level renewal metadata, fenced claims
+  and heartbeat-maintained user lifecycle leases. A bounded adapter contract
+  keeps provider-specific discovery, ownership and teardown outside the generic
+  coordinator. Oura subscriptions are reconciled periodically, renewed before
+  expiry, recovered across restarts and removed before credentials or user data
+  can be replaced.
 - **Goals and execution reps are canonical Virgil data.** Migration 031 adds
   explicit goal lifecycle and date windows, first-class one-off reps with
   calendar periods, due dates, completion/carry/skip transitions, and optional

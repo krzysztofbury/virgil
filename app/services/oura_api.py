@@ -573,13 +573,6 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
 # ── Webhook Subscription API ──
 
 
-# Data types we subscribe to — must stay in sync with the webhook handler's
-# SUPPORTED_DATA_TYPES (app/routers/oura_webhook.py). Any incoming event just
-# triggers a 2-day resync, so create+update cover all we need.
-WEBHOOK_DATA_TYPES = ("daily_sleep", "daily_readiness", "daily_activity", "daily_stress", "sleep", "workout")
-WEBHOOK_EVENT_TYPES = ("create", "update")
-
-
 def _webhook_auth_headers(client_id: str, client_secret: str) -> dict[str, str]:
     """Oura's /v2/webhook/subscription endpoints authenticate with the OAuth
     APP credentials (x-client-id / x-client-secret headers), NOT a user Bearer
@@ -588,123 +581,41 @@ def _webhook_auth_headers(client_id: str, client_secret: str) -> dict[str, str]:
     return {"x-client-id": client_id, "x-client-secret": client_secret}
 
 
-async def create_webhook_subscription(
-    client_id: str, client_secret: str, callback_url: str, verification_token: str
-) -> dict:
-    """Register one Oura subscription per (event_type, data_type) we handle.
-
-    Oura API v2 requires a separate subscription per pair. During each
-    registration Oura sends a verification GET to callback_url with
-    ?verification_token=...&challenge=... and expects {"challenge": ...} back
-    (handled in app/routers/oura_webhook.py).
-
-    Returns {"created": [...ids...], "failed": [(event, data, error), ...]}.
-    Raises if EVERY subscription failed.
-    """
-    created: list[str] = []
-    failed: list[tuple[str, str, str]] = []
-    headers = _webhook_auth_headers(client_id, client_secret)
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        for data_type in WEBHOOK_DATA_TYPES:
-            for event_type in WEBHOOK_EVENT_TYPES:
-                try:
-                    resp = await client.post(
-                        OURA_WEBHOOK_URL,
-                        headers=headers,
-                        json={
-                            "callback_url": callback_url,
-                            "verification_token": verification_token,
-                            "event_type": event_type,
-                            "data_type": data_type,
-                        },
-                    )
-                    resp.raise_for_status()
-                    created.append(str(resp.json().get("id", "")))
-                except httpx.HTTPStatusError as exc:
-                    # Oura's response body says WHY (duplicate subscription,
-                    # failed callback verification, ...) — the status alone
-                    # made real failures undiagnosable.
-                    body = exc.response.text[:300]
-                    logger.warning(
-                        "Oura webhook subscribe failed for %s/%s: HTTP %d — %s",
-                        event_type,
-                        data_type,
-                        exc.response.status_code,
-                        body,
-                    )
-                    failed.append((event_type, data_type, f"HTTP {exc.response.status_code}: {body}"))
-                except Exception as exc:
-                    logger.warning("Oura webhook subscribe failed for %s/%s: %s", event_type, data_type, exc)
-                    failed.append((event_type, data_type, str(exc)))
-    if not created:
-        raise RuntimeError(f"All Oura webhook subscriptions failed: {failed[:3]}")
-    return {"created": created, "failed": failed}
-
-
-def classify_subscription(
-    callback_url: str, base_url: str, own_webhook_ids: set[str], known_webhook_ids: set[str]
-) -> str:
-    """Decide what a subscription's callback means for THIS user's reconcile.
-
-    Returns one of:
-    - 'delete'    — this user's callback (current/previous id), the legacy
-                    endpoint, or an orphaned id no active user owns
-    - 'foreign'   — another user's ACTIVE callback on this deployment; users
-                    can share one Oura OAuth app, so deleting it would silently
-                    kill that user's webhook sync
-    - 'unrelated' — points at some other deployment entirely
-    """
-    prefix = f"{base_url.rstrip('/')}/api/oura/webhook"
-    if not callback_url.startswith(prefix):
-        return "unrelated"
-    rest = callback_url[len(prefix) :]
-    if rest in ("", "/"):
-        return "delete"  # retired legacy single-user endpoint
-    if not rest.startswith("/"):
-        return "unrelated"  # e.g. /api/oura/webhookfoo
-    webhook_id = rest[1:].strip("/")
-    if webhook_id in own_webhook_ids:
-        return "delete"
-    if webhook_id in known_webhook_ids:
-        return "foreign"
-    return "delete"  # orphan — no active user owns this callback
-
-
-async def delete_stale_subscriptions(
+async def create_oura_webhook_subscription(
     client_id: str,
     client_secret: str,
-    base_url: str,
-    own_webhook_ids: set[str],
-    known_webhook_ids: set[str],
-) -> int:
-    """Remove THIS USER'S stale subscriptions (plus unowned orphans).
-
-    Enabling must be a reconcile, not a blind create: leftovers from the
-    legacy endpoint or an earlier webhook id keep delivering to dead
-    callbacks and can conflict with re-registration. Other users' active
-    callbacks and other deployments are left alone. Returns deletions.
-    """
-    subscriptions = await list_webhook_subscriptions(client_id, client_secret)
-    if not isinstance(subscriptions, list):
-        return 0
-    removed = 0
-    for subscription in subscriptions:
-        callback = str(subscription.get("callback_url", ""))
-        verdict = classify_subscription(callback, base_url, own_webhook_ids, known_webhook_ids)
-        if verdict == "delete":
-            await delete_webhook_subscription(client_id, client_secret, str(subscription["id"]))
-            removed += 1
-        else:
-            logger.info(
-                "Oura subscription %s is %s (%s) — leaving it",
-                subscription.get("id"),
-                verdict,
-                callback,
-            )
-    return removed
+    callback_url: str,
+    verification_token: str,
+    event_type: str,
+    data_type: str,
+) -> dict:
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            OURA_WEBHOOK_URL,
+            headers=_webhook_auth_headers(client_id, client_secret),
+            json={
+                "callback_url": callback_url,
+                "verification_token": verification_token,
+                "event_type": event_type,
+                "data_type": data_type,
+            },
+        )
+        response.raise_for_status()
+        return response.json()
 
 
-async def delete_webhook_subscription(client_id: str, client_secret: str, subscription_id: str) -> None:
+async def renew_oura_webhook_subscription(client_id: str, client_secret: str, subscription_id: str) -> dict:
+    """Renew an Oura subscription through the documented renewal route."""
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.put(
+            f"{OURA_WEBHOOK_URL}/renew/{subscription_id}",
+            headers=_webhook_auth_headers(client_id, client_secret),
+        )
+        response.raise_for_status()
+        return response.json()
+
+
+async def delete_oura_webhook_subscription(client_id: str, client_secret: str, subscription_id: str) -> None:
     """Delete a webhook subscription from Oura API v2."""
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.delete(
@@ -714,7 +625,7 @@ async def delete_webhook_subscription(client_id: str, client_secret: str, subscr
         resp.raise_for_status()
 
 
-async def list_webhook_subscriptions(client_id: str, client_secret: str) -> list[dict]:
+async def list_oura_webhook_subscriptions(client_id: str, client_secret: str) -> list[dict]:
     """List all active webhook subscriptions for this OAuth app."""
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.get(
@@ -722,4 +633,7 @@ async def list_webhook_subscriptions(client_id: str, client_secret: str) -> list
             headers=_webhook_auth_headers(client_id, client_secret),
         )
         resp.raise_for_status()
-        return resp.json()
+        payload = resp.json()
+        if not isinstance(payload, list):
+            raise RuntimeError("Oura subscription list response is not an array")
+        return payload
