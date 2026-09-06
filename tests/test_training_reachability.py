@@ -1,9 +1,4 @@
-"""No session may become unreachable, whatever its date.
-
-/training read the newest 20 sessions by date. Backdating a capture hid it and
-its "dokończ" link at once, while the confirm screen told the user the session
-was visible there.
-"""
+"""No session may become unreachable, whatever its date."""
 
 import json
 import re
@@ -38,29 +33,44 @@ def test_backdated_pending_session_is_listed(auth_client):
     assert "Niedokończone" in html
 
 
-def test_history_pages_reach_older_sessions(auth_client):
+def test_history_year_navigation_reaches_older_sessions(auth_client):
     marker = _seed("2015-05-05", notes="ZZ page probe marker")
-    first = auth_client.get("/training").text
-    assert "ZZ page probe marker" not in first, "the oldest session cannot be on page 1 here"
+    html = auth_client.get("/training").text
+    assert "ZZ page probe marker" not in html, "the oldest session cannot be in the current-year calendar"
 
-    for page in range(2, 13):
-        html = auth_client.get(f"/training?page={page}").text
+    selected_year = 9999
+    for _ in range(20):
         if "ZZ page probe marker" in html:
             break
+        older_years = [int(value) for value in re.findall(r'href="/training\?year=(\d+)"', html)]
+        older_years = [value for value in older_years if value < selected_year]
+        assert older_years, "history calendar stopped offering an older recorded year"
+        selected_year = max(older_years)
+        html = auth_client.get(f"/training?year={selected_year}").text
     else:
-        raise AssertionError("older sessions are not reachable through pagination")
+        raise AssertionError("older sessions are not reachable through year navigation")
     assert marker
 
-    assert "starsze" in first, "page 1 must offer a way to older sessions"
-    assert "nowsze" in auth_client.get("/training?page=2").text
+    assert 'data-training-date="2015-05-05"' in html
 
 
-def test_page_number_is_clamped_not_trusted(auth_client):
-    """A hand-typed page number must not become an unbounded OFFSET."""
-    resp = auth_client.get("/training?page=999999")
+def test_history_year_is_clamped_not_trusted(auth_client):
+    """A hand-typed year must not reach calendar or SQLite unchecked."""
+    resp = auth_client.get("/training?year=999999")
     assert resp.status_code == 200
-    assert auth_client.get("/training?page=0").status_code == 200
-    assert auth_client.get("/training?page=-5").status_code == 200
+    assert "<strong>9999</strong>" in resp.text
+    below_range = auth_client.get("/training?year=0")
+    assert below_range.status_code == 200
+    assert "<strong>1</strong>" in below_range.text
+
+
+def test_every_valid_iso_year_is_reachable(auth_client):
+    early = _seed("1899-12-31", notes="ZZ early ISO year")
+    late = _seed("2101-01-01", notes="ZZ late ISO year")
+
+    assert "ZZ early ISO year" in auth_client.get("/training?year=1899").text
+    assert "ZZ late ISO year" in auth_client.get("/training?year=2101").text
+    assert early and late
 
 
 def test_pending_card_is_bounded(auth_client):

@@ -354,7 +354,7 @@
                 {% endfor %}
                 {% for d in month.days %}
                 <span class="year-cal-dot year-cal-dot-{{ d.status }}"
-                      {% if d.pct > 0 %}data-tip="{{ d.date }}: {{ d.pct }}% — ANDY {{ d.andy }}/4, Routines {{ d.routines }}/3"{% endif %}></span>
+                      {% if d.pct > 0 %}tabindex="0" aria-label="{{ d.date }}: {{ d.pct }}%, ANDY {{ d.andy }} of 4, Routines {{ d.routines }} of 3" data-calendar-tip="{{ d.date }}: {{ d.pct }}% - ANDY {{ d.andy }}/4, Routines {{ d.routines }}/3"{% endif %}></span>
                 {% endfor %}
             </div>
         </div>
@@ -374,38 +374,5 @@
     createRadarChart('radarChart', {{ area_labels | tojson }}, {{ chart_datasets | tojson }});
     {% endif %}
 
-    // Year calendar tooltips (hover + click for mobile)
-    (function() {
-        var tooltip = document.createElement('div');
-        tooltip.className = 'year-cal-tooltip';
-        tooltip.style.display = 'none';
-        document.body.appendChild(tooltip);
-
-        function showTip(el) {
-            var tip = el.getAttribute('data-tip');
-            if (!tip) return;
-            tooltip.textContent = tip;
-            tooltip.style.display = 'block';
-            var rect = el.getBoundingClientRect();
-            tooltip.style.left = Math.max(8, rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
-            tooltip.style.top = (rect.top - tooltip.offsetHeight - 6 + window.scrollY) + 'px';
-        }
-
-        function hideTip() {
-            tooltip.style.display = 'none';
-        }
-
-        document.querySelectorAll('.year-cal-dot[data-tip]').forEach(function(dot) {
-            dot.addEventListener('mouseenter', function() { showTip(dot); });
-            dot.addEventListener('mouseleave', hideTip);
-            dot.addEventListener('click', function(e) {
-                e.stopPropagation();
-                showTip(dot);
-                setTimeout(hideTip, 2500);
-            });
-        });
-
-        document.addEventListener('click', hideTip);
-    })();
 </script>
 {% endblock %}

@@ -3,12 +3,14 @@ document.addEventListener('DOMContentLoaded', function() {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+    initCalendarInteractions();
     initDatePickers();
     updateThemeIcon();
 });
 
 // Flatpickr datepicker for all date inputs
 function initDatePickers(root) {
+    if (typeof window.flatpickr !== 'function') return;
     var container = root || document;
     var inputs = container.querySelectorAll('input[type="date"]:not(.flatpickr-input)');
     inputs.forEach(function(el) {
@@ -32,9 +34,74 @@ document.addEventListener('htmx:afterSwap', function(e) {
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
     }
+    initCalendarInteractions(e.detail.target);
     initDatePickers(e.detail.target);
     scanNotifications();
 });
+
+// Shared calendar summaries plus optional click-through dialogs.
+function initCalendarInteractions(root) {
+    var container = root || document;
+    var tooltip = document.getElementById('calendar-tooltip');
+    if (!tooltip) {
+        tooltip = document.createElement('div');
+        tooltip.id = 'calendar-tooltip';
+        tooltip.className = 'year-cal-tooltip';
+        tooltip.hidden = true;
+        document.body.appendChild(tooltip);
+    }
+
+    function hideTip() {
+        tooltip.hidden = true;
+    }
+
+    function showTip(el) {
+        var tip = el.dataset.calendarTip;
+        if (!tip) return;
+        tooltip.textContent = tip;
+        tooltip.hidden = false;
+        var rect = el.getBoundingClientRect();
+        var centered = rect.left + window.scrollX + rect.width / 2 - tooltip.offsetWidth / 2;
+        tooltip.style.left = Math.max(8, Math.min(centered, window.scrollX + window.innerWidth - tooltip.offsetWidth - 8)) + 'px';
+        var above = rect.top + window.scrollY - tooltip.offsetHeight - 6;
+        tooltip.style.top = (above > window.scrollY ? above : rect.bottom + window.scrollY + 6) + 'px';
+    }
+
+    container.querySelectorAll('[data-calendar-tip]').forEach(function(dot) {
+        if (dot.dataset.calendarBound === 'true') return;
+        dot.dataset.calendarBound = 'true';
+        dot.addEventListener('mouseenter', function() { showTip(dot); });
+        dot.addEventListener('mouseleave', hideTip);
+        dot.addEventListener('focus', function() { showTip(dot); });
+        dot.addEventListener('blur', hideTip);
+        dot.addEventListener('click', function(e) {
+            e.stopPropagation();
+            var dialogId = dot.dataset.calendarDialog;
+            var dialog = dialogId && document.getElementById(dialogId);
+            if (dialog && typeof dialog.showModal === 'function') {
+                e.preventDefault();
+                hideTip();
+                dialog.showModal();
+                return;
+            }
+            showTip(dot);
+            window.setTimeout(hideTip, 2500);
+        });
+    });
+
+    container.querySelectorAll('dialog.training-dialog').forEach(function(dialog) {
+        if (dialog.dataset.calendarBound === 'true') return;
+        dialog.dataset.calendarBound = 'true';
+        dialog.addEventListener('click', function(e) {
+            if (e.target === dialog) dialog.close();
+        });
+    });
+
+    if (document.body.dataset.calendarDismissBound !== 'true') {
+        document.body.dataset.calendarDismissBound = 'true';
+        document.addEventListener('click', hideTip);
+    }
+}
 
 // One accessible mutation-feedback surface for native forms and HTMX.
 var DRAFT_PREFIX = 'virgil-draft:';

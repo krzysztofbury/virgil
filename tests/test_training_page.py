@@ -12,6 +12,7 @@ renders empty, which is the failure it is supposed to catch.
 
 import sqlite3
 from datetime import date
+from pathlib import Path
 
 from conftest import csrf_token, user_db_path
 
@@ -45,9 +46,8 @@ def test_kpis_and_history_survive(auth_client):
     try:
         cur = conn.execute(
             "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES (?, 42, 'ZZTestPageSession')",
-            # Today, not a hardcoded date: history renders ORDER BY date DESC
-            # LIMIT 20, so a fixed past date drops off the page once enough
-            # later sessions exist.
+            # Today, not a hardcoded date: the default calendar shows the
+            # current year, so a fixed past date would require year navigation.
             (date.today().isoformat(),),
         )
         session_id = cur.lastrowid
@@ -67,6 +67,123 @@ def test_kpis_and_history_survive(auth_client):
             conn.commit()
         finally:
             conn.close()
+
+
+def test_history_calendar_groups_sessions_by_day(auth_client):
+    conn = sqlite3.connect(user_db_path())
+    session_ids = []
+    try:
+        for note in ("ZZ calendar morning", "ZZ calendar evening"):
+            cur = conn.execute(
+                "INSERT INTO training_sessions (date, duration_minutes, notes) VALUES ('2014-04-05', 45, ?)",
+                (note,),
+            )
+            session_ids.append(cur.lastrowid)
+        conn.commit()
+
+        html = auth_client.get("/training?year=2014").text
+        assert html.count('data-training-date="2014-04-05"') == 1
+        assert 'data-session-count="2"' in html
+        assert 'class="year-cal-dot training-cal-dot training-cal-level-3"' in html, (
+            "90 total minutes must use the 90+ intensity"
+        )
+        assert "/training?year=2014&amp;day=2014-04-05#training-day-2014-04-05" in html
+        assert "ZZ calendar morning" in html
+        assert "ZZ calendar evening" in html
+        assert 'id="training-day-2014-04-05"' in html
+
+        fallback_html = auth_client.get("/training?year=2014&day=2014-04-05").text
+        assert 'id="training-day-2014-04-05"' in fallback_html
+        assert 'aria-labelledby="training-day-title-2014-04-05" open' in fallback_html, (
+            "the day detail must open through its server URL without JavaScript"
+        )
+    finally:
+        conn.executemany("DELETE FROM training_sessions WHERE id = ?", [(value,) for value in session_ids])
+        conn.commit()
+        conn.close()
+
+
+def test_personal_bests_group_rep_records_by_movement(auth_client):
+    conn = sqlite3.connect(user_db_path())
+    exercise_id = session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('ZZ grouped PB', 'Core', 'reps', 1)"
+        )
+        exercise_id = cur.lastrowid
+        cur = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (date.today().isoformat(),))
+        session_id = cur.lastrowid
+        conn.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, ?, ?, ?)",
+            [
+                (session_id, exercise_id, 1, 3, 80.0),
+                (session_id, exercise_id, 2, 5, 70.0),
+                (session_id, exercise_id, 3, 5, 75.0),
+            ],
+        )
+        conn.commit()
+
+        html = _page(auth_client)
+        assert html.count('data-pb-exercise="ZZ grouped PB"') == 1
+        assert 'data-pb-exercise="ZZ grouped PB" data-pb-best="80.0"' in html
+        assert 'data-pb-effort="3" data-pb-weight="80.0"' in html
+        assert 'data-pb-effort="5" data-pb-weight="75.0"' in html
+        assert 'data-pb-effort="5" data-pb-weight="70.0"' not in html
+    finally:
+        if session_id is not None:
+            conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        if exercise_id is not None:
+            conn.execute("DELETE FROM training_exercises WHERE id = ?", (exercise_id,))
+        conn.commit()
+        conn.close()
+
+
+def test_native_movement_picker_uses_theme_aware_popup_colors():
+    css = (Path(__file__).parents[1] / "app/static/css/app.css").read_text()
+    assert "select option, select optgroup" in css
+    assert "background-color: var(--bg-dropdown)" in css
+    assert "color-scheme: dark" in css
+    assert "color-scheme: light" in css
+
+
+def test_timed_personal_bests_group_by_duration(auth_client):
+    conn = sqlite3.connect(user_db_path())
+    exercise_id = session_id = None
+    try:
+        cur = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('ZZ timed PB', 'Core', 'time', 1)"
+        )
+        exercise_id = cur.lastrowid
+        cur = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (date.today().isoformat(),))
+        session_id = cur.lastrowid
+        conn.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, duration, weight) VALUES (?, ?, ?, ?, ?)",
+            [
+                (session_id, exercise_id, 1, 20, 16.0),
+                (session_id, exercise_id, 2, 20, 20.0),
+                (session_id, exercise_id, 3, 40, 12.0),
+                (session_id, exercise_id, 4, 20.4, 18.0),
+            ],
+        )
+        conn.commit()
+
+        html = _page(auth_client)
+        assert html.count('data-pb-exercise="ZZ timed PB"') == 1
+        assert 'data-pb-effort="20" data-pb-weight="20.0"' in html
+        assert 'data-pb-effort="40" data-pb-weight="12.0"' in html
+        assert 'data-pb-effort="20" data-pb-weight="16.0"' not in html
+        assert html.count('data-pb-effort="20"') == 1
+        assert "20 s" in html
+        assert "40 s" in html
+    finally:
+        if session_id is not None:
+            conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        if exercise_id is not None:
+            conn.execute("DELETE FROM training_exercises WHERE id = ?", (exercise_id,))
+        conn.commit()
+        conn.close()
 
 
 def test_no_picker_payload_is_embedded(auth_client):

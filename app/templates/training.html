@@ -62,12 +62,28 @@
 {% if personal_bests %}
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Personal Bests <small class="text-muted" style="font-weight:400;">(12 weeks)</small></h3></div>
-    <div class="stat-grid">
+    <div class="pb-grid">
         {% for pb in personal_bests %}
-        <div class="stat-card">
-            <div class="stat-value">{{ pb.max_weight }} <small style="font-size:0.6em;font-weight:400;">kg</small></div>
-            <div class="stat-label">{{ pb.name }}</div>
-        </div>
+        <article class="pb-movement" data-pb-exercise="{{ pb.name }}" data-pb-best="{{ pb.max_weight }}">
+            <div class="pb-movement-head">
+                <h4>{{ pb.name }}</h4>
+                <div class="pb-best-load">{{ pb.max_weight }} <small>kg</small></div>
+            </div>
+            <div class="pb-records" aria-label="Records for {{ pb.name }}">
+                {% for record in pb.records %}
+                <div class="pb-record" data-pb-effort="{{ record.effort or '' }}" data-pb-weight="{{ record.max_weight }}">
+                    <strong>{{ record.max_weight }} kg</strong>
+                    <span>
+                    {% if pb.metric == 'time' %}
+                        {% if record.effort %}{{ record.effort | duration }}{% else %}timed{% endif %}
+                    {% else %}
+                        {% if record.effort %}{{ record.effort }} rep{% if record.effort != 1 %}s{% endif %}{% else %}weighted{% endif %}
+                    {% endif %}
+                    </span>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
         {% endfor %}
     </div>
 </div>
@@ -95,34 +111,91 @@
 {% endif %}
 
 <!-- 5. Workout History -->
-<div class="card">
-    <div class="card-header"><h3>Workout History</h3></div>
-    {% if sessions %}
-    {% for s in sessions %}
-    <details style="margin-bottom: 0.5rem;">
-        <summary style="cursor:pointer;">
-            <strong>{{ s.date }}</strong>
-            {% if s.duration_minutes %}<span class="text-muted"> - {{ s.duration_minutes }} min</span>{% endif %}
-            {# The only route back to a confirm screen the user left without
-               finishing. Without it, "come back later" was advice the UI made
-               impossible — recovery depended on browser history. #}
-            {% if s.wod_parsed %}
-            <a href="/training/wod/confirm/{{ s.id }}" style="margin-left:0.5rem;font-size:0.75rem;">dokończ</a>
-            {% endif %}
-        </summary>
-        <div style="padding: 0.5rem 0;">
-            {% if s.notes %}<p style="margin-bottom:0.5rem;"><small>{{ s.notes }}</small></p>{% endif %}
+<div class="card training-history-card">
+    <div class="card-header training-history-head">
+        <div>
+            <h3>Workout History</h3>
+            <small class="text-muted">Hover for a summary. Select a training day for full details.</small>
+        </div>
+        <nav class="training-year-nav" aria-label="Training history year">
+            {% if previous_year %}<a href="/training?year={{ previous_year }}" aria-label="Show {{ previous_year }}">&larr;</a>{% else %}<span></span>{% endif %}
+            <strong>{{ selected_year }}</strong>
+            {% if next_year %}<a href="/training?year={{ next_year }}" aria-label="Show {{ next_year }}">&rarr;</a>{% else %}<span></span>{% endif %}
+        </nav>
+    </div>
+    {% if training_days %}
+    <form method="GET" action="/training" class="training-date-jump">
+        <input type="hidden" name="year" value="{{ selected_year }}">
+        <label>Open training day
+            <select name="day">
+                {% for day in training_days | reverse %}
+                <option value="{{ day.date }}">{{ day.date }} - {{ day.session_count }} session{% if day.session_count != 1 %}s{% endif %}</option>
+                {% endfor %}
+            </select>
+        </label>
+        <button type="submit" class="btn btn-outline">Open</button>
+    </form>
+    {% endif %}
+    <div class="year-cal-grid training-cal-grid">
+        {% for month in training_months %}
+        <section class="year-cal-month" aria-label="{{ month.name }} {{ selected_year }}">
+            <div class="year-cal-month-name">{{ month.name }}</div>
+            <div class="year-cal-dots">
+                {% for _ in range(month.first_weekday) %}
+                <span class="year-cal-dot year-cal-dot-empty"></span>
+                {% endfor %}
+                {% for day in month.days %}
+                    {% if day.sessions %}
+                    <a href="/training?year={{ selected_year }}&amp;day={{ day.date }}#training-day-{{ day.date }}"
+                       class="year-cal-dot training-cal-dot training-cal-level-{{ day.intensity }}{% if day.is_today %} training-cal-today{% endif %}"
+                       data-calendar-tip="{{ day.summary }}"
+                       data-calendar-dialog="training-day-{{ day.date }}"
+                       data-training-date="{{ day.date }}"
+                       data-session-count="{{ day.session_count }}"
+                       aria-label="{{ day.summary }}. Open details."></a>
+                    {% else %}
+                    <span class="year-cal-dot training-cal-dot training-cal-idle{% if day.is_future %} training-cal-future{% endif %}{% if day.is_today %} training-cal-today{% endif %}"></span>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </section>
+        {% endfor %}
+    </div>
+    <div class="training-cal-legend" aria-label="Training duration legend">
+        <span><i class="training-cal-swatch training-cal-level-1"></i> short</span>
+        <span><i class="training-cal-swatch training-cal-level-2"></i> 45+ min</span>
+        <span><i class="training-cal-swatch training-cal-level-3"></i> 90+ min</span>
+    </div>
+</div>
+
+{% for day in training_days %}
+<dialog class="training-dialog" id="training-day-{{ day.date }}" aria-labelledby="training-day-title-{{ day.date }}"{% if day.date == open_day %} open{% endif %}>
+    <div class="training-dialog-head">
+        <div>
+            <h3 id="training-day-title-{{ day.date }}">{{ day.date }}</h3>
+            <p class="text-muted">{{ day.session_count }} session{% if day.session_count != 1 %}s{% endif %}{% if day.total_minutes %} - {{ day.total_minutes }} min{% endif %}</p>
+        </div>
+        <form method="dialog">
+            <button class="training-dialog-close" aria-label="Close {{ day.date }} training details">&times;</button>
+        </form>
+    </div>
+    <div class="training-dialog-body">
+        {% for s in day.sessions %}
+        <section class="training-session" data-training-session="{{ s.id }}">
+            <div class="training-session-head">
+                <strong>Session {{ loop.index }}</strong>
+                {% if s.duration_minutes %}<span class="text-muted">{{ s.duration_minutes }} min</span>{% endif %}
+                {% if s.wod_parsed %}<a href="/training/wod/confirm/{{ s.id }}">dokończ</a>{% endif %}
+            </div>
+            {% if s.notes %}<p class="training-session-note">{{ s.notes }}</p>{% endif %}
             {% if s.parsing %}
-            <p class="text-muted" role="status" aria-live="polite" style="margin-bottom:0.5rem;">
+            <p class="text-muted" role="status" aria-live="polite">
                 <span class="spinner" aria-hidden="true"></span>
-                Analizuję notatkę &mdash;
-                <a href="/training/wod/confirm/{{ s.id }}">poczekaj na wpisy</a>.
+                Analizuję notatkę - <a href="/training/wod/confirm/{{ s.id }}">poczekaj na wpisy</a>.
             </p>
             {% endif %}
             {% if s.stranded %}
-            {# The note is here and nothing else is. Without this the session had
-               no form, no "dokończ" link and no way to ever gain a set. #}
-            <form method="POST" action="/training/session/{{ s.id }}/manual" style="margin-bottom:0.5rem;">
+            <form method="POST" action="/training/session/{{ s.id }}/manual">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                 <button type="submit" class="btn btn-sm btn-outline">Wpisz serie ręcznie</button>
             </form>
@@ -148,22 +221,16 @@
             {% else %}
             <p class="text-muted"><small>No entries</small></p>
             {% endif %}
-            <form method="POST" action="/training/session/{{ s.id }}/delete" style="margin-top:0.5rem;">
-                <button type="submit" class="btn btn-sm btn-outline" style="color:var(--flag-h);font-size:0.7rem;"
-                        onclick="return confirm('Delete this workout?')">Delete</button>
-            </form>
-        </div>
-    </details>
-    {% endfor %}
-    {% else %}
-    <p class="text-muted">No workouts recorded.</p>
-    {% endif %}
-    {% if has_prev or has_next %}
-    <div style="margin-top:0.5rem;">
-        {% if has_prev %}<a href="/training?page={{ page - 1 }}">nowsze</a>{% endif %}
-        {% if has_prev and has_next %} · {% endif %}
-        {% if has_next %}<a href="/training?page={{ page + 1 }}">starsze</a>{% endif %}
+            <details class="training-session-delete">
+                <summary>Delete workout</summary>
+                <form method="POST" action="/training/session/{{ s.id }}/delete">
+                    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-outline">Confirm delete</button>
+                </form>
+            </details>
+        </section>
+        {% endfor %}
     </div>
-    {% endif %}
-</div>
+</dialog>
+{% endfor %}
 {% endblock %}

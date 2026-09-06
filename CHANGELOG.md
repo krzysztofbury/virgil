@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **Training history is a year calendar instead of a date list.** A dashboard-style
+  heatmap groups every session on its training day, uses total duration for three
+  intensity levels, previews the day on hover or keyboard focus, and opens full
+  session, set, note, recovery, and delete details on selection. Recorded years
+  remain reachable through bounded year navigation.
+- **Personal Bests group comparable efforts per movement.** Each compact movement
+  panel keeps the heaviest load visible and separates records by rep count or
+  timed duration, so a 3-rep set no longer hides the useful 5-rep record.
 - **Remote subscription lifecycle is provider-neutral and self-healing.** Central
   migration 002 adds desired state, item-level renewal metadata, fenced claims
   and heartbeat-maintained user lifecycle leases. A bounded adapter contract
@@ -85,6 +93,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   degraded state through `/healthz`.
 
 ### Fixed
+- **Native movement options now follow the selected theme.** The WOD confirmation
+  picker gives its select, option, and optgroup surfaces explicit dark and light
+  color schemes instead of opening a white options panel in dark mode.
 - **Clean Feniks days no longer retain hidden watched-only measurements.** Saving
   clean clears minutes and edging while preserving the day note. Migration 030
   applies the same sanitation to existing rows.
@@ -207,11 +218,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   arms an empty parse, so a note left with no entries and no pending parse (a
   container recreated between `capture_wod`'s two commits) gets the same manual
   rows a failed parse does. `/training` offers the button on exactly those rows.
-- **Every unfinished capture is listed.** A `Niedokończone` card on `/training`
-  shows every session with a pending parse whatever its date, and the history
-  below it is paginated (`?page=`) instead of capped at the newest 20. A
-  backdated capture used to fall off that list together with the one link that
-  leads back to its confirm screen.
+- **Unfinished captures stay independent of history.** A bounded `Niedokończone`
+  card on `/training` shows pending parses whatever their date or the selected
+  history year, and reports when more remain. A backdated capture used to fall
+  off history together with the one link that leads back to its confirm screen.
 - **One capture per click** (migration 024). The capture form carries a
   `capture_token` and a partial unique index enforces one session per token, so
   a double submit or an F5 costs one session and one paid parse. A reused page

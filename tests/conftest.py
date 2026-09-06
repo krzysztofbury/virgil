@@ -100,14 +100,17 @@ def drain_jobs(worker_id: str = "test-worker") -> list:
 
 
 def stat_value_for_label(html: str, label: str) -> float:
-    """Numeric value of the "kg" stat-card whose stat-label matches `label`.
+    """Numeric value of a "kg" KPI or grouped personal best.
 
-    Anchors on the exact structure training.html renders (stat-value, then a
-    "kg" <small>, then the stat-label div), so an assertion built on this reads
-    the real rendered KPI/PB — not a hand-copied aggregate query run directly
-    against sqlite (see tests/test_ad_hoc_visibility.py and
-    tests/test_wod_confirm.py for why that distinction matters).
+    Personal bests expose their exercise and heaviest load as data attributes;
+    KPIs retain the stat-value/stat-label structure. Both paths read the actual
+    rendered page rather than a hand-copied aggregate query against sqlite.
     """
+    pb_pattern = re.compile(r'data-pb-exercise="' + re.escape(label) + r'"\s+data-pb-best="([\d,]+(?:\.\d+)?)"')
+    pb_match = pb_pattern.search(html)
+    if pb_match:
+        return float(pb_match.group(1).replace(",", ""))
+
     pattern = re.compile(
         r'stat-value">([\d,]+(?:\.\d+)?)\s*<small[^>]*>kg</small></div>\s*<div class="stat-label">'
         + re.escape(label)
