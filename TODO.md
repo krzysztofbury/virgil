@@ -478,13 +478,15 @@ retry.
 - [ ] Google Fit / Apple Health import
 
 ## Training
-- [x] Progressive overload tracking (12-week per-exercise weight/reps sparklines) — replaced with Personal Bests KPI cards
+- [x] Progressive overload tracking - 12-week Personal Best groups per movement and rep count or timed duration
 - [x] Training volume chart (8-week aggregated bar chart) — replaced with This Week KPI stat cards
 - [x] Rest timer during workout logging
 - [x] Training overhaul — 4 sections (Warmup/Core/Cardio/Stretching), English names, equipment-focused exercises
 - [x] Exercise CRUD — add/edit/delete exercises inline per section
 - [x] Section-specific logging — warmup (toggle+duration), core (sets×reps+kg), cardio (rounds+duration), stretching (duration)
-- [x] KPI stat cards — sessions, volume (Core only), total reps, personal bests (12-week max weight)
+- [x] KPI stat cards - sessions, volume (Core only), and total reps
+- [x] Calendar heatmap history - grouped by day, year-addressable, with hover/focus summaries and full detail dialogs
+- [x] Theme-aware native movement picker options in WOD confirmation
 
 ## Daily Log
 - [x] Streak tracking for individual habits (7 habits, reverse-chronological scan)

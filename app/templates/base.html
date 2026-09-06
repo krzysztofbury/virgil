@@ -105,7 +105,14 @@
     <script>
     document.addEventListener('submit', function(e) {
         var form = e.target;
-        if (form.tagName === 'FORM' && !form.querySelector('input[name="_csrf_token"]')) {
+        var mutates = form.tagName === 'FORM' && (
+            form.method.toUpperCase() === 'POST' ||
+            form.hasAttribute('hx-post') ||
+            form.hasAttribute('hx-put') ||
+            form.hasAttribute('hx-patch') ||
+            form.hasAttribute('hx-delete')
+        );
+        if (mutates && !form.querySelector('input[name="_csrf_token"]')) {
             var input = document.createElement('input');
             input.type = 'hidden';
             input.name = '_csrf_token';

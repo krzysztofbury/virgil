@@ -1,10 +1,11 @@
+import calendar
 import json
 import logging
 import sqlite3
 from datetime import date, timedelta
 from uuid import uuid4
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
@@ -51,17 +52,18 @@ SEED_ROWS_ON_PARSE_FAILURE = 5
 # parse from building a redirect URL nothing will accept.
 MAX_SKIPPED_NAMED = 5
 
-# History is paginated rather than capped. A capped list silently hid a
-# backdated session and every route to it, including the "dokończ" link the
-# confirm screen promises is there.
-SESSIONS_PER_PAGE = 20
+# History is split by calendar year. Bounds stop a hand-typed year from asking
+# SQLite and calendar to work with nonsense while retaining imported history.
+MIN_HISTORY_YEAR = date.min.year
+MAX_HISTORY_YEAR = date.max.year
 
-# Both remaining lists are bounded too: MAX_HISTORY_PAGES bounds the OFFSET a
-# hand-typed page number can ask for, and MAX_PENDING_LISTED bounds the pending
-# card. A pending list longer than that means something upstream is wrong, so the
-# page says so instead of growing without limit.
-MAX_HISTORY_PAGES = 500
+# A pending list longer than this means something upstream is wrong, so the page
+# says so instead of growing without limit.
 MAX_PENDING_LISTED = 50
+MAX_DAY_SESSIONS = 20
+MAX_PB_SOURCE_ENTRIES = 10000
+MAX_PB_MOVEMENTS = 50
+MAX_PB_RECORDS_PER_MOVEMENT = 12
 
 
 # The picker puts recently logged movements on top. A flat library listing makes
@@ -223,8 +225,143 @@ async def _current_job(db, job_id: int | None) -> dict | None:
     return await current_job_view(db, job_id)
 
 
+def _training_calendar(selected_year: int, summaries_by_date: dict[str, dict], today: date) -> list[dict]:
+    """Build the dashboard-style month grid with training-specific intensity."""
+    months = []
+    for month in range(1, 13):
+        days = []
+        for day_number in range(1, calendar.monthrange(selected_year, month)[1] + 1):
+            day_date = date(selected_year, month, day_number)
+            day_iso = day_date.isoformat()
+            day_summary = summaries_by_date.get(day_iso)
+            session_count = day_summary["session_count"] if day_summary else 0
+            total_minutes = day_summary["total_minutes"] if day_summary else 0
+            intensity = 0
+            if session_count:
+                if total_minutes >= 90:
+                    intensity = 3
+                elif total_minutes >= 45:
+                    intensity = 2
+                else:
+                    intensity = 1
+
+            summary = f"{day_iso}: {session_count} session{'s' if session_count != 1 else ''}"
+            if total_minutes:
+                summary += f", {total_minutes} min"
+
+            days.append(
+                {
+                    "date": day_iso,
+                    "session_count": session_count,
+                    "total_minutes": total_minutes,
+                    "intensity": intensity,
+                    "is_today": day_date == today,
+                    "is_future": day_date > today,
+                    "summary": summary,
+                }
+            )
+        months.append(
+            {
+                "name": calendar.month_abbr[month],
+                "first_weekday": date(selected_year, month, 1).weekday(),
+                "days": days,
+            }
+        )
+    return months
+
+
+async def _training_day_details(
+    db, selected_day: str | None, before_id: int | None, after_id: int | None
+) -> tuple[list[dict], bool, bool]:
+    """Load one bounded keyset page of sessions and sets for a selected day."""
+    if selected_day is None:
+        return [], False, False
+
+    if before_id is not None:
+        clause, cursor, order = "AND id < ?", before_id, "DESC"
+    elif after_id is not None:
+        clause, cursor, order = "AND id > ?", after_id, "ASC"
+    else:
+        clause, cursor, order = "", None, "DESC"
+    params = (selected_day, cursor, MAX_DAY_SESSIONS) if cursor is not None else (selected_day, MAX_DAY_SESSIONS)
+    rows = await db.execute_fetchall(
+        f"SELECT * FROM training_sessions WHERE date = ? {clause} ORDER BY id {order} LIMIT ?",  # noqa: S608
+        params,
+    )
+    sessions = [dict(row) for row in rows]
+    if after_id is not None:
+        sessions.reverse()
+    if not sessions:
+        if before_id is not None or after_id is not None:
+            raise HTTPException(status_code=404, detail="Training history cursor has no sessions")
+        return [], False, False
+
+    session_ids = [session["id"] for session in sessions]
+    placeholders = ",".join("?" * len(session_ids))
+    entry_counts = await db.execute_fetchall(
+        f"""SELECT session_id, COUNT(*) AS entry_count
+            FROM training_entries WHERE session_id IN ({placeholders})
+            GROUP BY session_id""",  # noqa: S608
+        session_ids,
+    )
+    entry_count_by_session = {row["session_id"]: row["entry_count"] for row in entry_counts}
+    entry_rows = await db.execute_fetchall(
+        f"""WITH ranked AS (
+                SELECT te.*, tex.name AS exercise_name, tex.section, tex.metric,
+                       tex.display_order,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY te.session_id
+                           ORDER BY tex.display_order, te.set_number, te.id
+                       ) AS entry_rank
+                FROM training_entries te
+                JOIN training_exercises tex ON te.exercise_id = tex.id
+                WHERE te.session_id IN ({placeholders})
+            )
+            SELECT * FROM ranked WHERE entry_rank <= ?
+            ORDER BY session_id DESC, display_order, set_number, id""",  # noqa: S608
+        (*session_ids, MAX_CONFIRM_ENTRIES),
+    )
+    entries_by_session: dict[int, list[dict]] = {}
+    for entry in entry_rows:
+        entries_by_session.setdefault(entry["session_id"], []).append(dict(entry))
+
+    parsing_rows = await db.execute_fetchall(
+        f"""SELECT json_extract(payload_json, '$.session_id') AS session_id FROM jobs
+            WHERE kind = ? AND status IN ('queued', 'running')
+              AND json_extract(payload_json, '$.session_id') IN ({placeholders})""",  # noqa: S608
+        (WOD_PARSE_JOB_KIND, *session_ids),
+    )
+    parsing_ids = {row["session_id"] for row in parsing_rows}
+    for session in sessions:
+        session["entry_count"] = entry_count_by_session.get(session["id"], 0)
+        session["entries"] = entries_by_session.get(session["id"], [])
+        session["entries_overflow"] = session["entry_count"] > len(session["entries"])
+        session["parsing"] = session["id"] in parsing_ids
+        session["stranded"] = (
+            bool(session["notes"])
+            and session["entry_count"] == 0
+            and not session["wod_parsed"]
+            and not session["parsing"]
+        )
+
+    bounds = await db.execute_fetchall(
+        """SELECT
+               EXISTS(SELECT 1 FROM training_sessions WHERE date = ? AND id > ?) AS has_newer,
+               EXISTS(SELECT 1 FROM training_sessions WHERE date = ? AND id < ?) AS has_older""",
+        (selected_day, sessions[0]["id"], selected_day, sessions[-1]["id"]),
+    )
+    return sessions, bool(bounds[0]["has_newer"]), bool(bounds[0]["has_older"])
+
+
 @router.get("/training", response_class=HTMLResponse)
-async def training_page(request: Request, page: int = 1, job_id: int | None = Query(None, ge=1)):
+async def training_page(
+    request: Request,
+    year: int | None = None,
+    day: str | None = None,
+    before_id: int | None = Query(None, ge=1),
+    after_id: int | None = Query(None, ge=1),
+    job_id: int | None = Query(None, ge=1),
+):
     db = get_user_db_from_request(request)
 
     # Sessions with a pending parse come first, and independently of the history
@@ -238,61 +375,45 @@ async def training_page(request: Request, page: int = 1, job_id: int | None = Qu
     pending_overflow = len(pending_sessions) > MAX_PENDING_LISTED
     pending_sessions = pending_sessions[:MAX_PENDING_LISTED]
 
-    # training_exercises is no longer read here: the page has no protocol list
-    # and no per-exercise log form. The table itself stays — training_entries
-    # references it, so every logged set (past and future) hangs off it, and the
-    # WOD parser keeps creating rows there via resolve_movement().
-    #
-    # One row past the page size, so "is there a next page" needs no COUNT(*).
-    page = min(max(page, 1), MAX_HISTORY_PAGES)
-    sessions = await db.execute_fetchall(
-        "SELECT * FROM training_sessions ORDER BY date DESC, id DESC LIMIT ? OFFSET ?",
-        (SESSIONS_PER_PAGE + 1, (page - 1) * SESSIONS_PER_PAGE),
+    today = date.today()
+    requested_year = today.year if year is None else year
+    selected_year = min(max(requested_year, MIN_HISTORY_YEAR), MAX_HISTORY_YEAR)
+    year_start = date(selected_year, 1, 1).isoformat()
+    year_end = date(selected_year, 12, 31).isoformat()
+
+    summary_rows = await db.execute_fetchall(
+        """SELECT date, COUNT(*) AS session_count,
+                  COALESCE(SUM(duration_minutes), 0) AS total_minutes
+           FROM training_sessions
+           WHERE date >= ? AND date <= ?
+           GROUP BY date ORDER BY date""",
+        (year_start, year_end),
     )
-    sessions = [dict(s) for s in sessions]
-    has_next = len(sessions) > SESSIONS_PER_PAGE
-    sessions = sessions[:SESSIONS_PER_PAGE]
+    summaries_by_date = {row["date"]: dict(row) for row in summary_rows}
+    training_months = _training_calendar(selected_year, summaries_by_date, today)
+    training_days = [day for month in training_months for day in month["days"] if day["session_count"]]
+    open_day = None
+    if day and valid_date(day) and date.fromisoformat(day).year == selected_year and day in summaries_by_date:
+        open_day = day
+    if before_id is not None and after_id is not None:
+        raise HTTPException(status_code=422, detail="Use either before_id or after_id, not both")
+    if open_day is None and (before_id is not None or after_id is not None):
+        raise HTTPException(status_code=422, detail="A history cursor requires a selected training day")
+    open_day_sessions, day_has_newer, day_has_older = await _training_day_details(db, open_day, before_id, after_id)
+    open_day_summary = summaries_by_date.get(open_day) if open_day else None
 
-    # Load all entries for visible sessions in one query
-    if sessions:
-        session_ids = [s["id"] for s in sessions]
-        placeholders = ",".join("?" * len(session_ids))
-        all_entries = await db.execute_fetchall(
-            f"""SELECT te.*, tex.name as exercise_name, tex.section
-               FROM training_entries te
-               JOIN training_exercises tex ON te.exercise_id = tex.id
-               WHERE te.session_id IN ({placeholders})
-               ORDER BY tex.display_order, te.set_number""",
-            session_ids,
-        )
-        entries_by_session: dict[int, list[dict]] = {}
-        for e in all_entries:
-            entries_by_session.setdefault(e["session_id"], []).append(dict(e))
-        for s in sessions:
-            s["entries"] = entries_by_session.get(s["id"], [])
-    else:
-        for s in sessions:
-            s["entries"] = []
-
-    # A session whose parse is still queued looks exactly like a stranded one.
-    # Naming the difference is what stops the page offering manual entry for
-    # work that is about to arrive on its own.
-    parsing_rows = await db.execute_fetchall(
-        """SELECT json_extract(payload_json, '$.session_id') AS session_id FROM jobs
-           WHERE kind = ? AND status IN ('queued', 'running')""",
-        (WOD_PARSE_JOB_KIND,),
+    year_rows = await db.execute_fetchall(
+        "SELECT DISTINCT CAST(substr(date, 1, 4) AS INTEGER) AS year FROM training_sessions ORDER BY year"
     )
-    parsing_ids = {row["session_id"] for row in parsing_rows}
-
-    for s in sessions:
-        s["parsing"] = s["id"] in parsing_ids
-        # A session holding only the raw note: the parse never landed (a crash
-        # between capture_wod's two commits) or the user discarded it. Offer
-        # manual entry rather than leaving the note as the only record.
-        s["stranded"] = bool(s["notes"]) and not s["entries"] and not s["wod_parsed"] and not s["parsing"]
+    available_years = [
+        row["year"]
+        for row in year_rows
+        if row["year"] is not None and MIN_HISTORY_YEAR <= row["year"] <= MAX_HISTORY_YEAR
+    ]
+    previous_year = max((value for value in available_years if value < selected_year), default=None)
+    next_year = min((value for value in available_years if value > selected_year), default=None)
 
     # --- KPIs: This Week ---
-    today = date.today()
     # Monday of current week
     monday = today - timedelta(days=today.weekday())
     monday_str = monday.isoformat()
@@ -326,16 +447,47 @@ async def training_page(request: Request, page: int = 1, job_id: int | None = Qu
     # --- Personal Bests (last 12 weeks, Core exercises only) ---
     twelve_weeks_ago = (today - timedelta(weeks=12)).isoformat()
     pb_rows = await db.execute_fetchall(
-        """SELECT tex.name, MAX(te.weight) as max_weight
+        """SELECT tex.id AS exercise_id, tex.name, tex.metric, tex.display_order,
+                  CASE WHEN tex.metric = 'time' THEN CAST(ROUND(te.duration) AS INTEGER) ELSE te.reps END AS effort,
+                  te.weight
            FROM training_entries te
            JOIN training_sessions ts ON te.session_id = ts.id
            JOIN training_exercises tex ON te.exercise_id = tex.id
            WHERE ts.date >= ? AND tex.section = 'Core' AND te.weight > 0
-           GROUP BY tex.id
-           ORDER BY tex.display_order""",
-        (twelve_weeks_ago,),
+           ORDER BY ts.date DESC, te.id DESC LIMIT ?""",
+        (twelve_weeks_ago, MAX_PB_SOURCE_ENTRIES + 1),
     )
-    personal_bests = [dict(r) for r in pb_rows]
+    personal_bests_overflow = len(pb_rows) > MAX_PB_SOURCE_ENTRIES
+    personal_bests_by_id: dict[int, dict] = {}
+    for row in pb_rows[:MAX_PB_SOURCE_ENTRIES]:
+        pb = personal_bests_by_id.setdefault(
+            row["exercise_id"],
+            {
+                "name": row["name"],
+                "metric": row["metric"],
+                "display_order": row["display_order"],
+                "max_weight": 0,
+                "records_by_effort": {},
+            },
+        )
+        pb["max_weight"] = max(pb["max_weight"], row["weight"])
+        previous = pb["records_by_effort"].get(row["effort"], 0)
+        pb["records_by_effort"][row["effort"]] = max(previous, row["weight"])
+    ordered_pbs = sorted(personal_bests_by_id.values(), key=lambda pb: (pb["display_order"], pb["name"]))
+    if len(ordered_pbs) > MAX_PB_MOVEMENTS:
+        personal_bests_overflow = True
+    personal_bests = []
+    for pb in ordered_pbs[:MAX_PB_MOVEMENTS]:
+        records = [
+            {"effort": effort, "max_weight": max_weight}
+            for effort, max_weight in sorted(
+                pb.pop("records_by_effort").items(), key=lambda item: (item[0] is None, item[0] or 0)
+            )
+        ]
+        if len(records) > MAX_PB_RECORDS_PER_MOVEMENT:
+            personal_bests_overflow = True
+        pb["records"] = records[:MAX_PB_RECORDS_PER_MOVEMENT]
+        personal_bests.append(pb)
 
     # The exercise library is no longer read here either. It is still the
     # parser's vocabulary (canonical_movements) and is still edited in
@@ -344,7 +496,6 @@ async def training_page(request: Request, page: int = 1, job_id: int | None = Qu
         "training.html",
         {
             "request": request,
-            "sessions": sessions,
             "today": today.isoformat(),
             "kpi_sessions": kpi_sessions,
             "kpi_volume": kpi_volume,
@@ -356,9 +507,17 @@ async def training_page(request: Request, page: int = 1, job_id: int | None = Qu
             "pending_sessions": pending_sessions,
             "pending_overflow": pending_overflow,
             "current_job": await _current_job(db, job_id),
-            "page": page,
-            "has_prev": page > 1,
-            "has_next": has_next,
+            "selected_year": selected_year,
+            "previous_year": previous_year,
+            "next_year": next_year,
+            "training_months": training_months,
+            "training_days": training_days,
+            "open_day": open_day,
+            "open_day_summary": open_day_summary,
+            "open_day_sessions": open_day_sessions,
+            "day_has_newer": day_has_newer,
+            "day_has_older": day_has_older,
+            "personal_bests_overflow": personal_bests_overflow,
         },
     )
 

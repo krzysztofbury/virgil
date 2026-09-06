@@ -16,7 +16,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 <td width="50%"><img src="docs/screenshots/daily.png" alt="Daily log"><br><sub><b>Daily</b> - energy, routines and A.N.D.Y. tasks (AI-suggested), with a stated n/7 count</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> — free-text capture, weekly volume & PBs</sub></td>
+<td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> - free-text capture, grouped PBs, and calendar history</sub></td>
 <td width="50%"><img src="docs/screenshots/oura.png" alt="Oura Ring data"><br><sub><b>Oura</b> — daily & monthly trends (sleep, HRV, readiness, RHR)</sub></td>
 </tr>
 <tr>
@@ -203,12 +203,13 @@ action and the numbers, and leaves the verdict to you.
 One free-text note per session is the only input. Everything else on the page
 reads back what was logged:
 
-- Capture form — date, optional duration, and the note itself
-- This Week KPIs — sessions count, total volume (Core, kg), total reps
-- Personal Bests — max weight per Core exercise (12-week window)
+- Capture form - date, optional duration, and the note itself
+- This Week KPIs - sessions count, total volume (Core, kg), total reps
+- Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window)
 - `Niedokończone` - every session whose parse is still waiting, whatever its date
-- Session history with expandable details (duration and per-set notes), paginated
-  rather than capped, so a backdated session keeps its route back
+- Year calendar history - duration heatmap with hover and keyboard summaries;
+  selecting a training day opens bounded pages of its sessions, sets, notes,
+  recovery actions, and delete actions. Navigation keeps every recorded year reachable.
 
 The page previously carried a protocol table, a per-set log form generated from
 it, and a rest timer. All three assumed a fixed prescription followed at home;
