@@ -81,7 +81,7 @@ function initCalendarInteractions(root) {
             if (dialog && typeof dialog.showModal === 'function') {
                 e.preventDefault();
                 hideTip();
-                dialog.showModal();
+                if (!dialog.open) dialog.showModal();
                 return;
             }
             showTip(dot);
@@ -95,6 +95,14 @@ function initCalendarInteractions(root) {
         dialog.addEventListener('click', function(e) {
             if (e.target === dialog) dialog.close();
         });
+        if (dialog.hasAttribute('open') && typeof dialog.showModal === 'function') {
+            dialog.removeAttribute('open');
+            try {
+                dialog.showModal();
+            } catch (error) {
+                dialog.setAttribute('open', '');
+            }
+        }
     });
 
     if (document.body.dataset.calendarDismissBound !== 'true') {

@@ -10,9 +10,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - **Training history is a year calendar instead of a date list.** A dashboard-style
   heatmap groups every session on its training day, uses total duration for three
-  intensity levels, previews the day on hover or keyboard focus, and opens full
-  session, set, note, recovery, and delete details on selection. Recorded years
-  remain reachable through bounded year navigation.
+  intensity levels, previews the day on hover or keyboard focus, and opens
+  bounded pages of session, set, note, recovery, and delete details on selection.
+  Recorded years remain reachable through bounded year navigation.
 - **Personal Bests group comparable efforts per movement.** Each compact movement
   panel keeps the heaviest load visible and separates records by rep count or
   timed duration, so a 3-rep set no longer hides the useful 5-rep record.

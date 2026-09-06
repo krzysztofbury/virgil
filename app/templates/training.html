@@ -86,6 +86,9 @@
         </article>
         {% endfor %}
     </div>
+    {% if personal_bests_overflow %}
+    <p class="text-muted"><small>Showing a bounded recent selection of Personal Best records.</small></p>
+    {% endif %}
 </div>
 {% endif %}
 
@@ -145,7 +148,7 @@
                 <span class="year-cal-dot year-cal-dot-empty"></span>
                 {% endfor %}
                 {% for day in month.days %}
-                    {% if day.sessions %}
+                    {% if day.session_count %}
                     <a href="/training?year={{ selected_year }}&amp;day={{ day.date }}#training-day-{{ day.date }}"
                        class="year-cal-dot training-cal-dot training-cal-level-{{ day.intensity }}{% if day.is_today %} training-cal-today{% endif %}"
                        data-calendar-tip="{{ day.summary }}"
@@ -168,19 +171,19 @@
     </div>
 </div>
 
-{% for day in training_days %}
-<dialog class="training-dialog" id="training-day-{{ day.date }}" aria-labelledby="training-day-title-{{ day.date }}"{% if day.date == open_day %} open{% endif %}>
+{% if open_day %}
+<dialog class="training-dialog" id="training-day-{{ open_day }}" aria-labelledby="training-day-title-{{ open_day }}" open>
     <div class="training-dialog-head">
         <div>
-            <h3 id="training-day-title-{{ day.date }}">{{ day.date }}</h3>
-            <p class="text-muted">{{ day.session_count }} session{% if day.session_count != 1 %}s{% endif %}{% if day.total_minutes %} - {{ day.total_minutes }} min{% endif %}</p>
+            <h3 id="training-day-title-{{ open_day }}">{{ open_day }}</h3>
+            <p class="text-muted">{{ open_day_summary.session_count }} session{% if open_day_summary.session_count != 1 %}s{% endif %}{% if open_day_summary.total_minutes %} - {{ open_day_summary.total_minutes }} min{% endif %}</p>
         </div>
         <form method="dialog">
-            <button class="training-dialog-close" aria-label="Close {{ day.date }} training details">&times;</button>
+            <button class="training-dialog-close" aria-label="Close {{ open_day }} training details">&times;</button>
         </form>
     </div>
     <div class="training-dialog-body">
-        {% for s in day.sessions %}
+        {% for s in open_day_sessions %}
         <section class="training-session" data-training-session="{{ s.id }}">
             <div class="training-session-head">
                 <strong>Session {{ loop.index }}</strong>
@@ -218,8 +221,13 @@
                     </tbody>
                 </table>
             </div>
+            {% elif s.entry_count %}
+            <p class="text-muted"><small>Stored entries could not be rendered.</small></p>
             {% else %}
             <p class="text-muted"><small>No entries</small></p>
+            {% endif %}
+            {% if s.entries_overflow %}
+            <p class="text-muted"><small>Showing the first {{ s.entries | length }} of {{ s.entry_count }} sets.</small></p>
             {% endif %}
             <details class="training-session-delete">
                 <summary>Delete workout</summary>
@@ -230,7 +238,13 @@
             </details>
         </section>
         {% endfor %}
+        {% if day_has_newer or day_has_older %}
+        <nav class="training-day-pages" aria-label="{{ open_day }} session pages">
+            {% if day_has_newer %}<a href="/training?year={{ selected_year }}&amp;day={{ open_day }}&amp;after_id={{ open_day_sessions[0].id }}#training-day-{{ open_day }}">newer sessions</a>{% else %}<span></span>{% endif %}
+            {% if day_has_older %}<a href="/training?year={{ selected_year }}&amp;day={{ open_day }}&amp;before_id={{ open_day_sessions[-1].id }}#training-day-{{ open_day }}">older sessions</a>{% endif %}
+        </nav>
+        {% endif %}
     </div>
 </dialog>
-{% endfor %}
+{% endif %}
 {% endblock %}

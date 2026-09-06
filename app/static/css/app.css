@@ -1969,6 +1969,16 @@ details > :not(summary) { margin-top: 1rem; }
 .training-session-delete summary { color: var(--text-secondary); font-size: 0.72rem; cursor: pointer; }
 .training-session-delete form { margin-top: 0.5rem; }
 .training-session-delete .btn { color: var(--red); font-size: 0.7rem; }
+.training-day-pages {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+.training-day-pages a { color: var(--accent); }
 
 @media (max-width: 640px) {
   .training-history-head { align-items: stretch; }

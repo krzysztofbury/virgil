@@ -3,6 +3,7 @@
 import json
 import re
 import sqlite3
+from datetime import date
 
 from conftest import user_db_path
 
@@ -35,12 +36,13 @@ def test_backdated_pending_session_is_listed(auth_client):
 
 def test_history_year_navigation_reaches_older_sessions(auth_client):
     marker = _seed("2015-05-05", notes="ZZ page probe marker")
+    target = 'data-training-date="2015-05-05"'
     html = auth_client.get("/training").text
-    assert "ZZ page probe marker" not in html, "the oldest session cannot be in the current-year calendar"
+    assert target not in html, "the oldest session cannot be in the current-year calendar"
 
     selected_year = 9999
     for _ in range(20):
-        if "ZZ page probe marker" in html:
+        if target in html:
             break
         older_years = [int(value) for value in re.findall(r'href="/training\?year=(\d+)"', html)]
         older_years = [value for value in older_years if value < selected_year]
@@ -51,7 +53,7 @@ def test_history_year_navigation_reaches_older_sessions(auth_client):
         raise AssertionError("older sessions are not reachable through year navigation")
     assert marker
 
-    assert 'data-training-date="2015-05-05"' in html
+    assert target in html
 
 
 def test_history_year_is_clamped_not_trusted(auth_client):
@@ -64,13 +66,24 @@ def test_history_year_is_clamped_not_trusted(auth_client):
     assert "<strong>1</strong>" in below_range.text
 
 
-def test_every_valid_iso_year_is_reachable(auth_client):
-    early = _seed("1899-12-31", notes="ZZ early ISO year")
-    late = _seed("2101-01-01", notes="ZZ late ISO year")
+def test_year_navigation_reaches_both_directions(auth_client):
+    current_year = date.today().year
+    early_year = current_year - 1
+    late_year = current_year + 1
+    _seed(f"{early_year}-12-31", notes="ZZ previous recorded year")
+    _seed(f"{late_year}-01-01", notes="ZZ next recorded year")
 
-    assert "ZZ early ISO year" in auth_client.get("/training?year=1899").text
-    assert "ZZ late ISO year" in auth_client.get("/training?year=2101").text
-    assert early and late
+    current = auth_client.get("/training").text
+    assert f'href="/training?year={early_year}"' in current
+    assert f'href="/training?year={late_year}"' in current
+
+    previous = auth_client.get(f"/training?year={early_year}").text
+    assert f'data-training-date="{early_year}-12-31"' in previous
+    assert "ZZ previous recorded year" not in previous, "year pages must render summaries only"
+
+    following = auth_client.get(f"/training?year={late_year}").text
+    assert f'data-training-date="{late_year}-01-01"' in following
+    assert "ZZ next recorded year" not in following, "year pages must render summaries only"
 
 
 def test_pending_card_is_bounded(auth_client):
@@ -81,8 +94,7 @@ def test_pending_card_is_bounded(auth_client):
         _seed(f"2017-{(day % 12) + 1:02d}-{(day % 28) + 1:02d}", parsed=PENDING, notes="ZZ pending flood")
 
     html = auth_client.get("/training").text
-    # Count links inside the pending card only. The history section below renders
-    # its own "dokończ" link per pending session, which is a different list.
+    # Count links inside the pending card only.
     card = html.split("Niedokończone", 1)[1].split("Workout History", 1)[0]
     listed = len(re.findall(r'href="/training/wod/confirm/\d+"', card))
     assert listed == MAX_PENDING_LISTED, f"pending card is unbounded: {listed} rows"

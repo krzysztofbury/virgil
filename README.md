@@ -208,8 +208,8 @@ reads back what was logged:
 - Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window)
 - `Niedokończone` - every session whose parse is still waiting, whatever its date
 - Year calendar history - duration heatmap with hover and keyboard summaries;
-  selecting a training day opens every session, set, note, recovery action, and
-  delete action for that date. Navigation keeps every recorded year reachable.
+  selecting a training day opens bounded pages of its sessions, sets, notes,
+  recovery actions, and delete actions. Navigation keeps every recorded year reachable.
 
 The page previously carried a protocol table, a per-set log form generated from
 it, and a rest timer. All three assumed a fixed prescription followed at home;

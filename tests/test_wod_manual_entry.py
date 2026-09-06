@@ -300,7 +300,7 @@ def test_stranded_session_offers_manual_entry(auth_client):
     finally:
         conn.close()
 
-    page = auth_client.get("/training").text
+    page = auth_client.get("/training?year=2026&day=2026-08-24").text
     assert f"/training/session/{session_id}/manual" in page, "no manual-entry route offered"
 
     resp = auth_client.post(
