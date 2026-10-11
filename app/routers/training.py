@@ -493,6 +493,7 @@ async def training_page(
     # parser's vocabulary (canonical_movements) and is still edited in
     # Settings → Exercise Library — this page just has no picker to feed.
     return templates.TemplateResponse(
+        request,
         "training.html",
         {
             "request": request,
@@ -678,6 +679,7 @@ async def wod_confirm_page(request: Request, session_id: int, job_id: int | None
             # The note is safe and the parse is still owed. Wait here rather
             # than bouncing the user to a page that cannot explain why.
             return templates.TemplateResponse(
+                request,
                 "wod_confirm.html",
                 {
                     "request": request,
@@ -805,6 +807,7 @@ async def _render_confirm(
         parsed_row_count = len(rows)
 
     return templates.TemplateResponse(
+        request,
         "wod_confirm.html",
         {
             "request": request,

@@ -22,8 +22,8 @@ def test_signup_post_blocked_when_closed(auth_client, monkeypatch):
         "/signup",
         data={
             "email": "intruder@example.com",
-            "password": "password-123",
-            "password_confirm": "password-123",
+            "password": "password-123",  # pragma: allowlist secret - synthetic fixture
+            "password_confirm": "password-123",  # pragma: allowlist secret - synthetic fixture
             "_csrf_token": token,
         },
         follow_redirects=False,
@@ -87,7 +87,11 @@ def test_csrf_non_ascii_token_is_403_not_500(client):
     client.get("/login")  # ensure a csrf cookie exists
     resp = client.post(
         "/login",
-        data={"username": "x@y.z", "password": "irrelevant1", "_csrf_token": "żółć-non-ascii"},
+        data={
+            "username": "x@y.z",
+            "password": "irrelevant1",  # pragma: allowlist secret - synthetic fixture
+            "_csrf_token": "żółć-non-ascii",
+        },
         follow_redirects=False,
     )
     assert resp.status_code == 403

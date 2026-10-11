@@ -18,7 +18,7 @@ import uuid
 from conftest import user_db_path
 
 VERIFICATION_TOKEN = "test-verification-token-123"
-CLIENT_SECRET = "test-oura-client-secret"
+CLIENT_SECRET = "test-oura-client-secret"  # pragma: allowlist secret - synthetic fixture
 
 
 def _central_conn():

@@ -5,9 +5,45 @@ import sqlite3
 from pathlib import Path
 
 import aiosqlite
+import pytest
 
 import app.services.backup as backup_module
 from app.services.backup import _prune_backups, db_main_path, run_backup
+
+
+def test_corrupt_recent_central_backup_is_replaced(tmp_path, monkeypatch):
+    source = tmp_path / "central.db"
+    _make_source_db(source)
+    directory = tmp_path / "backups"
+    directory.mkdir()
+    corrupt = directory / "central-2026-10-11T1200.db"
+    corrupt.write_bytes(b"interrupted snapshot")
+    monkeypatch.setattr(backup_module, "CENTRAL_DB_PATH", str(source))
+    monkeypatch.setattr(backup_module, "BACKUP_DIR", directory)
+
+    result = asyncio.run(backup_module.maybe_backup_central())
+
+    assert result is not None
+    with sqlite3.connect(result) as db:
+        assert db.execute("SELECT name FROM things ORDER BY id").fetchall() == [("a",), ("b",), ("c",)]
+    assert asyncio.run(backup_module.maybe_backup_central()) is None
+
+
+def test_interrupted_central_backup_is_never_published(tmp_path, monkeypatch):
+    source = tmp_path / "central.db"
+    _make_source_db(source)
+    directory = tmp_path / "backups"
+    monkeypatch.setattr(backup_module, "CENTRAL_DB_PATH", str(source))
+    monkeypatch.setattr(backup_module, "BACKUP_DIR", directory)
+
+    def interrupted(_source, destination):
+        Path(destination).write_bytes(b"partial")
+        raise OSError("interrupted")
+
+    monkeypatch.setattr(backup_module, "_do_backup", interrupted)
+    with pytest.raises(OSError, match="interrupted"):
+        asyncio.run(backup_module.maybe_backup_central())
+    assert list(directory.iterdir()) == []
 
 
 def _make_source_db(path: Path) -> None:

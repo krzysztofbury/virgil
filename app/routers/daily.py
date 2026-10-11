@@ -133,6 +133,7 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
         )
 
     return templates.TemplateResponse(
+        request,
         "daily.html",
         {
             "request": request,

@@ -91,6 +91,7 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
     has_internal_llm = bool(INTERNAL_LLM_KEY)
 
     return templates.TemplateResponse(
+        request,
         "onboarding.html",
         {
             "request": request,

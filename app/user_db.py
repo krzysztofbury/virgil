@@ -65,7 +65,7 @@ def delete_user_db(db_filename: str) -> None:
 def get_user_db_from_request(request: Request) -> aiosqlite.Connection:
     """Extract the per-user DB connection from request state.
 
-    All routers should use this instead of get_db().
+    Routers use this dependency to open the authenticated user's database.
     """
     db = getattr(request.state, "user_db", None)
     if db is None:

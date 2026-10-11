@@ -116,6 +116,7 @@ async def bloodwork_page(request: Request, category: str = "all"):
                     chart_values.append(results[mid][d]["value"])
 
     return templates.TemplateResponse(
+        request,
         "bloodwork.html",
         {
             "request": request,

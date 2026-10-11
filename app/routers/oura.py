@@ -121,6 +121,7 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
     trend_rhr = [r.get("resting_hr") for r in trend_data]
 
     return templates.TemplateResponse(
+        request,
         "oura.html",
         {
             "request": request,

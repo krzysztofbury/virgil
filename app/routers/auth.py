@@ -66,6 +66,7 @@ async def registration_allowed() -> bool:
 async def signup_page(request: Request):
     if not await registration_allowed():
         return templates.TemplateResponse(
+            request,
             "auth_login.html",
             {"request": request, "info": "Registration is closed on this server.", "registration_open": False},
         )
@@ -74,7 +75,7 @@ async def signup_page(request: Request):
     if session_token and validate_session(session_token):
         return RedirectResponse("/", status_code=303)
 
-    return templates.TemplateResponse("auth_signup.html", {"request": request})
+    return templates.TemplateResponse(request, "auth_signup.html", {"request": request})
 
 
 @router.post("/signup")
@@ -93,6 +94,7 @@ async def signup_submit(
 
     def _render_error(error: str):
         return templates.TemplateResponse(
+            request,
             "auth_signup.html",
             {"request": request, "error": error, "email": email, "display_name": display_name},
         )
@@ -146,7 +148,7 @@ async def login_page(request: Request):
         return RedirectResponse("/", status_code=303)
 
     return templates.TemplateResponse(
-        "auth_login.html", {"request": request, "registration_open": await registration_allowed()}
+        request, "auth_login.html", {"request": request, "registration_open": await registration_allowed()}
     )
 
 
@@ -154,7 +156,7 @@ async def login_page(request: Request):
 async def login_submit(
     request: Request,
     username: str = Form(...),
-    password: str = Form(...),
+    password: str = Form(""),
 ):
     email = username.strip().lower()
 
@@ -162,6 +164,7 @@ async def login_submit(
     # generic error instead of a 500.
     if not password:
         return templates.TemplateResponse(
+            request,
             "auth_login.html",
             {
                 "request": request,
@@ -178,6 +181,7 @@ async def login_submit(
 
     if not user or not password_ok:
         return templates.TemplateResponse(
+            request,
             "auth_login.html",
             {
                 "request": request,
@@ -188,6 +192,7 @@ async def login_submit(
 
     if not user["is_active"]:
         return templates.TemplateResponse(
+            request,
             "auth_login.html",
             {
                 "request": request,
@@ -232,6 +237,7 @@ async def mfa_setup_page(request: Request):
 
     if user["totp_enabled"]:
         return templates.TemplateResponse(
+            request,
             "auth_mfa_setup.html",
             {"request": request, "mfa_enabled": True, "qr_url": ""},
         )
@@ -245,6 +251,7 @@ async def mfa_setup_page(request: Request):
     provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="Virgil")
 
     return templates.TemplateResponse(
+        request,
         "auth_mfa_setup.html",
         {"request": request, "mfa_enabled": False, "provisioning_uri": provisioning_uri, "secret": secret},
     )
@@ -261,6 +268,7 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
     if not totp.verify(totp_code, valid_window=1):
         provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="Virgil")
         return templates.TemplateResponse(
+            request,
             "auth_mfa_setup.html",
             {
                 "request": request,
@@ -285,6 +293,7 @@ async def mfa_disable(request: Request, password: str = Form(...)):
     # verify_password raises on empty input — treat it as a wrong password.
     if not password or not verify_password(password, user["password_hash"]):
         return templates.TemplateResponse(
+            request,
             "auth_mfa_setup.html",
             {"request": request, "mfa_enabled": True, "error": "Invalid password."},
         )
@@ -302,7 +311,7 @@ async def mfa_verify_page(request: Request):
     pending = validate_session(session_token) if session_token else None
     if not pending or not pending.startswith("_mfa_pending:"):
         return error_redirect(request, "/login", "MFA session expired. Sign in again.")
-    return templates.TemplateResponse("auth_mfa_verify.html", {"request": request})
+    return templates.TemplateResponse(request, "auth_mfa_verify.html", {"request": request})
 
 
 @router.post("/mfa/verify")
@@ -320,6 +329,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     totp = pyotp.TOTP(_totp_secret_plain(user["totp_secret"]))
     if not totp.verify(totp_code, valid_window=1):
         return templates.TemplateResponse(
+            request,
             "auth_mfa_verify.html",
             {"request": request, "error": "Invalid code. Please try again."},
         )

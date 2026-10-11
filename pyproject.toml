@@ -1,6 +1,6 @@
 [project]
 name = "virgil"
-version = "0.6.0"
+version = "0.7.0"
 description = "Personal life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX"
 readme = "README.md"
 license = "MIT"
@@ -15,12 +15,12 @@ classifiers = [
     "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
 ]
 dependencies = [
-    "fastapi==0.115.6",
-    "uvicorn[standard]==0.34.0",
-    "jinja2==3.1.5",
-    "python-multipart==0.0.20",
-    "aiosqlite==0.20.0",
-    "httptools==0.6.4",
+    "fastapi>=0.143.0,<0.144",
+    "starlette>=1.7.0,<2",
+    "uvicorn[standard]>=0.34.0,<1",
+    "jinja2>=3.1.6,<4",
+    "python-multipart>=0.0.22,<1",
+    "aiosqlite>=0.20.0,<1",
     "httpx>=0.28.1",
     "cryptography>=46.0.5",
     "bcrypt>=5.0.0",
@@ -36,7 +36,12 @@ dev = [
     "bandit[toml]>=1.8.0",
     "pre-commit>=4.0.0",
     "pytest>=8.0",
+    "pip-audit>=2.9",
+    "mcp>=2.3.0,<3",
 ]
+
+[tool.uv]
+exclude-newer = "2026-10-11T00:00:00Z"
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI idioms: Form()/Query()/Depends() in parameter defaults are the framework's API.

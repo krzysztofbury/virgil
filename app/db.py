@@ -1,14 +1,7 @@
-from pathlib import Path
-
-import aiosqlite
-
-from app.config import DB_PATH
-
 # Shared life area constants used by dashboard, life_scores, and export
 LIFE_AREAS = ["planning", "spirituality", "health", "work", "social", "growth", "relaxation", "family"]
 LIFE_AREA_LABELS = ["Planning", "Spirituality", "Health", "Work", "Social", "Growth", "Relaxation", "Family"]
 
-_db: aiosqlite.Connection | None = None
 
 # Initial schema from migration 001. See app/migrations/ for the current schema.
 # Migrations add: experiment_activity_types.source_match (003),
@@ -545,37 +538,6 @@ INSERT OR IGNORE INTO training_exercises (id, name, section, target_sets, target
 """
 
 
-async def get_db() -> aiosqlite.Connection:
-    global _db
-    if _db is not None:
-        # Health check: verify the connection is still alive
-        try:
-            await _db.execute("SELECT 1")
-        except Exception:
-            _db = None
-    if _db is None:
-        Path(DB_PATH).parent.mkdir(parents=True, exist_ok=True)
-        _db = await aiosqlite.connect(DB_PATH)
-        _db.row_factory = aiosqlite.Row
-
-        # Verify PRAGMAs took effect — do not rely on silent success.
-        result = await _db.execute_fetchall("PRAGMA journal_mode=WAL")
-        assert result[0][0].lower() == "wal", f"WAL mode not enabled: {result}"
-
-        await _db.execute("PRAGMA foreign_keys=ON")
-        fk_result = await _db.execute_fetchall("PRAGMA foreign_keys")
-        assert fk_result[0][0] == 1, "Foreign keys not enabled"
-
-    return _db
-
-
-async def init_db():
-    db = await get_db()
-    from app.migrations.runner import run_migrations
-
-    await run_migrations(db)
-
-
 async def get_setting(db, key: str, default: str = "") -> str:
     assert key, "Setting key must not be empty"
     row = await db.execute_fetchall("SELECT value FROM app_settings WHERE key = ?", (key,))
@@ -597,10 +559,3 @@ async def get_feature_flags(db) -> dict[str, bool]:
     """Load all feature_* settings as a {name: bool} dict."""
     rows = await db.execute_fetchall("SELECT key, value FROM app_settings WHERE key LIKE 'feature_%'")
     return {row["key"].removeprefix("feature_"): row["value"] == "1" for row in rows}
-
-
-async def close_db():
-    global _db
-    if _db:
-        await _db.close()
-        _db = None

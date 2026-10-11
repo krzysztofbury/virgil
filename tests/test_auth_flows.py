@@ -80,7 +80,11 @@ def test_logout_clears_session_cookie(auth_client):
     login_token = csrf_token(auth_client, "/login")
     resp = auth_client.post(
         "/login",
-        data={"username": TEST_EMAIL, "password": "test-password-123", "_csrf_token": login_token},
+        data={
+            "username": TEST_EMAIL,
+            "password": "test-password-123",  # pragma: allowlist secret - synthetic fixture
+            "_csrf_token": login_token,
+        },
         follow_redirects=False,
     )
     assert resp.status_code == 303
@@ -103,8 +107,8 @@ def test_second_user_gets_isolated_database(auth_client, monkeypatch):
         "/signup",
         data={
             "email": "second@example.com",
-            "password": "second-password-123",
-            "password_confirm": "second-password-123",
+            "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
+            "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture
             "_csrf_token": token,
         },
         follow_redirects=False,

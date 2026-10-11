@@ -42,7 +42,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 ```bash
 # Install dependencies
-uv sync
+uv sync --locked --extra dev --python 3.12.14
 
 # Run the app (hot reload enabled, port 8123)
 VIRGIL_SECOND_BRAIN_PATH="/path/to/second-brain/0 - LLM/ZYCIE/" \
@@ -116,8 +116,8 @@ docker compose up -d
 > `${VAR}` interpolation in docker-compose. Run `docker compose` via SSH; the
 > running containers then show up in Container Station normally.
 
-**Deploys after that are automatic**: push to `main` → Actions runs lint+tests →
-builds the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
+**Deploys after that are automatic**: push to `main` → Actions runs locked checks and audits →
+builds and smoke-tests the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
 GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 ~5 minutes and recreates `virgil`.
 
@@ -126,7 +126,7 @@ GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 > stays deployed; `/healthz` turns the container unhealthy (visible in
 > `docker ps`) but nothing rolls back automatically. Two safety nets exist:
 > the CI test gate in front of every image, and automatic **pre-migration
-> snapshots** in `data/backups/` (`*-pre-migration-*.db`) — database
+> snapshots** in `data/backups/pre-migration/` (`*-pre-migration-vNNN.db`) - database
 > migrations are one-way, so restoring a snapshot is the only way back after
 > a bad migration, not an image rollback.
 
@@ -136,16 +136,41 @@ GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 docker compose pull virgil && docker compose up -d virgil
 ```
 
-**Rollback** (every commit has its own image tag):
+**Rollback:** pause Watchtower and pin a known-good `sha-*` image in Compose.
+Follow [the rollback procedure](RELEASE.md#rollback), including database recovery
+when the failed deployment applied migrations.
+
+## Verification, releases, and recovery
+
+[CONTRIBUTING.md](CONTRIBUTING.md) contains the exact local verification commands.
+One CI workflow checks pull requests and main, qualifies the actual production
+image, and publishes only after its smoke test succeeds. Version tags alias an
+already verified main image and never change `latest`. See [RELEASE.md](RELEASE.md).
+
+The [recovery guide](docs/recovery.md) covers complete offline bundles, integrity
+verification, off-machine copies, restore into a new directory, and a restore
+drill. Per-user database downloads alone do not include the registry or encryption
+key and are not whole-instance recovery artifacts.
+
+To import markdown into an existing account:
 
 ```bash
-docker pull ghcr.io/krzysztofbury/virgil:sha-<short>
-docker tag ghcr.io/krzysztofbury/virgil:sha-<short> ghcr.io/krzysztofbury/virgil:latest
-docker compose up -d virgil
-# then push a revert commit — otherwise watchtower re-applies the next :latest
-# if the bad deploy ran migrations, also restore the matching snapshot:
-#   data/backups/<user-uuid>-pre-migration-<timestamp>.db → data/users/<user-uuid>.db
+VIRGIL_SECOND_BRAIN_PATH=/path/to/markdown \
+  uv run --locked python scripts/import_data.py --email account@example.com
 ```
+
+The importer refuses missing accounts or databases. It never creates a legacy
+single-user database.
+
+The MCP wrapper has its own committed dependency lock:
+
+```bash
+VIRGIL_API_URL=https://virgil.example.com VIRGIL_API_KEY=your-key \
+  uv run --locked --script mcp_server/virgil_mcp.py
+```
+
+Tests and Docker use bundled LiteLLM capability metadata for reproducibility.
+Updating that metadata is part of a reviewed dependency update.
 
 ## Configuration
 

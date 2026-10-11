@@ -248,6 +248,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         briefing_text = await get_cached_briefing(db)
 
     return templates.TemplateResponse(
+        request,
         "dashboard.html",
         {
             "request": request,
@@ -285,7 +286,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
 
 @router.get("/offline", response_class=HTMLResponse)
 async def offline_page(request: Request):
-    return templates.TemplateResponse("offline.html", {"request": request})
+    return templates.TemplateResponse(request, "offline.html", {"request": request})
 
 
 @router.post("/api/briefing/generate")

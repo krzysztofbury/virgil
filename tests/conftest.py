@@ -7,6 +7,9 @@ import sqlite3
 import tempfile
 from pathlib import Path
 
+# Provider capability metadata must not change an offline test's behavior.
+os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] = "true"
+
 # Idempotent: pytest may import this file twice (as `conftest` AND `tests.conftest`
 # when tests mix import styles), which would re-run mkdtemp and repoint the env at a
 # fresh empty dir mid-session — silently breaking any module that cached a path at
@@ -17,7 +20,7 @@ else:
     _TMP = tempfile.mkdtemp(prefix="virgil-test-")
     os.environ["_VIRGIL_TEST_TMP"] = _TMP
     os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
-    os.environ["VIRGIL_API_KEY"] = "test-key-123"
+    os.environ["VIRGIL_API_KEY"] = "test-key-123"  # pragma: allowlist secret - synthetic fixture
     os.environ["VIRGIL_ADMIN_EMAILS"] = "test@example.com"
     os.environ["VIRGIL_SECOND_BRAIN_PATH"] = ""
     # Hermetic tests: app/config.py setdefault-loads the developer's real .env,
@@ -38,7 +41,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app.main import app  # noqa: E402
 
 TEST_EMAIL = "test@example.com"
-TEST_PASSWORD = "test-password-123"
+TEST_PASSWORD = "test-password-123"  # pragma: allowlist secret - synthetic fixture
 
 _CSRF_META = re.compile(r'<meta name="csrf-token" content="([^"]+)"')
 

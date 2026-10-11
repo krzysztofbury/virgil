@@ -377,7 +377,7 @@ async def experiments_list(request: Request):
             exp["logged_label"] = str(entries_by_exp.get(exp["id"], 0))
             exp["target_label"] = "—"
 
-    return templates.TemplateResponse("experiments.html", {"request": request, "experiments": experiments})
+    return templates.TemplateResponse(request, "experiments.html", {"request": request, "experiments": experiments})
 
 
 @router.get("/new", response_class=HTMLResponse)
@@ -387,6 +387,7 @@ async def new_experiment_form(request: Request):
         "SELECT id, content FROM goals WHERE status = 'active' ORDER BY active DESC, updated_at DESC"
     )
     return templates.TemplateResponse(
+        request,
         "experiment_new.html",
         {"request": request, "today": date.today().isoformat(), "goals": [dict(row) for row in goals]},
     )
@@ -595,6 +596,7 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
     summaries = await get_existing_summaries(db, experiment_id)
 
     return templates.TemplateResponse(
+        request,
         "experiment_detail.html",
         {
             "request": request,
@@ -641,6 +643,7 @@ async def edit_experiment_form(request: Request, experiment_id: int):
     ]
 
     return templates.TemplateResponse(
+        request,
         "experiment_edit.html",
         {"request": request, "experiment": experiment, "metrics": metrics, "goals": goals},
     )

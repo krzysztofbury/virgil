@@ -9,7 +9,7 @@ from urllib.parse import quote
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
-from app.config import BASE_URL, DB_PATH, SECOND_BRAIN_PATH
+from app.config import BASE_URL, SECOND_BRAIN_PATH
 from app.db import get_feature_flags, get_setting, set_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
@@ -69,7 +69,9 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
                 p["api_key_masked"] = f"{plain[:4]}...{plain[-4:]}" if len(plain) > 8 else "****"
             except Exception:
                 p["api_key_masked"] = "(encrypted)"
-        context["db_path"] = DB_PATH
+        from app.services.backup import db_main_path
+
+        context["db_path"] = await db_main_path(db)
         context["second_brain_path"] = SECOND_BRAIN_PATH
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
@@ -144,7 +146,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         logs = await db.execute_fetchall("SELECT * FROM sync_log ORDER BY created_at DESC LIMIT 50")
         context["sync_logs"] = [dict(row) for row in logs]
 
-    return templates.TemplateResponse("settings.html", context)
+    return templates.TemplateResponse(request, "settings.html", context)
 
 
 # --- App Configuration: dictionary tables ---
@@ -163,40 +165,22 @@ async def library_add(
     metric: str = Form("reps"),
     tags: str = Form(""),
 ):
-    from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
+    from app.library_validation import LibraryWriteError
+    from app.services.library import write_library
 
     try:
         sets_val = int(sets) if sets.strip() else None
     except ValueError:
         return error_redirect(request, "/settings?tab=configuration", "Sets must be a whole number.")
-
-    db = get_user_db_from_request(request)
     try:
-        row = await validate_library_write(
-            db,
+        await write_library(
+            get_user_db_from_request(request),
             op="create",
+            tags=tags,
             fields={"name": name, "section": section, "sets": sets_val, "reps": reps, "notes": notes, "metric": metric},
         )
     except LibraryWriteError as exc:
         return error_redirect(request, "/settings?tab=configuration", exc.message)
-
-    # normalize_tags accepts the raw comma-separated field straight from the
-    # form. Run it before the INSERT so a bad tag (e.g. one that normalises
-    # to nothing) 422s-equivalent-redirects without creating an orphan row.
-    try:
-        tag_list = normalize_tags(tags)
-    except LibraryWriteError as exc:
-        return error_redirect(request, "/settings?tab=configuration", exc.message)
-
-    cursor = await db.execute(
-        "INSERT INTO exercise_library "
-        "(section, name, sets, reps, notes, display_order, metric, builtin) "
-        "VALUES (?, ?, ?, ?, ?, (SELECT COALESCE(MAX(display_order), 0) + 1 FROM exercise_library), ?, 0)",
-        (row["section"], row["name"], row["sets"], row["reps"], row["notes"], row["metric"]),
-    )
-    for tag in tag_list:
-        await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (cursor.lastrowid, tag))
-    await db.commit()
     return success_redirect(request, "/settings?tab=configuration", "Exercise added to the library.")
 
 
@@ -204,183 +188,78 @@ async def library_add(
 async def library_update(
     request: Request,
     entry_id: int = Form(...),
-    # None (absent from the POST body) means "leave this column unchanged" —
-    # NOT "reset to a default". A stale settings page cached from before this
-    # branch added the metric <select> would omit `metric` entirely on
-    # submit; with a string default here that silently downgraded a 'time'
-    # movement to 'reps' on every such save (I1). Form(None) lets FastAPI
-    # tell "field absent" (None) apart from "field present but blank" ('') —
-    # the latter still means "clear it", same as api.py's PATCH.
-    # `name` joined this group so a builtin row's tag-only edit form (which
-    # never renders name/section/etc — those stay frozen for builtin rows)
-    # can omit it entirely without tripping the "name is required"
-    # validation or the builtin guard in validate_library_write.
     name: str | None = Form(None),
     section: str | None = Form(None),
     sets: str | None = Form(None),
     reps: str | None = Form(None),
     notes: str | None = Form(None),
     metric: str | None = Form(None),
-    # Tags live in exercise_library_tags, outside validate_library_write's
-    # scope entirely — never gated by builtin ON THEIR OWN (unlike every
-    # field above). But `fields` above still reaches validate_library_write
-    # unconditionally, so a POST that mixes `tags` with one of those frozen
-    # fields on a builtin row is refused in full below (the tags never land
-    # either) — tag a builtin row in its own request, never together with a
-    # name/section/sets/reps/notes/metric edit. Same contract as the REST
-    # PATCH endpoint: None (absent) leaves tags untouched, "" (present but
-    # blank) clears them, anything else replaces the whole set.
     tags: str | None = Form(None),
 ):
-    from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
+    from app.library_validation import LibraryWriteError
+    from app.services.library import write_library
 
-    db = get_user_db_from_request(request)
-    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
-    if not rows:
-        return error_redirect(request, "/settings?tab=configuration", "Library entry not found.")
-    existing = dict(rows[0])
-
-    fields: dict = {}
-    if name is not None:
-        fields["name"] = name
-    if section is not None:
-        fields["section"] = section
+    # FastAPI treats empty optional form strings as absent. The write contract
+    # distinguishes absent (preserve) from an explicit blank (clear).
+    form = await request.form()
+    if "tags" in form and form["tags"] == "":
+        tags = ""
+    fields = {
+        key: value
+        for key, value in {
+            "name": name,
+            "section": section,
+            "reps": reps,
+            "notes": notes,
+            "metric": metric,
+        }.items()
+        if value is not None
+    }
+    for key in ("name", "section", "reps", "notes", "metric"):
+        if key in form and form[key] == "":
+            fields[key] = ""
+    if "sets" in form and form["sets"] == "":
+        sets = ""
     if sets is not None:
         try:
-            # sets / reps stopped being a prescription when the protocol form was
-            # deleted (2026-08-01). They survive as the WOD parser's fallback
-            # values and as columns in this listing. Nothing reads them as
-            # "do 4 sets of 10" any more, so do not reintroduce that meaning.
             fields["sets"] = int(sets) if sets.strip() else None
         except ValueError:
             return error_redirect(request, "/settings?tab=configuration", "Sets must be a whole number.")
-    if reps is not None:
-        fields["reps"] = reps
-    if notes is not None:
-        fields["notes"] = notes
-    if metric is not None:
-        fields["metric"] = metric
-
     try:
-        result = await validate_library_write(db, op="update", entry_id=entry_id, existing=existing, fields=fields)
+        result = await write_library(
+            get_user_db_from_request(request), op="update", entry_id=entry_id, fields=fields, tags=tags
+        )
     except LibraryWriteError as exc:
         return error_redirect(request, "/settings?tab=configuration", exc.message)
-
-    # M2 (2026-07-31 review): normalize_tags must run — and be allowed to
-    # raise — BEFORE the UPDATE below, not after. This used to run after,
-    # with no db.rollback() on the except branch below, so a bad tag left the
-    # UPDATE's effect sitting uncommitted on this request's connection. It
-    # only ever looked atomic because auth.py opens a brand new connection
-    # per request and closes it in a `finally` without ever committing on an
-    # exception path — introduce any form of connection reuse/pooling and
-    # this starts committing half of a rejected write. Validating first (same
-    # order the add path above already uses) makes that true regardless of
-    # what closes the connection, instead of by accident.
-    tag_list = None
-    if tags is not None:
-        try:
-            tag_list = normalize_tags(tags)
-        except LibraryWriteError as exc:
-            return error_redirect(request, "/settings?tab=configuration", exc.message)
-
-    if not result and tags is None:
+    if not result["updated"]:
         return error_redirect(request, "/settings?tab=configuration", "No library changes were submitted.")
-
-    if result:
-        assignments = ", ".join(f"{k} = ?" for k in result)
-        cursor = await db.execute(
-            f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — keys are this
-            # module's own known column names (validate_library_write's fixed key set), never
-            # attacker-controlled.
-            [*result.values(), entry_id],
-        )
-        if cursor.rowcount != 1:
-            await db.rollback()
-            return error_redirect(request, "/settings?tab=configuration", "Library entry was not updated.")
-
-    # Tags themselves bypass the builtin guard — never routed through
-    # `fields`/validate_library_write above, so a builtin row accepts a
-    # tags-ONLY update even though name/section/metric/sets/reps/notes on it
-    # stay frozen. That guard is still all-or-nothing per request, though:
-    # if `fields` was non-empty and the row builtin, validate_library_write
-    # above already raised and returned before this line — so a request
-    # combining `tags` with one of those frozen fields never reaches here,
-    # and the tags don't land either. Same replace-the-whole-set semantics,
-    # and the same combined-request rejection, as api.py's PATCH.
-    if tags is not None:
-        await db.execute("DELETE FROM exercise_library_tags WHERE library_id = ?", (entry_id,))
-        for tag in tag_list:
-            await db.execute("INSERT INTO exercise_library_tags (library_id, tag) VALUES (?, ?)", (entry_id, tag))
-
-    if result or tags is not None:
-        await db.commit()
     return success_redirect(request, "/settings?tab=configuration", "Library entry updated.")
 
 
 @router.post("/settings/library/delete")
 async def library_delete(request: Request, entry_id: int = Form(...)):
-    from app.library_validation import LibraryWriteError, validate_library_write
+    from app.library_validation import LibraryWriteError
+    from app.services.library import write_library
 
-    db = get_user_db_from_request(request)
-    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
-    if not rows:
-        return error_redirect(request, "/settings?tab=configuration", "Library entry not found.")
     try:
-        await validate_library_write(db, op="delete", entry_id=entry_id, existing=dict(rows[0]))
+        await write_library(get_user_db_from_request(request), op="delete", entry_id=entry_id)
     except LibraryWriteError as exc:
         return error_redirect(request, "/settings?tab=configuration", exc.message)
-
-    cursor = await db.execute("DELETE FROM exercise_library WHERE id = ?", (entry_id,))
-    if cursor.rowcount != 1:
-        await db.rollback()
-        return error_redirect(request, "/settings?tab=configuration", "Library entry was not deleted.")
-    await db.commit()
     return success_redirect(request, "/settings?tab=configuration", "Exercise deleted from the library.")
 
 
 @router.post("/settings/library/archive")
 async def library_archive(request: Request, entry_id: int = Form(...), archived: int = Form(1)):
-    # M1 (2026-07-31 review): this was the one library write with no existence
-    # check and no validate_library_write call at all -- a bogus id silently
-    # updated zero rows and redirected as if it had succeeded, while api.py's
-    # PATCH 404s for the same input. That's the exact "returns success having
-    # done nothing" shape library_validation.py's module docstring says
-    # validate_library_write exists to rule out for both surfaces together.
-    # Archiving a builtin row is still allowed here (unchanged behaviour):
-    # validate_library_write's builtin guard only fires when `fields` carries
-    # something OTHER than `archived` (see its op="update" branch), so
-    # fields={"archived": ...} alone never trips it.
-    from app.library_validation import LibraryWriteError, validate_library_write
-
-    db = get_user_db_from_request(request)
-    rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
-    if not rows:
-        return error_redirect(request, "/settings?tab=configuration", "Library entry not found.")
-    existing = dict(rows[0])
-
-    target_archived = 1 if archived else 0
-    if existing["archived"] == target_archived:
-        state = "archived" if target_archived else "active"
-        return error_redirect(request, "/settings?tab=configuration", f"Library entry is already {state}.")
+    from app.library_validation import LibraryWriteError
+    from app.services.library import write_library
 
     try:
-        result = await validate_library_write(
-            db, op="update", entry_id=entry_id, existing=existing, fields={"archived": target_archived}
+        await write_library(
+            get_user_db_from_request(request), op="archive", entry_id=entry_id, fields={"archived": archived}
         )
     except LibraryWriteError as exc:
         return error_redirect(request, "/settings?tab=configuration", exc.message)
-
-    if result:
-        assignments = ", ".join(f"{k} = ?" for k in result)
-        cursor = await db.execute(
-            f"UPDATE exercise_library SET {assignments} WHERE id = ?",  # noqa: S608 — see library_update
-            [*result.values(), entry_id],
-        )
-        if cursor.rowcount != 1:
-            await db.rollback()
-            return error_redirect(request, "/settings?tab=configuration", "Library entry was not updated.")
-        await db.commit()
-    action = "archived" if target_archived else "restored"
+    action = "archived" if archived else "restored"
     return success_redirect(request, "/settings?tab=configuration", f"Exercise {action}.")
 
 
