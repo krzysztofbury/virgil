@@ -18,13 +18,13 @@ Config (env):
     CF_ACCESS_CLIENT_SECRET — Cloudflare Access service token secret
 
 Run:
-    uv run mcp_server/virgil_mcp.py
+    uv run --locked --script mcp_server/virgil_mcp.py
 
 Register in Claude Code:
     claude mcp add virgil \
       -e VIRGIL_API_URL=https://virgil.example.com \
       -e VIRGIL_API_KEY=<key> \
-      -- uv run /path/to/virgil/mcp_server/virgil_mcp.py
+      -- uv run --locked --script /path/to/virgil/mcp_server/virgil_mcp.py
 """
 
 import os

@@ -483,6 +483,9 @@ def test_settings_update_does_not_write_before_tags_validate(auth_client):
         def __init__(self, db):
             self.state = _State(db)
 
+        async def form(self):
+            return {"notes": "should not stick", "tags": "!!!"}
+
     async def scenario():
         db = await aiosqlite.connect(user_db_path())
         db.row_factory = aiosqlite.Row

@@ -78,6 +78,7 @@ async def goals_page(request: Request, horizon: str = DEFAULT_HORIZON):
     ]
 
     return templates.TemplateResponse(
+        request,
         "goals.html",
         {
             "request": request,

@@ -484,7 +484,10 @@ def test_oura_renewal_uses_documented_endpoint(monkeypatch):
         assert calls == [
             (
                 f"{oura_api.OURA_WEBHOOK_URL}/renew/subscription-1",
-                {"headers": {"x-client-id": "client", "x-client-secret": "secret"}},
+                {
+                    # pragma: allowlist nextline secret - synthetic fixture
+                    "headers": {"x-client-id": "client", "x-client-secret": "secret"}
+                },
             )
         ]
 

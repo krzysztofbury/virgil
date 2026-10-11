@@ -90,7 +90,7 @@ app/
 ### Setup
 
 ```bash
-uv sync
+uv sync --locked --extra dev --python 3.12.14
 cp .env.example .env  # Fill in optional API keys
 ```
 
@@ -98,18 +98,18 @@ cp .env.example .env  # Fill in optional API keys
 
 ```bash
 # Development (hot reload)
-uv run python -m app
+uv run --locked python -m app
 
 # Production
-VIRGIL_ENV=prod uv run python -m app
+VIRGIL_ENV=prod uv run --locked python -m app
 ```
 
 ### Linting and Formatting
 
 ```bash
-ruff check app/ scripts/ --fix
-ruff format app/ scripts/
-bandit -c pyproject.toml -r app/
+uv run --locked --extra dev ruff check app/ scripts/ tests/ mcp_server/
+uv run --locked --extra dev ruff format --check app/ scripts/ tests/ mcp_server/
+uv run --locked --extra dev bandit -q -c pyproject.toml -r app/ scripts/ mcp_server/
 ```
 
 ### Adding a New Feature Page
@@ -160,3 +160,17 @@ Port is always **8123**.
 - **No ORM.** Raw SQL only. This is intentional — keeps queries explicit and auditable.
 - **SQLite limitations.** No concurrent writes from multiple processes. WAL mode allows concurrent reads.
 - **Service worker caching.** Static assets use cache-first. If you change CSS/JS, users may need to hard-refresh or wait for the SW to update.
+
+## Verification and recovery contracts
+
+CI is defined once in `.github/workflows/ci.yml`. PRs verify and smoke-test an
+image; main publishes that same tested image. A version tag aliases an existing
+main image and cannot update `latest`. Python, uv, application dependencies, MCP
+dependencies, and base-image digests are explicit. See [RELEASE.md](RELEASE.md).
+
+Exercise-library persistence belongs to `app/services/library.py`, with one
+transaction for validation, collision checks, row changes, and tags. Browser and
+REST handlers translate the same domain outcomes into their respective protocols.
+Markdown imports require a registered account; runtime code has no global legacy
+DB connection. Whole-instance recovery includes the key and central registry as
+well as per-user databases; [docs/recovery.md](docs/recovery.md) is authoritative.

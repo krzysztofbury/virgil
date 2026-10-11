@@ -1,126 +1,90 @@
 # Contributing to Virgil
 
-Thank you for your interest in contributing! This document provides guidelines to make the process smooth for everyone.
+## Setup
 
-## Getting Started
-
-1. Fork the repository
-2. Clone your fork and set up the development environment:
-    ```bash
-    git clone https://github.com/YOUR_USERNAME/virgil.git
-    cd virgil
-    uv sync
-    ```
-3. Install pre-commit hooks:
-    ```bash
-    uv run pre-commit install
-    ```
-4. Create a branch for your change:
-    ```bash
-    git checkout -b your-branch-name
-    ```
-
-## Development Workflow
-
-### Running Locally
+Use Python 3.12.14 and uv 0.12.7, matching the production image and CI.
 
 ```bash
-# Start the development server (hot reload enabled)
-VIRGIL_SECOND_BRAIN_PATH="/path/to/second-brain" uv run python -m app
+uv python install 3.12.14
+uv sync --locked --extra dev --python 3.12.14
+uv run --locked --extra dev pre-commit install
+git switch -c your-change
 ```
 
-Navigate to `http://localhost:8123`. On first launch you'll be redirected to `/setup` to create your account.
+Start the application with `uv run --locked python -m app`. The first account
+is created at `/signup`. Local mode enables reload; production mode disables it.
+Set `VIRGIL_SECOND_BRAIN_PATH` only when importing markdown is intended.
 
-### Demo data (for screenshots)
-
-To populate a throwaway account with realistic but entirely fictional data across
-every module (Oura, No Porn, Training, Daily, Life Scores, Experiments, Bloodwork).
-Point it at a throwaway directory so it never touches your real `data/` (important
-if `data/` is synced/backed-up elsewhere — the seeder would otherwise mix demo data
-into your live DB):
+## Required checks
 
 ```bash
-export VIRGIL_CENTRAL_DB_PATH=/tmp/virgil-demo/central.db
-uv run python scripts/seed_demo.py   # prints login: demo@virgil.app / demo-password-123
-uv run python -m app                 # serves the isolated demo DB on :8123
-# when done:
-rm -rf /tmp/virgil-demo
+uv run --locked --extra dev pre-commit run --all-files
+uv run --locked --extra dev pytest -q
+uv lock --check --script mcp_server/virgil_mcp.py
+uv run --locked --extra dev python scripts/check_mcp.py
 ```
 
-Re-running the seeder resets the demo account. Its data never lands in `data/`
-and is never committed — use it to capture screenshots without exposing real data.
+Install Node 22 for tests that execute the real picker JavaScript. Tests use
+isolated databases, synthetic credentials, and bundled LiteLLM capability
+metadata. Date-window fixtures must control the clock. Use the same locked
+Ruff and Bandit through pre-commit; avoid separate global tool installations.
 
-### Code Style
-
-- **Line length**: 120 columns
-- **Python target**: 3.12+
-- **Formatter/Linter**: [ruff](https://github.com/astral-sh/ruff)
-- **Security scanner**: [bandit](https://github.com/PyCQA/bandit)
-- Comments explain "why", not "what"
-- Server-side input validation on all form endpoints
-- All secrets (API keys, OAuth tokens) must be Fernet-encrypted at rest
-
-### Linting and Formatting
-
-Before submitting, ensure your code passes:
+For container or startup changes, also qualify the actual image:
 
 ```bash
-ruff check app/ scripts/ --fix
-ruff format app/ scripts/
-bandit -c pyproject.toml -r app/
+docker build -t virgil-check --build-arg GIT_SHA=local-check .
+python3 scripts/check_image.py virgil-check
 ```
 
-### Database Migrations
+The smoke test owns uniquely named containers and volumes and removes them on
+completion or interruption. It has no external network access and uses synthetic
+account data. It also creates, verifies, and restores a recovery bundle, then
+checks login against the restored account. Dependency audit commands are in
+`.github/workflows/ci.yml`.
 
-If your change modifies the database schema:
+## Dependency changes
 
-1. Create a new migration file in `app/migrations/` with the next sequence number
-2. Expose an `async def up(db)` function
-3. Each migration must be idempotent (safe to run on existing databases)
-4. Document what the migration does in a module-level docstring
+`pyproject.toml` records a fixed resolution cutoff. Advance it deliberately when
+updating dependencies, then run `uv lock --upgrade`, `uv sync --locked --extra dev`,
+the checks above, and the dependency audits. Pin or upgrade the MCP script through
+`uv lock --script mcp_server/virgil_mcp.py`; its lock is independent of the app's.
+Do not use an unlocked install in CI. Keep the uv version in CI and Docker aligned.
 
-See existing migrations for examples.
+## Browser verification
 
-### Testing
+Visible changes require a real browser check at desktop and mobile sizes. Check
+both themes, keyboard access, error feedback, and HTMX updates. Source assertions
+about CSS are supplementary evidence. Demo data is entirely fictional:
 
-Manual integration testing via browser. When testing:
+```bash
+scratch=$(mktemp -d)
+trap 'rm -rf -- "$scratch"' EXIT
+export VIRGIL_CENTRAL_DB_PATH="$scratch/central.db"
+export VIRGIL_INTERNAL_LLM_KEY=""
+uv run --locked python scripts/seed_demo.py
+uv run --locked python -m app
+```
 
-- Verify both dark and light themes
-- Test on mobile viewport (PWA)
-- Check keyboard shortcuts still work
-- Verify HTMX partial responses render correctly
+Stop the foreground server before the shell exits. Never point the seeder at
+real data. Screenshots must contain only synthetic records.
 
-## Submitting Changes
+## Database and domain changes
 
-1. Commit your changes with a clear, descriptive message
-2. Push to your fork
-3. Open a Pull Request against `main`
-4. Describe what your change does and **why**
+User migrations live in `app/migrations/`; central registry migrations live in
+`app/central_migrations/`. Use the next numbered migration and test the supported
+upgrade path with real SQLite. Preserve pre-migration snapshots and fail-closed
+startup. Do not rewrite old migrations for existing installations.
 
-### What Makes a Good PR
+Routes translate requests and responses. Exercise-library writes use
+`app/services/library.py`; goal writes use `app/services/goal_data.py`.
+Keep validation, transaction boundaries, and rollback in the owning service.
 
-- **Focused**: One logical change per PR
-- **Documented**: Update README.md if you add/change features
-- **Linted**: All ruff and bandit checks pass with zero warnings
-- **Tested**: You have verified the change works in the browser
+Use [docs/recovery.md](docs/recovery.md) for whole-instance recovery and
+[RELEASE.md](RELEASE.md) for versioning and publication. Update the changelog and
+active roadmap when a feature or operational contract changes.
 
-## Project Structure
+## Submitting and reporting
 
-See [SPEC.md](SPEC.md) for architecture details, key design decisions, and conventions.
-
-## Reporting Bugs
-
-Open a GitHub issue with:
-
-- What you expected to happen
-- What actually happened
-- Steps to reproduce
-- Your Python version, OS, and browser
-
-## Security Issues
-
-**Do not open public issues for security vulnerabilities.** See [SECURITY.md](SECURITY.md) for responsible disclosure instructions.
-
-## Questions?
-
-Open a GitHub issue or reach out at [contact@datacraze.io](mailto:contact@datacraze.io).
+Open a PR against `main` with the problem, resulting behavior, and validation.
+Keep private data and credentials out of code, fixtures, logs, and screenshots.
+Report security problems using [SECURITY.md](SECURITY.md), not a public issue.

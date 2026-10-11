@@ -27,7 +27,7 @@ from app.central_db import (  # noqa: E402
 from app.user_db import close_user_db, create_user_db, delete_user_db, open_user_db  # noqa: E402
 
 DEMO_EMAIL = "demo@virgil.app"
-DEMO_PASSWORD = "demo-password-123"
+DEMO_PASSWORD = "demo-password-123"  # pragma: allowlist secret - synthetic fixture
 TODAY = date.today()
 
 

@@ -7,7 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-10-11
+
+### Fixed
+- Central backups validate recent snapshots before skipping a run and publish
+  complete files atomically. Interrupted or corrupt snapshots no longer suppress
+  replacement for a day.
+- The import CLI requires an existing account selected with `--email`; Settings
+  displays that account's real database. Removed the legacy global connection.
+- API date-window tests use a fixed clock. Tests and production images use
+  bundled LiteLLM capability metadata instead of mutable remote metadata.
+- Upgraded the locked web stack, including FastAPI, Starlette, multipart parsing,
+  and Jinja2. Template calls use the current request-first interface; blank
+  login passwords and explicit empty library fields retain their behavior.
+- Version tags cannot overwrite `latest`. Only a verified main image can be
+  promoted to a version alias, with matching package and changelog versions.
+- Corrected the secret scanner's allowlist filter and marked only verified
+  synthetic fixture credentials as exceptions.
+
+### Changed
+- One CI workflow owns verification, container qualification, and publication.
+  PRs no longer duplicate feature-branch push checks. Python and uv are pinned,
+  dependency installation is locked, and Docker bases are pinned by digest.
+- Pre-commit and CI use the same locked Ruff and Bandit versions. CI includes
+  dependency audits and the independently locked MCP stdio smoke test.
+- Forms and REST share one atomic exercise-library persistence service,
+  including collision checks, tag replacement, and rollback.
+- The active roadmap replaces historical status duplication and unavailable
+  implementation-plan links. Recovery and release procedures are tracked docs.
+
 ### Added
+- Offline operator recovery bundles include the central registry, every
+  referenced user database, the encryption key, and a versioned checksum
+  manifest. Verify before restoring to a new directory; existing data is never
+  overwritten. An off-machine copy and production restore drill remain operator
+  actions.
+- Container smoke testing covers signup, migrations, templates, static assets,
+  restart, and login after an offline recovery before publishing the same image.
+
 - **Training history is a year calendar instead of a date list.** A dashboard-style
   heatmap groups every session on its training day, uses total duration for three
   intensity levels, previews the day on hover or keyboard focus, and opens

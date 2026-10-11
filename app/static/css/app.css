@@ -2719,3 +2719,4 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     color: var(--flag-h);
     margin-bottom: 0.5rem;
 }
+.settings-path { overflow-wrap: anywhere; margin-top: 0.5rem; }

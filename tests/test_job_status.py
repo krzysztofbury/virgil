@@ -364,8 +364,8 @@ def test_same_numeric_job_id_resolves_inside_each_users_database(auth_client, mo
             "/signup",
             data={
                 "email": "jobs-second@example.com",
-                "password": "second-password-123",
-                "password_confirm": "second-password-123",
+                "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
+                "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture
                 "_csrf_token": csrf_token(second, "/signup"),
             },
             follow_redirects=False,

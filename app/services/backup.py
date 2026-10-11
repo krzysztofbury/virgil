@@ -6,6 +6,7 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
+from contextlib import closing
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -31,13 +32,13 @@ def _pre_migration_dir() -> Path:
 
 def _do_backup(src_path: str, dst_path: str) -> None:
     """Blocking SQLite backup via sqlite3.Connection.backup()."""
-    src = sqlite3.connect(src_path)
-    dst = sqlite3.connect(dst_path)
-    try:
+    with (
+        closing(sqlite3.connect(Path(src_path).resolve().as_uri() + "?mode=ro", uri=True)) as src,
+        closing(sqlite3.connect(dst_path)) as dst,
+    ):
         src.backup(dst)
-    finally:
-        dst.close()
-        src.close()
+        # Recovery artifacts are standalone files, with no WAL sidecars.
+        dst.execute("PRAGMA journal_mode=DELETE")
 
 
 def _validate_backup(path: Path) -> None:
@@ -275,12 +276,20 @@ async def maybe_backup_central() -> Path | None:
     BACKUP_DIR.mkdir(parents=True, exist_ok=True)
     stem = src.stem
 
-    existing = sorted(BACKUP_DIR.glob(f"{stem}-*.db"), key=lambda p: p.stat().st_mtime)
-    if existing and (time.time() - existing[-1].stat().st_mtime) < CENTRAL_BACKUP_MAX_AGE_HOURS * 3600:
+    existing = sorted(BACKUP_DIR.glob(f"{stem}-*.db"), key=lambda p: p.stat().st_mtime, reverse=True)
+    for path in existing:
+        if time.time() - path.stat().st_mtime >= CENTRAL_BACKUP_MAX_AGE_HOURS * 3600:
+            break
+        try:
+            await asyncio.to_thread(_validate_backup, path)
+        except (sqlite3.DatabaseError, RuntimeError):
+            logger.warning("Ignoring invalid central backup: %s", path.name)
+            continue
         return None
 
-    dst = BACKUP_DIR / f"{stem}-{_timestamp()}.db"
-    await asyncio.to_thread(_do_backup, str(src), str(dst))
-    await asyncio.to_thread(_prune_backups, stem, CENTRAL_BACKUP_MAX_COPIES)
+    # A unique suffix also permits recovery from a corrupt file in this minute.
+    dst = BACKUP_DIR / f"{stem}-{_timestamp()}-{uuid.uuid4().hex}.db"
+    await asyncio.to_thread(_publish_backup, str(src), dst, lambda _path: None)
+    await asyncio.to_thread(_prune_backups, stem, CENTRAL_BACKUP_MAX_COPIES, None, dst)
     logger.info("Central DB backup created: %s", dst.name)
     return dst

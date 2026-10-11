@@ -24,9 +24,11 @@
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Configuration</h3></div>
-    <p style="margin-bottom: 0.35rem;"><strong>Database:</strong> <span class="text-muted">{{ db_path }}</span></p>
-    <p><strong>Second Brain:</strong> <span class="text-muted">{{ second_brain_path or 'Not configured' }}</span></p>
+    <details>
+        <summary>Advanced</summary>
+        <p class="settings-path"><strong>Database:</strong> <span class="text-muted">{{ db_path }}</span></p>
+        <p class="settings-path"><strong>Second Brain:</strong> <span class="text-muted">{{ second_brain_path or 'Not configured' }}</span></p>
+    </details>
 </div>
 
 <div class="card" style="margin-bottom: 1rem;">

@@ -41,6 +41,7 @@ async def list_users(request: Request):
     _require_admin(request)
     users = await get_all_users()
     return templates.TemplateResponse(
+        request,
         "admin_users.html",
         {
             "request": request,

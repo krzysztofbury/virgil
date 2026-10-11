@@ -1,7 +1,7 @@
 services:
   # Personal tracking dashboard (FastAPI + SQLite)
   virgil:
-    # Production images are built by GitHub Actions (release.yml) and pulled
+    # Production images are built by GitHub Actions (ci.yml) and pulled
     # from GHCR — never built on the NAS. `build:` stays for local dev only
     # (`docker compose up -d --build`).
     image: ghcr.io/krzysztofbury/virgil:latest

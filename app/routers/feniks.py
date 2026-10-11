@@ -92,6 +92,7 @@ async def feniks_page(request: Request):
     ]
 
     return templates.TemplateResponse(
+        request,
         "feniks.html",
         {
             "request": request,

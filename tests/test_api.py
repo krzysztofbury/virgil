@@ -1,6 +1,7 @@
 """REST API: auth paths and endpoint contracts."""
 
 import sqlite3
+from datetime import date
 
 from conftest import user_db_path
 
@@ -138,6 +139,13 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
     """Seed a relapse + journal + a session with a reps and a timed exercise; assert the
     endpoints surface them (grouped, with duration on the timed lift). Cleans up after
     itself so the shared session DB stays empty for other tests."""
+
+    class FixedDate(date):
+        @classmethod
+        def today(cls):
+            return cls(2026, 7, 7)
+
+    monkeypatch.setattr("app.routers.api.date", FixedDate)
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
     conn = sqlite3.connect(user_db_path())
     try:
