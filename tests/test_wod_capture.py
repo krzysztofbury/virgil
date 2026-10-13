@@ -302,7 +302,7 @@ def test_no_llm_provider_still_saves_the_note(auth_client):
 
 
 def test_unmatched_movements_are_surfaced(auth_client, monkeypatch):
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     resp = auth_client.post(
         "/training/wod",
@@ -315,7 +315,7 @@ def test_unmatched_movements_are_surfaced(auth_client, monkeypatch):
     )
     drain_jobs()
     resp = auth_client.get(resp.url)
-    assert "Devil Press" in resp.text
+    assert "Sled Push" in resp.text
 
 
 def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_client, monkeypatch):
@@ -325,7 +325,7 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
     instead of falling through to the dead-end 'nic nie udało się' message
     that the old {% if entries %} guard produced.
     """
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     resp = auth_client.post(
         "/training/wod",
@@ -339,7 +339,7 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
     drain_jobs()
     resp = auth_client.get(resp.url)
     assert resp.status_code == 200
-    assert "Devil Press" in resp.text
+    assert "Sled Push" in resp.text
     assert 'name="entry_0_movement"' in resp.text, "the unmatched movement must render as an editable row"
     assert 'option value=""' in resp.text, "the row's select must offer an empty (skip) option"
     assert "Zapisz wpisy" in resp.text, "the confirm form must render, not the dead-end fallback"
@@ -360,7 +360,7 @@ def test_all_rows_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
     test_skipping_a_parsed_entry_drops_only_that_row, which mixes a named row
     with a skipped one.
     """
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     auth_client.post(
         "/training/wod",
@@ -800,6 +800,7 @@ def test_seed_row_field_names_match_what_the_route_reads(auth_client, monkeypatc
         "entry_0_reps",
         "entry_0_weight",
         "entry_0_duration",
+        "entry_0_equipment",
         "entry_0_note",
     }
     assert names == expected, f"seeded row must expose exactly the fields confirm_wod reads, got {sorted(names)}"
@@ -866,7 +867,7 @@ def test_named_but_unresolvable_movement_does_not_strand_the_session(auth_client
     Simulated here by naming a movement that exists in neither table, which is
     exactly what resolve_movement sees after such an archive.
     """
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     auth_client.post(
         "/training/wod",
@@ -911,7 +912,7 @@ def test_discard_is_a_supported_exit(auth_client, monkeypatch):
     resolved" — and one of the two has to be refused. Discard consumes the parse
     deliberately and writes nothing.
     """
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     auth_client.post(
         "/training/wod",
@@ -949,7 +950,7 @@ def test_discard_is_a_supported_exit(auth_client, monkeypatch):
 
 def test_discard_button_is_offered_on_the_confirm_screen(auth_client, monkeypatch):
     """The route accepting action=discard is useless if no UI sends it."""
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     resp = auth_client.post(
         "/training/wod",
@@ -1010,7 +1011,7 @@ def test_library_error_with_parsed_rows_is_escapable(auth_client):
             (
                 "2026-07-22",
                 "ZZ library-error escapable",
-                '{"entries": [], "unmatched": ["Devil Press"], "parse_error": ""}',
+                '{"entries": [], "unmatched": ["Sled Push"], "parse_error": ""}',
             ),
         )
         conn.commit()
@@ -1158,7 +1159,7 @@ def test_missing_entry_count_reports_the_right_cause(auth_client, monkeypatch):
     """A blank entry_count used to say "too many entries at once — try again",
     sending the user after a row-count problem they do not have and telling them
     to retry something that cannot succeed."""
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     auth_client.post(
         "/training/wod",
@@ -1190,7 +1191,7 @@ def test_discard_on_a_settled_session_is_a_logged_no_op(auth_client, monkeypatch
     parse" and "matched nothing" stop being indistinguishable successes. That is
     what this pins.
     """
-    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Devil Press"]})
+    _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
     token = csrf_token(auth_client, "/training")
     auth_client.post(
         "/training/wod",

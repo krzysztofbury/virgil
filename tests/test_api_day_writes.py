@@ -213,3 +213,105 @@ def test_training_patch_replaces_sets_and_settles_a_pending_parse(auth_client):
     finally:
         _execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
         _execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+
+
+def test_training_resolves_aliases_and_keeps_equipment_per_set(auth_client):
+    created = auth_client.post(
+        "/api/training/sessions",
+        json={
+            "date": (date.today() - timedelta(days=3)).isoformat(),
+            "notes": "ZZ alias session",
+            "entries": [
+                {"movement": "T2B", "reps": 8},
+                {"movement": "hang power snatch", "reps": 2, "weight": 12, "equipment": "dumbbell"},
+            ],
+        },
+        headers=KEY,
+    )
+    assert created.status_code == 200, created.text
+    session_id = created.json()["id"]
+    try:
+        assert [(e["movement"], e["equipment"]) for e in created.json()["entries"]] == [
+            ("Toes-to-bar", None),
+            ("Hang Power Snatch", "dumbbell"),
+        ]
+        detail = auth_client.get("/api/training/detail", params={"range": 90}, headers=KEY).json()
+        session = next(s for s in detail["sessions"] if s["id"] == session_id)
+        families = {e["name"]: (e["family"], e["sets"][0]["equipment"]) for e in session["exercises"]}
+        assert families["Toes-to-bar"] == ("Core", "bodyweight"), "a blank set reports the movement's default"
+        assert families["Hang Power Snatch"] == ("Snatch", "dumbbell")
+
+        bad = auth_client.post(
+            "/api/training/sessions",
+            json={"date": "2026-01-08", "entries": [{"movement": "T2B", "equipment": "spoon"}]},
+            headers=KEY,
+        )
+        assert bad.status_code == 422
+    finally:
+        _execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+        _execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+
+
+def test_records_split_by_equipment_other_than_the_default(auth_client):
+    from conftest import stat_value_for_label
+
+    created = auth_client.post(
+        "/api/training/sessions",
+        json={
+            "date": date.today().isoformat(),
+            "notes": "ZZ records by equipment",
+            "entries": [
+                {"movement": "Hang Power Snatch", "reps": 2, "weight": 40},
+                {"movement": "Hang Power Snatch", "reps": 2, "weight": 15, "equipment": "dumbbell"},
+            ],
+        },
+        headers=KEY,
+    )
+    session_id = created.json()["id"]
+    try:
+        page = auth_client.get("/training").text
+        assert stat_value_for_label(page, "Hang Power Snatch") == 40
+        assert stat_value_for_label(page, "Hang Power Snatch (hantle)") == 15
+    finally:
+        _execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+        _execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+
+
+def test_library_classification_is_editable_on_builtins_and_aliases_stay_unambiguous(auth_client):
+    library = auth_client.get("/api/library", headers=KEY).json()
+    assert "Snatch" in library["families"] and "dumbbell" in library["equipment"]
+    entry = next(e for e in library["entries"] if e["name"] == "Plank")
+    original = (entry["family"], entry["default_equipment"], entry["aliases"])
+    assert entry["builtin"] == 1
+    try:
+        resp = auth_client.patch(
+            f"/api/library/{entry['id']}",
+            json={"family": "Mobility", "default_equipment": None, "aliases": ["front plank", "ZZ plank hold"]},
+            headers=KEY,
+        )
+        assert resp.status_code == 200, resp.text
+        after = next(
+            e for e in auth_client.get("/api/library", headers=KEY).json()["entries"] if e["id"] == entry["id"]
+        )
+        assert (after["family"], after["default_equipment"], after["aliases"]) == (
+            "Mobility",
+            None,
+            ["front plank", "ZZ plank hold"],
+        )
+
+        taken = auth_client.patch(f"/api/library/{entry['id']}", json={"aliases": ["T2B"]}, headers=KEY)
+        assert taken.status_code == 409, "an alias belongs to one movement"
+        name_clash = auth_client.patch(f"/api/library/{entry['id']}", json={"aliases": ["Burpee"]}, headers=KEY)
+        assert name_clash.status_code == 409, "an alias cannot shadow a library name"
+        unknown_family = auth_client.patch(f"/api/library/{entry['id']}", json={"family": "Juggling"}, headers=KEY)
+        assert unknown_family.status_code == 422
+        alias_as_name = auth_client.post(
+            "/api/library", json={"section": "Core", "name": "ZZ plank hold", "metric": "time"}, headers=KEY
+        )
+        assert alias_as_name.status_code == 409, "a new name cannot shadow an existing alias"
+    finally:
+        auth_client.patch(
+            f"/api/library/{entry['id']}",
+            json={"family": original[0], "default_equipment": original[1], "aliases": original[2]},
+            headers=KEY,
+        )

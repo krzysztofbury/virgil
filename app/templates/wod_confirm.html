@@ -77,18 +77,18 @@
       <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
       <input type="hidden" name="session_id" value="{{ session_id }}">
       <div class="overflow-x">
-      <table>
-        <thead><tr><th>Ruch</th><th>Seria</th><th>Powt.</th><th>Ciężar (kg)</th><th>Czas (s)</th><th>Notatka</th><th></th></tr></thead>
+      <table class="wod-table">
+        <thead><tr><th>Ruch</th><th>Seria</th><th>Powt.</th><th>Ciężar (kg)</th><th>Czas (s)</th><th>Sprzęt</th><th>Notatka</th><th></th></tr></thead>
         <tbody>
         {# One numbered list for every row type: a parsed entry, an unmatched
            name, and the blank seed rows a failed parse gets. The router owns the
            numbering (_confirm_rows), so this template no longer does index
            arithmetic across three loops, and the picker markup exists once. #}
         {% for r in rows %}
-          {{ server_row(r, movements, tags, recent, sections) }}
+          {{ server_row(r, movements, tags, recent, sections, equipment_options) }}
         {% endfor %}
         <template x-for="row in extraRows" :key="row.index">
-          {{ alpine_row(movements, tags, recent, sections) }}
+          {{ alpine_row(movements, tags, recent, sections, equipment_options) }}
         </template>
         </tbody>
       </table>
@@ -167,12 +167,13 @@ function wodConfirmForm(baseCount, maxRows) {
         // The new row's index continues from the server-rendered count plus
         // however many extra rows already exist, so it can never collide with
         // an existing name.
-        addRow(movement, setNumber) {
+        addRow(movement, setNumber, equipment) {
             if (this.atLimit) return;
             this.extraRows.push({
                 index: this.base + this.extraRows.length,
                 movement: movement,
-                setNumber: setNumber
+                setNumber: setNumber,
+                equipment: equipment || ''
             });
         },
         // Another set of the movement in the row the button sits in. An
@@ -182,9 +183,11 @@ function wodConfirmForm(baseCount, maxRows) {
             const tr = buttonEl.closest('tr');
             const movementSelect = tr.querySelector('select[name$="_movement"], select[x-model="row.movement"]');
             const setNumberInput = tr.querySelector('input[name$="_set_number"], input[x-model="row.setNumber"]');
+            const equipmentSelect = tr.querySelector('select[name$="_equipment"], select[x-model="row.equipment"]');
             const movement = movementSelect ? movementSelect.value : '';
             const currentSetNumber = parseInt(setNumberInput && setNumberInput.value, 10) || 0;
-            this.addRow(movement, currentSetNumber + 1);
+            // Another set keeps the equipment: the dumbbell does not change mid-movement.
+            this.addRow(movement, currentSetNumber + 1, equipmentSelect ? equipmentSelect.value : '');
         },
         // A different movement: blank select, set 1. Cloning and incrementing
         // (what addSet does) is wrong here -- it would pre-fill someone else's

@@ -230,7 +230,8 @@ reads back what was logged:
 
 - Capture form - date, optional duration, and the note itself
 - This Week KPIs - sessions count, total volume (Core, kg), total reps
-- Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window)
+- Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window);
+  a set on other equipment than the movement's usual one (a dumbbell hang snatch) is its own record
 - `Niedokończone` - every session whose parse is still waiting, whatever its date
 - Year calendar history - duration heatmap with hover and keyboard summaries;
   selecting a training day opens bounded pages of its sessions, sets, notes,
@@ -388,7 +389,7 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 ### Settings (`/settings`)
 Six-tab settings page:
 - **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Feniks)
-- **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted
+- **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
 - **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
@@ -530,6 +531,7 @@ Current migrations:
 | 027 | `jobs` | Adds the per-user durable job queue: bounded payloads, idempotency keys, single-runner claims with lease tokens, persisted retry timing |
 | 028 | `active_workload_jobs` | One queued job per operational workload kind (backup, export, Oura sync); reconciles v27 duplicates |
 | 029 | `llm_publications` | Adds the paid-LLM publication ledger, which outlives terminal job pruning, and one queued job per paid kind |
+| 033 | `movement_taxonomy` | Adds movement families, aliases, default and per-set equipment; adds missing CrossFit variants and merges duplicate movements with their history |
 
 Central registry migrations:
 | Version | Name | Description |

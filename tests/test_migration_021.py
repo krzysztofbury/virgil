@@ -57,6 +57,10 @@ async def _db(tmp_path, schema, name="lib.db"):
     db = await aiosqlite.connect(tmp_path / name)
     db.row_factory = aiosqlite.Row
     await db.execute(schema)
+    # Current read paths also consult aliases (migration 033).
+    await db.execute(
+        "CREATE TABLE exercise_aliases (alias TEXT PRIMARY KEY COLLATE NOCASE, library_id INTEGER NOT NULL)"
+    )
     await db.commit()
     return db
 

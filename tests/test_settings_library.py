@@ -118,7 +118,7 @@ def test_add_with_metric_time_is_persisted(auth_client):
     resp = auth_client.post(
         "/settings/library/add",
         data={
-            "name": "Echo Bike",
+            "name": "Bike Erg",
             "section": "Cardio",
             "sets": "",
             "reps": "",
@@ -129,7 +129,7 @@ def test_add_with_metric_time_is_persisted(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    row = _row("Echo Bike")
+    row = _row("Bike Erg")
     assert row is not None
     assert row["metric"] == "time", "settings form must persist metric, not silently default to 'reps'"
 
@@ -286,14 +286,14 @@ def test_update_without_tags_field_leaves_existing_tags_alone(auth_client):
     token = csrf_token(auth_client, "/settings?tab=configuration")
     auth_client.post(
         "/settings/library/add",
-        data={"name": "Farmers Walk", "section": "Core", "tags": "grip", "_csrf_token": token},
+        data={"name": "Yoke Carry", "section": "Core", "tags": "grip", "_csrf_token": token},
         follow_redirects=False,
     )
-    row = _row("Farmers Walk")
+    row = _row("Yoke Carry")
 
     auth_client.post(
         "/settings/library/update",
-        data={"entry_id": str(row["id"]), "name": "Farmers Walk", "notes": "heavy", "_csrf_token": token},
+        data={"entry_id": str(row["id"]), "name": "Yoke Carry", "notes": "heavy", "_csrf_token": token},
         follow_redirects=False,
     )
     conn = sqlite3.connect(user_db_path())

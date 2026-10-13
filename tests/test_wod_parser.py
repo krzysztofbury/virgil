@@ -15,8 +15,9 @@ class _FakeDB:
     def __init__(self, rows):
         self._rows = rows
 
-    async def execute_fetchall(self, *_args, **_kwargs):
-        return self._rows
+    async def execute_fetchall(self, sql="", *_args, **_kwargs):
+        # The alias lookup is a separate query; this double has no aliases.
+        return [] if "exercise_aliases" in sql else self._rows
 
 
 _LIBRARY = [
@@ -223,6 +224,9 @@ async def _real_library_db(tmp_path):
             archived INTEGER NOT NULL DEFAULT 0,
             UNIQUE(name COLLATE NOCASE)
         )"""
+    )
+    await db.execute(
+        "CREATE TABLE exercise_aliases (alias TEXT PRIMARY KEY COLLATE NOCASE, library_id INTEGER NOT NULL)"
     )
     return db
 
@@ -546,3 +550,45 @@ def test_parse_bounds_an_unmatched_flood(monkeypatch):
     result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "nothing recognisable"))
     assert len(result.unmatched) == wod_parser.MAX_PARSED_ENTRIES
     assert result.dropped == 60
+
+
+def test_alias_reaches_the_prompt_and_maps_to_the_library_name(tmp_path, monkeypatch):
+    seen_prompts: list[str] = []
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        seen_prompts.append(system_prompt)
+        return json.dumps(
+            {
+                "entries": [
+                    {"movement": "T2B", "set_number": 1, "reps": 8, "note": ""},
+                    {"movement": "Toes-to-bar", "set_number": 2, "reps": 8, "equipment": "spoon", "note": ""},
+                    {"movement": "Back Squat", "set_number": 1, "reps": 5, "weight": 20, "equipment": "dumbbell"},
+                ],
+                "unmatched": [],
+            }
+        )
+
+    monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+
+    async def scenario():
+        db = await _real_library_db(tmp_path)
+        try:
+            await db.execute("INSERT INTO exercise_library (section, name) VALUES ('Core', 'Toes-to-bar')")
+            await db.execute("INSERT INTO exercise_library (section, name) VALUES ('Core', 'Back Squat')")
+            await db.execute(
+                "INSERT INTO exercise_aliases (alias, library_id) "
+                "SELECT 'T2B', id FROM exercise_library WHERE name = 'Toes-to-bar'"
+            )
+            await db.commit()
+            return await wod_parser.parse_wod(db, "t2b 2x8, db back squat 5 reps 20kg")
+        finally:
+            await db.close()
+
+    result = asyncio.run(scenario())
+    assert "- Toes-to-bar (also written: T2B)" in seen_prompts[0]
+    assert [(e.movement, e.equipment) for e in result.entries] == [
+        ("Toes-to-bar", None),
+        ("Toes-to-bar", None),
+        ("Back Squat", "dumbbell"),
+    ], "an alias maps to its library name; equipment outside the list is dropped, not stored"
+    assert result.unmatched == []

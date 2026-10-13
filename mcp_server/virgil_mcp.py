@@ -355,8 +355,10 @@ def get_exercise_library(tag: str = "", include_archived: bool = False) -> dict:
     Archived rows are excluded unless include_archived=True. Each entry's `tags` is a free-form,
     normalised list (lowercased, whitespace-to-dash) — pass tag='crossfit' for
     the WOD vocabulary, or any other tag a movement has been given. Entries
-    marked builtin=1 can only be archived or have their tags changed — every
-    other field is frozen."""
+    marked builtin=1 can only be archived or have their tags and classification changed —
+    every other field is frozen. Each entry also carries its `family` (e.g. Snatch,
+    Squat), `default_equipment` and `aliases` (spellings such as "T2B" or "pistols"
+    that resolve to it). The response lists the valid `families` and `equipment`."""
     params: dict = {"include_archived": include_archived}
     if tag:
         params["tag"] = tag
@@ -372,8 +374,13 @@ def add_exercise(
     sets: int | None = None,
     reps: str = "",
     notes: str = "",
+    family: str | None = None,
+    default_equipment: str | None = None,
+    aliases: list[str] | None = None,
 ) -> dict:
-    """Add a movement to the exercise dictionary. `section` is Warmup/Core/Cardio/
+    """Add a movement to the exercise dictionary. `family` groups variants (see
+    get_exercise_library for the list), `default_equipment` is the usual equipment,
+    `aliases` are other spellings that should resolve to this movement. `section` is Warmup/Core/Cardio/
     Stretching — Core+reps feeds weekly volume; PBs include weighted Core entries
     regardless of metric. Cardio always logs rounds+duration and does not feed volume.
     For Core entries, `metric` 'reps' logs weight+reps (feeds volume/aggregate), while
@@ -394,6 +401,9 @@ def add_exercise(
             "sets": sets,
             "reps": reps,
             "notes": notes,
+            "family": family,
+            "default_equipment": default_equipment,
+            "aliases": aliases or [],
         },
     )
 
@@ -409,8 +419,14 @@ def update_exercise(
     sets: int | None = None,
     archived: int | None = None,
     tags: list[str] | None = None,
+    family: str | None = None,
+    default_equipment: str | None = None,
+    aliases: list[str] | None = None,
 ) -> dict:
-    """Edit one dictionary entry — see get_exercise_library for ids. Only the fields
+    """Edit one dictionary entry — see get_exercise_library for ids. `family`,
+    `default_equipment` and `aliases` classify a movement and stay editable on builtin
+    entries; an empty string clears family or equipment, and `aliases` replaces the
+    whole alias set (an empty list clears it). Only the fields
     you pass change; `tags`, when passed, REPLACES the entry's whole tag set (not a
     merge) and is normalised the same way add_exercise's are. A builtin entry accepts
     tag changes but refuses everything else (name/section/metric/reps/notes/sets) with
@@ -437,9 +453,13 @@ def update_exercise(
             ("sets", sets),
             ("archived", archived),
             ("tags", tags),
+            ("aliases", aliases),
         )
         if v is not None
     }
+    for key, value in (("family", family), ("default_equipment", default_equipment)):
+        if value is not None:
+            payload[key] = value or None
     if not payload:
         raise ToolError("update_exercise needs at least one field to change")
     return _patch(f"/api/library/{entry_id}", payload)
@@ -528,9 +548,11 @@ def log_training(
     idempotency_key: str = "",
 ) -> dict:
     """Record a training session with its sets in one write. Each entry is
-    {movement, set_number=1, reps, weight (kg), duration (seconds), note}; `movement` must
-    match an exercise-library name (see get_exercise_library). An unknown movement refuses
-    the whole session and lists the names - add them with add_exercise, then retry.
+    {movement, set_number=1, reps, weight (kg), duration (seconds), equipment, note};
+    `movement` is an exercise-library name or one of its aliases (see
+    get_exercise_library). Set `equipment` only when it differs from the movement's
+    default_equipment, e.g. a dumbbell Hang Snatch. An unknown movement refuses the
+    whole session and lists the names - add them with add_exercise, then retry.
     `notes` keeps the athlete's own words, e.g. the WOD as written. Reuse a non-empty
     idempotency_key when retrying the same write."""
     return _post(

@@ -35,6 +35,7 @@ from app.services.goal_data import (
     update_rep,
 )
 from app.services.library import write_library
+from app.services.movement_vocab import EQUIPMENT, aliases_by_library_id
 from app.services.streak import get_streak, get_week_clean
 from app.services.training_log import TrainingWriteError, create_session, delete_session, update_session
 from app.user_db import close_user_db, open_user_db
@@ -648,8 +649,11 @@ async def api_training_detail(
         placeholders = ",".join("?" * len(session_ids))
         all_entries = await db.execute_fetchall(
             f"SELECT e.session_id, ex.id AS exercise_id, ex.name, ex.section, ex.metric, "
-            f"e.set_number, e.reps, e.weight, e.duration, e.notes "
+            f"e.set_number, e.reps, e.weight, e.duration, e.notes, "
+            f"COALESCE(e.equipment, lib.default_equipment) AS equipment, fam.name AS family "
             f"FROM training_entries e JOIN training_exercises ex ON e.exercise_id = ex.id "
+            f"LEFT JOIN exercise_library lib ON lower(lib.name) = lower(ex.name) "
+            f"LEFT JOIN exercise_families fam ON fam.id = lib.family_id "
             f"WHERE e.session_id IN ({placeholders}) ORDER BY ex.display_order, ex.name, e.set_number",
             session_ids,
         )
@@ -671,6 +675,7 @@ async def api_training_detail(
                     "name": r["name"],
                     "section": r["section"],
                     "metric": r["metric"],
+                    "family": r["family"],
                     "sets": [],
                 }
                 order.append(ex_id)
@@ -680,6 +685,7 @@ async def api_training_detail(
                     "reps": r["reps"],
                     "weight": r["weight"],
                     "duration": r["duration"],
+                    "equipment": r["equipment"],
                     # The metcon result the parser puts on the first entry of a
                     # movement: a finishing time, or rounds plus reps. Nothing
                     # read it, so an LLM asked "how did the WOD go" saw the
@@ -799,6 +805,9 @@ class LibraryCreate(BaseModel):
     notes: str = ""
     metric: str = "reps"
     tags: list[str] = []
+    family: str | None = None
+    default_equipment: str | None = None
+    aliases: list[str] = []
 
 
 class LibraryPatch(BaseModel):
@@ -812,6 +821,9 @@ class LibraryPatch(BaseModel):
     metric: str | None = None
     archived: int | None = None
     tags: list[str] | None = None
+    family: str | None = None
+    default_equipment: str | None = None
+    aliases: list[str] | None = None
 
 
 async def _tags_by_library_id(db, ids: list[int]) -> dict[int, list[str]]:
@@ -838,31 +850,39 @@ async def api_library_list(
 ):
     """The exercise library — the dictionary the WOD parser and the picker draw from.
     ?tag= filters to entries carrying that tag (normalised the same way a write would)."""
-    sql = "SELECT * FROM exercise_library WHERE 1 = 1"
+    sql = (
+        "SELECT l.*, f.name AS family FROM exercise_library l "
+        "LEFT JOIN exercise_families f ON f.id = l.family_id WHERE 1 = 1"
+    )
     params: list = []
     if not include_archived:
-        sql += " AND archived = 0"
+        sql += " AND l.archived = 0"
     if tag:
         try:
             norm_tag = normalize_tag(tag)
         except LibraryWriteError as exc:
             raise HTTPException(status_code=exc.status, detail=exc.message) from exc
-        sql += " AND id IN (SELECT library_id FROM exercise_library_tags WHERE tag = ?)"
+        sql += " AND l.id IN (SELECT library_id FROM exercise_library_tags WHERE tag = ?)"
         params.append(norm_tag)
-    sql += " ORDER BY display_order, name"
+    sql += " ORDER BY l.display_order, l.name"
     rows = await db.execute_fetchall(sql, params)
     entries = [dict(r) for r in rows]
     tags_by_id = await _tags_by_library_id(db, [e["id"] for e in entries])
+    aliases_by_id = await aliases_by_library_id(db, [e["id"] for e in entries])
     for e in entries:
         e["tags"] = tags_by_id.get(e["id"], [])
-    return {"entries": entries}
+        e["aliases"] = aliases_by_id.get(e["id"], [])
+        e.pop("family_id", None)
+    families = await db.execute_fetchall("SELECT name FROM exercise_families ORDER BY display_order")
+    return {"entries": entries, "families": [row["name"] for row in families], "equipment": list(EQUIPMENT)}
 
 
 @router.post("/library", status_code=201)
 async def api_library_create(db: ApiDb, payload: LibraryCreate):
-    fields = payload.model_dump(exclude={"tags"})
+    fields = payload.model_dump(exclude={"tags", "family", "default_equipment", "aliases"})
+    classification = payload.model_dump(include={"family", "default_equipment", "aliases"})
     try:
-        result = await write_library(db, op="create", fields=fields, tags=payload.tags)
+        result = await write_library(db, op="create", fields=fields, tags=payload.tags, classification=classification)
     except LibraryWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
     return {"id": result["id"]}
@@ -870,10 +890,15 @@ async def api_library_create(db: ApiDb, payload: LibraryCreate):
 
 @router.patch("/library/{entry_id}")
 async def api_library_patch(db: ApiDb, entry_id: int, payload: LibraryPatch):
-    fields = payload.model_dump(exclude_none=True)
+    sent = payload.model_dump(exclude_unset=True)
+    # An explicit null clears a classification; the other fields ignore null as before.
+    classification = {key: sent.pop(key) for key in ("family", "default_equipment", "aliases") if key in sent}
+    fields = {key: value for key, value in sent.items() if value is not None}
     tags = fields.pop("tags", None)
     try:
-        return await write_library(db, op="update", entry_id=entry_id, fields=fields, tags=tags)
+        return await write_library(
+            db, op="update", entry_id=entry_id, fields=fields, tags=tags, classification=classification
+        )
     except LibraryWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
@@ -977,7 +1002,8 @@ async def api_add_brick(payload: ApiBrick, db: ApiDb):
 
 
 class ApiTrainingEntry(BaseModel):
-    """One set. `movement` must name an exercise-library entry; `duration` is seconds."""
+    """One set. `movement` is a library name or alias; `duration` is seconds.
+    `equipment` is set only when it differs from the movement's usual one."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -986,6 +1012,7 @@ class ApiTrainingEntry(BaseModel):
     reps: int | None = None
     weight: float | None = None
     duration: float | None = None
+    equipment: str | None = None
     note: str = ""
 
 

@@ -12,6 +12,7 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.job_producers import ActiveWorkloadConflictError
 from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
+from app.services.movement_vocab import EQUIPMENT, valid_equipment
 from app.services.training_log import DURATION_MINUTES_MAX, DURATION_SECONDS_MAX, REPS_MAX, WEIGHT_KG_MAX
 from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements
@@ -19,6 +20,19 @@ from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
 WOD_PARSE_JOB_KIND = "wod_parse"
+
+# Polish labels for the confirm form's equipment picker and for records.
+EQUIPMENT_LABELS = {
+    "barbell": "sztanga",
+    "dumbbell": "hantle",
+    "kettlebell": "kettlebell",
+    "plate": "talerz",
+    "bodyweight": "masa ciała",
+    "ball": "piłka",
+    "band": "guma",
+    "machine": "maszyna",
+    "other": "inne",
+}
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +131,7 @@ def _blank_row(index: int, unmatched_label: str = "") -> dict:
         "reps": "",
         "weight": "",
         "duration": "",
+        "equipment": "",
         "note": "",
         "unmatched_label": unmatched_label,
     }
@@ -148,6 +163,7 @@ def _confirm_rows(parsed: dict, seed_rows: int) -> list[dict]:
                 "reps": _as_input(entry.get("reps")),
                 "weight": _as_input(entry.get("weight")),
                 "duration": _as_input(entry.get("duration")),
+                "equipment": _as_input(entry.get("equipment")),
                 "note": _as_input(entry.get("note")),
                 "unmatched_label": "",
             }
@@ -445,21 +461,27 @@ async def training_page(
     pb_rows = await db.execute_fetchall(
         """SELECT tex.id AS exercise_id, tex.name, tex.metric, tex.display_order,
                   CASE WHEN tex.metric = 'time' THEN CAST(ROUND(te.duration) AS INTEGER) ELSE te.reps END AS effort,
-                  te.weight
+                  te.weight,
+                  CASE WHEN te.equipment IS NOT NULL AND te.equipment IS NOT lib.default_equipment
+                       THEN te.equipment END AS other_equipment
            FROM training_entries te
            JOIN training_sessions ts ON te.session_id = ts.id
            JOIN training_exercises tex ON te.exercise_id = tex.id
+           LEFT JOIN exercise_library lib ON lower(lib.name) = lower(tex.name)
            WHERE ts.date >= ? AND tex.section = 'Core' AND te.weight > 0
            ORDER BY ts.date DESC, te.id DESC LIMIT ?""",
         (twelve_weeks_ago, MAX_PB_SOURCE_ENTRIES + 1),
     )
     personal_bests_overflow = len(pb_rows) > MAX_PB_SOURCE_ENTRIES
-    personal_bests_by_id: dict[int, dict] = {}
+    # A load on other equipment than the movement's usual one is a separate
+    # record: a 12 kg dumbbell hang snatch is not a 12 kg barbell one.
+    personal_bests_by_id: dict[tuple, dict] = {}
     for row in pb_rows[:MAX_PB_SOURCE_ENTRIES]:
+        other = row["other_equipment"]
         pb = personal_bests_by_id.setdefault(
-            row["exercise_id"],
+            (row["exercise_id"], other),
             {
-                "name": row["name"],
+                "name": f"{row['name']} ({EQUIPMENT_LABELS.get(other, other)})" if other else row["name"],
                 "metric": row["metric"],
                 "display_order": row["display_order"],
                 "max_weight": 0,
@@ -814,6 +836,7 @@ async def _render_confirm(
             "parse_error": parsed.get("parse_error", ""),
             "dropped": parsed.get("dropped", 0),
             "movements": movements,
+            "equipment_options": [(value, EQUIPMENT_LABELS[value]) for value in EQUIPMENT],
             "tags": await movement_tags(db),
             "recent": await recent_movements(db),
             "library_error": library_error,
@@ -840,6 +863,7 @@ def _rows_from_form(form, entry_count: int) -> list[dict]:
                 "reps": str(form.get(f"entry_{i}_reps") or ""),
                 "weight": str(form.get(f"entry_{i}_weight") or ""),
                 "duration": str(form.get(f"entry_{i}_duration") or ""),
+                "equipment": (form.get(f"entry_{i}_equipment") or "").strip(),
                 "note": truncate(form.get(f"entry_{i}_note", ""), 200),
                 "unmatched_label": "",
             }
@@ -929,7 +953,7 @@ async def confirm_wod(request: Request):
         )
         return error_redirect(request, f"/training/wod/confirm/{session_id}", message)
 
-    parsed_rows: list[tuple[str, int, int | None, float | None, float | None, str]] = []
+    parsed_rows: list[tuple[str, int, int | None, float | None, float | None, str, str | None]] = []
     try:
         for i in range(entry_count):
             movement = (form.get(f"entry_{i}_movement") or "").strip()
@@ -938,7 +962,12 @@ async def confirm_wod(request: Request):
             weight = _confirm_float(form.get(f"entry_{i}_weight"), 0, WEIGHT_KG_MAX, "ciężar", i)
             duration = _confirm_float(form.get(f"entry_{i}_duration"), 0, DURATION_SECONDS_MAX, "czas", i)
             note = truncate(form.get(f"entry_{i}_note", ""), 200)
-            parsed_rows.append((movement, set_number if set_number is not None else 1, reps, weight, duration, note))
+            equipment = (form.get(f"entry_{i}_equipment") or "").strip() or None
+            if not valid_equipment(equipment):
+                raise _ConfirmRejected(f"wpis {i + 1}: nieznany sprzęt „{equipment}”")
+            parsed_rows.append(
+                (movement, set_number if set_number is not None else 1, reps, weight, duration, note, equipment)
+            )
     except _ConfirmRejected as exc:
         logger.warning("WOD confirm rejected for session %s: %s", session_id, exc)
         date_rows = await db.execute_fetchall("SELECT date FROM training_sessions WHERE id = ?", (session_id,))
@@ -969,7 +998,7 @@ async def confirm_wod(request: Request):
 
     rows: list[tuple] = []
     skipped: list[str] = []
-    for movement, set_number, reps, weight, duration, note in parsed_rows:
+    for movement, set_number, reps, weight, duration, note, equipment in parsed_rows:
         exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
             # A blank movement is the deliberate skip ("- pomiń", I4) and needs
@@ -979,7 +1008,7 @@ async def confirm_wod(request: Request):
             if movement:
                 skipped.append(movement)
             continue
-        rows.append((session_id, exercise_id, set_number, reps, weight, duration, note))
+        rows.append((session_id, exercise_id, set_number, reps, weight, duration, note, equipment))
 
     if not rows:
         # Nothing resolved, so the consume above took the parse from a session
@@ -1021,8 +1050,8 @@ async def confirm_wod(request: Request):
         )
 
     await db.executemany(
-        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes, equipment) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         rows,
     )
     await db.commit()

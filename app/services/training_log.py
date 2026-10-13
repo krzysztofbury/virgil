@@ -5,12 +5,13 @@ entries for review. An API client (an agent that already talked the workout
 through with the user) sends the entries itself, so the session and its sets
 are written in one transaction with no parse step.
 
-Every named movement must resolve through the exercise library, exactly like
-the confirm screen. Unlike that screen, an unknown name refuses the whole write
+Every named movement must resolve through the exercise library or its
+aliases, exactly like the confirm screen. Unlike that screen, an unknown name refuses the whole write
 and reports the names: an agent can add them to the library and retry, while a
 silently dropped set would be lost history.
 """
 
+from app.services.movement_vocab import EQUIPMENT, valid_equipment
 from app.services.wod_movements import resolve_movement
 
 # Server-side sanity bounds, shared with the form routes.
@@ -53,19 +54,22 @@ def _validate_entries(entries: list[dict]) -> list[tuple]:
         weight = _check_range(entry.get("weight"), 0, WEIGHT_KG_MAX, "weight", i)
         duration = _check_range(entry.get("duration"), 0, DURATION_SECONDS_MAX, "duration", i)
         note = (entry.get("note") or "")[:ENTRY_NOTE_MAX]
-        rows.append((movement, set_number, reps, weight, duration, note))
+        equipment = entry.get("equipment") or None
+        if not valid_equipment(equipment):
+            raise TrainingWriteError(422, f"entries[{i}].equipment must be one of: {', '.join(EQUIPMENT)}")
+        rows.append((movement, set_number, reps, weight, duration, note, equipment))
     return rows
 
 
 async def _write_entries(db, session_id: int, rows: list[tuple]) -> int:
     resolved = []
     unknown = []
-    for movement, set_number, reps, weight, duration, note in rows:
+    for movement, set_number, reps, weight, duration, note, equipment in rows:
         exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
             unknown.append(movement)
             continue
-        resolved.append((session_id, exercise_id, set_number, reps, weight, duration, note))
+        resolved.append((session_id, exercise_id, set_number, reps, weight, duration, note, equipment))
     if unknown:
         names = sorted(set(unknown))
         raise TrainingWriteError(
@@ -74,8 +78,8 @@ async def _write_entries(db, session_id: int, rows: list[tuple]) -> int:
             unknown_movements=names,
         )
     await db.executemany(
-        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes) "
-        "VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration, notes, equipment) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
         resolved,
     )
     return len(resolved)
@@ -184,7 +188,7 @@ async def session_summary(db, session_id: int) -> dict:
         "SELECT id, date, duration_minutes, notes FROM training_sessions WHERE id = ?", (session_id,)
     )
     entries = await db.execute_fetchall(
-        "SELECT ex.name AS movement, e.set_number, e.reps, e.weight, e.duration, e.notes AS note "
+        "SELECT ex.name AS movement, e.set_number, e.reps, e.weight, e.duration, e.equipment, e.notes AS note "
         "FROM training_entries e JOIN training_exercises ex ON ex.id = e.exercise_id "
         "WHERE e.session_id = ? ORDER BY e.id",
         (session_id,),
