@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- REST and MCP writes for a day check-in: the daily log with A.N.D.Y. as a
+  partial merge (`log_daily`), Feniks day logs and bricks behind the sensitive
+  scope (`log_feniks_day`, `add_brick`), and structured training sessions with
+  their sets (`log_training`, `update_training`, `delete_training`).
+
+### Changed
+- Daily-log and Feniks forms share their persistence with REST, so both paths
+  validate and write the same way.
+
+### Fixed
+- MCP tools now return the API's error detail to the client. The SDK hid the
+  text of every failure, so a refused write read only "Error executing tool".
+
 ## [0.7.0] - 2026-10-11
 
 ### Fixed

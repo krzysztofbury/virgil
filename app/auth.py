@@ -51,6 +51,11 @@ PUBLIC_PATHS = frozenset(
         # Inventory entry only (tests assert every API route is enumerated here);
         # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
         "/api/library/{entry_id}",
+        "/api/feniks/bricks",
+        "/api/training/sessions",
+        "/api/daily/{day}",
+        "/api/feniks/daily/{day}",
+        "/api/training/sessions/{session_id}",
     }
 )
 # /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
@@ -72,6 +77,10 @@ PUBLIC_PATTERNS = (
     re.compile(r"^/api/goals/[0-9]+\Z"),
     re.compile(r"^/api/goal-reps/[0-9]+\Z"),
     re.compile(r"^/api/goal-reps/[0-9]+/transition\Z"),
+    re.compile(r"^/api/training/sessions/[0-9]+\Z"),
+    # One ISO calendar date; the route rejects anything that does not parse.
+    re.compile(r"^/api/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
 )
 
 BCRYPT_ROUNDS = 12

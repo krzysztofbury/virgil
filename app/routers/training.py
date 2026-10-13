@@ -12,6 +12,7 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.job_producers import ActiveWorkloadConflictError
 from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
+from app.services.training_log import DURATION_MINUTES_MAX, DURATION_SECONDS_MAX, REPS_MAX, WEIGHT_KG_MAX
 from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements
 from app.user_db import get_user_db_from_request
@@ -23,11 +24,6 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-# Server-side sanity bounds — the client can send anything.
-REPS_MAX = 1000
-WEIGHT_KG_MAX = 1000.0
-DURATION_MINUTES_MAX = 1440.0
-DURATION_SECONDS_MAX = 86400.0
 
 # Rows one confirm submission may carry. Exceeding it rejects the WHOLE
 # submission (see the entry_count check in confirm_wod), so the confirm template

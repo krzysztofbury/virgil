@@ -191,9 +191,9 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
-| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, and exercise-library writes (empty = API disabled) |
+| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, and training writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) over the API key |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) and Feniks day-log and brick writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
 Port is always **8123**.
@@ -372,6 +372,18 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 - Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`; exercise
   dictionary CRUD via `get_exercise_library`, `add_exercise`, `update_exercise`, `delete_exercise`
   → `GET/POST /api/library`, `PATCH/DELETE /api/library/{id}`
+- Day check-in via MCP/REST, for an agent that talks the day through instead of
+  opening the forms:
+  - `log_daily` → `PUT /api/daily/{date}` merges only the supplied fields: energy,
+    routines, and the four A.N.D.Y. statuses and descriptions
+  - `log_feniks_day` → `PUT /api/feniks/daily/{date}` and `add_brick` →
+    `POST /api/feniks/bricks` keep the form's contract (watched means at least
+    5 minutes; the relapse marker follows the outcome). Both require
+    `VIRGIL_API_SENSITIVE=true`
+  - `log_training` → `POST /api/training/sessions` writes a session and all its
+    sets in one transaction; an unknown movement refuses the write and lists the
+    names. `update_training` / `delete_training` → `PATCH/DELETE
+    /api/training/sessions/{id}`; sending `entries` replaces every set
 
 ### Settings (`/settings`)
 Six-tab settings page:

@@ -8,8 +8,9 @@
 """Virgil MCP server — thin stdio wrapper over the Virgil REST API.
 
 Exposes Virgil data (daily habits, Oura, streaks, experiments, training)
-to MCP clients (Claude Code, OpenClaw). No local DB access — everything
-goes through the authenticated REST API, so it works from any machine.
+and its writes (goals, daily log and A.N.D.Y., Feniks, training) to MCP
+clients (Claude Code, OpenClaw). No local DB access — everything goes
+through the authenticated REST API, so it works from any machine.
 
 Config (env):
     VIRGIL_API_URL          — base URL, e.g. https://virgil.example.com (required)
@@ -31,6 +32,7 @@ import os
 
 import httpx
 from mcp.server import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 
 API_URL = os.environ.get("VIRGIL_API_URL", "").rstrip("/")
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
@@ -42,7 +44,7 @@ mcp = MCPServer("virgil")
 
 def _headers() -> dict:
     if not API_URL or not API_KEY:
-        raise RuntimeError("Set VIRGIL_API_URL and VIRGIL_API_KEY environment variables")
+        raise ToolError("Set VIRGIL_API_URL and VIRGIL_API_KEY environment variables")
     headers = {"X-API-Key": API_KEY}
     if CF_ID and CF_SECRET:  # Cloudflare Access gate in front of the app
         headers["CF-Access-Client-Id"] = CF_ID
@@ -52,13 +54,14 @@ def _headers() -> dict:
 
 def _check(resp: httpx.Response) -> None:
     """Surface the API's `detail` — a bare '409 Conflict' cannot tell a builtin
-    refusal from a name collision, which is the whole point of the API refusing loudly."""
+    refusal from a name collision, which is the whole point of the API refusing loudly.
+    Raised as ToolError because the SDK hides the text of any other exception from the client."""
     if resp.is_error:
         try:
             detail = resp.json().get("detail")
         except Exception:
             detail = None
-        raise RuntimeError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
+        raise ToolError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
 
 
 def _get(path: str, params: dict | None = None) -> dict:
@@ -75,6 +78,12 @@ def _post(path: str, payload: dict) -> dict:
 
 def _patch(path: str, payload: dict) -> dict:
     resp = httpx.patch(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
+    _check(resp)
+    return resp.json()
+
+
+def _put(path: str, payload: dict) -> dict:
+    resp = httpx.put(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
     _check(resp)
     return resp.json()
 
@@ -186,7 +195,7 @@ def update_goal(
     """Update only the supplied goal fields. Pass an empty start_date/end_date to clear that boundary,
     or clear_parent=true to remove the parent link."""
     if clear_parent and parent_goal_id is not None:
-        raise ValueError("parent_goal_id and clear_parent cannot be used together")
+        raise ToolError("parent_goal_id and clear_parent cannot be used together")
     payload = {
         key: value
         for key, value in (
@@ -204,7 +213,7 @@ def update_goal(
     if clear_parent:
         payload["parent_goal_id"] = None
     if not payload:
-        raise ValueError("update_goal needs at least one field to change")
+        raise ToolError("update_goal needs at least one field to change")
     return _patch(f"/api/goals/{goal_id}", payload)
 
 
@@ -273,7 +282,7 @@ def update_goal_rep(
         if value is not None
     }
     if not payload:
-        raise ValueError("update_goal_rep needs at least one field to change")
+        raise ToolError("update_goal_rep needs at least one field to change")
     return _patch(f"/api/goal-reps/{rep_id}", payload)
 
 
@@ -432,7 +441,7 @@ def update_exercise(
         if v is not None
     }
     if not payload:
-        raise ValueError("update_exercise needs at least one field to change")
+        raise ToolError("update_exercise needs at least one field to change")
     return _patch(f"/api/library/{entry_id}", payload)
 
 
@@ -442,6 +451,121 @@ def delete_exercise(entry_id: int) -> dict:
     archive them instead. Deleting a movement tagged 'crossfit' narrows what the WOD
     parser is allowed to recognise. Deleting does NOT touch logged training history."""
     return _delete(f"/api/library/{entry_id}")
+
+
+@mcp.tool()
+def log_daily(
+    date: str,
+    energy: int | None = None,
+    morning_routine: str | None = None,
+    evening_routine: str | None = None,
+    water: str | None = None,
+    andy_body_status: str | None = None,
+    andy_body_desc: str | None = None,
+    andy_spirit_status: str | None = None,
+    andy_spirit_desc: str | None = None,
+    andy_account_status: str | None = None,
+    andy_account_desc: str | None = None,
+    andy_relations_status: str | None = None,
+    andy_relations_desc: str | None = None,
+    notes: str | None = None,
+    clear_energy: bool = False,
+) -> dict:
+    """Write one day of the daily log (YYYY-MM-DD): energy 1-10, the routines and the four
+    A.N.D.Y. tasks (body/spirit/account/relations), each a done/skipped/pending status plus
+    a short description. Only the supplied fields change; the rest of the day keeps its
+    stored value, so planning today's A.N.D.Y. and later ticking it off are separate calls.
+    clear_energy=true removes a recorded energy value."""
+    if clear_energy and energy is not None:
+        raise ToolError("energy and clear_energy cannot be used together")
+    fields = {
+        "energy": energy,
+        "morning_routine": morning_routine,
+        "evening_routine": evening_routine,
+        "water": water,
+        "andy_body_status": andy_body_status,
+        "andy_body_desc": andy_body_desc,
+        "andy_spirit_status": andy_spirit_status,
+        "andy_spirit_desc": andy_spirit_desc,
+        "andy_account_status": andy_account_status,
+        "andy_account_desc": andy_account_desc,
+        "andy_relations_status": andy_relations_status,
+        "andy_relations_desc": andy_relations_desc,
+        "notes": notes,
+    }
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if clear_energy:
+        payload["energy"] = None
+    if not payload:
+        raise ToolError("log_daily needs at least one field to change")
+    return _put(f"/api/daily/{date}", payload)
+
+
+@mcp.tool()
+def log_feniks_day(date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "") -> dict:
+    """Record one Feniks day (YYYY-MM-DD, today or earlier), replacing that day's entry.
+    used=true means watched, which needs at least 5 total minutes; a shorter exposure is
+    recorded as used=false with the detail in `note`. A watched day also marks a relapse
+    for the streak; correcting it to clean removes only that marker.
+    Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    return _put(f"/api/feniks/daily/{date}", {"used": used, "minutes": minutes, "edging": edging, "note": note})
+
+
+@mcp.tool()
+def add_brick(date: str, hook: str, craving: int | None = None, story: str = "") -> dict:
+    """Add a Feniks brick: one urge survived. `hook` is the short memorable name (required),
+    `craving` 0-10, `story` what happened. Date YYYY-MM-DD, today or earlier.
+    Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    return _post("/api/feniks/bricks", {"date": date, "hook": hook, "craving": craving, "story": story})
+
+
+@mcp.tool()
+def log_training(
+    date: str,
+    entries: list[dict] | None = None,
+    duration_minutes: int | None = None,
+    notes: str = "",
+    idempotency_key: str = "",
+) -> dict:
+    """Record a training session with its sets in one write. Each entry is
+    {movement, set_number=1, reps, weight (kg), duration (seconds), note}; `movement` must
+    match an exercise-library name (see get_exercise_library). An unknown movement refuses
+    the whole session and lists the names - add them with add_exercise, then retry.
+    `notes` keeps the athlete's own words, e.g. the WOD as written. Reuse a non-empty
+    idempotency_key when retrying the same write."""
+    return _post(
+        "/api/training/sessions",
+        {
+            "date": date,
+            "entries": entries or [],
+            "duration_minutes": duration_minutes,
+            "notes": notes,
+            "idempotency_key": idempotency_key or None,
+        },
+    )
+
+
+@mcp.tool()
+def update_training(
+    session_id: int,
+    date: str | None = None,
+    duration_minutes: int | None = None,
+    notes: str | None = None,
+    entries: list[dict] | None = None,
+) -> dict:
+    """Edit a training session (ids from get_training). Only the supplied fields change;
+    `entries`, when given, replaces every set of the session (same shape as log_training)."""
+    fields = {"date": date, "duration_minutes": duration_minutes, "notes": notes, "entries": entries}
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("update_training needs at least one field to change")
+    return _patch(f"/api/training/sessions/{session_id}", payload)
+
+
+@mcp.tool()
+def delete_training(session_id: int) -> dict:
+    """Delete a training session and its sets permanently."""
+    return _delete(f"/api/training/sessions/{session_id}")
 
 
 if __name__ == "__main__":

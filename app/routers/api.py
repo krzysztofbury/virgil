@@ -3,7 +3,8 @@
 Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
-Writes cover canonical goals/reps, experiment logging, and exercise-library CRUD.
+Writes cover canonical goals/reps, experiment logging, exercise-library CRUD,
+the daily log (habits and A.N.D.Y.), Feniks day logs and bricks, and training sessions.
 """
 
 import hmac
@@ -18,7 +19,9 @@ from pydantic import BaseModel, ConfigDict
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
 from app.library_validation import LibraryWriteError, normalize_tag
+from app.services.daily_log import DailyLogError, upsert_daily_log
 from app.services.experiment_weeks import experiment_calendar, experiment_week_number
+from app.services.feniks_log import FeniksWriteError, add_brick, save_day
 from app.services.goal_data import (
     GOAL_STATUSES,
     REP_STATUSES,
@@ -33,6 +36,7 @@ from app.services.goal_data import (
 )
 from app.services.library import write_library
 from app.services.streak import get_streak, get_week_clean
+from app.services.training_log import TrainingWriteError, create_session, delete_session, update_session
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
 
@@ -880,3 +884,174 @@ async def api_library_delete(db: ApiDb, entry_id: int):
         await write_library(db, op="delete", entry_id=entry_id)
     except LibraryWriteError as exc:
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
+
+
+# --- Daily log, Feniks and training writes -------------------------------------
+# A morning check-in agent records yesterday's day without opening the forms.
+
+
+def _iso_day(value: str) -> str:
+    try:
+        return date.fromisoformat(value).isoformat()
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="date must be an ISO date (YYYY-MM-DD)") from exc
+
+
+def _require_sensitive() -> None:
+    from app import config
+
+    if not config.API_SENSITIVE:
+        raise HTTPException(
+            status_code=403,
+            detail="Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to write Feniks data)",
+        )
+
+
+class ApiDailyPatch(BaseModel):
+    """Only the fields sent are changed; the rest of the day keeps its value."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    energy: int | None = None
+    morning_routine: str | None = None
+    evening_routine: str | None = None
+    water: str | None = None
+    andy_body_status: str | None = None
+    andy_body_desc: str | None = None
+    andy_spirit_status: str | None = None
+    andy_spirit_desc: str | None = None
+    andy_account_status: str | None = None
+    andy_account_desc: str | None = None
+    andy_relations_status: str | None = None
+    andy_relations_desc: str | None = None
+    notes: str | None = None
+
+
+@router.put("/daily/{day}")
+async def api_put_daily(day: str, payload: ApiDailyPatch, db: ApiDb):
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one daily-log field")
+    try:
+        return await upsert_daily_log(db, _iso_day(day), changes)
+    except DailyLogError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class ApiFeniksDay(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    used: bool
+    minutes: int | None = None
+    edging: bool = False
+    note: str = ""
+
+
+class ApiBrick(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    hook: str
+    craving: int | None = None
+    story: str = ""
+
+
+@router.put("/feniks/daily/{day}")
+async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb):
+    _require_sensitive()
+    try:
+        return await save_day(
+            db, day, used=payload.used, minutes=payload.minutes, edging=payload.edging, note=payload.note
+        )
+    except FeniksWriteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.post("/feniks/bricks", status_code=201)
+async def api_add_brick(payload: ApiBrick, db: ApiDb):
+    _require_sensitive()
+    try:
+        return await add_brick(db, payload.date, hook=payload.hook, craving=payload.craving, story=payload.story)
+    except FeniksWriteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class ApiTrainingEntry(BaseModel):
+    """One set. `movement` must name an exercise-library entry; `duration` is seconds."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    movement: str
+    set_number: int = 1
+    reps: int | None = None
+    weight: float | None = None
+    duration: float | None = None
+    note: str = ""
+
+
+class ApiTrainingCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str
+    duration_minutes: int | None = None
+    notes: str = ""
+    entries: list[ApiTrainingEntry] = []
+    idempotency_key: str | None = None
+
+
+class ApiTrainingPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str | None = None
+    duration_minutes: int | None = None
+    notes: str | None = None
+    entries: list[ApiTrainingEntry] | None = None
+
+
+def _training_error(exc: TrainingWriteError) -> HTTPException:
+    if exc.unknown_movements:
+        return HTTPException(
+            status_code=exc.status, detail={"message": str(exc), "unknown_movements": exc.unknown_movements}
+        )
+    return HTTPException(status_code=exc.status, detail=str(exc))
+
+
+@router.post("/training/sessions")
+async def api_create_training(payload: ApiTrainingCreate, db: ApiDb):
+    try:
+        session, created = await create_session(
+            db,
+            day=_iso_day(payload.date),
+            duration_minutes=payload.duration_minutes,
+            notes=payload.notes,
+            entries=[entry.model_dump() for entry in payload.entries],
+            idempotency_key=truncate(payload.idempotency_key or "", 64) or None,
+        )
+    except TrainingWriteError as exc:
+        raise _training_error(exc) from exc
+    session["created"] = created
+    return session
+
+
+@router.patch("/training/sessions/{session_id}")
+async def api_update_training(session_id: int, payload: ApiTrainingPatch, db: ApiDb):
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one session field")
+    if "date" in changes:
+        if changes["date"] is None:
+            raise HTTPException(status_code=422, detail="date cannot be null")
+        changes["date"] = _iso_day(changes["date"])
+    try:
+        return await update_session(db, session_id, changes)
+    except TrainingWriteError as exc:
+        raise _training_error(exc) from exc
+
+
+@router.delete("/training/sessions/{session_id}")
+async def api_delete_training(session_id: int, db: ApiDb):
+    try:
+        await delete_session(db, session_id)
+    except TrainingWriteError as exc:
+        raise _training_error(exc) from exc
+    return {"deleted": True, "session_id": session_id}
