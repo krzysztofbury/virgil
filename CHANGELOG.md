@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- REST and MCP complete CRUD for the daily log (read and delete one day),
+  Feniks (delete a day, edit and delete bricks, edit the module config),
+  training sessions (read one) and body measurements (list, merge, delete).
 - REST and MCP writes for a day check-in: the daily log with A.N.D.Y. as a
   partial merge (`log_daily`), Feniks day logs and bricks behind the sensitive
   scope (`log_feniks_day`, `add_brick`), and structured training sessions with
@@ -20,6 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Brick edits and body measurements share their persistence with REST. The
+  measurement form refuses values outside plausible bounds instead of storing
+  them.
 - Duplicate movements are merged with their history: Kettlebell Swing into
   KB Swing, Shoulder Press into Overhead Press, Halo (KB) into KB Halo. The old
   names remain as aliases.

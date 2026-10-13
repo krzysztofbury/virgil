@@ -191,9 +191,9 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
-| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, and training writes (empty = API disabled) |
+| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) and Feniks day-log and brick writes over the API key |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) and Feniks day-log, brick and config writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
 Port is always **8123**.
@@ -385,6 +385,16 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
     sets in one transaction; an unknown movement refuses the write and lists the
     names. `update_training` / `delete_training` → `PATCH/DELETE
     /api/training/sessions/{id}`; sending `entries` replaces every set
+- Completing CRUD for the same records:
+  - `get_daily` / `delete_daily` → `GET/DELETE /api/daily/{date}`
+  - `delete_feniks_day` → `DELETE /api/feniks/daily/{date}`, `update_brick` /
+    `delete_brick` → `PATCH/DELETE /api/feniks/bricks/{id}`, and
+    `update_feniks_config` → `PATCH /api/feniks/config` (start date, target
+    days, big why), all behind `VIRGIL_API_SENSITIVE=true`
+  - `get_training_session` → `GET /api/training/sessions/{id}`
+  - `get_measurements`, `log_measurements`, `delete_measurements` →
+    `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
+    same bounds the daily form now applies
 
 ### Settings (`/settings`)
 Six-tab settings page:

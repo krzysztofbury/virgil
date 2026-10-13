@@ -6,10 +6,19 @@ from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
-from app.services.feniks_log import FeniksWriteError, add_brick, past_or_today, save_day
+from app.services.feniks_log import (
+    FeniksWriteError,
+    add_brick,
+    past_or_today,
+    save_day,
+    update_brick,
+)
+from app.services.feniks_log import (
+    delete_brick as remove_brick,
+)
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import get_user_db_from_request
-from app.validation import OptionalFormInt, clamp, truncate
+from app.validation import OptionalFormInt
 
 logger = logging.getLogger(__name__)
 
@@ -167,29 +176,22 @@ async def edit_brick(
     story: str = Form(""),
     craving: OptionalFormInt = None,
 ):
-    entry_date = past_or_today(date)
-    if entry_date is None:
-        return error_redirect(request, "/feniks", "Give the brick a date of today or earlier.")
-    if not hook.strip():
-        return error_redirect(request, f"/feniks?date={entry_date}", "Name the brick before saving it.")
     db = get_user_db_from_request(request)
-    cursor = await db.execute(
-        "UPDATE feniks_bricks SET date = ?, hook = ?, craving = ?, story = ? WHERE id = ?",
-        (entry_date, truncate(hook.strip(), 200), clamp(craving, 0, 10), truncate(story, 2000), brick_id),
-    )
-    await db.commit()
-    if cursor.rowcount == 0:
-        return error_redirect(request, f"/feniks?date={entry_date}", "Brick was not found.")
-    return success_redirect(request, f"/feniks?date={entry_date}", "Brick updated.")
+    try:
+        brick = await update_brick(db, brick_id, {"date": date, "hook": hook, "craving": craving, "story": story})
+    except FeniksWriteError as exc:
+        entry_date = past_or_today(date)
+        return error_redirect(request, f"/feniks?date={entry_date}" if entry_date else "/feniks", str(exc))
+    except LookupError as exc:
+        return error_redirect(request, "/feniks", str(exc))
+    return success_redirect(request, f"/feniks?date={brick['date']}", "Brick updated.")
 
 
 @router.post("/feniks/bricks/{brick_id}/delete")
 async def delete_brick(request: Request, brick_id: int):
     db = get_user_db_from_request(request)
-    rows = await db.execute_fetchall("SELECT date FROM feniks_bricks WHERE id = ?", (brick_id,))
-    if not rows:
-        return error_redirect(request, "/feniks", "Brick was not found.")
-    entry_date = rows[0]["date"]
-    await db.execute("DELETE FROM feniks_bricks WHERE id = ?", (brick_id,))
-    await db.commit()
+    try:
+        entry_date = await remove_brick(db, brick_id)
+    except LookupError as exc:
+        return error_redirect(request, "/feniks", str(exc))
     return success_redirect(request, f"/feniks?date={entry_date}", "Brick removed from your history.")

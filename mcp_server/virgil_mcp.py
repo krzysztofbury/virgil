@@ -590,5 +590,99 @@ def delete_training(session_id: int) -> dict:
     return _delete(f"/api/training/sessions/{session_id}")
 
 
+@mcp.tool()
+def get_daily(date: str) -> dict:
+    """One day of the daily log (YYYY-MM-DD): energy, routines, the four A.N.D.Y. tasks and
+    notes. A day without an entry returns an error, not an empty log."""
+    return _get(f"/api/daily/{date}")
+
+
+@mcp.tool()
+def delete_daily(date: str) -> dict:
+    """Delete one day of the daily log (YYYY-MM-DD) permanently."""
+    return _delete(f"/api/daily/{date}")
+
+
+@mcp.tool()
+def delete_feniks_day(date: str) -> dict:
+    """Delete one Feniks day entry and the relapse marker it created; relapses recorded
+    another way stay. Requires the server's sensitive scope."""
+    return _delete(f"/api/feniks/daily/{date}")
+
+
+@mcp.tool()
+def update_brick(
+    brick_id: int,
+    date: str | None = None,
+    hook: str | None = None,
+    craving: int | None = None,
+    story: str | None = None,
+) -> dict:
+    """Edit a Feniks brick (ids from get_noporn). Only the supplied fields change; the
+    hook cannot become blank. Requires the server's sensitive scope."""
+    fields = {"date": date, "hook": hook, "craving": craving, "story": story}
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("update_brick needs at least one field to change")
+    return _patch(f"/api/feniks/bricks/{brick_id}", payload)
+
+
+@mcp.tool()
+def delete_brick(brick_id: int) -> dict:
+    """Delete a Feniks brick permanently. Requires the server's sensitive scope."""
+    return _delete(f"/api/feniks/bricks/{brick_id}")
+
+
+@mcp.tool()
+def update_feniks_config(
+    start_date: str | None = None, target_days: int | None = None, big_why: str | None = None
+) -> dict:
+    """Change the Feniks module settings: `start_date` (YYYY-MM-DD, today or earlier),
+    `target_days` (1-3650) and `big_why`. Requires the server's sensitive scope."""
+    fields = {"start_date": start_date, "target_days": target_days, "big_why": big_why}
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("update_feniks_config needs at least one field to change")
+    return _patch("/api/feniks/config", payload)
+
+
+@mcp.tool()
+def get_training_session(session_id: int) -> dict:
+    """One training session with every set (movement, set number, reps, weight, duration,
+    equipment, note)."""
+    return _get(f"/api/training/sessions/{session_id}")
+
+
+@mcp.tool()
+def get_measurements(days: int = 90) -> dict:
+    """Body measurements of the last N days (1-3650): weight in kg; arm, waist, hips and
+    thighs in cm."""
+    return _get("/api/measurements", params={"range": days})
+
+
+@mcp.tool()
+def log_measurements(
+    date: str,
+    weight: float | None = None,
+    arm: float | None = None,
+    waist: float | None = None,
+    hips: float | None = None,
+    thighs: float | None = None,
+) -> dict:
+    """Record body measurements for one date (YYYY-MM-DD): weight in kg, circumferences in
+    cm. Only the supplied fields change; the rest of that date keeps its values."""
+    fields = {"weight": weight, "arm": arm, "waist": waist, "hips": hips, "thighs": thighs}
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("log_measurements needs at least one measurement")
+    return _put(f"/api/measurements/{date}", payload)
+
+
+@mcp.tool()
+def delete_measurements(date: str) -> dict:
+    """Delete the body measurements of one date permanently."""
+    return _delete(f"/api/measurements/{date}")
+
+
 if __name__ == "__main__":
     mcp.run()

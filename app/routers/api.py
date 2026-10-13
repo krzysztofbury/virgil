@@ -4,7 +4,8 @@ Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
 Writes cover canonical goals/reps, experiment logging, exercise-library CRUD,
-the daily log (habits and A.N.D.Y.), Feniks day logs and bricks, and training sessions.
+the daily log (habits and A.N.D.Y.), Feniks day logs, bricks and config, training
+sessions and body measurements.
 """
 
 import hmac
@@ -19,9 +20,17 @@ from pydantic import BaseModel, ConfigDict
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
 from app.library_validation import LibraryWriteError, normalize_tag
-from app.services.daily_log import DailyLogError, upsert_daily_log
+from app.services.daily_log import DailyLogError, delete_daily_log, get_daily_log, upsert_daily_log
 from app.services.experiment_weeks import experiment_calendar, experiment_week_number
-from app.services.feniks_log import FeniksWriteError, add_brick, save_day
+from app.services.feniks_log import (
+    FeniksWriteError,
+    add_brick,
+    delete_brick,
+    save_day,
+    update_brick,
+)
+from app.services.feniks_log import delete_day as delete_feniks_day
+from app.services.feniks_log import update_config as update_feniks_config
 from app.services.goal_data import (
     GOAL_STATUSES,
     REP_STATUSES,
@@ -35,9 +44,16 @@ from app.services.goal_data import (
     update_rep,
 )
 from app.services.library import write_library
+from app.services.measurements import MeasurementError, delete_measurements, list_measurements, upsert_measurements
 from app.services.movement_vocab import EQUIPMENT, aliases_by_library_id
 from app.services.streak import get_streak, get_week_clean
-from app.services.training_log import TrainingWriteError, create_session, delete_session, update_session
+from app.services.training_log import (
+    TrainingWriteError,
+    create_session,
+    delete_session,
+    session_summary,
+    update_session,
+)
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
 
@@ -1082,3 +1098,128 @@ async def api_delete_training(session_id: int, db: ApiDb):
     except TrainingWriteError as exc:
         raise _training_error(exc) from exc
     return {"deleted": True, "session_id": session_id}
+
+
+# --- Remaining reads and deletes for the same records -------------------------
+
+
+@router.get("/daily/{day}")
+async def api_get_daily(day: str, db: ApiDb):
+    log = await get_daily_log(db, _iso_day(day))
+    if log is None:
+        raise HTTPException(status_code=404, detail="No daily log for that date")
+    return log
+
+
+@router.delete("/daily/{day}")
+async def api_delete_daily(day: str, db: ApiDb):
+    if not await delete_daily_log(db, _iso_day(day)):
+        raise HTTPException(status_code=404, detail="No daily log for that date")
+    return {"deleted": True, "date": _iso_day(day)}
+
+
+@router.delete("/feniks/daily/{day}")
+async def api_delete_feniks_day(day: str, db: ApiDb):
+    _require_sensitive()
+    try:
+        await delete_feniks_day(db, _iso_day(day))
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"deleted": True, "date": _iso_day(day)}
+
+
+class ApiBrickPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    date: str | None = None
+    hook: str | None = None
+    craving: int | None = None
+    story: str | None = None
+
+
+@router.patch("/feniks/bricks/{brick_id}")
+async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: ApiDb):
+    _require_sensitive()
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one brick field")
+    try:
+        return await update_brick(db, brick_id, changes)
+    except FeniksWriteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/feniks/bricks/{brick_id}")
+async def api_delete_brick(brick_id: int, db: ApiDb):
+    _require_sensitive()
+    try:
+        await delete_brick(db, brick_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return {"deleted": True, "brick_id": brick_id}
+
+
+class ApiFeniksConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    start_date: str | None = None
+    target_days: int | None = None
+    big_why: str | None = None
+
+
+@router.patch("/feniks/config")
+async def api_update_feniks_config(payload: ApiFeniksConfig, db: ApiDb):
+    _require_sensitive()
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one config field")
+    try:
+        return await update_feniks_config(db, changes)
+    except FeniksWriteError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.get("/training/sessions/{session_id}")
+async def api_get_training(session_id: int, db: ApiDb):
+    rows = await db.execute_fetchall("SELECT 1 FROM training_sessions WHERE id = ?", (session_id,))
+    if not rows:
+        raise HTTPException(status_code=404, detail="Training session not found")
+    return await session_summary(db, session_id)
+
+
+class ApiMeasurements(BaseModel):
+    """Weight in kg, circumferences in cm. Only the fields sent change; null clears one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    weight: float | None = None
+    arm: float | None = None
+    waist: float | None = None
+    hips: float | None = None
+    thighs: float | None = None
+
+
+@router.get("/measurements")
+async def api_measurements(db: ApiDb, days: int = Query(90, ge=1, le=3650, alias="range")):
+    since = (date.today() - timedelta(days=days - 1)).isoformat()
+    return {"range_days": days, "since": since, "measurements": await list_measurements(db, since)}
+
+
+@router.put("/measurements/{day}")
+async def api_put_measurements(day: str, payload: ApiMeasurements, db: ApiDb):
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one measurement")
+    try:
+        return await upsert_measurements(db, _iso_day(day), changes)
+    except MeasurementError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.delete("/measurements/{day}")
+async def api_delete_measurements(day: str, db: ApiDb):
+    if not await delete_measurements(db, _iso_day(day)):
+        raise HTTPException(status_code=404, detail="No measurements for that date")
+    return {"deleted": True, "date": _iso_day(day)}
