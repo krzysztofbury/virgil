@@ -26,7 +26,9 @@ CSRF_EXEMPT_PATHS = frozenset(
         "/api/goals",
         "/api/goal-reps",
         "/api/feniks/bricks",
+        "/api/feniks/config",
         "/api/training/sessions",
+        "/api/measurements",
     }
 )
 # Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.
@@ -44,6 +46,8 @@ CSRF_EXEMPT_PATTERNS = (
     re.compile(r"^/api/training/sessions/[0-9]+\Z"),
     re.compile(r"^/api/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
     re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
+    re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
 )
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB

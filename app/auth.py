@@ -56,6 +56,10 @@ PUBLIC_PATHS = frozenset(
         "/api/daily/{day}",
         "/api/feniks/daily/{day}",
         "/api/training/sessions/{session_id}",
+        "/api/feniks/config",
+        "/api/feniks/bricks/{brick_id}",
+        "/api/measurements",
+        "/api/measurements/{day}",
     }
 )
 # /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
@@ -81,6 +85,8 @@ PUBLIC_PATTERNS = (
     # One ISO calendar date; the route rejects anything that does not parse.
     re.compile(r"^/api/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
     re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
+    re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
 )
 
 BCRYPT_ROUNDS = 12

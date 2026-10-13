@@ -74,3 +74,14 @@ async def upsert_daily_log(db, day: str, changes: dict) -> dict:
         await db.rollback()
         raise
     return dict(stored[0])
+
+
+async def get_daily_log(db, day: str) -> dict | None:
+    rows = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (day,))
+    return dict(rows[0]) if rows else None
+
+
+async def delete_daily_log(db, day: str) -> bool:
+    cursor = await db.execute("DELETE FROM daily_logs WHERE date = ?", (day,))
+    await db.commit()
+    return cursor.rowcount > 0

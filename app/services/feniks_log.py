@@ -101,3 +101,91 @@ async def add_brick(db, day: str, *, hook: str, craving: int | None, story: str)
     )
     await db.commit()
     return {"id": cursor.lastrowid, "date": entry_date, "hook": hook, "craving": craving, "story": story}
+
+
+async def update_brick(db, brick_id: int, changes: dict) -> dict:
+    """Change only the supplied brick fields; the hook cannot become blank."""
+    rows = await db.execute_fetchall("SELECT * FROM feniks_bricks WHERE id = ?", (brick_id,))
+    if not rows:
+        raise LookupError("Brick was not found.")
+    brick = dict(rows[0])
+    if "date" in changes:
+        entry_date = past_or_today(changes["date"])
+        if entry_date is None:
+            raise FeniksWriteError("Give the brick a date of today or earlier.")
+        brick["date"] = entry_date
+    if "hook" in changes:
+        hook = (changes["hook"] or "").strip()
+        if not hook:
+            raise FeniksWriteError("Name the brick before saving it.")
+        brick["hook"] = hook[:HOOK_MAX]
+    if "craving" in changes:
+        craving = changes["craving"]
+        brick["craving"] = None if craving is None else max(0, min(10, craving))
+    if "story" in changes:
+        brick["story"] = (changes["story"] or "")[:STORY_MAX]
+    await db.execute(
+        "UPDATE feniks_bricks SET date = ?, hook = ?, craving = ?, story = ? WHERE id = ?",
+        (brick["date"], brick["hook"], brick["craving"], brick["story"], brick_id),
+    )
+    await db.commit()
+    return {key: brick[key] for key in ("id", "date", "hook", "craving", "story")}
+
+
+async def delete_brick(db, brick_id: int) -> str:
+    rows = await db.execute_fetchall("SELECT date FROM feniks_bricks WHERE id = ?", (brick_id,))
+    if not rows:
+        raise LookupError("Brick was not found.")
+    await db.execute("DELETE FROM feniks_bricks WHERE id = ?", (brick_id,))
+    await db.commit()
+    return rows[0]["date"]
+
+
+async def delete_day(db, day: str) -> None:
+    """Remove a day entry and the relapse marker the day log created, nothing else."""
+    if db.in_transaction:
+        raise RuntimeError("Feniks writes require a connection without pending writes")
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        cursor = await db.execute("DELETE FROM feniks_daily WHERE date = ?", (day,))
+        if cursor.rowcount == 0:
+            raise LookupError("No day entry for that date.")
+        await db.execute(
+            "DELETE FROM pmo_events WHERE date = ? AND event_type = 'relapse' AND notes = ?", (day, DAILY_MARKER)
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+
+
+CONFIG_TARGET_MAX = 3650
+BIG_WHY_MAX = 2000
+
+
+async def update_config(db, changes: dict) -> dict:
+    """Start date, target days and the 'big why' of the Feniks module."""
+    rows = await db.execute_fetchall("SELECT start_date, target_days, big_why FROM feniks_config WHERE id = 1")
+    config = (
+        dict(rows[0]) if rows else {"start_date": calendar_date.today().isoformat(), "target_days": 90, "big_why": ""}
+    )
+    if "start_date" in changes:
+        start = past_or_today(changes["start_date"])
+        if start is None:
+            raise FeniksWriteError("start_date must be an ISO date of today or earlier.")
+        config["start_date"] = start
+    if "target_days" in changes:
+        target = changes["target_days"]
+        if isinstance(target, bool) or not isinstance(target, int) or not 1 <= target <= CONFIG_TARGET_MAX:
+            raise FeniksWriteError(f"target_days must be between 1 and {CONFIG_TARGET_MAX}.")
+        config["target_days"] = target
+    if "big_why" in changes:
+        config["big_why"] = (changes["big_why"] or "")[:BIG_WHY_MAX]
+    await db.execute(
+        "INSERT INTO feniks_config (id, start_date, target_days, big_why) VALUES (1, ?, ?, ?) "
+        "ON CONFLICT(id) DO UPDATE SET start_date = excluded.start_date, target_days = excluded.target_days, "
+        "big_why = excluded.big_why",
+        (config["start_date"], config["target_days"], config["big_why"]),
+    )
+    await db.commit()
+    return config

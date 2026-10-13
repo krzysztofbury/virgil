@@ -10,6 +10,7 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.daily_log import upsert_daily_log
 from app.services.llm import llm_available
+from app.services.measurements import MeasurementError, upsert_measurements
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
 
@@ -279,17 +280,11 @@ async def save_measurements(
             return None
 
     db = get_user_db_from_request(request)
-    await db.execute(
-        """
-        INSERT INTO body_measurements (date, weight, arm, waist, hips, thighs)
-        VALUES (?, ?, ?, ?, ?, ?)
-        ON CONFLICT(date) DO UPDATE SET
-            weight=excluded.weight, arm=excluded.arm, waist=excluded.waist,
-            hips=excluded.hips, thighs=excluded.thighs
-    """,
-        (date, to_float(weight), to_float(arm), to_float(waist), to_float(hips), to_float(thighs)),
-    )
-    await db.commit()
+    values = {"weight": weight, "arm": arm, "waist": waist, "hips": hips, "thighs": thighs}
+    try:
+        await upsert_measurements(db, date, {key: to_float(value) for key, value in values.items()})
+    except MeasurementError as exc:
+        return error_redirect(request, f"/daily/{date}", str(exc))
     if request.headers.get("HX-Request"):
         return Response(
             status_code=200,
