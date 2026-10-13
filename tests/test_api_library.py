@@ -42,10 +42,19 @@ def test_list_returns_crossfit_vocabulary(auth_client):
         m["name"].strip().lower() for m in CROSSFIT_MOVEMENTS
     }
 
+    import importlib
+
+    taxonomy = importlib.import_module("app.migrations.033_movement_taxonomy")
+    merged = {source.lower() for source, _ in taxonomy.MERGES}
+    expected_names = (expected_names - merged) | {m[0].lower() for m in taxonomy.NEW_MOVEMENTS}
+
     body = auth_client.get("/api/library", headers=KEY).json()
     names = {e["name"] for e in body["entries"]}
+    reachable = {n.lower() for n in names} | {a.lower() for e in body["entries"] for a in e["aliases"]}
     assert "Thruster" in names
-    assert {m["name"] for m in CROSSFIT_MOVEMENTS} <= names, "every CrossFit movement must still be listed"
+    assert {m["name"].lower() for m in CROSSFIT_MOVEMENTS} <= reachable, (
+        "every CrossFit movement must still be listed, by name or as an alias of the movement it merged into"
+    )
     assert len(body["entries"]) == len(expected_names)
 
 
@@ -53,10 +62,10 @@ def test_create_then_read_back(auth_client):
     resp = auth_client.post(
         "/api/library",
         headers=KEY,
-        json={"section": "Core", "name": "Devil Press", "metric": "reps"},
+        json={"section": "Core", "name": "Sled Push", "metric": "reps"},
     )
     assert resp.status_code == 201
-    row = _get("Devil Press")
+    row = _get("Sled Push")
     assert row["section"] == "Core"
     assert row["metric"] == "reps"
     assert row["builtin"] == 0
@@ -200,10 +209,10 @@ def test_create_rejects_unknown_field(auth_client):
 
 
 def test_patch_edits_fields(auth_client):
-    entry_id = _get("Devil Press")["id"]
+    entry_id = _get("Sled Push")["id"]
     resp = auth_client.patch(f"/api/library/{entry_id}", headers=KEY, json={"notes": "dumbbell, brutal"})
     assert resp.status_code == 200
-    assert _get("Devil Press")["notes"] == "dumbbell, brutal"
+    assert _get("Sled Push")["notes"] == "dumbbell, brutal"
 
 
 def test_patch_strips_and_rejects_blank_name(auth_client):
@@ -319,9 +328,9 @@ def test_unknown_id_404(auth_client):
 
 
 def test_delete_removes_row(auth_client):
-    entry_id = _get("Devil Press")["id"]
+    entry_id = _get("Sled Push")["id"]
     assert auth_client.delete(f"/api/library/{entry_id}", headers=KEY).status_code == 204
-    assert _get("Devil Press") is None
+    assert _get("Sled Push") is None
 
 
 def test_builtin_row_refuses_edit_and_delete(auth_client):

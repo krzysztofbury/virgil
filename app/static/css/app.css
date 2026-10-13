@@ -2714,6 +2714,19 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     margin-bottom: 0.25rem;
 }
 
+/* The movement name and the equipment picker's longest label ("masa ciała")
+   must stay readable; the table scrolls sideways on narrow screens instead of
+   truncating them. */
+.movement-select {
+    min-width: 9.5rem;
+}
+.equipment-select {
+    min-width: 7.75rem;
+}
+.wod-table input[type="number"] {
+    min-width: 3rem;
+}
+
 /* Inline form error, beside the toast: a toast disappears, this does not. */
 .form-error {
     color: var(--flag-h);

@@ -191,9 +191,9 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
-| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, and exercise-library writes (empty = API disabled) |
+| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, and training writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) over the API key |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) and Feniks day-log and brick writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
 Port is always **8123**.
@@ -230,7 +230,8 @@ reads back what was logged:
 
 - Capture form - date, optional duration, and the note itself
 - This Week KPIs - sessions count, total volume (Core, kg), total reps
-- Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window)
+- Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window);
+  a set on other equipment than the movement's usual one (a dumbbell hang snatch) is its own record
 - `Niedokończone` - every session whose parse is still waiting, whatever its date
 - Year calendar history - duration heatmap with hover and keyboard summaries;
   selecting a training day opens bounded pages of its sessions, sets, notes,
@@ -372,11 +373,23 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 - Logging via MCP/REST: `log_experiment_entry` → `POST /api/experiments/{id}/entries`; exercise
   dictionary CRUD via `get_exercise_library`, `add_exercise`, `update_exercise`, `delete_exercise`
   → `GET/POST /api/library`, `PATCH/DELETE /api/library/{id}`
+- Day check-in via MCP/REST, for an agent that talks the day through instead of
+  opening the forms:
+  - `log_daily` → `PUT /api/daily/{date}` merges only the supplied fields: energy,
+    routines, and the four A.N.D.Y. statuses and descriptions
+  - `log_feniks_day` → `PUT /api/feniks/daily/{date}` and `add_brick` →
+    `POST /api/feniks/bricks` keep the form's contract (watched means at least
+    5 minutes; the relapse marker follows the outcome). Both require
+    `VIRGIL_API_SENSITIVE=true`
+  - `log_training` → `POST /api/training/sessions` writes a session and all its
+    sets in one transaction; an unknown movement refuses the write and lists the
+    names. `update_training` / `delete_training` → `PATCH/DELETE
+    /api/training/sessions/{id}`; sending `entries` replaces every set
 
 ### Settings (`/settings`)
 Six-tab settings page:
 - **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Feniks)
-- **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted
+- **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
 - **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
@@ -518,6 +531,7 @@ Current migrations:
 | 027 | `jobs` | Adds the per-user durable job queue: bounded payloads, idempotency keys, single-runner claims with lease tokens, persisted retry timing |
 | 028 | `active_workload_jobs` | One queued job per operational workload kind (backup, export, Oura sync); reconciles v27 duplicates |
 | 029 | `llm_publications` | Adds the paid-LLM publication ledger, which outlives terminal job pruning, and one queued job per paid kind |
+| 033 | `movement_taxonomy` | Adds movement families, aliases, default and per-set equipment; adds missing CrossFit variants and merges duplicate movements with their history |
 
 Central registry migrations:
 | Version | Name | Description |

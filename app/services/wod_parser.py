@@ -14,6 +14,7 @@ import logging
 from dataclasses import dataclass, field
 
 from app.services.llm import call_llm, parse_andy_response
+from app.services.movement_vocab import EQUIPMENT
 
 logger = logging.getLogger(__name__)
 
@@ -43,13 +44,19 @@ Polish or English and may mix both.
 
 Return ONLY a JSON object of this exact shape:
 {"entries": [{"movement": str, "set_number": int, "reps": int|null,
- "weight": float|null, "duration": float|null, "note": str}], "unmatched": [str]}
+ "weight": float|null, "duration": float|null, "equipment": str|null, "note": str}], "unmatched": [str]}
 
 Rules:
 - "movement" MUST be copied verbatim from the allowed movement list below. \
 Never invent a movement name and never translate one.
+- A list line may show spellings after "also written:". A note using one of \
+them means that movement; still return the list name, never the spelling.
 - Any movement in the note that is not in the list goes into "unmatched" as the \
 user wrote it. Do not guess a near match.
+- "equipment" is one of: barbell, dumbbell, kettlebell, plate, bodyweight, ball, \
+band, machine, other - only when the note says it (DB = dumbbell, KB = \
+kettlebell); otherwise null. "dumbbell hang snatch" is Hang Snatch with \
+equipment dumbbell.
 - Rep schemes such as "21-15-9" produce one entry per round, set_number 1,2,3, \
 with reps 21, 15, 9 and the scheme copied into "note".
 - "5x5 @70" produces 5 entries, set_number 1..5, reps 5, weight 70.
@@ -70,6 +77,7 @@ class ParsedEntry:
     weight: float | None
     duration: float | None
     note: str
+    equipment: str | None = None
 
 
 @dataclass(frozen=True)
@@ -130,6 +138,16 @@ async def canonical_movements(db) -> list[dict]:
         seen.add(key)
         movements.append(row)
 
+    aliases = await db.execute_fetchall(
+        "SELECT a.alias, l.name FROM exercise_aliases a JOIN exercise_library l ON l.id = a.library_id "
+        "WHERE l.archived = 0 ORDER BY a.alias"
+    )
+    by_name: dict[str, list[str]] = {}
+    for alias, name in aliases:
+        by_name.setdefault(name.lower(), []).append(alias)
+    for movement in movements:
+        movement["aliases"] = by_name.get(movement["name"].lower(), [])
+
     assert len(movements) <= MAX_LIBRARY_MOVEMENTS, (
         f"movement vocabulary has grown to {len(movements)} rows "
         f"(max {MAX_LIBRARY_MOVEMENTS}) — prune exercise_library before the WOD "
@@ -154,9 +172,12 @@ async def parse_wod(db, text: str) -> ParsedWod:
 
     text = text.strip()[:MAX_WOD_CHARS]
     movements = await canonical_movements(db)
-    by_lower = {m["name"].lower(): m["name"] for m in movements}
+    by_lower = {alias.lower(): m["name"] for m in movements for alias in m["aliases"]}
+    by_lower.update({m["name"].lower(): m["name"] for m in movements})
 
-    system_prompt = _SYSTEM_PROMPT + "\n".join(f"- {m['name']}" for m in movements)
+    system_prompt = _SYSTEM_PROMPT + "\n".join(
+        f"- {m['name']}" + (f" (also written: {', '.join(m['aliases'])})" if m["aliases"] else "") for m in movements
+    )
     # Bound thinking and budget generously - this call is the token-hungriest in
     # the app and it was the only structured one still asking for neither.
     #
@@ -221,6 +242,7 @@ async def parse_wod(db, text: str) -> ParsedWod:
                 weight=_coerce(item.get("weight"), float),
                 duration=_coerce(item.get("duration"), float),
                 note=str(item.get("note") or "")[:200],
+                equipment=item.get("equipment") if item.get("equipment") in EQUIPMENT else None,
             )
         except (TypeError, ValueError):
             # One malformed row must not lose the rest of the workout — but it

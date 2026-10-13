@@ -41,6 +41,9 @@ async def _db(tmp_path):
         )"""
     )
     await db.execute(
+        "CREATE TABLE exercise_aliases (alias TEXT PRIMARY KEY COLLATE NOCASE, library_id INTEGER NOT NULL)"
+    )
+    await db.execute(
         "INSERT INTO exercise_library (section, name, metric, builtin) VALUES ('Core', 'Thruster', 'reps', 1)"
     )
     await db.execute(
@@ -216,7 +219,7 @@ def test_unknown_movement_creates_nothing(tmp_path):
         db = await _db(tmp_path)
         try:
             before = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises")
-            assert await resolve_movement(db, "Devil Press") is None
+            assert await resolve_movement(db, "Sled Push") is None
             after = await db.execute_fetchall("SELECT COUNT(*) as c FROM training_exercises")
             assert after[0]["c"] == before[0]["c"]
         finally:

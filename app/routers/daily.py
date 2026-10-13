@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.daily_log import upsert_daily_log
 from app.services.llm import llm_available
 from app.user_db import get_user_db_from_request
 from app.validation import truncate, valid_date
@@ -190,39 +191,25 @@ async def save_daily(
     andy_account_status = andy_account_status if andy_account_status in valid_statuses else "pending"
     andy_relations_status = andy_relations_status if andy_relations_status in valid_statuses else "pending"
     db = get_user_db_from_request(request)
-    await db.execute(
-        """
-        INSERT INTO daily_logs (date, energy, morning_routine, evening_routine, water,
-            andy_body_status, andy_body_desc, andy_spirit_status, andy_spirit_desc,
-            andy_account_status, andy_account_desc, andy_relations_status, andy_relations_desc, notes)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(date) DO UPDATE SET
-            energy=excluded.energy, morning_routine=excluded.morning_routine,
-            evening_routine=excluded.evening_routine, water=excluded.water,
-            andy_body_status=excluded.andy_body_status, andy_body_desc=excluded.andy_body_desc,
-            andy_spirit_status=excluded.andy_spirit_status, andy_spirit_desc=excluded.andy_spirit_desc,
-            andy_account_status=excluded.andy_account_status, andy_account_desc=excluded.andy_account_desc,
-            andy_relations_status=excluded.andy_relations_status, andy_relations_desc=excluded.andy_relations_desc,
-            notes=excluded.notes, updated_at=datetime('now')
-    """,
-        (
-            date,
-            energy,
-            morning_routine,
-            evening_routine,
-            water,
-            andy_body_status,
-            andy_body_desc,
-            andy_spirit_status,
-            andy_spirit_desc,
-            andy_account_status,
-            andy_account_desc,
-            andy_relations_status,
-            andy_relations_desc,
-            notes,
-        ),
+    await upsert_daily_log(
+        db,
+        date,
+        {
+            "energy": energy,
+            "morning_routine": morning_routine,
+            "evening_routine": evening_routine,
+            "water": water,
+            "andy_body_status": andy_body_status,
+            "andy_body_desc": andy_body_desc,
+            "andy_spirit_status": andy_spirit_status,
+            "andy_spirit_desc": andy_spirit_desc,
+            "andy_account_status": andy_account_status,
+            "andy_account_desc": andy_account_desc,
+            "andy_relations_status": andy_relations_status,
+            "andy_relations_desc": andy_relations_desc,
+            "notes": notes,
+        },
     )
-    await db.commit()
 
     if request.headers.get("HX-Request"):
         return Response(

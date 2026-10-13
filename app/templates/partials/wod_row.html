@@ -27,6 +27,15 @@
   {% endfor %}
 {% endmacro %}
 
+{# Blank means the movement's usual equipment, so a row only says something
+   when the set differs from it (a dumbbell hang snatch). #}
+{% macro equipment_options_list(equipment_options, selected='') %}
+  <option value="">domyślny</option>
+  {% for value, label in equipment_options %}
+  <option value="{{ value }}"{% if value == selected %} selected{% endif %}>{{ label }}</option>
+  {% endfor %}
+{% endmacro %}
+
 {% macro search_box() %}
     {# x-show="ready" keeps this hidden until Alpine initialises the row. A
        search box that filters nothing is worse than no search box. #}
@@ -34,14 +43,14 @@
            x-model="query" @input="filter()" x-show="ready" x-cloak aria-label="Szukaj ruchu">
 {% endmacro %}
 
-{% macro server_row(r, movements, tags, recent, sections) %}
+{% macro server_row(r, movements, tags, recent, sections, equipment_options) %}
           <tr x-data="movementRow()">
             <td>
               {% if r.unmatched_label %}
               <div class="text-muted"><small>nierozpoznane: „{{ r.unmatched_label }}”</small></div>
               {% endif %}
               {{ search_box() }}
-              <select name="entry_{{ r.index }}_movement" x-ref="select" aria-label="Ruch">
+              <select name="entry_{{ r.index }}_movement" x-ref="select" class="movement-select" aria-label="Ruch">
                 {{ options(movements, tags, recent, sections, selected=r.movement, skip_label=r.unmatched_label) }}
               </select>
             </td>
@@ -49,16 +58,17 @@
             <td><input type="number" name="entry_{{ r.index }}_reps" value="{{ r.reps }}" min="0"></td>
             <td><input type="number" step="0.5" name="entry_{{ r.index }}_weight" value="{{ r.weight }}" min="0"></td>
             <td><input type="number" step="1" name="entry_{{ r.index }}_duration" value="{{ r.duration }}" min="0"></td>
+            <td><select name="entry_{{ r.index }}_equipment" class="equipment-select" aria-label="Sprzęt">{{ equipment_options_list(equipment_options, r.equipment) }}</select></td>
             <td><input type="text" name="entry_{{ r.index }}_note" value="{{ r.note }}" maxlength="200"></td>
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
           </tr>
 {% endmacro %}
 
-{% macro alpine_row(movements, tags, recent, sections) %}
+{% macro alpine_row(movements, tags, recent, sections, equipment_options) %}
           <tr x-data="movementRow()">
             <td>
               {{ search_box() }}
-              <select :name="'entry_' + row.index + '_movement'" x-model="row.movement" x-ref="select" aria-label="Ruch">
+              <select :name="'entry_' + row.index + '_movement'" x-model="row.movement" x-ref="select" class="movement-select" aria-label="Ruch">
                 {{ options(movements, tags, recent, sections) }}
               </select>
             </td>
@@ -66,6 +76,7 @@
             <td><input type="number" :name="'entry_' + row.index + '_reps'" value="" min="0"></td>
             <td><input type="number" step="0.5" :name="'entry_' + row.index + '_weight'" value="" min="0"></td>
             <td><input type="number" step="1" :name="'entry_' + row.index + '_duration'" value="" min="0"></td>
+            <td><select :name="'entry_' + row.index + '_equipment'" x-model="row.equipment" class="equipment-select" aria-label="Sprzęt">{{ equipment_options_list(equipment_options) }}</select></td>
             <td><input type="text" :name="'entry_' + row.index + '_note'" value="" maxlength="200"></td>
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ dodaj serię</button></td>
           </tr>

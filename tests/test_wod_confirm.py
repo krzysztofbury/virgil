@@ -78,7 +78,7 @@ def test_unknown_movement_is_skipped_without_creating_an_exercise(auth_client):
             "_csrf_token": token,
             "session_id": str(session_id),
             "entry_count": "1",
-            "entry_0_movement": "Devil Press",
+            "entry_0_movement": "Sled Push",
             "entry_0_set_number": "1",
             "entry_0_reps": "10",
             "entry_0_weight": "22.5",

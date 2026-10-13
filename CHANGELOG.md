@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- REST and MCP writes for a day check-in: the daily log with A.N.D.Y. as a
+  partial merge (`log_daily`), Feniks day logs and bricks behind the sensitive
+  scope (`log_feniks_day`, `add_brick`), and structured training sessions with
+  their sets (`log_training`, `update_training`, `delete_training`).
+- Movement taxonomy: families that group variants, aliases for the athlete's
+  own spellings, a default equipment per movement and equipment per set
+  (including a picker on the WOD confirm screen). The vocabulary gains the
+  CrossFit variants it lacked, such as hang power snatch, pistol squat, wall
+  walk, D-ball over shoulder and devil press. Library writes over REST/MCP
+  accept family, default equipment and aliases, also on builtin entries.
+
+### Changed
+- Duplicate movements are merged with their history: Kettlebell Swing into
+  KB Swing, Shoulder Press into Overhead Press, Halo (KB) into KB Halo. The old
+  names remain as aliases.
+- Personal bests separate a load on non-default equipment.
+- Daily-log and Feniks forms share their persistence with REST, so both paths
+  validate and write the same way.
+
+### Fixed
+- MCP tools now return the API's error detail to the client. The SDK hid the
+  text of every failure, so a refused write read only "Error executing tool".
+
 ## [0.7.0] - 2026-10-11
 
 ### Fixed

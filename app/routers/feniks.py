@@ -6,6 +6,7 @@ from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.feniks_log import FeniksWriteError, add_brick, past_or_today, save_day
 from app.services.streak import get_streak, get_week_clean
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormInt, clamp, truncate
@@ -19,21 +20,6 @@ async def require_feniks(request: Request):
 
 
 router = APIRouter(dependencies=[Depends(require_feniks)])
-
-
-def _past_or_today(value: str) -> str | None:
-    """Normalise a form date, or None if it is unparseable or still ahead.
-
-    Normalising matters because date.fromisoformat also accepts compact and
-    week forms, which no longer compare correctly as plain text.
-    """
-    from datetime import date as calendar_date
-
-    try:
-        parsed = calendar_date.fromisoformat(value)
-    except (TypeError, ValueError):
-        return None
-    return parsed.isoformat() if parsed <= calendar_date.today() else None
 
 
 @router.get("/feniks", response_class=HTMLResponse)
@@ -74,7 +60,7 @@ async def feniks_page(request: Request):
     daily = await db.execute_fetchall("SELECT * FROM feniks_daily ORDER BY date DESC LIMIT 60")
     daily = [dict(r) for r in daily]
 
-    form_date = _past_or_today(edit_date) if edit_date else today.isoformat()
+    form_date = past_or_today(edit_date) if edit_date else today.isoformat()
     form_date = form_date or today.isoformat()
     form_rows = await db.execute_fetchall("SELECT * FROM feniks_daily WHERE date = ?", (form_date,))
     form_daily = dict(form_rows[0]) if form_rows else None
@@ -128,49 +114,15 @@ async def save_daily(
     consistent with the daily log. A historical relapse event without a daily
     row is history, not corruption.
     """
-    entry_date = _past_or_today(date)
+    entry_date = past_or_today(date)
     if entry_date is None or used not in ("0", "1"):
         return error_redirect(request, "/feniks", "Choose a valid date and day outcome.")
     date = entry_date
-    used_val = int(used)
-    edging_val = 1 if edging == "1" else 0
-    minutes_val = clamp(minutes, 0, 1440)
-    note = truncate(note, 500)
-    if used_val and (minutes_val is None or minutes_val < 5):
-        return error_redirect(
-            request,
-            f"/feniks?date={date}",
-            "Watched means at least 5 total minutes. Record a shorter exposure as clean and add it to the note.",
-        )
-    if not used_val:
-        minutes_val = None
-        edging_val = 0
     db = get_user_db_from_request(request)
-    await db.execute(
-        """
-        INSERT INTO feniks_daily (date, used, minutes, edging, note)
-        VALUES (?, ?, ?, ?, ?)
-        ON CONFLICT(date) DO UPDATE SET
-            used=excluded.used, minutes=excluded.minutes,
-            edging=excluded.edging, note=excluded.note
-        """,
-        (date, used_val, minutes_val, edging_val, note),
-    )
-    if used_val:
-        await db.execute(
-            """
-            INSERT INTO pmo_events (date, event_type, notes)
-            SELECT ?, 'relapse', 'via daily log'
-            WHERE NOT EXISTS (SELECT 1 FROM pmo_events WHERE date = ? AND event_type = 'relapse')
-            """,
-            (date, date),
-        )
-    else:
-        await db.execute(
-            "DELETE FROM pmo_events WHERE date = ? AND event_type = 'relapse' AND notes = 'via daily log'",
-            (date,),
-        )
-    await db.commit()
+    try:
+        await save_day(db, date, used=used == "1", minutes=minutes, edging=edging == "1", note=note)
+    except FeniksWriteError as exc:
+        return error_redirect(request, f"/feniks?date={date}", str(exc))
     return success_redirect(
         request,
         f"/feniks?date={date}",
@@ -189,24 +141,15 @@ async def save_brick(
 ):
     """A brick = one urge survived, in Gola's structure. The hook (hak
     pamięciowy) is what makes it retrievable under pressure — required."""
-    if not hook.strip():
-        return error_redirect(request, "/feniks", "Name the brick before saving it.")
     # The page can be opened on an earlier day, so the brick carries its own
     # date instead of always landing on today. A future one is always a typo:
     # the urge has not happened yet.
-    entry_date = _past_or_today(date)
-    if entry_date is None:
-        return error_redirect(request, "/feniks", "Give the brick a date of today or earlier.")
-    date = entry_date
-    hook = truncate(hook.strip(), 200)
-    story = truncate(story, 2000)
-    craving_val = clamp(craving, 0, 10)
     db = get_user_db_from_request(request)
-    await db.execute(
-        "INSERT INTO feniks_bricks (date, hook, craving, story) VALUES (?, ?, ?, ?)",
-        (date, hook, craving_val, story),
-    )
-    await db.commit()
+    try:
+        brick = await add_brick(db, date, hook=hook, craving=craving, story=story)
+    except FeniksWriteError as exc:
+        return error_redirect(request, "/feniks", str(exc))
+    date = brick["date"]
     return success_redirect(
         request,
         f"/feniks?date={date}",
@@ -224,7 +167,7 @@ async def edit_brick(
     story: str = Form(""),
     craving: OptionalFormInt = None,
 ):
-    entry_date = _past_or_today(date)
+    entry_date = past_or_today(date)
     if entry_date is None:
         return error_redirect(request, "/feniks", "Give the brick a date of today or earlier.")
     if not hook.strip():

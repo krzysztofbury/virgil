@@ -175,7 +175,7 @@ def test_full_migration_chain_records_latest_version(tmp_path):
             await db.close()
 
     marker, tables = asyncio.run(scenario())
-    assert marker == (32, "032_training_history_indexes.py")
+    assert marker == (33, "033_movement_taxonomy.py")
     assert tables == {"jobs", "llm_publications"}
 
 

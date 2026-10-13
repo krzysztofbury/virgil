@@ -4,7 +4,9 @@ A movement the user already trains resolves to their existing row untouched.
 One that only appears in a WOD is created with ad_hoc = 1: it keeps its history,
 volume and PB contribution, but never shows up in the daily protocol form.
 
-A name absent from the exercise library resolves to None and creates nothing —
+An alias from exercise_aliases resolves to the movement it names.
+
+A name absent from the exercise library and its aliases resolves to None and creates nothing —
 that is the guard that stops the exercise catalogue from filling with the
 model's spelling variants.
 
@@ -20,6 +22,8 @@ form still hides, with no way for the user to notice.
 
 import logging
 
+from app.services.movement_vocab import canonical_name
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,6 +36,15 @@ async def resolve_movement(db, name: str) -> int | None:
     existing = await db.execute_fetchall(
         "SELECT id, archived FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1", (clean,)
     )
+    if not existing:
+        # An alias ("T2B", "pistols") names a library movement; history lives
+        # under that movement's name, so look it up again by the canonical one.
+        canonical = await canonical_name(db, clean)
+        if canonical and canonical.lower() != clean.lower():
+            clean = canonical
+            existing = await db.execute_fetchall(
+                "SELECT id, archived FROM training_exercises WHERE lower(name) = lower(?) LIMIT 1", (clean,)
+            )
     if existing:
         ex_id = existing[0]["id"]
         if existing[0]["archived"]:

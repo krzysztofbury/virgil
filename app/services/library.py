@@ -1,10 +1,23 @@
 """Atomic exercise-library writes shared by forms and REST."""
 
 from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
+from app.services.movement_vocab import write_classification
 
 
-async def write_library(db, *, op: str, entry_id: int | None = None, fields: dict | None = None, tags=None) -> dict:
-    """Own one transaction, including collision checks and tag replacement."""
+async def write_library(
+    db,
+    *,
+    op: str,
+    entry_id: int | None = None,
+    fields: dict | None = None,
+    tags=None,
+    classification: dict | None = None,
+) -> dict:
+    """Own one transaction, including collision checks and tag replacement.
+
+    `classification` carries family, default_equipment and aliases; a key's
+    absence leaves that attribute unchanged.
+    """
     if db.in_transaction:
         raise RuntimeError("Library writes require a connection without pending writes")
     await db.execute("BEGIN IMMEDIATE")
@@ -26,6 +39,12 @@ async def write_library(db, *, op: str, entry_id: int | None = None, fields: dic
             db, op="update" if op == "archive" else op, entry_id=entry_id, existing=existing, fields=fields
         )
         normalized_tags = normalize_tags(tags) if tags is not None else None
+        new_name = (values or {}).get("name")
+        if new_name and await db.execute_fetchall(
+            "SELECT 1 FROM exercise_aliases WHERE alias = ? COLLATE NOCASE AND library_id IS NOT ?",
+            (new_name, entry_id),
+        ):
+            raise LibraryWriteError(409, f"{new_name!r} is already an alias of another movement")
         changed = set(values or {})
         if op == "create":
             cursor = await db.execute(
@@ -46,6 +65,8 @@ async def write_library(db, *, op: str, entry_id: int | None = None, fields: dic
                 [(entry_id, tag) for tag in normalized_tags],
             )
             changed.add("tags")
+        if classification and op != "delete":
+            changed |= await write_classification(db, entry_id, classification)
         await db.commit()
         return {"id": entry_id, "updated": sorted(changed)}
     except BaseException:
