@@ -8,6 +8,7 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --locked --no-dev --no-editable
 
 COPY app/ ./app/
+COPY mcp_server/virgil_mcp.py ./mcp_server/virgil_mcp.py
 COPY scripts/recovery.py ./scripts/recovery.py
 
 RUN adduser --disabled-password --no-create-home --gecos "" appuser

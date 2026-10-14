@@ -70,13 +70,17 @@ HABIT_FIELDS = (
 )
 
 
-async def api_db(request: Request):
-    """Authenticate via X-API-Key and yield the mapped user's DB connection."""
+def require_api_key(provided: str) -> None:
+    """Refuse unless `provided` matches VIRGIL_API_KEY; shared by the REST routes and /mcp."""
     if not API_KEY:
         raise HTTPException(status_code=403, detail="API disabled (VIRGIL_API_KEY not set)")
-    provided = request.headers.get("x-api-key", "")
     if not hmac.compare_digest(provided.encode(), API_KEY.encode()):
         raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+async def api_db(request: Request):
+    """Authenticate via X-API-Key and yield the mapped user's DB connection."""
+    require_api_key(request.headers.get("x-api-key", ""))
 
     central = await get_central_db()
     if API_USER_EMAIL:

@@ -169,6 +169,21 @@ VIRGIL_API_URL=https://virgil.example.com VIRGIL_API_KEY=your-key \
   uv run --locked --script mcp_server/virgil_mcp.py
 ```
 
+The app also serves the same tools over Streamable HTTP at `/mcp`, so a client
+needs no checkout, `uv` or launcher. It takes the same `X-API-Key` as the REST
+API (`VIRGIL_API_KEY`); add the Cloudflare Access service-token headers when the
+host sits behind Access:
+
+```bash
+claude mcp add --transport http --scope user virgil https://virgil.example.com/mcp \
+  --header "X-API-Key: your-key" \
+  --header "CF-Access-Client-Id: your-id" \
+  --header "CF-Access-Client-Secret: your-secret"
+```
+
+The endpoint runs in stateless JSON mode; every tool still calls the REST API
+(over loopback), so `/mcp` and `/api` share one auth path and one user mapping.
+
 Tests and Docker use bundled LiteLLM capability metadata for reproducibility.
 Updating that metadata is part of a reviewed dependency update.
 
