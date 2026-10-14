@@ -174,11 +174,13 @@ async def _start_application(app: FastAPI):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     from app.central_db import close_central_db
+    from app.mcp_endpoint import mcp_session
 
     task = None
     try:
         task = await _start_application(app)
-        yield
+        async with mcp_session(app):
+            yield
     finally:
         if task is not None:
             task.cancel()
@@ -283,3 +285,7 @@ app.include_router(experiments.router)
 app.include_router(settings.router)
 app.include_router(onboarding.router)
 app.include_router(api.router)
+
+from app.mcp_endpoint import MCP_METHODS, MCP_PATH, MCPEndpoint  # noqa: E402
+
+app.router.add_route(MCP_PATH, MCPEndpoint(), methods=MCP_METHODS, include_in_schema=False)

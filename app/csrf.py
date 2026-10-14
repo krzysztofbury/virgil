@@ -29,6 +29,7 @@ CSRF_EXEMPT_PATHS = frozenset(
         "/api/feniks/config",
         "/api/training/sessions",
         "/api/measurements",
+        "/mcp",
     }
 )
 # Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.

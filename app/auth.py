@@ -60,6 +60,8 @@ PUBLIC_PATHS = frozenset(
         "/api/feniks/bricks/{brick_id}",
         "/api/measurements",
         "/api/measurements/{day}",
+        # Hosted MCP endpoint (app/mcp_endpoint.py) - enforces the same X-API-Key itself.
+        "/mcp",
     }
 )
 # /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via

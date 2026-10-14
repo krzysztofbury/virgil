@@ -26,6 +26,9 @@ Register in Claude Code:
       -e VIRGIL_API_URL=https://virgil.example.com \
       -e VIRGIL_API_KEY=<key> \
       -- uv run --locked --script /path/to/virgil/mcp_server/virgil_mcp.py
+
+The Virgil app also serves these same tools over Streamable HTTP at /mcp
+(app/mcp_endpoint.py), so a client can connect without a local checkout.
 """
 
 import os
@@ -40,6 +43,22 @@ CF_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
 CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 
 mcp = MCPServer("virgil")
+
+_client: httpx.Client | None = None
+
+
+def use_client(client: httpx.Client | None) -> None:
+    """Send every tool call through `client` (base URL and auth headers already set)
+    instead of the env config. The hosted /mcp endpoint reaches its own REST API this way."""
+    global _client
+    _client = client
+
+
+def _http() -> httpx.Client:
+    global _client
+    if _client is None:
+        _client = httpx.Client(base_url=API_URL, headers=_headers(), timeout=30.0)
+    return _client
 
 
 def _headers() -> dict:
@@ -65,31 +84,31 @@ def _check(resp: httpx.Response) -> None:
 
 
 def _get(path: str, params: dict | None = None) -> dict:
-    resp = httpx.get(f"{API_URL}{path}", params=params, headers=_headers(), timeout=30.0)
+    resp = _http().get(path, params=params)
     _check(resp)
     return resp.json()
 
 
 def _post(path: str, payload: dict) -> dict:
-    resp = httpx.post(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
+    resp = _http().post(path, json=payload)
     _check(resp)
     return resp.json()
 
 
 def _patch(path: str, payload: dict) -> dict:
-    resp = httpx.patch(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
+    resp = _http().patch(path, json=payload)
     _check(resp)
     return resp.json()
 
 
 def _put(path: str, payload: dict) -> dict:
-    resp = httpx.put(f"{API_URL}{path}", json=payload, headers=_headers(), timeout=30.0)
+    resp = _http().put(path, json=payload)
     _check(resp)
     return resp.json()
 
 
 def _delete(path: str) -> dict:
-    resp = httpx.delete(f"{API_URL}{path}", headers=_headers(), timeout=30.0)
+    resp = _http().delete(path)
     _check(resp)
     return {"deleted": True}
 
