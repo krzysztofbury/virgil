@@ -3,6 +3,19 @@
 // Chart instance registry for theme rebuilds
 window.virgilCharts = [];
 
+// One typographic voice for every chart: the app's face, nothing below 12px,
+// axis labels that skip rather than tilt, and dot legends in place of boxes.
+if (typeof Chart !== 'undefined') {
+    Chart.defaults.font.family = "'DM Sans', system-ui, -apple-system, sans-serif";
+    Chart.defaults.font.size = 12;
+    Chart.defaults.scale.ticks.maxRotation = 0;
+    Chart.defaults.scale.ticks.autoSkipPadding = 16;
+    Chart.defaults.plugins.legend.labels.usePointStyle = true;
+    Chart.defaults.plugins.legend.labels.boxWidth = 8;
+    Chart.defaults.plugins.legend.labels.boxHeight = 8;
+    Chart.defaults.plugins.legend.labels.padding = 16;
+}
+
 // Read chart colors from CSS custom properties
 function getChartColors() {
     var style = getComputedStyle(document.documentElement);
@@ -54,11 +67,11 @@ function createLineChart(canvasId, labels, datasets, options) {
             scales: {
                 x: {
                     grid: { color: colors.grid },
-                    ticks: { color: colors.text, font: { size: 11 } }
+                    ticks: { color: colors.text, font: { size: 12 } }
                 },
                 y: Object.assign({
                     grid: { color: colors.grid },
-                    ticks: { color: colors.text, font: { size: 11 } }
+                    ticks: { color: colors.text, font: { size: 12 } }
                 }, options.yScale || {})
             },
             plugins: Object.assign({
@@ -149,8 +162,8 @@ function createBarChart(canvasId, labels, datasets, options) {
         options: {
             responsive: true,
             scales: {
-                x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 11 } } },
-                y: Object.assign({ grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 11 } } }, options.yScale || {}),
+                x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 12 } } },
+                y: Object.assign({ grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 12 } } }, options.yScale || {}),
             },
             plugins: Object.assign({
                 legend: { display: datasets.length > 1, labels: { color: colors.text } }

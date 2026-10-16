@@ -24,14 +24,6 @@
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
-    <details>
-        <summary>Advanced</summary>
-        <p class="settings-path"><strong>Database:</strong> <span class="text-muted">{{ db_path }}</span></p>
-        <p class="settings-path"><strong>Second Brain:</strong> <span class="text-muted">{{ second_brain_path or 'Not configured' }}</span></p>
-    </details>
-</div>
-
-<div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>LLM Providers</h3></div>
 
     {% if llm_providers %}
@@ -161,6 +153,14 @@
     </form>
 </div>
 
+{# Reference, not a setting: where the data lives. Last, so the general tab
+   opens on what can be changed. #}
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Storage</h3></div>
+    <p class="settings-path"><strong>Database:</strong> <span class="text-muted">{{ db_path }}</span></p>
+    <p class="settings-path"><strong>Second Brain:</strong> <span class="text-muted">{{ second_brain_path or 'Not configured' }}</span></p>
+</div>
+
 {% elif active_tab == 'configuration' %}
 <!-- ═══ APP CONFIG TAB: dictionary tables ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
@@ -243,7 +243,7 @@
                     data-library-name="{{ ex.name }}" data-library-tags="{{ ex.tags | join(' ') }}"
                     data-library-section="{{ ex.section }}">
                     {% if ex.builtin %}
-                    <td>{{ ex.name }} <span class="badge" style="font-size: 0.6rem; opacity: 0.7;">built-in</span></td>
+                    <td>{{ ex.name }} <span class="badge" style="opacity: 0.7;">built-in</span></td>
                     <td>{{ ex.section }}</td>
                     <td>{{ ex.sets if ex.sets is not none else '' }}</td>
                     <td>{{ ex.reps }}</td>

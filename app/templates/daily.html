@@ -5,9 +5,9 @@
 <div data-swipe-left="/daily/{{ next_day }}" data-swipe-right="/daily/{{ prev_day }}">
 <!-- Date Navigator -->
 <div class="date-nav">
-    <a href="/daily/{{ prev_day }}" class="btn btn-icon"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
+    <a href="/daily/{{ prev_day }}" class="btn btn-icon" aria-label="Previous day"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
     <h2>{{ day_name }} {{ date }}</h2>
-    <a href="/daily/{{ next_day }}" class="btn btn-icon"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></a>
+    <a href="/daily/{{ next_day }}" class="btn btn-icon" aria-label="Next day"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></a>
 </div>
 
 <form id="daily-form"
@@ -30,7 +30,7 @@
         {% set energy_val = log.energy if log and log.energy else 5 %}
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
             <span class="energy-display" id="energy-val">{{ energy_val }}</span>
-            <input type="range" name="energy" id="energy-slider" min="1" max="10" value="{{ energy_val }}"
+            <input type="range" name="energy" id="energy-slider" min="1" max="10" value="{{ energy_val }}" aria-label="Energy, 1 to 10"
                    style="flex: 1; --pct: {{ ((energy_val - 1) / 9 * 100) | round }}%;"
                    oninput="this.style.setProperty('--pct', ((this.value - 1) / 9 * 100) + '%'); document.getElementById('energy-val').textContent = this.value;">
             <span class="text-muted">/10</span>
@@ -49,12 +49,13 @@
                 <button type="button"
                     class="toggle-btn {{ 'active-done' if value == 'done' else 'active-skipped' if value == 'skipped' else 'active-pending' }}"
                     aria-pressed="{{ 'true' if value == 'done' else 'false' }}"
+                    aria-label="{{ label }}" aria-describedby="{{ name }}-state"
                     onclick="cycleStatus(this)">
                     {% if value == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                     {% elif value == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                     {% endif %}
                 </button>
-                <span class="toggle-state">{{ 'Done' if value == 'done' else 'Skipped' if value == 'skipped' else 'Pending' }}</span>
+                <span class="toggle-state" id="{{ name }}-state">{{ 'Done' if value == 'done' else 'Skipped' if value == 'skipped' else 'Pending' }}</span>
             </div>
         </div>
         {% endmacro %}
@@ -66,8 +67,8 @@
 
     <!-- A.N.D.Y. -->
     <div class="card andy-card" style="margin-bottom: 1rem;" id="andy-card">
-        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-            <h3 style="margin:0;">A.N.D.Y.</h3>
+        <div class="card-header">
+            <h3>A.N.D.Y.</h3>
             {% if llm_configured %}
             {# The card sits inside #daily-form, and one form nested inside
                another is invalid HTML that browsers flatten: the button then
@@ -96,12 +97,13 @@
                     <button type="button"
                         class="toggle-btn {{ 'active-done' if status == 'done' else 'active-skipped' if status == 'skipped' else 'active-pending' }}"
                         aria-pressed="{{ 'true' if status == 'done' else 'false' }}"
+                        aria-label="{{ label }}" aria-describedby="{{ name }}-state"
                         onclick="cycleStatus(this)">
                         {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                         {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                         {% endif %}
                     </button>
-                    <span class="toggle-state">{{ 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' }}</span>
+                    <span class="toggle-state" id="{{ name }}-state">{{ 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' }}</span>
                 </div>
             </div>
             {% if status == 'done' and desc %}
@@ -109,11 +111,11 @@
                the form inside the closed disclosure, so it still submits. #}
             <p class="andy-desc-done">{{ desc }}</p>
             <details><summary>Edit</summary>
-                <input type="text" name="{{ name }}_desc" value="{{ desc }}" class="andy-desc">
+                <input type="text" name="{{ name }}_desc" value="{{ desc }}" class="andy-desc" aria-label="{{ label }} task">
             </details>
             {% else %}
-            <input type="text" name="{{ name }}_desc" value="{{ desc or '' }}" placeholder="Description..."
-                   class="andy-desc">
+            <input type="text" name="{{ name }}_desc" value="{{ desc or '' }}" placeholder="What will you do?"
+                   class="andy-desc" aria-label="{{ label }} task">
             {% endif %}
         </div>
         {% endmacro %}
@@ -128,7 +130,7 @@
 
     <!-- Notes -->
     <div class="card" x-data="{ editing: false }">
-        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <div class="card-header">
             <h3>Notes</h3>
             <button type="button" class="btn btn-sm btn-outline" @click="editing = !editing" x-text="editing ? 'Save' : 'Edit'"></button>
         </div>
@@ -165,7 +167,7 @@
         {% for field, info in habit_streaks.items() %}
         <div class="stat-card" style="flex:1;min-width:80px;text-align:center;">
             <div class="stat-value" style="font-size:1.2rem;">{{ info.streak }}</div>
-            <div class="stat-label" style="font-size:0.65rem;">{{ info.label }}</div>
+            <div class="stat-label">{{ info.label }}</div>
         </div>
         {% endfor %}
     </div>

@@ -32,3 +32,32 @@ def format_duration_seconds(value) -> str:
 
     minutes, rest = divmod(seconds, 60)
     return f"{minutes} min" if rest == 0 else f"{minutes} min {rest} s"
+
+
+def format_thousands(value) -> str:
+    """Group the digits of a count, 11089 -> "11,089". Returns "" when absent."""
+    try:
+        return f"{int(round(float(value))):,}"
+    except (TypeError, ValueError):
+        return ""
+
+
+def _plain_number(value: float) -> str:
+    """300.0 -> "300", 5.6 -> "5.6": a reference bound needs no trailing zero."""
+    return f"{value:g}"
+
+
+def format_ref_range(low, high) -> str:
+    """Render a lab reference range from its optional bounds.
+
+    Both bounds read "30-100"; one bound reads "< 100" or "> 30". A bound of 0 is
+    a real bound, not a missing one, which is why this tests for None rather than
+    truthiness. Returns "" when neither bound is set.
+    """
+    if low is not None and high is not None:
+        return f"{_plain_number(low)}-{_plain_number(high)}"
+    if high is not None:
+        return f"< {_plain_number(high)}"
+    if low is not None:
+        return f"> {_plain_number(low)}"
+    return ""

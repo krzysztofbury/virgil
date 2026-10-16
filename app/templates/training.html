@@ -32,9 +32,11 @@
             <textarea name="wod_text" rows="4" maxlength="4000"
                 placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42&#10;albo po prostu: basen 40 min"></textarea>
             {# The property that makes a parse failure harmless, said out loud. #}
-            <small class="text-muted">Notatka zapisuje się przed parsowaniem, więc nawet nieudane
+            <small class="text-muted form-hint">Notatka zapisuje się przed parsowaniem, więc nawet nieudane
             parsowanie nie kasuje tego, co napisałeś.</small>
-            <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="Saving..." style="margin-top:0.5rem;">Zapisz trening</button>
+            <div class="form-actions">
+                <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="Saving...">Zapisz trening</button>
+            </div>
         </form>
     </div>
 </div>

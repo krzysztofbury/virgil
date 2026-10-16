@@ -30,6 +30,7 @@
                         {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                         {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                         {% else %}<i data-lucide="circle" style="width:16px;height:16px;"></i>{% endif %}
+                        <span class="sr-only">{{ 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' }}</span>
                     </span>
                 </div>
                 {% if desc %}<small class="text-muted">{{ desc }}</small>{% endif %}
@@ -114,7 +115,7 @@
 
 <!-- Insights: everything that describes the past. Below the day's action on
      purpose - the audit found these carrying the same weight as the check-in. -->
-<div class="section-title">Insights</div>
+<h2 class="section-group-title">Insights</h2>
 
 <!-- Oura -->
 <div class="section">
@@ -152,10 +153,10 @@
             {% if oura_today.steps is not none or yesterday_fallback.steps is defined %}
             <div class="stat-card">
                 {% if oura_today.steps is not none %}
-                <div class="stat-value">{{ oura_today.steps|int }}</div>
+                <div class="stat-value">{{ oura_today.steps|thousands }}</div>
                 <div class="stat-label">Steps</div>
                 {% else %}
-                <div class="stat-value">{{ yesterday_fallback.steps|int }}</div>
+                <div class="stat-value">{{ yesterday_fallback.steps|thousands }}</div>
                 <div class="stat-label">Steps <small class="text-muted">(yesterday)</small></div>
                 {% endif %}
             </div>
@@ -243,8 +244,10 @@
 <div class="section">
     <div class="section-title">Life Scores</div>
 
+    {# Radar beside its power-level history on wide screens, stacked on phones. #}
+    <div class="life-scores-layout">
     {% if chart_datasets %}
-    <div class="card" style="margin-bottom: 1rem;">
+    <div class="card life-scores-chart">
         <div class="chart-container" style="max-width: 500px; margin: 0 auto;">
             <canvas id="radarChart"></canvas>
         </div>
@@ -252,15 +255,17 @@
     {% endif %}
 
     {% if scores %}
-    <div class="stat-grid" style="margin-bottom: 1rem;">
+    <div class="stat-grid life-scores-power">
         {% for s in scores[:3] %}
         <div class="stat-card">
             <div class="stat-value">{{ s.power_level or '-' }}</div>
-            <div class="stat-label">{{ s.date }}</div>
+            <div class="stat-label">Power level</div>
+            <small class="text-muted">{{ s.date }}</small>
         </div>
         {% endfor %}
     </div>
     {% endif %}
+    </div>
 
     <details style="margin-bottom: 1rem;">
         <summary>New assessment</summary>
@@ -343,7 +348,7 @@
      something to act on. Safe to collapse - it holds spans, no canvas. A
      Chart.js canvas inside a closed details renders at zero size. -->
 <details class="card" id="year-calendar">
-    <summary>{{ current_year }}</summary>
+    <summary>{{ current_year }} at a glance</summary>
     <div class="year-cal-grid">
         {% for month in year_months %}
         <div class="year-cal-month">

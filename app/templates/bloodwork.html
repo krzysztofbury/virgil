@@ -22,7 +22,7 @@
         <tr>
             <td><strong>{{ m.name }}</strong></td>
             <td><small>{{ m.unit }}</small></td>
-            <td><small>{{ m.ref_low or '' }}-{{ m.ref_high or '' }}</small></td>
+            <td><small>{{ ref_range(m.ref_low, m.ref_high) }}</small></td>
             {% for d in test_dates %}
             {% set r = results.get(m.id, {}).get(d) %}
             <td class="{{ 'flag-h' if r and r.flag == 'H' else 'flag-l' if r and r.flag == 'L' else 'flag-normal' if r else '' }}">
@@ -32,7 +32,7 @@
                 {% else %}-{% endif %}
             </td>
             {% endfor %}
-            <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);">
+            <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);" aria-label="Chart for {{ m.name }}">
                 <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
             </a></td>
         </tr>
@@ -75,7 +75,7 @@
         <li class="bw-row">
             <div class="bw-marker">
                 <strong>{{ m.name }}</strong>
-                <small class="text-muted">{{ m.unit }}{% if m.ref_low is not none or m.ref_high is not none %} · ref {{ m.ref_low or '' }}-{{ m.ref_high or '' }}{% endif %}</small>
+                <small class="text-muted">{{ m.unit }}{% if m.ref_low is not none or m.ref_high is not none %} · ref {{ ref_range(m.ref_low, m.ref_high) }}{% endif %}</small>
             </div>
             <div class="bw-value">
                 {% if m.summary.value %}
