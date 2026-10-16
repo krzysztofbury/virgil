@@ -17,6 +17,26 @@ Recovery procedure: [docs/recovery.md](docs/recovery.md).
 - [x] Remove the legacy global database connection and correct Settings' path.
 - [x] Share library persistence and transactions across form and REST writes.
 
+## Follow-ups from Freedom and the in-place dashboard
+
+- [ ] Add a Freedom quick check to the dashboard's Today block: one tap per
+      tracked habit, as on the Freedom page.
+- [ ] Log an active experiment's day from its dashboard card instead of opening it.
+- [ ] Pick one UI language. Training's capture and recovery flow is Polish
+      (`Zapisz trening`, `Niedokończone`, `Wpisz serie ręcznie`); the rest is English.
+- [ ] Goals on phones: titles are single-line inputs and are cut mid-word. Let
+      them wrap without losing in-place editing.
+- [ ] Give the Freedom API Freedom names (`/api/freedom/{habit}/days`, bricks,
+      settings) and MCP tools to match, keeping the `/api/feniks/*` paths and
+      `*_feniks_*` tools as deprecated aliases for at least one release.
+- [ ] Drop the legacy No Porn tables (`feniks_config`, `feniks_journal`,
+      `feniks_pleasures`, `feniks_milestones`) once migration 034 has run on
+      every deployment for a release, after checking nothing reads them.
+- [ ] Remove the unused Pydantic models in `app/models/` (all but `user_profile`)
+      and update SPEC's new-page checklist, which still says to add one.
+- [ ] Commit a script that regenerates the README screenshots from the demo
+      seeder, so the gallery cannot fall a release behind again.
+
 ## Next: recovery and data ownership
 
 Central migrations, mutation feedback, durable jobs, and provider subscription

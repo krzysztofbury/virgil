@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Freedom replaces the No Porn module and tracks any habit being broken, several
+  at once: porn, alcohol, nicotine, cannabis, drugs, gambling, social media,
+  sugar, or one in your own words. Each habit defines its own slip (label,
+  amount unit and threshold, near miss, written definition) and has its own
+  streak, weekly clean rate, bricks and timeline. A Today list checks every
+  habit off in one tap; Settings > Modules picks the habits from a checklist.
+- `GET /api/freedom` and the MCP tool `get_habits` list every tracked habit
+  (sensitive scope). The Feniks REST calls and their MCP tools take an optional
+  `habit`, defaulting to the first tracked one, and keep their old field names.
+- The dashboard's Today block is editable in place: each A.N.D.Y. task and
+  routine advances `done > skipped > pending` with one tap, without opening
+  Daily. A Focus block lists the starred goals, and the week strip has a legend.
+- The app serves the MCP tools over Streamable HTTP at `/mcp`, with the REST
+  API's `X-API-Key` (plus the Cloudflare Access service-token headers behind
+  Access), so a client needs no checkout or `uv`.
 - REST and MCP complete CRUD for the daily log (read and delete one day),
   Feniks (delete a day, edit and delete bricks, edit the module config),
   training sessions (read one) and body measurements (list, merge, delete).
@@ -23,6 +38,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- `/feniks` redirects to `/freedom`, and `g f` opens Freedom. Migration 034
+  moves No Porn days, bricks, relapse events and settings onto a Porn habit and
+  renames the `feature_no_porn` flag to `feature_freedom`.
+- On phones the bottom bar holds Home, Daily, Training, Freedom (Goals when
+  Freedom is off) and More, which opens the read-mostly pages. The separate
+  Data menu (Oura, Blood) is folded into More.
+- A UI pass for phones, the light theme and legibility: surface overlays follow
+  the theme, readable text has a 12px floor, inputs are 16px and controls 44px
+  on phones, card headers and tabs wrap cleanly, and status toggles, day arrows
+  and charts have accessible names. Steps print with thousands separators and
+  a one-sided lab range reads `< 100`.
 - Brick edits and body measurements share their persistence with REST. The
   measurement form refuses values outside plausible bounds instead of storing
   them.
@@ -34,6 +60,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- A signed session cookie for a deleted or disabled account sent the browser
+  back and forth between `/` and `/login`. The cookie is now cleared.
+- The keyboard shortcut help read a feature flag that no longer existed, so it
+  never listed `g f`.
+- Spacing: the Freedom timeline touched the habit settings card, the exercise
+  library's search, section filter and `Add exercise` had no gaps, and Daily's
+  Edit field sat on its button. The exercise table scrolls sideways on phones
+  instead of wrapping each name word by word.
 - MCP tools now return the API's error detail to the client. The SDK hid the
   text of every failure, so a refused write read only "Error executing tool".
 
