@@ -260,7 +260,7 @@ from app.routers import (  # noqa: E402
     daily,
     dashboard,
     experiments,
-    feniks,
+    freedom,
     goals,
     jobs,
     life_scores,
@@ -276,7 +276,7 @@ app.include_router(auth.router)
 app.include_router(dashboard.router)
 app.include_router(daily.router)
 app.include_router(training.router)
-app.include_router(feniks.router)
+app.include_router(freedom.router)
 app.include_router(oura.router)
 app.include_router(oura_webhook.router)
 app.include_router(bloodwork.router)

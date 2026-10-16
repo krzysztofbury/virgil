@@ -343,8 +343,11 @@ async def confirm_onboarding(request: Request):
 
     # A keyword match is free and deterministic, so it stays on the request path.
     if apply_feniks_trigger_words(profile):
-        await set_setting(db, "feature_no_porn", "1")
-        logger.info("Feniks feature auto-enabled based on onboarding habits")
+        from app.services.habits import track
+
+        await set_setting(db, "feature_freedom", "1")
+        await track(db, "porn")
+        logger.info("Freedom enabled with the Porn habit, based on onboarding habits")
 
     await set_setting(db, "onboarding_completed", "1")
     mark_onboarding_complete()

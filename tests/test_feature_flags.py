@@ -16,7 +16,7 @@ def _set_feniks(value: str) -> None:
     assert len(db_files) == 1, f"Expected one user DB, got {db_files}"
     conn = sqlite3.connect(db_files[0])
     try:
-        conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_no_porn', ?)", (value,))
+        conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_freedom', ?)", (value,))
         conn.commit()
     finally:
         conn.close()
@@ -26,23 +26,23 @@ def test_flag_on_renders_nav_link(auth_client):
     _set_feniks("1")
     resp = auth_client.get("/training")
     assert resp.status_code == 200
-    assert "/feniks" in resp.text, "enabled feniks flag must render the nav link"
-    assert "No Porn" in resp.text
+    assert "/freedom" in resp.text, "enabled feniks flag must render the nav link"
+    assert "Freedom" in resp.text
 
 
 def test_flag_off_hides_nav_link(auth_client):
     _set_feniks("0")
     resp = auth_client.get("/training")
     assert resp.status_code == 200
-    assert 'href="/feniks"' not in resp.text, "disabled feniks flag must hide the nav link"
+    assert 'href="/freedom"' not in resp.text, "disabled feniks flag must hide the nav link"
 
 
 def test_feniks_page_gated_by_flag(auth_client):
     """The /feniks route guard reads the flag key too — regression for the rename."""
     _set_feniks("0")
-    assert auth_client.get("/feniks", follow_redirects=False).status_code == 303
+    assert auth_client.get("/freedom", follow_redirects=False).status_code == 303
     _set_feniks("1")
-    assert auth_client.get("/feniks", follow_redirects=False).status_code == 200
+    assert auth_client.get("/freedom", follow_redirects=False).status_code == 200
 
 
 def test_save_features_roundtrip_enables_link(auth_client):
@@ -51,8 +51,8 @@ def test_save_features_roundtrip_enables_link(auth_client):
     token = csrf_token(auth_client, "/settings?tab=general")
     resp = auth_client.post(
         "/settings/features",
-        data={"feature_no_porn": "on", "_csrf_token": token},
+        data={"feature_freedom": "on", "_csrf_token": token},
         follow_redirects=False,
     )
     assert resp.status_code == 303
-    assert "/feniks" in auth_client.get("/training").text
+    assert "/freedom" in auth_client.get("/training").text

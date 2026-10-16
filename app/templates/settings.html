@@ -134,21 +134,34 @@
 
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Modules</h3></div>
-    <form method="POST" action="/settings/features">
-        <div style="padding:0.5rem 0;">
-            <label style="display:flex;align-items:center;gap:0.75rem;cursor:pointer;">
-                <input type="checkbox" name="feature_no_porn" {% if feature_flags.no_porn %}checked{% endif %}
-                       style="width:auto;margin:0;">
-                <div>
-                    <strong>No Porn</strong>
-                    <div class="text-muted" style="font-size:0.85rem;">
-                        90-day personal development program (PMO recovery tracker)
-                    </div>
-                </div>
+    <form method="POST" action="/settings/features"
+          x-data="{ freedom: {{ 'true' if feature_flags.freedom else 'false' }} }">
+        <label class="module-toggle">
+            <input type="checkbox" name="feature_freedom" x-model="freedom" {% if feature_flags.freedom %}checked{% endif %}>
+            <span>
+                <strong>Freedom</strong>
+                <span class="module-desc">Break free from habits that hold you back. Each habit you choose gets a daily check-in, a log of the urges you survive and its own streak. Only you see it.</span>
+            </span>
+        </label>
+        {# The habits under the switch that governs them, shown as soon as it is on. #}
+        <fieldset class="module-habits" x-show="freedom" x-cloak>
+            <legend>Habits you're working on</legend>
+            <input type="hidden" name="freedom_habits_shown" value="1">
+            <div class="module-habit-list">
+                {% for h in freedom_choices %}
+                <label class="module-habit">
+                    <input type="checkbox" name="habits" value="{{ h.slug }}" {% if h.tracked %}checked{% endif %}>
+                    {{ h.name }}
+                </label>
+                {% endfor %}
+            </div>
+            <label class="module-custom">Something else
+                <input type="text" name="custom_habit" maxlength="40" placeholder="In your words">
             </label>
-        </div>
-        <div style="margin-top:0.5rem;">
-            <button type="submit" class="btn btn-primary btn-sm">Save</button>
+            <small class="text-muted">Unchecking a habit stops tracking it. Its history is kept and returns if you check it again.</small>
+        </fieldset>
+        <div class="form-actions module-actions">
+            <button type="submit" class="btn btn-primary btn-sm">Save modules</button>
         </div>
     </form>
 </div>
@@ -235,7 +248,7 @@
             <small class="text-muted">({{ library_by_section[section]|length }})</small>
         </summary>
         <div class="overflow-x">
-        <table class="exp-metric-table" style="width: 100%;">
+        <table class="exp-metric-table library-table" style="width: 100%;">
             <thead><tr><th>Name</th><th>Section</th><th>Sets</th><th>Reps</th><th>Metric</th><th>Notes</th><th>Tags</th><th></th></tr></thead>
             <tbody>
                 {% for ex in library_by_section[section] %}
@@ -480,8 +493,8 @@
                     ('training', 'Training'),
                     ('body_measurements', 'Body Measurements'),
                 ] %}
-                {% if request.state.features.no_porn %}
-                    {% set export_sections = export_sections + [('feniks', 'No Porn')] %}
+                {% if request.state.features.freedom %}
+                    {% set export_sections = export_sections + [('feniks', 'Freedom')] %}
                 {% endif %}
                 {% set export_sections = export_sections + [
                     ('oura', 'Oura Ring'),

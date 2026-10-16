@@ -347,6 +347,12 @@ main.container {
     transition: color 0.2s;
   }
   .tab-item.active { color: var(--accent); }
+  .tab-item-wrap { flex: 1; display: flex; position: relative; }
+  .tab-item-wrap > .tab-item { width: 100%; background: none; border: 0; cursor: pointer; }
+  /* The menu opens from the last tab: anchor it to the right edge so it cannot
+     run off the screen. */
+  .tab-item-wrap > .tab-dropdown { left: auto; right: 0.5rem; transform: scale(0.95); transform-origin: bottom right; }
+  .tab-item-wrap > .tab-dropdown.show { transform: scale(1); }
   .tab-item i { width: 20px; height: 20px; }
 
   /* Dropup Menu */
@@ -378,6 +384,7 @@ main.container {
     color: var(--text-secondary);
     border-radius: var(--radius-sm);
   }
+  .tab-dropdown a svg { width: 20px; height: 20px; flex-shrink: 0; }
   .tab-dropdown a:hover {
     background: var(--bg-surface);
     color: var(--text-primary);
@@ -653,6 +660,9 @@ label {
   margin: 0;
   font-size: 0.85rem;
 }
+/* Under the done card's Edit disclosure; `margin: 0` above outranks the shared
+   details spacing rule. */
+details > .andy-desc { margin-top: 0.5rem; }
 @media (max-width: 480px) {
   .andy-grid {
     grid-template-columns: 1fr;
@@ -1087,6 +1097,100 @@ input[type="range"]#energy-slider::-moz-range-thumb {
   margin: 0.75rem auto 0;
 }
 
+.streak-progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; margin-bottom: 0.35rem; }
+.streak-target-bar { position: relative; }
+.streak-target-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text-secondary); opacity: 0.55; }
+.streak-progress-note { display: block; margin-top: 0.35rem; }
+
+/* ── Freedom ── */
+.module-toggle { display: flex; align-items: flex-start; gap: 0.75rem; margin: 0; padding: 0.5rem 0; cursor: pointer; }
+.module-toggle input { margin-top: 0.3rem; flex-shrink: 0; }
+.module-toggle strong { display: block; font-size: 1rem; }
+.module-desc { display: block; color: var(--text-secondary); font-size: 0.875rem; font-weight: 400; line-height: 1.5; max-width: 60ch; }
+.module-habits { margin: 0.75rem 0 0 1.75rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); display: grid; gap: 0.75rem; }
+.module-habits legend { padding: 0 0.35rem; font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
+.module-habit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: 0.25rem 1rem; }
+.module-habit { display: flex; align-items: center; gap: 0.5rem; min-height: 40px; margin: 0; font-size: 0.9375rem; color: var(--text-primary); cursor: pointer; }
+.module-custom { margin: 0; max-width: 24rem; }
+.module-actions { justify-content: flex-start; }
+@media (max-width: 560px) { .module-habits { margin-left: 0; } }
+/* Exercise library: search and section filter share a row, wrapping on phones. */
+.library-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.library-controls input, .library-controls select { flex: 1 1 12rem; width: auto; margin: 0; }
+/* Eight columns: on a phone the table scrolls sideways instead of wrapping each name word by word. */
+.library-table { min-width: 52rem; }
+.freedom-today { padding: 0.5rem; display: grid; gap: 0.25rem; }
+.freedom-today-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+}
+.freedom-today-row + .freedom-today-row { border-top: 1px solid var(--border); }
+/* The selected row's own background already separates it from its neighbours. */
+.freedom-today-row.is-selected + .freedom-today-row,
+.freedom-today-row + .freedom-today-row.is-selected { border-top-color: transparent; }
+.freedom-today-row.is-selected { background: var(--overlay-2); }
+.freedom-today-name { display: flex; flex-direction: column; min-width: 0; }
+.freedom-today-name small { color: var(--text-secondary); font-size: 0.8125rem; }
+.freedom-today-name:hover strong { color: var(--accent); }
+.freedom-today-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.freedom-today-actions form { margin: 0; }
+.freedom-today-actions svg, .freedom-status svg, .habit-chip svg { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
+.freedom-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.freedom-status.clean { color: var(--green); background: rgba(44, 182, 125, 0.12); }
+.freedom-status.slipped { color: var(--red); background: rgba(229, 83, 75, 0.12); }
+.freedom-habit-head { margin: 0.5rem 0 1rem; }
+.freedom-habit-head h2 { margin-bottom: 0.25rem; }
+.freedom-why { color: var(--text-secondary); font-style: italic; max-width: 60ch; }
+.day-definition { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
+.day-definition strong { color: var(--text-primary); font-weight: 600; }
+.freedom-empty h3 { margin-bottom: 0.5rem; }
+.freedom-empty > p { margin-bottom: 1.25rem; max-width: 60ch; }
+.habit-picker { display: grid; gap: 1rem; }
+.habit-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.habit-chips form { margin: 0; }
+.habit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 40px;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  background: var(--overlay-1);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.15s, background 0.15s;
+}
+.habit-chip:hover { border-color: var(--accent); background: var(--overlay-3); }
+.habit-custom { display: flex; gap: 0.5rem; max-width: 28rem; }
+.habit-custom input { flex: 1; min-width: 0; }
+.freedom-settings > summary, .freedom-add > summary { font-weight: 600; }
+.freedom-settings-form { display: grid; gap: 0.75rem; }
+.freedom-settings-form label { margin: 0; }
+.freedom-untrack { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.timeline-edit { margin-top: 0.35rem; }
+.timeline-edit form { margin-top: 0.5rem; }
+@media (max-width: 560px) {
+  .freedom-today-row { flex-wrap: wrap; }
+  .freedom-today-actions { width: 100%; }
+  .freedom-today-actions form, .freedom-today-actions > a { flex: 1; }
+  .freedom-today-actions .btn { width: 100%; }
+}
+
 /* ── Chart Container ── */
 .chart-container {
   position: relative;
@@ -1140,9 +1244,63 @@ details > :not(summary) { margin-top: 1rem; }
   letter-spacing: 0.05em;
 }
 .day-energy {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.15rem;
   font-size: 1.125rem;
   font-weight: 700;
   margin: 0.15rem 0;
+}
+.day-energy-icon { width: 0.8rem; height: 0.8rem; color: var(--yellow); flex-shrink: 0; }
+.week-legend .day-energy-icon { display: inline-block; vertical-align: -0.1rem; }
+.week-legend {
+  margin-top: 0.75rem;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+/* ── Dashboard: Today and Focus ── */
+.today-head { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.section-link {
+  color: var(--accent);
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: 0.8125rem;
+}
+.section-link:hover { text-decoration: underline; }
+.today-card .andy-item-header .toggle-btn { margin-left: auto; }
+.today-task { display: block; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
+.today-task--empty { color: var(--accent); font-weight: 500; }
+.today-task--empty:hover { text-decoration: underline; }
+.today-routines {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.today-routines-label { font-size: 0.8125rem; font-weight: 600; color: var(--text-secondary); margin-right: auto; }
+.today-routine { display: inline-flex; align-items: center; gap: 0.5rem; font-size: 0.875rem; font-weight: 500; }
+.focus-list { display: grid; gap: 0.75rem; }
+.focus-list li {
+  display: grid;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  column-gap: 0.5rem;
+  align-items: baseline;
+}
+.focus-icon { grid-row: span 2; font-size: 1.1rem; line-height: 1.4; text-align: center; }
+.focus-text { font-weight: 600; line-height: 1.4; }
+.focus-meta { font-size: 0.75rem; color: var(--text-secondary); }
+@media (max-width: 768px) {
+  /* Three equal columns, label under its toggle: a row of three never wraps
+     one routine onto a line of its own. */
+  .today-routines { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem 0.5rem; }
+  .today-routines-label { grid-column: 1 / -1; }
+  .today-routine { flex-direction: column; gap: 0.35rem; font-size: 0.8125rem; }
 }
 
 /* ── A.N.D.Y. AI Loading ── */
@@ -2274,7 +2432,7 @@ input.flatpickr-input:hover {
   margin-bottom: 0.75rem;
 }
 
-/* Alpine: hide until initialised. Used by onboarding.html and feniks.html —
+/* Alpine: hide until initialised. Used by onboarding.html and freedom.html -
    this rule lived inside the Rest Timer block and is NOT part of it. */
 [x-cloak] { display: none !important; }
 
@@ -2738,7 +2896,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* Unified timeline */
-.timeline { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1.5rem; }
+.timeline { display: flex; flex-direction: column; gap: 0.9rem; margin: 1.5rem 0; }
 .timeline-day {
   display: grid;
   grid-template-columns: 6.5rem 1fr;

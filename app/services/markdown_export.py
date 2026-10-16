@@ -157,17 +157,22 @@ async def _section_feniks(db, start: str, end: str) -> list[str]:
         "SELECT * FROM feniks_pleasures WHERE date BETWEEN ? AND ? ORDER BY date", (start, end)
     )
     relapses = await db.execute_fetchall(
-        "SELECT * FROM pmo_events WHERE date BETWEEN ? AND ? ORDER BY date", (start, end)
+        "SELECT e.*, h.name AS habit FROM pmo_events e JOIN habits h ON h.id = e.habit_id "
+        "WHERE e.date BETWEEN ? AND ? ORDER BY e.date",
+        (start, end),
     )
-    if not journal and not pleasures and not relapses:
-        return []
-
-    # Streak info
+    from app.services.habits import list_habits
     from app.services.streak import get_streak
 
-    streak_days, _ = await get_streak(db)
+    habits = await list_habits(db)
+    if not journal and not pleasures and not relapses and not habits:
+        return []
 
-    lines = ["## No Porn", "", f"**Current streak:** {streak_days} days", ""]
+    lines = ["## Freedom", ""]
+    for habit in habits:
+        streak_days, _ = await get_streak(db, habit["id"])
+        lines.append(f"**{habit['name']}:** {streak_days} days since the last slip")
+    lines.append("")
 
     if journal:
         lines.append("### Journal")
@@ -195,7 +200,7 @@ async def _section_feniks(db, start: str, end: str) -> list[str]:
         for r in relapses:
             r = dict(r)
             notes = f" - {r['notes']}" if r.get("notes") else ""
-            lines.append(f"- {r['date']}: {r['event_type']}{notes}")
+            lines.append(f"- {r['date']}: {r['habit']} {r['event_type']}{notes}")
         lines.append("")
 
     return lines
@@ -443,7 +448,7 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
     """
     start, end = _date_range_for_scope(scope)
     today = date.today()
-    feniks_enabled = await get_setting(db, "feature_no_porn", "0") == "1"
+    feniks_enabled = await get_setting(db, "feature_freedom", "0") == "1"
 
     def _include(name: str) -> bool:
         return sections is None or name in sections

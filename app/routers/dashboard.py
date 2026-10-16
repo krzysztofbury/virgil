@@ -9,15 +9,14 @@ from fastapi.responses import HTMLResponse
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.daily_log import day_progress
 from app.services.experiment_weeks import experiment_calendar, experiment_week_number
-from app.services.streak import get_streak
 from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-ANDY_KEYS = ("body", "spirit", "account", "relations")
 
 AREAS = LIFE_AREAS
 AREA_LABELS = LIFE_AREA_LABELS
@@ -31,10 +30,16 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     # Today's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (today.isoformat(),))
     today_log = dict(row[0]) if row else None
-    # Stated, not counted by eye: four icons with three states each are not a
-    # progress report, and the audit found nothing on the page saying what is
-    # left today.
-    andy_done = sum(1 for key in ANDY_KEYS if today_log and today_log[f"andy_{key}_status"] == "done")
+
+    # The starred goals: direction at a glance, beside what is left today.
+    focus_goals = [
+        dict(g)
+        for g in await db.execute_fetchall(
+            "SELECT g.id, g.content, g.horizon, a.icon AS area_icon, a.name AS area_name FROM goals g "
+            "JOIN goal_areas a ON a.id = g.area_id WHERE g.active = 1 AND g.status = 'active' "
+            "ORDER BY g.updated_at DESC, g.id DESC LIMIT 3"
+        )
+    ]
 
     # Week overview (Mon-Sun of current week)
     monday = today - timedelta(days=today.weekday())
@@ -80,18 +85,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         if ls_meas:
             latest_meas = dict(ls_meas[0])
             prev_meas = dict(ls_meas[1]) if len(ls_meas) > 1 else None
-
-    # Feniks streak (skip if feature disabled)
-    features = getattr(request.state, "features", {})
-    if features.get("no_porn"):
-        feniks_conf = await db.execute_fetchall("SELECT * FROM feniks_config WHERE id = 1")
-        feniks_config = dict(feniks_conf[0]) if feniks_conf else None
-        streak_days, _ = await get_streak(db)
-        feniks_progress = min(100, round(streak_days / feniks_config["target_days"] * 100)) if feniks_config else 0
-    else:
-        feniks_config = None
-        streak_days = 0
-        feniks_progress = 0
 
     # Oura latest (prefer today's daily data, fallback to monthly)
     oura_daily_row = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date = ?", (today.isoformat(),))
@@ -258,16 +251,13 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "briefing_nonce": secrets.token_hex(16),
             "current_job": current_job,
             "today_log": today_log,
-            "andy_done": andy_done,
-            "andy_total": len(ANDY_KEYS),
+            **day_progress(today_log),
+            "focus_goals": focus_goals,
             "week_logs": week_logs,
             "day_names": day_names,
             "week_dates": [d.isoformat() for d in week_dates],
             "latest_meas": latest_meas,
             "prev_meas": prev_meas,
-            "streak_days": streak_days,
-            "feniks_config": feniks_config,
-            "feniks_progress": feniks_progress,
             "oura_today": oura_today,
             "yesterday_fallback": yesterday_fallback,
             "latest_oura": latest_oura,

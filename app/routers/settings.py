@@ -75,6 +75,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["second_brain_path"] = SECOND_BRAIN_PATH
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
+        context["freedom_choices"] = await _freedom_choices(db)
         context["reasoning_efforts"] = list(REASONING_EFFORTS)
         context["reasoning_effort"] = await resolve_reasoning_effort(db)
 
@@ -394,8 +395,27 @@ async def save_automation(request: Request):
 # --- Feature Flags ---
 
 
+async def _freedom_choices(db) -> list[dict]:
+    """The Freedom checklist: the catalog, then the person's own habits."""
+    from app.services.habits import PRESETS, PRESETS_BY_SLUG, list_habits
+
+    stored = {h["slug"]: h for h in await list_habits(db, tracked_only=False)}
+    choices = [
+        {"slug": p["slug"], "name": p["name"], "tracked": bool(stored.get(p["slug"], {}).get("tracked"))}
+        for p in PRESETS
+    ]
+    choices += [
+        {"slug": h["slug"], "name": h["name"], "tracked": bool(h["tracked"])}
+        for h in stored.values()
+        if h["slug"] not in PRESETS_BY_SLUG
+    ]
+    return choices
+
+
 @router.post("/settings/features")
 async def save_features(request: Request):
+    from app.services.habits import HabitError, add_custom, sync_tracked
+
     form = await request.form()
     db = get_user_db_from_request(request)
     # Union of flags already in the DB and any feature_* checkbox present in the form,
@@ -405,6 +425,17 @@ async def save_features(request: Request):
     for flag_name in known:
         key = f"feature_{flag_name}"
         await set_setting(db, key, "1" if form.get(key) else "0")
+
+    # The habit checklist only applies while Freedom is on; switching the module
+    # off keeps the selection for when it comes back.
+    if form.get("feature_freedom") and form.get("freedom_habits_shown"):
+        await sync_tracked(db, set(form.getlist("habits")))
+        custom = (form.get("custom_habit") or "").strip()
+        if custom:
+            try:
+                await add_custom(db, custom)
+            except HabitError as exc:
+                return error_redirect(request, "/settings?tab=general", str(exc))
 
     return success_redirect(request, "/settings?tab=general", "Feature settings updated.")
 
@@ -538,6 +569,7 @@ EXPORT_TABLES = [
     "training_exercises",
     "exercise_library",
     "exercise_library_tags",
+    "habits",
     "feniks_config",
     "feniks_journal",
     "feniks_pleasures",

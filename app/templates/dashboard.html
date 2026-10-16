@@ -3,42 +3,28 @@
 
 {% block content %}
 
-<!-- Today: the one block that must sit in the first mobile viewport.
-     Orientation (what is left today) and the next action (the check-in), before
-     any analytics. The page used to open on the week strip, which says where you
-     have been and nothing about what to do now. -->
-<div class="section" id="today-block">
-    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center;gap:0.5rem;flex-wrap:wrap;">
-        <span>Today &middot; {{ andy_done }}/{{ andy_total }} done</span>
-        <a href="/daily/{{ today }}" class="btn btn-sm btn-primary">
-            {% if today_log %}Edit today's log{% else %}Finish today's check-in{% endif %}
-            <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
-        </a>
+{% include "partials/today_block.html" %}
+
+<!-- Focus: the starred goals, so direction sits beside the day's actions
+     instead of three taps away. -->
+<div class="section" id="focus-block">
+    <div class="section-title today-head">
+        <span>Focus</span>
+        <a href="/goals" class="section-link">{{ 'Manage goals' if focus_goals else 'Choose goals' }}</a>
     </div>
-    <div class="card">
-        {% if today_log %}
-        {% set andy_icons = {'body': 'andy-body', 'spirit': 'andy-spirit', 'account': 'andy-self', 'relations': 'andy-relations'} %}
-        <div class="andy-grid">
-            {% for name, label in [('body', 'Body'), ('spirit', 'Spirit'), ('account', 'Self'), ('relations', 'Relations')] %}
-            {% set status = today_log['andy_' ~ name ~ '_status'] %}
-            {% set desc = today_log['andy_' ~ name ~ '_desc'] %}
-            <div class="andy-item andy-item--task">
-                <div class="andy-item-header">
-                    <img src="/static/img/{{ andy_icons[name] }}.png" alt="{{ label }}" class="andy-icon">
-                    <span class="andy-label">{{ label }}</span>
-                    <span class="{{ 'text-green' if status == 'done' else 'text-yellow' if status == 'skipped' else 'text-muted' }}">
-                        {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
-                        {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
-                        {% else %}<i data-lucide="circle" style="width:16px;height:16px;"></i>{% endif %}
-                        <span class="sr-only">{{ 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' }}</span>
-                    </span>
-                </div>
-                {% if desc %}<small class="text-muted">{{ desc }}</small>{% endif %}
-            </div>
+    <div class="card focus-card">
+        {% if focus_goals %}
+        <ul class="focus-list">
+            {% for g in focus_goals %}
+            <li>
+                <span class="focus-icon" aria-hidden="true">{{ g.area_icon }}</span>
+                <span class="focus-text">{{ g.content }}</span>
+                <span class="focus-meta">{{ g.area_name }} &middot; {{ {'1yr': '1 year', '3yr': '3 years', '10yr': '10 years'}[g.horizon] }}</span>
+            </li>
             {% endfor %}
-        </div>
+        </ul>
         {% else %}
-        <p class="text-muted">No entry for today.</p>
+        <p class="text-muted">Star up to 3 goals on the Goals page and they stay here, in view.</p>
         {% endif %}
     </div>
 </div>
@@ -76,15 +62,19 @@
     <div class="card">
         <div class="week-grid">
             {% for i in range(7) %}
-            <a href="/daily/{{ week_dates[i] }}" class="day-cell {{ 'today' if week_dates[i] == today else '' }}">
+            {% set done = (week_logs[i].completion * 7 / 100)|round|int %}
+            <a href="/daily/{{ week_dates[i] }}" class="day-cell {{ 'today' if week_dates[i] == today else '' }}"
+               title="{{ day_names[i] }}: energy {{ week_logs[i].energy or 'not logged' }}, {{ done }} of 7 habits done"
+               aria-label="{{ day_names[i] }} {{ week_dates[i] }}: energy {{ week_logs[i].energy or 'not logged' }}, {{ done }} of 7 habits done">
                 <div class="day-name">{{ day_names[i] }}</div>
-                <div class="day-energy">{{ week_logs[i].energy if week_logs[i].energy else '-' }}</div>
+                <div class="day-energy">{% if week_logs[i].energy %}<i data-lucide="zap" class="day-energy-icon" aria-hidden="true"></i>{{ week_logs[i].energy }}{% else %}-{% endif %}</div>
                 <div class="progress-bar" style="height: 4px;">
                     <div class="fill" style="width: {{ week_logs[i].completion }}%"></div>
                 </div>
             </a>
             {% endfor %}
         </div>
+        <p class="week-legend"><i data-lucide="zap" class="day-energy-icon" aria-hidden="true"></i> Energy, 1-10. The bar is habits done, of 7. Tap a day to open it.</p>
     </div>
 </div>
 

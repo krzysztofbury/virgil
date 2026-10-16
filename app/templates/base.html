@@ -33,7 +33,7 @@
             <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Dashboard</a>
             <a href="/daily" class="{{ 'active' if '/daily' in request.url.path else '' }}">Daily</a>
             <a href="/training" class="{{ 'active' if '/training' in request.url.path else '' }}">Training</a>
-            {% if request.state.features.no_porn %}<a href="/feniks" class="{{ 'active' if '/feniks' in request.url.path else '' }}">No Porn</a>{% endif %}
+            {% if request.state.features.freedom %}<a href="/freedom" class="{{ 'active' if '/freedom' in request.url.path else '' }}">Freedom</a>{% endif %}
             <a href="/oura" class="{{ 'active' if '/oura' in request.url.path else '' }}">Oura</a>
             <a href="/bloodwork" class="{{ 'active' if '/bloodwork' in request.url.path else '' }}">Blood</a>
             <a href="/goals" class="{{ 'active' if '/goals' in request.url.path else '' }}">Goals</a>
@@ -74,31 +74,40 @@
             <i data-lucide="calendar-check"></i>
             <span>Daily</span>
         </a>
-        {% if request.state.features.no_porn %}
-        <a href="/feniks" class="tab-item {{ 'active' if '/feniks' in request.url.path else '' }}">
+        {# The bar holds what you act on daily; read-mostly pages (Oura, Blood)
+           live under More. Training is a daily action, so it is not hidden there. #}
+        <a href="/training" class="tab-item {{ 'active' if '/training' in request.url.path else '' }}">
+            <i data-lucide="dumbbell"></i>
+            <span>Training</span>
+        </a>
+        {% if request.state.features.freedom %}
+        <a href="/freedom" class="tab-item {{ 'active' if '/freedom' in request.url.path else '' }}">
             <i data-lucide="flame"></i>
-            <span>No Porn</span>
+            <span>Freedom</span>
+        </a>
+        {% else %}
+        <a href="/goals" class="tab-item {{ 'active' if '/goals' in request.url.path else '' }}">
+            <i data-lucide="crosshair"></i>
+            <span>Goals</span>
         </a>
         {% endif %}
-        <div class="tab-item" @click.stop="openMenu = openMenu === 'data' ? null : 'data'"
-             :class="{ 'active': openMenu === 'data' || ['/oura', '/bloodwork'].some(p => '{{ request.url.path }}'.includes(p)) }">
-            <i data-lucide="bar-chart-3"></i>
-            <span>Data</span>
-            <div class="tab-dropdown" :class="{ 'show': openMenu === 'data' }" @click.stop>
+        {% set more_paths = ['/oura', '/bloodwork', '/experiments', '/settings'] + (['/goals'] if request.state.features.freedom else []) %}
+        <div class="tab-item-wrap">
+            <button type="button" class="tab-item {{ 'active' if more_paths | select('in', request.url.path) | list else '' }}"
+                    @click.stop="openMenu = openMenu === 'more' ? null : 'more'"
+                    :aria-expanded="(openMenu === 'more').toString()" aria-haspopup="true" aria-controls="tab-more-menu">
+                <i data-lucide="menu"></i>
+                <span>More</span>
+            </button>
+            <div class="tab-dropdown" id="tab-more-menu" :class="{ 'show': openMenu === 'more' }" @click.stop @keydown.escape="openMenu = null">
+                {% if request.state.features.freedom %}<a href="/goals"><i data-lucide="crosshair"></i> Goals</a>{% endif %}
+                <a href="/experiments"><i data-lucide="flask-conical"></i> Experiments</a>
                 <a href="/oura"><i data-lucide="moon"></i> Oura</a>
                 <a href="/bloodwork"><i data-lucide="droplets"></i> Blood</a>
-            </div>
-        </div>
-        <div class="tab-item" @click.stop="openMenu = openMenu === 'more' ? null : 'more'"
-             :class="{ 'active': openMenu === 'more' || ['/training', '/goals', '/experiments', '/settings'].some(p => '{{ request.url.path }}'.includes(p)) }">
-            <i data-lucide="menu"></i>
-            <span>More</span>
-            <div class="tab-dropdown" :class="{ 'show': openMenu === 'more' }" @click.stop>
-                <a href="/training"><i data-lucide="dumbbell"></i> Training</a>
-                <a href="/goals"><i data-lucide="crosshair"></i> Goals</a>
-                <a href="/experiments"><i data-lucide="flask-conical"></i> Experiments</a>
                 <a href="/settings"><i data-lucide="settings"></i> Settings</a>
             </div>
+        </div>
+    </div>
         </div>
     </div>
 

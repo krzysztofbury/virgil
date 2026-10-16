@@ -192,3 +192,22 @@ def auth_client(client):
         yield authenticated
     finally:
         authenticated.close()
+
+
+def track_porn() -> int:
+    """Make Porn the first tracked Freedom habit and return its id.
+
+    The REST API's Freedom calls without ?habit= act on the first tracked habit,
+    which is what an account migrated from the No Porn module has.
+    """
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute(
+            "INSERT OR IGNORE INTO habits (slug, name, slip_label, slip_definition, amount_unit, slip_threshold, "
+            "near_miss_label, start_date) VALUES ('porn', 'Porn', 'I watched', '', 'minutes', 5, 'Edging', '2026-01-01')"
+        )
+        conn.execute("UPDATE habits SET tracked = 1, position = -1 WHERE slug = 'porn'")
+        conn.commit()
+        return conn.execute("SELECT id FROM habits WHERE slug = 'porn'").fetchone()[0]
+    finally:
+        conn.close()

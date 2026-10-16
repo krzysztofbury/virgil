@@ -9,7 +9,7 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-from tests.conftest import csrf_token, user_db_path
+from tests.conftest import csrf_token, track_porn, user_db_path
 
 
 def test_mutation_handlers_do_not_return_silent_redirects():
@@ -183,10 +183,17 @@ def test_shared_js_distinguishes_transport_and_http_failures(client):
 def test_mutation_forms_declare_pending_and_bounded_draft_contract(auth_client):
     oura = Path("app/templates/oura.html").read_text(encoding="utf-8")
     daily = auth_client.get("/daily").text
-    feniks = Path("app/templates/feniks.html").read_text(encoding="utf-8")
+    track_porn()
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_freedom', '1')")
+        conn.commit()
+    finally:
+        conn.close()
+    freedom = auth_client.get("/freedom").text
 
     assert 'data-pending-label="Syncing..."' in oura
     assert 'data-draft-fields="notes"' in daily
     assert 'hx-sync="this:replace"' in daily
-    assert 'data-draft-fields="note"' in feniks
-    assert 'data-draft-fields="hook,story"' in feniks
+    assert 'data-draft-fields="note"' in freedom
+    assert 'data-draft-fields="hook,story"' in freedom

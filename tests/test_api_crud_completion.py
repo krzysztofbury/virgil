@@ -4,7 +4,7 @@ training sessions and body measurements."""
 import sqlite3
 from datetime import date, timedelta
 
-from conftest import csrf_token, user_db_path
+from conftest import csrf_token, track_porn, user_db_path
 
 KEY = {"X-API-Key": "test-key-123"}
 
@@ -42,10 +42,13 @@ def test_feniks_management_requires_the_sensitive_scope(auth_client):
 
 def test_deleting_a_feniks_day_removes_only_its_own_marker(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    porn = track_porn()
     day = (date.today() - timedelta(days=50)).isoformat()
     try:
         auth_client.put(f"/api/feniks/daily/{day}", json={"used": True, "minutes": 15}, headers=KEY)
-        _execute("INSERT INTO pmo_events (date, event_type, notes) VALUES (?, 'reset', 'manual')", (day,))
+        _execute(
+            "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'reset', 'manual')", (porn, day)
+        )
         assert auth_client.delete(f"/api/feniks/daily/{day}", headers=KEY).status_code == 200
         assert _fetchall("SELECT COUNT(*) FROM feniks_daily WHERE date = ?", (day,)) == [(0,)]
         assert _fetchall("SELECT event_type, notes FROM pmo_events WHERE date = ?", (day,)) == [("reset", "manual")]
@@ -56,6 +59,7 @@ def test_deleting_a_feniks_day_removes_only_its_own_marker(auth_client, monkeypa
 
 def test_brick_can_be_edited_partially_and_deleted(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    track_porn()
     day = (date.today() - timedelta(days=51)).isoformat()
     brick_id = auth_client.post(
         "/api/feniks/bricks", json={"date": day, "hook": "ZZ cold shower", "craving": 6, "story": "s"}, headers=KEY
@@ -76,18 +80,19 @@ def test_brick_can_be_edited_partially_and_deleted(auth_client, monkeypatch):
 
 def test_feniks_config_is_validated_and_persisted(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
-    original = _fetchall("SELECT start_date, target_days, big_why FROM feniks_config WHERE id = 1")[0]
+    porn = track_porn()
+    original = _fetchall("SELECT start_date, target_days, big_why FROM habits WHERE id = ?", (porn,))[0]
     try:
         assert auth_client.patch("/api/feniks/config", json={"target_days": 0}, headers=KEY).status_code == 422
         future = (date.today() + timedelta(days=1)).isoformat()
         assert auth_client.patch("/api/feniks/config", json={"start_date": future}, headers=KEY).status_code == 422
         resp = auth_client.patch("/api/feniks/config", json={"target_days": 30}, headers=KEY)
         assert resp.status_code == 200, resp.text
-        assert _fetchall("SELECT start_date, target_days, big_why FROM feniks_config WHERE id = 1") == [
+        assert _fetchall("SELECT start_date, target_days, big_why FROM habits WHERE id = ?", (porn,)) == [
             (original[0], 30, original[2])
         ]
     finally:
-        _execute("UPDATE feniks_config SET start_date = ?, target_days = ?, big_why = ? WHERE id = 1", tuple(original))
+        _execute("UPDATE habits SET start_date = ?, target_days = ?, big_why = ? WHERE id = ?", (*original, porn))
 
 
 def test_single_training_session_can_be_read(auth_client):

@@ -57,6 +57,22 @@ def test_auth_middleware_rejects_signed_noncanonical_user_id(client, monkeypatch
         client.cookies.delete(SESSION_COOKIE)
 
 
+def test_a_session_for_a_deleted_account_is_dropped_not_looped(client):
+    """/login turns away any validly signed session, so a cookie whose account no
+    longer exists must be cleared, or the browser bounces between / and /login."""
+    from app.auth import SESSION_COOKIE, create_session
+
+    client.cookies.set(SESSION_COOKIE, create_session("12345678-1234-4234-8234-123456789abc"))
+    try:
+        response = client.get("/", follow_redirects=False)
+        assert response.status_code == 303
+        assert response.headers["location"] == "/login"
+        assert f"{SESSION_COOKIE}=;" in response.headers["set-cookie"]
+        assert "Max-Age=0" in response.headers["set-cookie"]
+    finally:
+        client.cookies.delete(SESSION_COOKIE)
+
+
 def test_oura_callback_rejects_missing_or_mismatched_state(auth_client):
     """CSRF-safe OAuth: the callback must bounce (not 500, not proceed) when the
     state cookie is absent or doesn't match."""

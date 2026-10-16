@@ -8,20 +8,20 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 ## Screenshots
 
-<sub>All screenshots use the built-in demo seeder (`scripts/seed_demo.py`) — fictional data, no real user information. They predate the v0.6.0 layout pass, so the arrangement they show is one release behind.</sub>
+<sub>All screenshots use the built-in demo seeder (`scripts/seed_demo.py`) plus three fictional focus goals - no real user information. Desktop, dark theme.</sub>
 
 <table>
 <tr>
-<td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> - today's check-in first, then Insights (Oura, measurements, life-scores radar)</sub></td>
+<td width="50%"><img src="docs/screenshots/dashboard.png" alt="Dashboard"><br><sub><b>Dashboard</b> - today's A.N.D.Y. tasks and routines tapped in place, focus goals, the week, then Insights</sub></td>
 <td width="50%"><img src="docs/screenshots/daily.png" alt="Daily log"><br><sub><b>Daily</b> - energy, routines and A.N.D.Y. tasks (AI-suggested), with a stated n/7 count</sub></td>
 </tr>
 <tr>
 <td width="50%"><img src="docs/screenshots/training.png" alt="Training"><br><sub><b>Training</b> - free-text capture, grouped PBs, and calendar history</sub></td>
-<td width="50%"><img src="docs/screenshots/oura.png" alt="Oura Ring data"><br><sub><b>Oura</b> — daily & monthly trends (sleep, HRV, readiness, RHR)</sub></td>
+<td width="50%"><img src="docs/screenshots/oura.png" alt="Oura Ring data"><br><sub><b>Oura</b> - readiness against baseline, grouped vitals, monthly and daily trends</sub></td>
 </tr>
 <tr>
-<td width="50%"><img src="docs/screenshots/no-porn.png" alt="No Porn tracker"><br><sub><b>No Porn</b> — bricks, single-flow day log, weekly clean-rate, unified timeline</sub></td>
-<td width="50%"><img src="docs/screenshots/experiments.png" alt="Experiments"><br><sub><b>Experiments</b> — metric-based protocols (minutes, counts, daily yes/no, 0-10 ratings) with one-tap logging</sub></td>
+<td width="50%"><img src="docs/screenshots/freedom.png" alt="Freedom habit tracker"><br><sub><b>Freedom</b> - every habit you are breaking checked off in one tap, then one habit's bricks, day log and timeline</sub></td>
+<td width="50%"><img src="docs/screenshots/experiments.png" alt="Experiments"><br><sub><b>Experiments</b> - metric-based protocols (minutes, counts, daily yes/no, 0-10 ratings) with one-tap logging</sub></td>
 </tr>
 </table>
 
@@ -208,7 +208,7 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content) and Feniks day-log, brick and config writes over the API key |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom` and the Freedom day-log, brick and habit-settings writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
 Port is always **8123**.
@@ -217,11 +217,14 @@ Port is always **8123**.
 
 ### Dashboard (`/`)
 
-Action first, analytics after. The first block is **Today**: how much of the
-check-in is done (`n/4`) and one button into it. Then the morning briefing (if
-enabled), the week strip and active experiments. Everything that describes the
-past sits under **Insights** - Oura vitals, body measurements, the life-score
-radar - with the year calendar dot-matrix collapsed at the end.
+Action first, analytics after. The first block is **Today**: the four A.N.D.Y.
+tasks and three routines, each tapped in place through `done > skipped > pending`
+without opening Daily, with the count (`n/4`) and `Edit today's log` for
+descriptions and notes. Then the morning briefing (if enabled), **Focus** (the
+starred goals), the week strip (energy per day, with a legend) and active
+experiments. Everything that describes the past sits under **Insights** - Oura
+vitals, body measurements, the life-score radar - with the year calendar
+dot-matrix collapsed at the end.
 
 There is deliberately no interpretation sentence here: the page states the next
 action and the numbers, and leaves the verdict to you.
@@ -311,14 +314,34 @@ history across two exercises and halve your Personal Bests.
 > as real Core volume, and a single 21-15-9 thruster couplet at 43 kg is ~1935 kg.
 > That is intentional — see CHANGELOG.
 
-### No Porn (`/feniks`)
-Recovery tracker (hidden by default — enable in Settings > General > Modules), built as a single flow: one day question, one brick capture, one timeline.
-- **Measurement contract** - watched means at least five total minutes of intentional viewing. Shorter exposure stays clean and belongs in the always-visible note. A brick is one distinct decision episode resolved before exposure; background desire alone is not a brick and no specific coping action is required.
-- **Bricks hero** — count of urges survived; each brick carries a required memory hook, craving (0-10) and a short story (Gola's brick method). The days-clean streak and a Monday-to-Sunday week strip show below.
-- **Brick corrections** - records can be edited or removed with confirmation.
-- **Day log** - one question: *Clean day* or *I watched*; watching reveals minutes and an edging toggle. Marking a day as watched records its relapse event once; correcting it back to clean removes only that marker and clears watched-only fields.
-- **Weekly clean rate** — a slip doesn't erase the week
-- **Timeline** — days and their bricks together, newest first
+### Freedom (`/freedom`)
+Habits you are breaking free from. Hidden by default: enable **Freedom** in
+Settings > General > Modules and tick the habits to track - porn, alcohol,
+nicotine, cannabis, drugs, gambling, social media, sugar, or one in your own
+words. Unticking a habit stops tracking it and keeps its history. The old
+`/feniks` address redirects here.
+
+- **Today** - every tracked habit with its streak and this week's clean rate,
+  checked off as *Clean* or *Slipped* in one tap
+- **One habit at a time** below it: its why, the bricks hero (urges survived)
+  with a Monday-to-Sunday week strip, the day log, brick capture and the timeline
+- **Each habit defines its own slip** - the button label (*I watched*, *I drank*),
+  an optional amount with a unit and threshold, an optional near miss, and a
+  written definition shown above the day question. Porn keeps the old measurement
+  contract: watched means at least five total minutes of intentional viewing,
+  shorter exposure stays clean and belongs in the note, and the near miss is
+  edging. Everything is editable under the habit's settings
+- **Bricks** - one distinct decision episode resolved before a slip; each carries
+  a required memory hook, craving (0-10) and a short story (Gola's brick method),
+  and can be edited or removed with confirmation
+- **Day log** - marking a slip records that habit's relapse event once; correcting
+  the day back to clean removes only that marker and clears slip-only fields
+- **Weekly clean rate** - a slip lowers the week's rate (target 75%) and never
+  resets it to zero
+- **Timeline** - days and their bricks together, newest first
+
+Migration 034 moves No Porn history - days, bricks, relapse events, start date,
+target and why - onto a Porn habit.
 
 ### Oura (`/oura`)
 Daily and monthly Oura Ring metrics — sleep, readiness, activity, HRV, stress, and more.
@@ -393,9 +416,13 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   - `log_daily` → `PUT /api/daily/{date}` merges only the supplied fields: energy,
     routines, and the four A.N.D.Y. statuses and descriptions
   - `log_feniks_day` → `PUT /api/feniks/daily/{date}` and `add_brick` →
-    `POST /api/feniks/bricks` keep the form's contract (watched means at least
-    5 minutes; the relapse marker follows the outcome). Both require
-    `VIRGIL_API_SENSITIVE=true`
+    `POST /api/feniks/bricks` keep the Freedom form's contract (the relapse
+    marker follows the outcome; for Porn, watched means at least 5 minutes).
+    They take an optional `habit` slug, defaulting to the first tracked habit
+    (Porn for an account migrated from No Porn), and still accept the old field
+    names `used`, `minutes` and `edging`. Both require `VIRGIL_API_SENSITIVE=true`
+  - `get_habits` → `GET /api/freedom` lists every tracked habit with its streak,
+    this week, today's entry, bricks, slip definition and settings (sensitive)
   - `log_training` → `POST /api/training/sessions` writes a session and all its
     sets in one transaction; an unknown movement refuses the write and lists the
     names. `update_training` / `delete_training` → `PATCH/DELETE
@@ -405,7 +432,8 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   - `delete_feniks_day` → `DELETE /api/feniks/daily/{date}`, `update_brick` /
     `delete_brick` → `PATCH/DELETE /api/feniks/bricks/{id}`, and
     `update_feniks_config` → `PATCH /api/feniks/config` (start date, target
-    days, big why), all behind `VIRGIL_API_SENSITIVE=true`
+    days, big why), all behind `VIRGIL_API_SENSITIVE=true`; the day and config
+    calls take the same optional `habit`
   - `get_training_session` → `GET /api/training/sessions/{id}`
   - `get_measurements`, `log_measurements`, `delete_measurements` →
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
@@ -413,7 +441,7 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 
 ### Settings (`/settings`)
 Six-tab settings page:
-- **General** — Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Feniks)
+- **General** - Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Freedom, with its habit checklist)
 - **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
@@ -470,7 +498,7 @@ Press `?` to see the shortcut overlay. Navigation uses a `g` prefix:
 | `g d` | Dashboard |
 | `g l` | Daily |
 | `g t` | Training |
-| `g f` | Feniks (when enabled) |
+| `g f` | Freedom (when enabled) |
 | `g o` | Oura |
 | `g b` | Bloodwork |
 | `g e` | Experiments |
@@ -479,6 +507,12 @@ Press `?` to see the shortcut overlay. Navigation uses a `g` prefix:
 | `<-` / `->` | Previous/next day (daily page) |
 | `?` | Toggle shortcut overlay |
 | `Esc` | Close overlay |
+
+### Navigation
+Wide screens get the top navigation bar. On a phone a bottom bar holds what you
+act on daily - Home, Daily, Training, and Freedom (Goals when Freedom is off) -
+and `More` opens the read-mostly pages: Experiments, Oura, Blood, Settings, and
+Goals when Freedom takes its place.
 
 ### Swipe Gestures
 On mobile, swipe left/right on the daily page to navigate between days. Uses `data-swipe-left` / `data-swipe-right` attributes (80px minimum, 300ms maximum, horizontal > vertical).
@@ -497,6 +531,8 @@ Virgil is installable as a PWA. The service worker provides:
 - Optional TOTP MFA via `pyotp` + `qrcode`
 - Signed cookie sessions via `itsdangerous.TimestampSigner` (7-day expiry)
 - MFA-pending sessions blocked from protected routes
+- A signed session whose account was deleted or disabled is cleared on the way to
+  `/login`, instead of looping between `/` and `/login`
 
 ### Middleware Stack
 Request processing order:
@@ -556,7 +592,11 @@ Current migrations:
 | 027 | `jobs` | Adds the per-user durable job queue: bounded payloads, idempotency keys, single-runner claims with lease tokens, persisted retry timing |
 | 028 | `active_workload_jobs` | One queued job per operational workload kind (backup, export, Oura sync); reconciles v27 duplicates |
 | 029 | `llm_publications` | Adds the paid-LLM publication ledger, which outlives terminal job pruning, and one queued job per paid kind |
+| 030 | `feniks_measurement_contract` | Clears watched-only measurements left on clean Feniks days |
+| 031 | `canonical_goals` | Adds canonical goal state, first-class reps and goal-linked experiments |
+| 032 | `training_history_indexes` | Indexes training history summaries and selected-day details |
 | 033 | `movement_taxonomy` | Adds movement families, aliases, default and per-set equipment; adds missing CrossFit variants and merges duplicate movements with their history |
+| 034 | `freedom_habits` | Adds `habits`; keys day logs, bricks and relapse events by habit; moves No Porn history onto a Porn habit and renames `feature_no_porn` to `feature_freedom` |
 
 Central registry migrations:
 | Version | Name | Description |
@@ -581,8 +621,10 @@ Central registry migrations:
 - `daily_briefings` — AI-generated morning briefings
 - `training_exercises` — the row every logged set references; seeded, no longer a UI-managed protocol
 - `training_sessions` + `training_entries` — workout logs
-- `feniks_config`, `feniks_journal`, `feniks_pleasures`, `feniks_milestones` — Feniks program
-- `pmo_events` — relapse/reset events
+- `habits` - Freedom habits: slip label and definition, amount unit and threshold, near-miss label, start date, target, why, tracked flag
+- `feniks_daily`, `feniks_bricks` - Freedom day logs and bricks, keyed by habit
+- `pmo_events` - relapse/reset events, keyed by habit
+- `feniks_config`, `feniks_journal`, `feniks_pleasures`, `feniks_milestones` - the No Porn program's legacy tables, kept for history
 - `oura_daily` — Oura Ring per-day data (from API or webhook)
 - `oura_monthly` — Oura Ring monthly averages (computed from daily or manual)
 - `oura_workouts` — Oura workout data
@@ -598,7 +640,7 @@ Central registry migrations:
 - `sync_log` — export/sync audit trail
 
 ### Three-State Toggles
-Habit and task items use a three-state cycle: `done` > `skipped` > `pending`, mapped to `[x]` / `[-]` / `[ ]` in markdown.
+Habit and task items use a three-state cycle: `done` > `skipped` > `pending`, mapped to `[x]` / `[-]` / `[ ]` in markdown. On the dashboard each tap advances one item (`POST /daily/{date}/cycle`) and leaves the rest of the day as it was.
 
 ## Oura Ring Integration
 
@@ -644,7 +686,7 @@ Generates a single markdown file in the second-brain directory (per-user filenam
 
 | Scope | Content |
 |---|---|
-| Weekly | Daily logs, training, feniks (if enabled), measurements (current week) |
+| Weekly | Daily logs, training, Freedom habits (if enabled), measurements (current week) |
 | Monthly | Weekly data + oura, life scores, experiments (current month) |
 | Yearly | Monthly data + blood work, goals (current year) |
 | All | Everything in the database |
@@ -665,6 +707,7 @@ virgil/
 │   ├── rate_limit.py         # Per-IP sliding window rate limiter
 │   ├── security_headers.py   # Security response headers middleware (CSP + worker-src)
 │   ├── validation.py         # Shared input validation helpers
+│   ├── mcp_endpoint.py       # Hosted MCP over Streamable HTTP at /mcp
 │   ├── migrations/
 │   │   ├── runner.py         # Migration discovery + execution engine
 │   │   ├── 001_initial_schema.py
@@ -679,7 +722,7 @@ virgil/
 │   │   ├── dashboard.py      # / route + sparkline data + /offline
 │   │   ├── daily.py          # /daily routes + A.N.D.Y. AI generation
 │   │   ├── training.py       # /training routes + exercise CRUD + KPIs
-│   │   ├── feniks.py         # /feniks routes + progress chart
+│   │   ├── freedom.py        # /freedom routes (and the /feniks redirect)
 │   │   ├── oura.py           # /oura routes + daily trends
 │   │   ├── oura_webhook.py   # /api/oura/webhook (HMAC-verified, CSRF-exempt)
 │   │   ├── bloodwork.py      # /bloodwork routes
@@ -707,7 +750,10 @@ virgil/
 │   │   ├── scheduler.py      # Background task loop (enqueues due work, runs the job worker)
 │   │   ├── backup.py         # SQLite backup with rolling retention
 │   │   ├── experiment_summary.py # AI weekly summaries for experiments
-│   │   └── streak.py         # Feniks streak calculation
+│   │   ├── habits.py         # Freedom habit catalog, tracking and settings
+│   │   ├── freedom_log.py    # Freedom day logs, bricks and per-habit overview
+│   │   ├── daily_log.py      # Daily-log persistence shared by forms, REST and the dashboard
+│   │   └── streak.py         # Freedom streak and weekly clean rate per habit
 │   ├── templates/
 │   │   ├── base.html         # Layout with nav, theme toggle, SW registration
 │   │   ├── offline.html      # Standalone offline fallback page

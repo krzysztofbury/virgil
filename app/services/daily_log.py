@@ -7,6 +7,7 @@ does not exist yet starts from the schema defaults.
 """
 
 STATUSES = ("done", "skipped", "pending")
+NEXT_STATUS = {"pending": "done", "done": "skipped", "skipped": "pending"}
 STATUS_FIELDS = (
     "morning_routine",
     "evening_routine",
@@ -16,6 +17,8 @@ STATUS_FIELDS = (
     "andy_account_status",
     "andy_relations_status",
 )
+ROUTINE_FIELDS = STATUS_FIELDS[:3]
+ANDY_STATUS_FIELDS = STATUS_FIELDS[3:]
 DESC_FIELDS = ("andy_body_desc", "andy_spirit_desc", "andy_account_desc", "andy_relations_desc")
 DESC_MAX = 500
 NOTES_MAX = 5000
@@ -53,13 +56,34 @@ def _validate(changes: dict) -> dict:
 async def upsert_daily_log(db, day: str, changes: dict) -> dict:
     """Merge `changes` into the log for ISO date `day` and return the stored row."""
     clean = _validate(changes)
+    return await _rewrite(db, day, lambda current: current.update(clean))
+
+
+async def cycle_status(db, day: str, field: str) -> dict:
+    """Advance one status a step and return the stored row.
+
+    Pending, done, skipped, then pending again: the order the daily page cycles
+    in. The read and the write share one transaction, so two quick taps advance
+    twice instead of both reading the same state.
+    """
+    if field not in STATUS_FIELDS:
+        raise DailyLogError(f"{field} is not a daily-log status")
+
+    def advance(current: dict) -> None:
+        current[field] = NEXT_STATUS.get(current[field], "done")
+
+    return await _rewrite(db, day, advance)
+
+
+async def _rewrite(db, day: str, apply) -> dict:
+    """Load the day (or the defaults), let `apply` change it in place, store it."""
     if db.in_transaction:
         raise RuntimeError("Daily-log writes require a connection without pending writes")
     await db.execute("BEGIN IMMEDIATE")
     try:
         rows = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (day,))
         current = {field: rows[0][field] for field in FIELDS} if rows else dict(_DEFAULTS)
-        current.update(clean)
+        apply(current)
         columns = ", ".join(FIELDS)
         placeholders = ", ".join("?" * len(FIELDS))
         assignments = ", ".join(f"{field}=excluded.{field}" for field in FIELDS)
@@ -74,6 +98,20 @@ async def upsert_daily_log(db, day: str, changes: dict) -> dict:
         await db.rollback()
         raise
     return dict(stored[0])
+
+
+def day_progress(log: dict | None) -> dict:
+    """How much of a day is done: A.N.D.Y. tasks and routines, counted separately."""
+
+    def done(fields) -> int:
+        return sum(1 for field in fields if log and log[field] == "done")
+
+    return {
+        "andy_done": done(ANDY_STATUS_FIELDS),
+        "andy_total": len(ANDY_STATUS_FIELDS),
+        "routines_done": done(ROUTINE_FIELDS),
+        "routines_total": len(ROUTINE_FIELDS),
+    }
 
 
 async def get_daily_log(db, day: str) -> dict | None:

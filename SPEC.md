@@ -30,14 +30,14 @@ app/
 
   migrations/           - Numbered database schema migrations
     runner.py           - Migration discovery + execution engine
-    001_*.py ... 026_*.py
+    001_*.py ... 034_*.py
 
   models/               - Data models (query helpers, not ORMs)
     daily.py, bloodwork.py, experiments.py, feniks.py,
     goals.py, life_scores.py, oura.py
 
   routers/              - FastAPI route handlers (one per feature)
-    auth.py, dashboard.py, daily.py, training.py, feniks.py,
+    auth.py, dashboard.py, daily.py, training.py, freedom.py,
     oura.py, oura_webhook.py, bloodwork.py, life_scores.py,
     goals.py, experiments.py, settings.py
 
@@ -51,7 +51,9 @@ app/
     scheduler.py        - Background task loop (backup + sync + export)
     backup.py           - SQLite backup with rolling retention
     experiment_summary.py - AI weekly summaries
-    streak.py           - Feniks streak calculation
+    habits.py           - Freedom habit catalog, tracking and settings
+    freedom_log.py      - Freedom day logs, bricks and per-habit overview
+    streak.py           - Freedom streak and weekly clean rate per habit
 
   templates/            - Jinja2 HTML templates (24 files)
     base.html           - Layout, nav, theme toggle, SW registration
@@ -118,7 +120,8 @@ uv run --locked --extra dev bandit -q -c pyproject.toml -r app/ scripts/ mcp_ser
 2. Create a router in `app/routers/` with route handlers
 3. Create a template in `app/templates/`
 4. Register the router in `app/main.py`
-5. Add navigation link in `app/templates/base.html`
+5. Add navigation link in `app/templates/base.html`: the top bar, and on phones
+   either the bottom bar (a daily action) or its `More` menu (read-mostly pages)
 6. Add keyboard shortcut in `app/static/js/app.js`
 
 ### Adding a Database Migration

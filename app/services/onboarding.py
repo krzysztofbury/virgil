@@ -69,7 +69,7 @@ async def enrichment_progress(db) -> list[dict]:
 
 
 def apply_feniks_trigger_words(profile: dict) -> bool:
-    """Whether the stated habits ask for the No Porn module. No LLM involved."""
+    """Whether the stated habits ask for Freedom's Porn habit. No LLM involved."""
     habits = (profile.get("habits_bad") or "") + " " + (profile.get("habits_break") or "")
     return any(word in habits.lower() for word in ("porn", "pmo", "masturbat", "nofap", "porno"))
 
