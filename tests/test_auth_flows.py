@@ -187,3 +187,22 @@ def test_totp_secret_encrypted_at_rest(auth_client):
         central.execute("UPDATE users SET totp_secret = '', totp_enabled = 0 WHERE email = ?", (TEST_EMAIL,))
         central.commit()
         central.close()
+
+
+def test_an_unfinished_mfa_login_can_start_over_instead_of_looping(client, monkeypatch):
+    """Leaving /mfa/verify for /login must show the login form. /login used to treat the
+    pending session as signed in and send it to /, which sent it back to /login."""
+    from app.auth import MFA_PENDING_PREFIX, SESSION_COOKIE, create_session
+
+    client.cookies.set(SESSION_COOKIE, create_session(f"{MFA_PENDING_PREFIX}12345678-1234-1234-1234-123456789abc"))
+    try:
+        assert client.get("/login", follow_redirects=False).status_code == 200
+        assert client.get("/", follow_redirects=False).headers["location"] == "/login"
+        assert client.get("/mfa/verify", follow_redirects=False).status_code == 200
+
+        # A pending login lives minutes, not the full session lifetime.
+        monkeypatch.setattr("app.auth.MFA_PENDING_MAX_AGE_SECONDS", -1)
+        expired = client.get("/mfa/verify", follow_redirects=False)
+        assert expired.status_code == 303 and expired.headers["location"].startswith("/login")
+    finally:
+        client.cookies.delete(SESSION_COOKIE)

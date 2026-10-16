@@ -122,6 +122,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
 
         context["second_brain_path"] = SECOND_BRAIN_PATH
         context["export_filename"] = await export_filename_for(db, request.state.user["id"])
+        context["can_import"] = await _owns_second_brain(request)
 
     elif tab == "automation":
         from app.routers.jobs import build_job_view
@@ -513,10 +514,20 @@ async def trigger_export(request: Request, job_nonce: str = Form(...)):
     )
 
 
+async def _owns_second_brain(request: Request) -> bool:
+    """The Second Brain directory is one server-wide folder of the install owner's
+    notes, so only the owner (the oldest account) may import it."""
+    from app.central_db import get_primary_user_id
+
+    return request.state.user["id"] == await get_primary_user_id()
+
+
 @router.post("/settings/import")
 async def trigger_import(request: Request):
     from app.services.markdown_import import import_all
 
+    if not await _owns_second_brain(request):
+        return error_redirect(request, "/settings?tab=data", "Only the account that owns this install can import.")
     db = get_user_db_from_request(request)
     try:
         await import_all(db)

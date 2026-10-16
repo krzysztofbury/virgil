@@ -164,6 +164,25 @@ def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str 
         return None
 
 
+# A password-verified login waiting for its TOTP code. It only lets the browser
+# reach /mfa/verify, so it lives minutes, not the full session lifetime.
+MFA_PENDING_PREFIX = "_mfa_pending:"
+MFA_PENDING_MAX_AGE_SECONDS = 600
+
+
+def signed_in_user_id(token: str) -> str | None:
+    """The user a session cookie fully signs in, or None. A pending MFA login is not
+    signed in: treating it as one sent /login to / and the middleware back again."""
+    user_id = validate_session(token) if token else None
+    return None if not user_id or user_id.startswith(MFA_PENDING_PREFIX) else user_id
+
+
+def mfa_pending_user_id(token: str) -> str | None:
+    """The user a still-fresh pending MFA login belongs to, or None."""
+    value = validate_session(token, max_age=MFA_PENDING_MAX_AGE_SECONDS) if token else None
+    return value.removeprefix(MFA_PENDING_PREFIX) if value and value.startswith(MFA_PENDING_PREFIX) else None
+
+
 def session_cookie_header(token: str) -> str:
     """Build Set-Cookie header value for the session.
 
@@ -213,7 +232,7 @@ class AuthMiddleware:
         session_token = request.cookies.get(SESSION_COOKIE, "")
         user_id = validate_session(session_token) if session_token else None
 
-        if not user_id or user_id.startswith("_mfa_pending:"):
+        if not user_id or user_id.startswith(MFA_PENDING_PREFIX):
             response = _login_response(scope)
             await response(scope, receive, send)
             return

@@ -36,7 +36,16 @@ def test_summary_shape(auth_client):
     body = resp.json()
     for key in ("date", "daily", "feniks", "oura_latest", "training_week", "measurements_latest"):
         assert key in body
-    assert "streak_days" in body["feniks"]
+
+
+def test_summary_shows_freedom_status_only_in_the_sensitive_scope(auth_client, monkeypatch):
+    """The first habit can be any addiction; its relapse dates are as private as /api/freedom."""
+    from conftest import track_porn
+
+    track_porn()
+    assert auth_client.get("/api/summary", headers=KEY).json()["feniks"] is None
+    monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    assert "streak_days" in auth_client.get("/api/summary", headers=KEY).json()["feniks"]
 
 
 def test_habits_range(auth_client):

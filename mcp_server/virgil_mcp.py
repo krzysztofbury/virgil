@@ -141,8 +141,11 @@ def get_oura_stats() -> dict:
 def get_streaks() -> dict:
     """Freedom status of the first tracked habit (Porn, for an account that started with
     the No Porn module): days since its last slip and that date. get_habits covers every
-    habit being tracked."""
-    return _get("/api/summary")["feniks"]
+    habit being tracked. Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    status = _get("/api/summary")["feniks"]
+    if status is None:
+        raise ToolError("Freedom data needs the server's sensitive scope (VIRGIL_API_SENSITIVE=true)")
+    return status
 
 
 @mcp.tool()

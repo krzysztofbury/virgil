@@ -521,7 +521,8 @@
     </p>
 </div>
 
-<!-- Import -->
+<!-- Import: the Second Brain folder is the install owner's, so only they see it. -->
+{% if can_import %}
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Data Import</h3></div>
     <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Import from markdown files in second-brain.</p>
@@ -529,6 +530,7 @@
         <button type="submit" class="btn btn-secondary">Import data</button>
     </form>
 </div>
+{% endif %}
 
 <!-- Download & Export -->
 <div class="card">

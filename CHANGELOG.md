@@ -76,6 +76,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Only the account that owns the install can import the Second Brain folder; it
+  holds the owner's notes, so other accounts no longer see or reach the import.
+- Leaving an unfinished MFA login for `/login` could loop between `/login` and
+  `/`. A pending MFA login is now treated as signed out there, and it expires
+  after 10 minutes instead of 7 days.
+- `/api/summary` (and the MCP `get_streaks` tool) return the Freedom status only
+  in the sensitive scope, like the other Freedom reads.
 - A signed session cookie for a deleted or disabled account sent the browser
   back and forth between `/` and `/login`. The cookie is now cleared.
 - The keyboard shortcut help read a feature flag that no longer existed, so it

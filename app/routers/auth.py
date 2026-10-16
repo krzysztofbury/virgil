@@ -9,12 +9,14 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.auth import (
+    MFA_PENDING_PREFIX,
     SESSION_COOKIE,
     clear_session_cookie,
     create_session,
     hash_password,  # noqa: F401 — re-exported for use in tests
+    mfa_pending_user_id,
     session_cookie_header,
-    validate_session,
+    signed_in_user_id,
     verify_password,
 )
 from app.central_db import count_users, create_user, get_user_by_email, get_user_by_id, update_user
@@ -71,8 +73,7 @@ async def signup_page(request: Request):
             {"request": request, "info": "Registration is closed on this server.", "registration_open": False},
         )
 
-    session_token = request.cookies.get(SESSION_COOKIE, "")
-    if session_token and validate_session(session_token):
+    if signed_in_user_id(request.cookies.get(SESSION_COOKIE, "")):
         return RedirectResponse("/", status_code=303)
 
     return templates.TemplateResponse(request, "auth_signup.html", {"request": request})
@@ -143,8 +144,7 @@ async def signup_submit(
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    session_token = request.cookies.get(SESSION_COOKIE, "")
-    if session_token and validate_session(session_token):
+    if signed_in_user_id(request.cookies.get(SESSION_COOKIE, "")):
         return RedirectResponse("/", status_code=303)
 
     return templates.TemplateResponse(
@@ -203,7 +203,7 @@ async def login_submit(
 
     # If MFA is enabled, redirect to MFA verification
     if user["totp_enabled"]:
-        token = create_session(f"_mfa_pending:{user['id']}")
+        token = create_session(f"{MFA_PENDING_PREFIX}{user['id']}")
         response = RedirectResponse("/mfa/verify", status_code=303)
         response.headers["set-cookie"] = session_cookie_header(token)
         return response
@@ -307,21 +307,17 @@ async def mfa_disable(request: Request, password: str = Form(...)):
 
 @router.get("/mfa/verify", response_class=HTMLResponse)
 async def mfa_verify_page(request: Request):
-    session_token = request.cookies.get(SESSION_COOKIE, "")
-    pending = validate_session(session_token) if session_token else None
-    if not pending or not pending.startswith("_mfa_pending:"):
+    if not mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, "")):
         return error_redirect(request, "/login", "MFA session expired. Sign in again.")
     return templates.TemplateResponse(request, "auth_mfa_verify.html", {"request": request})
 
 
 @router.post("/mfa/verify")
 async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
-    session_token = request.cookies.get(SESSION_COOKIE, "")
-    pending = validate_session(session_token) if session_token else None
-    if not pending or not pending.startswith("_mfa_pending:"):
+    user_id = mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, ""))
+    if not user_id:
         return error_redirect(request, "/login", "MFA session expired. Sign in again.")
 
-    user_id = pending.removeprefix("_mfa_pending:")
     user = await get_user_by_id(user_id)
     if not user:
         return error_redirect(request, "/login", "MFA session expired. Sign in again.")

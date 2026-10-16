@@ -208,7 +208,7 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom` and the Freedom day-log, brick and habit-settings writes over the API key |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
 Port is always **8123**.
@@ -447,7 +447,7 @@ Six-tab settings page:
 - **General** - Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Freedom, with its habit checklist)
 - **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
-- **Data** — Markdown export (weekly/monthly/yearly/all), data import, JSON/CSV download, database backup
+- **Data** - Markdown export (weekly/monthly/yearly/all), Second Brain import (only for the account that owns the install, since the folder is the owner's), JSON/CSV download, database backup
 - **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
 - **Security** — MFA setup/disable (TOTP with QR code), sync log viewer
 
@@ -533,7 +533,7 @@ Virgil is installable as a PWA. The service worker provides:
 - Email + password with bcrypt hashing
 - Optional TOTP MFA via `pyotp` + `qrcode`
 - Signed cookie sessions via `itsdangerous.TimestampSigner` (7-day expiry)
-- MFA-pending sessions blocked from protected routes
+- MFA-pending sessions blocked from protected routes; they expire after 10 minutes, and `/login` treats them as signed out
 - A signed session whose account was deleted or disabled is cleared on the way to
   `/login`, instead of looping between `/` and `/login`
 

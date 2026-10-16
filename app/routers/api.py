@@ -110,7 +110,10 @@ ApiDb = Annotated[aiosqlite.Connection, Depends(api_db)]
 @router.get("/summary")
 async def api_summary(db: ApiDb):
     """Today's snapshot: daily habits, the first Freedom habit's streak (key "feniks", kept for
-    older readers), latest Oura, training this week, latest measurements."""
+    older readers; null unless the sensitive scope is on, since the habit can be any
+    addiction), latest Oura, training this week, latest measurements."""
+    from app import config
+
     today = date.today()
     today_iso = today.isoformat()
 
@@ -124,11 +127,14 @@ async def api_summary(db: ApiDb):
             "notes": log["notes"],
         }
 
-    try:
-        first_habit = await resolve_habit(db)
-        streak_days, last_relapse = await get_streak(db, first_habit["id"])
-    except LookupError:
-        streak_days, last_relapse = 0, None
+    freedom = None
+    if config.API_SENSITIVE:
+        try:
+            first_habit = await resolve_habit(db)
+            streak_days, last_relapse = await get_streak(db, first_habit["id"])
+        except LookupError:
+            streak_days, last_relapse = 0, None
+        freedom = {"streak_days": streak_days, "last_relapse": last_relapse.isoformat() if last_relapse else None}
 
     oura_rows = await db.execute_fetchall("SELECT * FROM oura_daily ORDER BY date DESC LIMIT 1")
 
@@ -143,10 +149,7 @@ async def api_summary(db: ApiDb):
     return {
         "date": today_iso,
         "daily": daily,
-        "feniks": {
-            "streak_days": streak_days,
-            "last_relapse": last_relapse.isoformat() if last_relapse else None,
-        },
+        "feniks": freedom,
         "oura_latest": dict(oura_rows[0]) if oura_rows else None,
         "training_week": {"sessions": sess[0]["n"], "last_date": sess[0]["last_date"]},
         "measurements_latest": dict(meas_rows[0]) if meas_rows else None,
