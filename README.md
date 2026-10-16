@@ -415,25 +415,28 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   opening the forms:
   - `log_daily` → `PUT /api/daily/{date}` merges only the supplied fields: energy,
     routines, and the four A.N.D.Y. statuses and descriptions
-  - `log_feniks_day` → `PUT /api/feniks/daily/{date}` and `add_brick` →
-    `POST /api/feniks/bricks` keep the Freedom form's contract (the relapse
-    marker follows the outcome; for Porn, watched means at least 5 minutes).
-    They take an optional `habit` slug, defaulting to the first tracked habit
-    (Porn for an account migrated from No Porn), and still accept the old field
-    names `used`, `minutes` and `edging`. Both require `VIRGIL_API_SENSITIVE=true`
-  - `get_habits` → `GET /api/freedom` lists every tracked habit with its streak,
-    this week, today's entry, bricks, slip definition and settings (sensitive)
+  - `get_habits` → `GET /api/freedom` lists every tracked habit with its slug,
+    streak, this week, today's entry, bricks, slip definition and settings
+  - `log_freedom_day` → `PUT /api/freedom/{habit}/days/{date}` and `add_brick` →
+    `POST /api/freedom/{habit}/bricks` keep the Freedom form's contract (the
+    relapse marker follows the outcome; for Porn, a slip is at least 5 minutes)
+  - Every Freedom call requires `VIRGIL_API_SENSITIVE=true`
   - `log_training` → `POST /api/training/sessions` writes a session and all its
     sets in one transaction; an unknown movement refuses the write and lists the
     names. `update_training` / `delete_training` → `PATCH/DELETE
     /api/training/sessions/{id}`; sending `entries` replaces every set
 - Completing CRUD for the same records:
   - `get_daily` / `delete_daily` → `GET/DELETE /api/daily/{date}`
-  - `delete_feniks_day` → `DELETE /api/feniks/daily/{date}`, `update_brick` /
-    `delete_brick` → `PATCH/DELETE /api/feniks/bricks/{id}`, and
-    `update_feniks_config` → `PATCH /api/feniks/config` (start date, target
-    days, big why), all behind `VIRGIL_API_SENSITIVE=true`; the day and config
-    calls take the same optional `habit`
+  - `delete_freedom_day` → `DELETE /api/freedom/{habit}/days/{date}`,
+    `update_brick` / `delete_brick` → `PATCH/DELETE /api/freedom/bricks/{id}`,
+    and `update_habit` → `PATCH /api/freedom/{habit}` (name, slip definition,
+    start date, target days, why)
+  - **Deprecated, kept for one release:** the No Porn names still work.
+    `/api/feniks/daily/{date}`, `/api/feniks/bricks[/{id}]` and
+    `/api/feniks/config` take an optional `?habit=` (default: the first tracked
+    habit) and the old fields `used`, `minutes`, `edging`; the MCP tools
+    `log_feniks_day`, `delete_feniks_day` and `update_feniks_config` call the
+    Freedom ones
   - `get_training_session` → `GET /api/training/sessions/{id}`
   - `get_measurements`, `log_measurements`, `delete_measurements` →
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
@@ -597,6 +600,7 @@ Current migrations:
 | 032 | `training_history_indexes` | Indexes training history summaries and selected-day details |
 | 033 | `movement_taxonomy` | Adds movement families, aliases, default and per-set equipment; adds missing CrossFit variants and merges duplicate movements with their history |
 | 034 | `freedom_habits` | Adds `habits`; keys day logs, bricks and relapse events by habit; moves No Porn history onto a Porn habit and renames `feature_no_porn` to `feature_freedom` |
+| 035 | `drop_no_porn_leftovers` | Drops `feniks_config` (moved onto the Porn habit) and `feniks_milestones`; keeps the journal and pleasures |
 
 Central registry migrations:
 | Version | Name | Description |
@@ -624,7 +628,7 @@ Central registry migrations:
 - `habits` - Freedom habits: slip label and definition, amount unit and threshold, near-miss label, start date, target, why, tracked flag
 - `feniks_daily`, `feniks_bricks` - Freedom day logs and bricks, keyed by habit
 - `pmo_events` - relapse/reset events, keyed by habit
-- `feniks_config`, `feniks_journal`, `feniks_pleasures`, `feniks_milestones` - the No Porn program's legacy tables, kept for history
+- `feniks_journal`, `feniks_pleasures` - the No Porn program's journal and pleasures, read by `/api/noporn` and the markdown export
 - `oura_daily` — Oura Ring per-day data (from API or webhook)
 - `oura_monthly` — Oura Ring monthly averages (computed from daily or manual)
 - `oura_workouts` — Oura workout data

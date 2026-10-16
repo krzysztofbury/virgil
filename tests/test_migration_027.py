@@ -175,7 +175,7 @@ def test_full_migration_chain_records_latest_version(tmp_path):
             await db.close()
 
     marker, tables = asyncio.run(scenario())
-    assert marker == (34, "034_freedom_habits.py")
+    assert marker == (35, "035_drop_no_porn_leftovers.py")
     assert tables == {"jobs", "llm_publications"}
 
 

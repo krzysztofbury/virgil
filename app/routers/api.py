@@ -4,8 +4,8 @@ Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
 Writes cover canonical goals/reps, experiment logging, exercise-library CRUD,
-the daily log (habits and A.N.D.Y.), Freedom (/api/freedom; day logs, bricks and config
-per habit under the historical /api/feniks paths), training
+the daily log (habits and A.N.D.Y.), Freedom (/api/freedom: habits, their days, bricks and
+settings; the /api/feniks paths are deprecated aliases), training
 sessions and body measurements.
 """
 
@@ -31,7 +31,7 @@ from app.services.freedom_log import (
     save_day,
     update_brick,
 )
-from app.services.freedom_log import delete_day as delete_feniks_day
+from app.services.freedom_log import delete_day as delete_freedom_day
 from app.services.goal_data import (
     GOAL_STATUSES,
     REP_STATUSES,
@@ -1024,15 +1024,23 @@ async def api_put_daily(day: str, payload: ApiDailyPatch, db: ApiDb):
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-class ApiFeniksDay(BaseModel):
-    """One habit's day. The legacy names (used, minutes, edging) still work."""
+class ApiFreedomDay(BaseModel):
+    """One habit's day: clean or slipped, with the amount and near miss the habit asks for."""
 
     model_config = ConfigDict(extra="forbid")
+
+    slipped: bool
+    amount: int | None = None
+    near_miss: bool = False
+    note: str = ""
+
+
+class ApiFeniksDay(ApiFreedomDay):
+    """The deprecated /api/feniks/daily body: the No Porn names (used, minutes, edging) still work."""
 
     slipped: bool = Field(validation_alias=AliasChoices("slipped", "used"))
     amount: int | None = Field(None, validation_alias=AliasChoices("amount", "minutes"))
     near_miss: bool = Field(False, validation_alias=AliasChoices("near_miss", "edging"))
-    note: str = ""
 
 
 class ApiBrick(BaseModel):
@@ -1044,10 +1052,7 @@ class ApiBrick(BaseModel):
     story: str = ""
 
 
-@router.put("/feniks/daily/{day}")
-async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb, habit: HabitParam = None):
-    _require_sensitive()
-    target = await _habit(db, habit)
+async def _put_day(db, target: dict, day: str, payload: ApiFreedomDay) -> dict:
     try:
         return await save_day(
             db,
@@ -1062,16 +1067,42 @@ async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb, habit: 
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
-@router.post("/feniks/bricks", status_code=201)
-async def api_add_brick(payload: ApiBrick, db: ApiDb, habit: HabitParam = None):
-    _require_sensitive()
-    target = await _habit(db, habit)
+async def _add_brick(db, target: dict, payload: ApiBrick) -> dict:
     try:
         return await add_brick(
             db, target, payload.date, hook=payload.hook, craving=payload.craving, story=payload.story
         )
     except FreedomWriteError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.put("/freedom/{habit}/days/{day}")
+async def api_put_freedom_day(habit: str, day: str, payload: ApiFreedomDay, db: ApiDb):
+    """Record one habit's day, replacing that day's entry. A slip marks a relapse for the
+    habit's streak; correcting it to clean removes only that marker."""
+    _require_sensitive()
+    return await _put_day(db, await _habit(db, habit), day, payload)
+
+
+@router.post("/freedom/{habit}/bricks", status_code=201)
+async def api_add_freedom_brick(habit: str, payload: ApiBrick, db: ApiDb):
+    """One urge survived for one habit."""
+    _require_sensitive()
+    return await _add_brick(db, await _habit(db, habit), payload)
+
+
+@router.put("/feniks/daily/{day}", deprecated=True)
+async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb, habit: HabitParam = None):
+    """Deprecated: PUT /api/freedom/{habit}/days/{day}."""
+    _require_sensitive()
+    return await _put_day(db, await _habit(db, habit), day, payload)
+
+
+@router.post("/feniks/bricks", status_code=201, deprecated=True)
+async def api_add_brick(payload: ApiBrick, db: ApiDb, habit: HabitParam = None):
+    """Deprecated: POST /api/freedom/{habit}/bricks."""
+    _require_sensitive()
+    return await _add_brick(db, await _habit(db, habit), payload)
 
 
 class ApiTrainingEntry(BaseModel):
@@ -1175,15 +1206,26 @@ async def api_delete_daily(day: str, db: ApiDb):
     return {"deleted": True, "date": _iso_day(day)}
 
 
-@router.delete("/feniks/daily/{day}")
-async def api_delete_feniks_day(day: str, db: ApiDb, habit: HabitParam = None):
-    _require_sensitive()
-    target = await _habit(db, habit)
+async def _delete_day(db, target: dict, day: str) -> dict:
     try:
-        await delete_feniks_day(db, target, _iso_day(day))
+        await delete_freedom_day(db, target, _iso_day(day))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    return {"deleted": True, "date": _iso_day(day)}
+    return {"deleted": True, "habit": target["slug"], "date": _iso_day(day)}
+
+
+@router.delete("/freedom/{habit}/days/{day}")
+async def api_delete_freedom_day(habit: str, day: str, db: ApiDb):
+    """Delete one habit's day entry and the relapse marker it created."""
+    _require_sensitive()
+    return await _delete_day(db, await _habit(db, habit), day)
+
+
+@router.delete("/feniks/daily/{day}", deprecated=True)
+async def api_delete_feniks_day(day: str, db: ApiDb, habit: HabitParam = None):
+    """Deprecated: DELETE /api/freedom/{habit}/days/{day}."""
+    _require_sensitive()
+    return await _delete_day(db, await _habit(db, habit), day)
 
 
 class ApiBrickPatch(BaseModel):
@@ -1195,8 +1237,10 @@ class ApiBrickPatch(BaseModel):
     story: str | None = None
 
 
-@router.patch("/feniks/bricks/{brick_id}")
+@router.patch("/freedom/bricks/{brick_id}")
+@router.patch("/feniks/bricks/{brick_id}", deprecated=True)
 async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: ApiDb):
+    """Edit a brick; /api/feniks/bricks/{brick_id} is the deprecated path."""
     _require_sensitive()
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
@@ -1209,8 +1253,10 @@ async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: ApiDb):
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
-@router.delete("/feniks/bricks/{brick_id}")
+@router.delete("/freedom/bricks/{brick_id}")
+@router.delete("/feniks/bricks/{brick_id}", deprecated=True)
 async def api_delete_brick(brick_id: int, db: ApiDb):
+    """Delete a brick; /api/feniks/bricks/{brick_id} is the deprecated path."""
     _require_sensitive()
     try:
         await delete_brick(db, brick_id)
@@ -1227,9 +1273,39 @@ class ApiFeniksConfig(BaseModel):
     big_why: str | None = None
 
 
-@router.patch("/feniks/config")
+class ApiHabitPatch(BaseModel):
+    """Only the fields sent change. A habit's slug stays the same when it is renamed."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = None
+    slip_label: str | None = None
+    slip_definition: str | None = None
+    amount_unit: str | None = None
+    slip_threshold: int | None = None
+    near_miss_label: str | None = None
+    start_date: str | None = None
+    target_days: int | None = None
+    big_why: str | None = None
+
+
+@router.patch("/freedom/{habit}")
+async def api_update_habit(habit: str, payload: ApiHabitPatch, db: ApiDb):
+    """One habit's settings: its name, its definition of a slip, start date, target and why."""
+    _require_sensitive()
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(status_code=422, detail="Provide at least one habit field")
+    target = await _habit(db, habit)
+    try:
+        return await update_habit(db, target["slug"], changes)
+    except HabitError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.patch("/feniks/config", deprecated=True)
 async def api_update_feniks_config(payload: ApiFeniksConfig, db: ApiDb, habit: HabitParam = None):
-    """One habit's start date, target and "why"."""
+    """Deprecated: PATCH /api/freedom/{habit}. One habit's start date, target and "why"."""
     _require_sensitive()
     changes = payload.model_dump(exclude_unset=True)
     if not changes:

@@ -48,6 +48,11 @@ PUBLIC_PATHS = frozenset(
         "/api/training/detail",
         "/api/noporn",
         "/api/freedom",
+        # Inventory entries only; runtime matching for these happens via PUBLIC_PATTERNS.
+        "/api/freedom/{habit}",
+        "/api/freedom/{habit}/days/{day}",
+        "/api/freedom/{habit}/bricks",
+        "/api/freedom/bricks/{brick_id}",
         "/api/library",
         # Inventory entry only (tests assert every API route is enumerated here);
         # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
@@ -90,6 +95,11 @@ PUBLIC_PATTERNS = (
     re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
     re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
     re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    # A habit slug is lowercase ASCII letters, digits and hyphens (habits.slugify).
+    re.compile(r"^/api/freedom/[a-z0-9-]+\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+/days/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+/bricks\Z"),
+    re.compile(r"^/api/freedom/bricks/[0-9]+\Z"),
 )
 
 BCRYPT_ROUNDS = 12

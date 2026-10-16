@@ -142,7 +142,7 @@ async def _save_measurements(db, date_str, meas):
 
 
 async def import_noporn(db):
-    """Parse noporn.md -> feniks_journal + feniks_pleasures + milestone completions."""
+    """Parse noporn.md -> feniks_journal + feniks_pleasures."""
     path = os.path.join(SECOND_BRAIN_PATH, "noporn.md")
     if not os.path.exists(path):
         return
@@ -204,15 +204,6 @@ async def import_noporn(db):
                     )
             elif not line.startswith("|"):
                 in_pleasures = False
-
-    # Parse milestone completions
-    for line in content.split("\n"):
-        m = re.match(r"- \[(.)\] \*\*Dzień (\d+):\*\*", line)
-        if m:
-            cb = m.group(1)
-            day_num = int(m.group(2))
-            completed = 1 if cb == "x" else 0
-            await db.execute("UPDATE feniks_milestones SET completed = ? WHERE day_number = ?", (completed, day_num))
 
 
 async def import_oura(db):

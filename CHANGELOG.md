@@ -38,6 +38,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Freedom's REST paths and MCP tools carry its name: `/api/freedom/{habit}/days/{date}`,
+  `/api/freedom/{habit}/bricks`, `/api/freedom/bricks/{id}`, `PATCH /api/freedom/{habit}`
+  (every habit setting) and the tools `log_freedom_day`, `delete_freedom_day` and
+  `update_habit`. The `/api/feniks/*` paths and the `log_feniks_day`,
+  `delete_feniks_day` and `update_feniks_config` tools are deprecated aliases for one
+  release.
+- Migration 035 drops `feniks_config`, now on the Porn habit, and the unused
+  `feniks_milestones`. The No Porn journal and pleasures stay.
 - The roadmap moved from `TODO.md` to GitHub issues.
 - `/feniks` redirects to `/freedom`, and `g f` opens Freedom. Migration 034
   moves No Porn days, bricks, relapse events and settings onto a Porn habit and

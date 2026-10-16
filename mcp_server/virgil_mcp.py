@@ -32,7 +32,7 @@ The Virgil app also serves these same tools over Streamable HTTP at /mcp
 """
 
 import os
-from urllib.parse import urlencode
+from urllib.parse import quote
 
 import httpx
 from mcp.server import MCPServer
@@ -84,9 +84,14 @@ def _check(resp: httpx.Response) -> None:
         raise ToolError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
 
 
-def _habit_query(habit: str) -> str:
-    """?habit=<slug> for Freedom calls; without it the server uses the first tracked habit."""
-    return f"?{urlencode({'habit': habit})}" if habit else ""
+def _habit_slug(habit: str) -> str:
+    """The habit a Freedom call is about: the given slug, else the first tracked habit."""
+    if habit:
+        return quote(habit, safe="")
+    habits = _get("/api/freedom")["habits"]
+    if not habits:
+        raise ToolError("No Freedom habit is tracked yet")
+    return quote(habits[0]["habit"], safe="")
 
 
 def _get(path: str, params: dict | None = None) -> dict:
@@ -121,8 +126,8 @@ def _delete(path: str) -> dict:
 
 @mcp.tool()
 def get_today_summary() -> dict:
-    """Today's snapshot: daily habits + energy, no-porn streak, latest Oura vitals,
-    training sessions this week, latest body measurements."""
+    """Today's snapshot: daily habits + energy, the first Freedom habit's streak (key
+    "feniks"), latest Oura vitals, training sessions this week, latest body measurements."""
     return _get("/api/summary")
 
 
@@ -559,21 +564,29 @@ def log_daily(
 
 
 @mcp.tool()
-def log_feniks_day(
-    date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "", habit: str = ""
+def log_freedom_day(
+    habit: str, date: str, slipped: bool, amount: int | None = None, near_miss: bool = False, note: str = ""
 ) -> dict:
     """Record one Freedom habit's day (YYYY-MM-DD, today or earlier), replacing that day's entry.
-    `habit` is a slug from get_habits; empty means the first tracked habit (Porn, for an
-    account that started with the No Porn module). used=true means the person slipped.
-    `minutes` is the amount in the habit's own unit (minutes for porn, drinks for alcohol),
-    required for a slip when the habit has a threshold (porn: at least 5 minutes; less is
-    used=false with the detail in `note`). `edging` is the habit's near miss, when it has one.
+    `habit` is a slug from get_habits. slipped=true means the person slipped. `amount` is in
+    the habit's own unit (minutes for porn, drinks for alcohol), required for a slip when the
+    habit has a threshold (porn: at least 5 minutes; less is slipped=false with the detail in
+    `note`). `near_miss` is the habit's near miss (edging for porn), when it has one.
     A slip also marks a relapse for that habit's streak; correcting it to clean removes only
     that marker. Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
     return _put(
-        f"/api/feniks/daily/{date}{_habit_query(habit)}",
-        {"used": used, "minutes": minutes, "edging": edging, "note": note},
+        f"/api/freedom/{_habit_slug(habit)}/days/{date}",
+        {"slipped": slipped, "amount": amount, "near_miss": near_miss, "note": note},
     )
+
+
+@mcp.tool()
+def log_feniks_day(
+    date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "", habit: str = ""
+) -> dict:
+    """Deprecated: use log_freedom_day. Same write with the No Porn names: used=slipped,
+    minutes=amount, edging=near_miss; empty `habit` means the first tracked habit."""
+    return log_freedom_day(habit, date, used, minutes, edging, note)
 
 
 @mcp.tool()
@@ -583,7 +596,7 @@ def add_brick(date: str, hook: str, craving: int | None = None, story: str = "",
     `craving` 0-10, `story` what happened. Date YYYY-MM-DD, today or earlier.
     Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
     return _post(
-        f"/api/feniks/bricks{_habit_query(habit)}", {"date": date, "hook": hook, "craving": craving, "story": story}
+        f"/api/freedom/{_habit_slug(habit)}/bricks", {"date": date, "hook": hook, "craving": craving, "story": story}
     )
 
 
@@ -652,11 +665,17 @@ def delete_daily(date: str) -> dict:
 
 
 @mcp.tool()
+def delete_freedom_day(habit: str, date: str) -> dict:
+    """Delete one Freedom habit's day entry (`habit` slug from get_habits) and the relapse
+    marker it created; relapses recorded another way stay. Requires the server's sensitive
+    scope."""
+    return _delete(f"/api/freedom/{_habit_slug(habit)}/days/{date}")
+
+
+@mcp.tool()
 def delete_feniks_day(date: str, habit: str = "") -> dict:
-    """Delete one Freedom habit's day entry (`habit` slug; empty means the first tracked habit)
-    and the relapse marker it created; relapses recorded another way stay. Requires the
-    server's sensitive scope."""
-    return _delete(f"/api/feniks/daily/{date}{_habit_query(habit)}")
+    """Deprecated: use delete_freedom_day. Empty `habit` means the first tracked habit."""
+    return delete_freedom_day(habit, date)
 
 
 @mcp.tool()
@@ -667,33 +686,66 @@ def update_brick(
     craving: int | None = None,
     story: str | None = None,
 ) -> dict:
-    """Edit a Freedom brick (ids from get_noporn). Only the supplied fields change; the
-    hook cannot become blank. Requires the server's sensitive scope."""
+    """Edit a Freedom brick (ids from get_habits or get_noporn). Only the supplied fields
+    change; the hook cannot become blank. Requires the server's sensitive scope."""
     fields = {"date": date, "hook": hook, "craving": craving, "story": story}
     payload = {key: value for key, value in fields.items() if value is not None}
     if not payload:
         raise ToolError("update_brick needs at least one field to change")
-    return _patch(f"/api/feniks/bricks/{brick_id}", payload)
+    return _patch(f"/api/freedom/bricks/{brick_id}", payload)
 
 
 @mcp.tool()
 def delete_brick(brick_id: int) -> dict:
     """Delete a Freedom brick permanently. Requires the server's sensitive scope."""
-    return _delete(f"/api/feniks/bricks/{brick_id}")
+    return _delete(f"/api/freedom/bricks/{brick_id}")
+
+
+@mcp.tool()
+def update_habit(
+    habit: str,
+    name: str | None = None,
+    slip_label: str | None = None,
+    slip_definition: str | None = None,
+    amount_unit: str | None = None,
+    slip_threshold: int | None = None,
+    near_miss_label: str | None = None,
+    start_date: str | None = None,
+    target_days: int | None = None,
+    big_why: str | None = None,
+) -> dict:
+    """Change one Freedom habit's settings (`habit` slug from get_habits); only the supplied
+    fields change. `name`; its definition of a slip: `slip_label` (the button, e.g. "I drank"),
+    `slip_definition`, `amount_unit` and `slip_threshold` (the least amount that counts as a
+    slip), `near_miss_label`; and `start_date` (YYYY-MM-DD, today or earlier), `target_days`
+    (1-3650), `big_why`. The slug stays the same when the habit is renamed. Requires the
+    server's sensitive scope."""
+    fields = {
+        "name": name,
+        "slip_label": slip_label,
+        "slip_definition": slip_definition,
+        "amount_unit": amount_unit,
+        "slip_threshold": slip_threshold,
+        "near_miss_label": near_miss_label,
+        "start_date": start_date,
+        "target_days": target_days,
+        "big_why": big_why,
+    }
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("update_habit needs at least one field to change")
+    return _patch(f"/api/freedom/{_habit_slug(habit)}", payload)
 
 
 @mcp.tool()
 def update_feniks_config(
     start_date: str | None = None, target_days: int | None = None, big_why: str | None = None, habit: str = ""
 ) -> dict:
-    """Change one Freedom habit's settings (`habit` slug; empty means the first tracked habit):
-    `start_date` (YYYY-MM-DD, today or earlier), `target_days` (1-3650) and `big_why`.
-    Requires the server's sensitive scope."""
-    fields = {"start_date": start_date, "target_days": target_days, "big_why": big_why}
-    payload = {key: value for key, value in fields.items() if value is not None}
-    if not payload:
+    """Deprecated: use update_habit. Changes one habit's start date, target and why; empty
+    `habit` means the first tracked habit."""
+    if start_date is None and target_days is None and big_why is None:
         raise ToolError("update_feniks_config needs at least one field to change")
-    return _patch(f"/api/feniks/config{_habit_query(habit)}", payload)
+    return update_habit(habit, start_date=start_date, target_days=target_days, big_why=big_why)
 
 
 @mcp.tool()
