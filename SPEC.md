@@ -32,9 +32,8 @@ app/
     runner.py           - Migration discovery + execution engine
     001_*.py ... 034_*.py
 
-  models/               - Data models (query helpers, not ORMs)
-    daily.py, bloodwork.py, experiments.py, feniks.py,
-    goals.py, life_scores.py, oura.py
+  models/               - Query helpers that predate the services layer
+    user_profile.py     - user_profiles reads and writes (onboarding)
 
   routers/              - FastAPI route handlers (one per feature)
     auth.py, dashboard.py, daily.py, training.py, freedom.py,
@@ -116,7 +115,8 @@ uv run --locked --extra dev bandit -q -c pyproject.toml -r app/ scripts/ mcp_ser
 
 ### Adding a New Feature Page
 
-1. Create a model in `app/models/` with query helpers
+1. Put persistence in a service in `app/services/`, which owns validation,
+   transaction boundaries and rollback
 2. Create a router in `app/routers/` with route handlers
 3. Create a template in `app/templates/`
 4. Register the router in `app/main.py`
