@@ -10,7 +10,7 @@ from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.daily_log import day_progress
-from app.services.experiment_weeks import experiment_calendar, experiment_week_number
+from app.services.experiment_card import experiment_card
 from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
@@ -197,40 +197,22 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             }
         )
 
-    # Active experiments
-    active_experiments = []
+    # Active experiments, each with today's one-tap log
     exp_rows = await db.execute_fetchall(
         "SELECT * FROM experiments WHERE status = 'active' ORDER BY created_at DESC LIMIT 3"
     )
-    for er in exp_rows:
-        exp = dict(er)
-        start = date.fromisoformat(exp["start_date"])
-        _, end = experiment_calendar(start, exp["num_weeks"])
-        if today < start:
-            current_week = 0
-            exp["not_started"] = True
-        else:
-            current_week = experiment_week_number(start, exp["num_weeks"], today)
-            exp["not_started"] = False
-        total_row = await db.execute_fetchall(
-            "SELECT COALESCE(SUM(CASE WHEN eat.kind = 'duration' THEN ee.value ELSE 0 END), 0) as minutes, "
-            "COUNT(*) as entries "
-            "FROM experiment_entries ee JOIN experiment_activity_types eat ON ee.activity_type_id = eat.id "
-            "WHERE ee.experiment_id = ?",
-            (exp["id"],),
-        )
-        minutes = total_row[0]["minutes"] if total_row else 0
-        entries = total_row[0]["entries"] if total_row else 0
-        # Kind-aware label: minutes for training-style experiments, entry count otherwise.
-        exp["total_minutes"] = minutes
-        exp["logged_label"] = f"{minutes}m" if minutes else f"{entries} logged"
-        exp["current_week"] = current_week
-        exp["end_date"] = end.isoformat()
-        active_experiments.append(exp)
+    active_experiments = [await experiment_card(db, dict(row), today) for row in exp_rows]
 
     from app.routers.jobs import current_job_view
 
     current_job = await current_job_view(db, job_id)
+
+    freedom_overviews = []
+    if getattr(request.state, "features", {}).get("freedom", False):
+        from app.services.freedom_log import habit_overview
+        from app.services.habits import list_habits
+
+        freedom_overviews = [await habit_overview(db, habit) for habit in await list_habits(db)]
 
     # Morning briefing
     briefing_enabled = await get_setting(db, "briefing_enabled", "0") == "1"
@@ -253,6 +235,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "today_log": today_log,
             **day_progress(today_log),
             "focus_goals": focus_goals,
+            "freedom_overviews": freedom_overviews,
             "week_logs": week_logs,
             "day_names": day_names,
             "week_dates": [d.isoformat() for d in week_dates],

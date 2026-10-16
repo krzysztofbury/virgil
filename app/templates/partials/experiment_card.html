@@ -1,0 +1,55 @@
+{# One active experiment on the dashboard: progress, and today's log for each
+   metric with what is already logged. A log redraws this card in place
+   (POST /experiments/{id}/entry with view=dashboard); without JavaScript the
+   form posts and comes back to the dashboard. #}
+<div class="card exp-card-dash" id="exp-card-{{ exp.id }}" style="margin-bottom: 0.75rem;">
+    <div class="flex-between">
+        <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
+        {% if exp.not_started %}
+        <small class="text-muted">Starts {{ exp.start_date }}</small>
+        {% else %}
+        <small class="text-muted">Week {{ exp.current_week }}/{{ exp.num_weeks }}</small>
+        {% endif %}
+    </div>
+    <div class="exp-widget-bar">
+        <div class="progress-bar" style="height: 6px; flex: 1;">
+            <div class="fill" style="width: {{ (exp.current_week / exp.num_weeks * 100)|round if not exp.not_started else 0 }}%;"></div>
+        </div>
+        <small class="text-muted">{{ exp.logged_label }}</small>
+    </div>
+    {% if exp.loggable and exp.metrics %}
+    <div class="exp-quicklog exp-quicklog--card" role="group" aria-label="{{ exp.title }}: log today">
+        {% for m in exp.metrics %}
+        <form action="/experiments/{{ exp.id }}/entry" method="post" class="exp-quicklog-item"
+              hx-post="/experiments/{{ exp.id }}/entry" hx-target="#exp-card-{{ exp.id }}" hx-swap="outerHTML"
+              hx-sync="#exp-card-{{ exp.id }}:drop">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="date" value="{{ today }}">
+            <input type="hidden" name="metric_id" value="{{ m.id }}">
+            <input type="hidden" name="view" value="dashboard">
+            {% if m.kind == 'boolean' %}
+            <button type="submit" name="value" value="1" aria-pressed="{{ 'true' if m.today == 1 else 'false' }}"
+                    class="btn btn-sm {{ 'btn-primary' if m.today == 1 else 'btn-outline' }}">&#10003; {{ m.name }}</button>
+            <button type="submit" name="value" value="0" aria-pressed="{{ 'true' if m.today == 0 else 'false' }}"
+                    class="btn btn-sm {{ 'btn-primary' if m.today == 0 else 'btn-secondary' }}"
+                    aria-label="{{ m.name }}: not done today" title="Not done today">&#10007;</button>
+            {% elif m.kind == 'count' %}
+            <input type="hidden" name="value" value="1">
+            <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">+1 {{ m.name }}</button>
+            {% if m.today %}<small class="text-muted">{{ m.today }} today</small>{% endif %}
+            {% elif m.kind == 'scale' %}
+            <input type="number" name="value" min="0" max="10" placeholder="0-10" required class="exp-quicklog-scale"
+                   aria-label="{{ m.name }}, 0 to 10">
+            <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
+            {% if m.today is not none %}<small class="text-muted">{{ m.today }} today</small>{% endif %}
+            {% else %}
+            <input type="number" name="value" min="1" max="1440" placeholder="min" required class="exp-quicklog-scale"
+                   aria-label="{{ m.name }}, minutes">
+            <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
+            {% if m.today %}<small class="text-muted">{{ m.today }}m today</small>{% endif %}
+            {% endif %}
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>

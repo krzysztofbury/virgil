@@ -220,9 +220,11 @@ Port is always **8123**.
 Action first, analytics after. The first block is **Today**: the four A.N.D.Y.
 tasks and three routines, each tapped in place through `done > skipped > pending`
 without opening Daily, with the count (`n/4`) and `Edit today's log` for
-descriptions and notes. Then the morning briefing (if enabled), **Focus** (the
-starred goals), the week strip (energy per day, with a legend) and active
-experiments. Everything that describes the past sits under **Insights** - Oura
+descriptions and notes. With Freedom on, a **Freedom** block marks each tracked
+habit clean for today in one tap (a slip opens the habit's day form). Then the
+morning briefing (if enabled), **Focus** (the starred goals), the week strip
+(energy per day, with a legend) and active experiments, each card with its own
+one-tap log for today. Everything that describes the past sits under **Insights** - Oura
 vitals, body measurements, the life-score radar - with the year calendar
 dot-matrix collapsed at the end.
 

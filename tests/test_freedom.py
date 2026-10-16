@@ -367,3 +367,38 @@ def test_a_quick_check_off_keeps_the_habit_on_screen(auth_client):
     _enable(auth_client, "porn", "alcohol")
     resp = _day(auth_client, "alcohol", date=date.today().isoformat(), slipped="0", view="porn")
     assert resp.headers["location"].startswith("/freedom?habit=porn")
+
+
+def test_dashboard_checks_a_habit_off_in_place_without_overwriting_a_logged_day(auth_client):
+    ids = _enable(auth_client, "porn", "alcohol")
+    today = date.today().isoformat()
+    _execute("DELETE FROM feniks_daily WHERE date = ?", (today,))  # other tests check today off too
+    try:
+        page = auth_client.get("/").text
+        assert 'id="freedom-today-block"' in page
+        assert 'hx-post="/freedom/alcohol/clean-today"' in page
+
+        token = csrf_token(auth_client, "/")
+        headers = {"X-CSRF-Token": token, "HX-Request": "true"}
+        tapped = auth_client.post("/freedom/alcohol/clean-today", headers=headers)
+        assert tapped.status_code == 200
+        assert 'id="freedom-today-block"' in tapped.text, "the block is redrawn in place"
+        assert 'hx-post="/freedom/alcohol/clean-today"' not in tapped.text, "a logged habit shows its outcome"
+        assert _fetchall(
+            "SELECT slipped FROM feniks_daily WHERE habit_id = ? AND date = ?", (ids["alcohol"], today)
+        ) == [(0,)]
+
+        # A slip logged elsewhere survives a stale Clean tap.
+        assert _day(auth_client, "porn", date=today, slipped="1", amount="20").status_code == 303
+        auth_client.post("/freedom/porn/clean-today", headers=headers)
+        assert _fetchall(
+            "SELECT slipped, amount FROM feniks_daily WHERE habit_id = ? AND date = ?", (ids["porn"], today)
+        ) == [(1, 20)]
+    finally:
+        _execute("DELETE FROM feniks_daily WHERE date = ?", (today,))
+        _execute("DELETE FROM pmo_events WHERE date = ?", (today,))
+
+
+def test_dashboard_has_no_freedom_block_when_the_module_is_off(auth_client):
+    _execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_freedom', '0')")
+    assert 'id="freedom-today-block"' not in auth_client.get("/").text

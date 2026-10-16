@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- The dashboard checks Freedom habits off for today in one tap, and each active
+  experiment card logs today's entry (a yes/no, +1, a rating or minutes) and shows
+  what is already logged. Both redraw in place; a slip opens the habit's day form,
+  and a tap never overwrites a day already logged elsewhere.
 - Freedom replaces the No Porn module and tracks any habit being broken, several
   at once: porn, alcohol, nicotine, cannabis, drugs, gambling, social media,
   sugar, or one in your own words. Each habit defines its own slip (label,
