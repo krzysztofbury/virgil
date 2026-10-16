@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- The roadmap moved from `TODO.md` to GitHub issues.
 - `/feniks` redirects to `/freedom`, and `g f` opens Freedom. Migration 034
   moves No Porn days, bricks, relapse events and settings onto a Porn habit and
   renames the `feature_no_porn` flag to `feature_freedom`.

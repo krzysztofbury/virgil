@@ -4,7 +4,7 @@ Personal life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX.
 
 Virgil tracks daily habits, training sessions, health metrics, goals, experiments, and personal development programs — all through a mobile-friendly UI with dark/light theme support. Data lives in SQLite (source of truth) with on-demand markdown export for LLM-based reviews.
 
-> **[CHANGELOG](CHANGELOG.md)** | **[SPEC](SPEC.md)** | **[CONTRIBUTING](CONTRIBUTING.md)** | **[SECURITY](SECURITY.md)**
+> **[CHANGELOG](CHANGELOG.md)** | **[Roadmap (issues)](https://github.com/krzysztofbury/virgil/issues)** | **[SPEC](SPEC.md)** | **[CONTRIBUTING](CONTRIBUTING.md)** | **[SECURITY](SECURITY.md)**
 
 ## Screenshots
 

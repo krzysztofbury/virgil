@@ -80,8 +80,10 @@ Routes translate requests and responses. Exercise-library writes use
 Keep validation, transaction boundaries, and rollback in the owning service.
 
 Use [docs/recovery.md](docs/recovery.md) for whole-instance recovery and
-[RELEASE.md](RELEASE.md) for versioning and publication. Update the changelog and
-active roadmap when a feature or operational contract changes.
+[RELEASE.md](RELEASE.md) for versioning and publication. Update the changelog
+when a feature or operational contract changes. Planned and open work lives in
+[GitHub issues](https://github.com/krzysztofbury/virgil/issues), not in a roadmap
+file: open an issue for a follow-up, and close it from the PR that does it.
 
 ## Submitting and reporting
 
