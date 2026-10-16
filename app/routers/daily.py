@@ -8,7 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
-from app.services.daily_log import upsert_daily_log
+from app.services.daily_log import DailyLogError, cycle_status, day_progress, upsert_daily_log
 from app.services.llm import llm_available
 from app.services.measurements import MeasurementError, upsert_measurements
 from app.user_db import get_user_db_from_request
@@ -154,6 +154,29 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
             "done_count": sum(1 for field in DONE_FIELDS if log and log[field] == "done"),
             "done_total": len(DONE_FIELDS),
         },
+    )
+
+
+@router.post("/daily/{day}/cycle", response_class=HTMLResponse)
+async def cycle_daily_status(request: Request, day: str, field: str = Form(...)):
+    """Advance one status of a day from wherever it is shown (the dashboard's
+    Today block) and return that block redrawn.
+
+    A partial write on purpose: /daily/save replaces the whole day, so a tap
+    there would reset every field the tapping page did not post.
+    """
+    if not valid_date(day):
+        return Response(
+            status_code=422, headers={"X-Feedback-Message": "Invalid daily-log date.", "X-Feedback-Kind": "error"}
+        )
+    try:
+        log = await cycle_status(get_user_db_from_request(request), day, field)
+    except DailyLogError as exc:
+        return Response(status_code=422, headers={"X-Feedback-Message": str(exc), "X-Feedback-Kind": "error"})
+    return templates.TemplateResponse(
+        request,
+        "partials/today_block.html",
+        {"request": request, "today": day, "today_log": log, **day_progress(log)},
     )
 
 

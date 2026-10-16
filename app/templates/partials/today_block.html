@@ -1,0 +1,62 @@
+{# Today: the one block that must sit in the first mobile viewport. It answers
+   "what is left today" and lets you change it here: every status cycles in
+   place (pending, done, skipped), the order the daily page uses. The full log
+   keeps what needs typing - task descriptions, energy, notes.
+
+   Rendered by the dashboard and, redrawn after each tap, by
+   POST /daily/{day}/cycle. #}
+{% macro status_toggle(field, label, status) %}
+{% set state = 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' %}
+<button type="button"
+        class="toggle-btn active-{{ status if status in ('done', 'skipped') else 'pending' }}"
+        hx-post="/daily/{{ today }}/cycle" hx-vals='{"field": "{{ field }}"}'
+        hx-target="#today-block" hx-swap="outerHTML" hx-sync="#today-block:drop"
+        aria-pressed="{{ 'true' if status == 'done' else 'false' }}"
+        aria-label="{{ label }}: {{ state }}. Change status"
+        title="{{ state }}. Tap to change">
+    {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
+    {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>{% endif %}
+</button>
+{% endmacro %}
+
+<div class="section" id="today-block">
+    <div class="section-title today-head">
+        <span>Today &middot; {{ andy_done }}/{{ andy_total }} done</span>
+        <a href="/daily/{{ today }}" class="btn btn-sm btn-primary">
+            {% if today_log %}Edit today's log{% else %}Finish today's check-in{% endif %}
+            <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
+        </a>
+    </div>
+    <div class="card today-card">
+        {% set andy_icons = {'body': 'andy-body', 'spirit': 'andy-spirit', 'account': 'andy-self', 'relations': 'andy-relations'} %}
+        <div class="andy-grid">
+            {% for name, label in [('body', 'Body'), ('spirit', 'Spirit'), ('account', 'Self'), ('relations', 'Relations')] %}
+            {% set status = today_log['andy_' ~ name ~ '_status'] if today_log else 'pending' %}
+            {% set desc = today_log['andy_' ~ name ~ '_desc'] if today_log else '' %}
+            <div class="andy-item andy-item--task">
+                <div class="andy-item-header">
+                    <img src="/static/img/{{ andy_icons[name] }}.png" alt="" class="andy-icon">
+                    <span class="andy-label">{{ label }}</span>
+                    {{ status_toggle('andy_' ~ name ~ '_status', label, status) }}
+                </div>
+                {% if desc %}
+                <small class="today-task">{{ desc }}</small>
+                {% else %}
+                <a href="/daily/{{ today }}#andy-card" class="today-task today-task--empty">Add a task</a>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="today-routines" role="group" aria-label="Routines">
+            <span class="today-routines-label">Routines {{ routines_done }}/{{ routines_total }}</span>
+            {% for field, label in [('morning_routine', 'Morning'), ('evening_routine', 'Evening'), ('water', 'Water')] %}
+            {% set status = today_log[field] if today_log else 'pending' %}
+            <span class="today-routine">
+                {{ status_toggle(field, label, status) }}
+                <span aria-hidden="true">{{ label }}</span>
+            </span>
+            {% endfor %}
+        </div>
+    </div>
+</div>
