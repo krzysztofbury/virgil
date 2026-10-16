@@ -11,7 +11,6 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.daily_log import day_progress
 from app.services.experiment_weeks import experiment_calendar, experiment_week_number
-from app.services.streak import get_streak
 from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
@@ -86,18 +85,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         if ls_meas:
             latest_meas = dict(ls_meas[0])
             prev_meas = dict(ls_meas[1]) if len(ls_meas) > 1 else None
-
-    # Feniks streak (skip if feature disabled)
-    features = getattr(request.state, "features", {})
-    if features.get("no_porn"):
-        feniks_conf = await db.execute_fetchall("SELECT * FROM feniks_config WHERE id = 1")
-        feniks_config = dict(feniks_conf[0]) if feniks_conf else None
-        streak_days, _ = await get_streak(db)
-        feniks_progress = min(100, round(streak_days / feniks_config["target_days"] * 100)) if feniks_config else 0
-    else:
-        feniks_config = None
-        streak_days = 0
-        feniks_progress = 0
 
     # Oura latest (prefer today's daily data, fallback to monthly)
     oura_daily_row = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date = ?", (today.isoformat(),))
@@ -271,9 +258,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "week_dates": [d.isoformat() for d in week_dates],
             "latest_meas": latest_meas,
             "prev_meas": prev_meas,
-            "streak_days": streak_days,
-            "feniks_config": feniks_config,
-            "feniks_progress": feniks_progress,
             "oura_today": oura_today,
             "yesterday_fallback": yesterday_fallback,
             "latest_oura": latest_oura,

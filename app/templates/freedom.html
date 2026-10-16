@@ -1,0 +1,290 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Freedom{% endblock %}
+
+{% macro habit_picker(catalog) %}
+{# Pick from the catalog in one tap, or name your own. #}
+<div class="habit-picker">
+    {% if catalog %}
+    <div class="habit-chips">
+        {% for c in catalog %}
+        <form method="POST" action="/freedom/habits">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="slug" value="{{ c.slug }}">
+            <button type="submit" class="habit-chip"><i data-lucide="plus" aria-hidden="true"></i> {{ c.name }}</button>
+        </form>
+        {% endfor %}
+    </div>
+    {% endif %}
+    <form method="POST" action="/freedom/habits" class="habit-custom">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <label for="custom-habit" class="sr-only">Something else</label>
+        <input type="text" id="custom-habit" name="name" maxlength="40" required placeholder="Something else, in your words">
+        <button type="submit" class="btn btn-secondary">Add</button>
+    </form>
+</div>
+{% endmacro %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Freedom</h1>
+    <p class="page-subtitle">Habits you're breaking free from. Only you see this.</p>
+</div>
+
+{% if not habits %}
+<div class="card freedom-empty">
+    <h3>What are you breaking free from?</h3>
+    <p class="text-muted">Pick one or more. Each gets its own daily check-in, a log of the urges you survive and its own streak. You can change this any time in Settings.</p>
+    {{ habit_picker(catalog) }}
+</div>
+{% else %}
+
+{% if overviews|length > 1 %}
+<!-- Today: every habit at a glance, checked off where it is shown -->
+<div class="section">
+    <div class="section-title">Today</div>
+    <div class="card freedom-today">
+        {% for o in overviews %}
+        <div class="freedom-today-row {{ 'is-selected' if o.habit == habit.slug else '' }}">
+            <a href="/freedom?habit={{ o.habit }}" class="freedom-today-name" {% if o.habit == habit.slug %}aria-current="true"{% endif %}>
+                <strong>{{ o.name }}</strong>
+                <small>{{ o.streak_days }} {{ 'day' if o.streak_days == 1 else 'days' }} clean &middot; this week {{ o.week_clean.pct }}%</small>
+            </a>
+            {% if o.today %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status {{ 'slipped' if o.today.slipped else 'clean' }}">
+                <i data-lucide="{{ 'x' if o.today.slipped else 'check' }}" aria-hidden="true"></i>
+                {{ 'Slipped' if o.today.slipped else 'Clean' }}
+            </a>
+            {% else %}
+            <div class="freedom-today-actions">
+                <form method="POST" action="/freedom/{{ o.habit }}/daily">
+                    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                    <input type="hidden" name="date" value="{{ today }}">
+                    <input type="hidden" name="slipped" value="0">
+                    <input type="hidden" name="view" value="{{ habit.slug }}">
+                    <button type="submit" class="btn btn-sm btn-outline freedom-clean-btn" aria-label="{{ o.name }}: clean today">
+                        <i data-lucide="check" aria-hidden="true"></i> Clean
+                    </button>
+                </form>
+                <a href="/freedom?habit={{ o.habit }}#day-card" class="btn btn-sm btn-outline" aria-label="{{ o.name }}: log a slip">Slipped</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<div class="freedom-habit-head">
+    <h2>{{ habit.name }}</h2>
+    {% if habit.big_why %}<p class="freedom-why">{{ habit.big_why }}</p>{% endif %}
+</div>
+
+<!-- Hero: bricks are the progress unit; the streak is context, not the scoreboard -->
+<div class="streak-hero">
+    <div class="streak-number">{{ selected.bricks_total }}</div>
+    <div class="streak-label">bricks &middot; urges survived</div>
+    <div class="week-dots" aria-label="this week, Monday to Sunday">
+        {% for d in week_days %}
+        <span class="week-dot {{ d.state }}" title="{{ d.date }}">{{ d.label }}</span>
+        {% endfor %}
+    </div>
+    <div class="streak-progress">
+        <div class="streak-progress-head">
+            <small class="text-muted">This week: {{ selected.week_clean.clean_days }}/{{ selected.week_clean.days_elapsed }} clean &middot; {{ selected.streak_days }} of {{ habit.target_days }} days</small>
+            <small class="text-muted">{{ selected.week_clean.pct }}%</small>
+        </div>
+        <div class="progress-bar streak-target-bar">
+            <div class="fill" style="width: {{ selected.week_clean.pct }}%"></div>
+            <div class="streak-target-mark" style="left: {{ weekly_target }}%;" title="target {{ weekly_target }}%"></div>
+        </div>
+        <small class="text-muted streak-progress-note">Target {{ weekly_target }}% a week. A slip lowers the rate; it never resets it to 0.</small>
+    </div>
+</div>
+
+<!-- The day: one question, one save -->
+<div class="card day-card" id="day-card"
+     x-data="{ used: {{ "'" ~ form_daily.slipped ~ "'" if form_daily else 'null' }} }">
+    <form method="POST" action="/freedom/{{ habit.slug }}/daily" hx-post="/freedom/{{ habit.slug }}/daily" hx-swap="none"
+          data-draft-key="freedom-daily:{{ habit.slug }}:{{ form_date }}" data-draft-fields="note">
+        <div class="day-card-head">
+            <h3>How was {{ 'today' if form_date == today else form_date }}?</h3>
+            <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required aria-label="Day to log"
+                   onchange="window.location='/freedom?habit={{ habit.slug }}&date='+this.value">
+        </div>
+        {% if habit.slip_definition %}
+        <p class="day-definition"><strong>What counts as a slip:</strong> {{ habit.slip_definition }}</p>
+        {% endif %}
+        <input type="hidden" name="slipped" :value="used">
+        <div class="day-choice">
+            <button type="button" class="day-choice-btn clean" :class="{ selected: used === '0' }" @click="used = '0'" :aria-pressed="(used === '0').toString()">
+                <span class="day-choice-mark">&#10003;</span> Clean day
+            </button>
+            <button type="button" class="day-choice-btn watched" :class="{ selected: used === '1' }" @click="used = '1'" :aria-pressed="(used === '1').toString()">
+                <span class="day-choice-mark">&#10007;</span> {{ habit.slip_label }}
+            </button>
+        </div>
+        {% if habit.amount_unit or habit.near_miss_label %}
+        <div class="day-detail" x-show="used === '1'" x-cloak>
+            <div class="day-detail-row">
+                {% if habit.amount_unit %}
+                <label class="field-inline">{{ habit.amount_unit | capitalize }}
+                    <input type="number" name="amount" min="{{ habit.slip_threshold or 1 }}" max="1440" inputmode="numeric"
+                           placeholder="{{ habit.slip_threshold or 1 }}+"
+                           :required="used === '1'"
+                           value="{{ form_daily.amount if form_daily and form_daily.amount is not none else '' }}">
+                </label>
+                {% endif %}
+                {% if habit.near_miss_label %}
+                <label class="switch-label">
+                    <span class="switch">
+                        <input type="checkbox" name="near_miss" value="1"
+                               {{ 'checked' if form_daily and form_daily.near_miss else '' }}>
+                        <span class="switch-track"></span>
+                    </span>
+                    {{ habit.near_miss_label }}
+                </label>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+        <label>Day note <small class="text-muted">trigger, a near miss, or context (optional)</small>
+            <input type="text" name="note" maxlength="500" class="day-note"
+                   value="{{ form_daily.note if form_daily and form_daily.note else '' }}">
+        </label>
+        <button type="submit" class="btn btn-primary day-save" :disabled="used === null"
+                x-text="used === null ? 'Pick one above' : 'Save {{ 'today' if form_date == today else form_date }}'">Save</button>
+    </form>
+</div>
+
+<!-- Brick: captured the moment an urge is survived -->
+<div class="card brick-card" x-data="{ open: false, craving: null }">
+    <button type="button" class="brick-card-summary" @click="open = !open" :aria-expanded="open">
+        <span><strong>Survived an urge?</strong> <span class="text-muted">Lay a brick. That's the win that counts.</span></span>
+        <span class="brick-plus" :class="{ open: open }" aria-hidden="true">+</span>
+    </button>
+    <form method="POST" action="/freedom/{{ habit.slug }}/bricks" hx-post="/freedom/{{ habit.slug }}/bricks" hx-swap="none" x-show="open" x-cloak
+          data-draft-key="freedom-brick:{{ habit.slug }}:{{ form_date }}" data-draft-fields="hook,story">
+        <p class="day-definition">A brick is one distinct decision episode resolved before a slip. Background desire alone is not a brick, and no particular coping action is required.</p>
+        <input type="hidden" name="craving" :value="craving === null ? '' : craving">
+        <label class="brick-date">When did you survive it?
+            <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required>
+        </label>
+        <label>Name this brick <small class="text-muted">the words you'll stand on next time</small>
+            <input type="text" name="hook" maxlength="200" required
+                   placeholder="e.g. Walked it off, urge gone in 20 min">
+        </label>
+        <div class="craving-row">
+            <span class="craving-label" id="craving-label">How strong was it?</span>
+            <div class="craving-scale" role="group" aria-labelledby="craving-label">
+                {% for i in range(11) %}
+                <button type="button" class="craving-chip" :class="{ selected: craving === {{ i }} }"
+                        :aria-pressed="(craving === {{ i }}).toString()"
+                        @click="craving = craving === {{ i }} ? null : {{ i }}">{{ i }}</button>
+                {% endfor %}
+            </div>
+        </div>
+        <label>What happened, and what did you learn?
+            <textarea name="story" rows="3"
+                      placeholder="Where were you, what did you do instead, what does it prove about you?"></textarea>
+        </label>
+        <button type="submit" class="btn btn-primary">Lay the brick</button>
+    </form>
+</div>
+
+<!-- One timeline: days and their bricks together -->
+{% if timeline %}
+<div class="timeline">
+    {% for t in timeline %}
+    <div class="timeline-day">
+        <a class="timeline-date" href="/freedom?habit={{ habit.slug }}&date={{ t.date }}">{{ t.date }}</a>
+        <div class="timeline-body">
+            {% for b in t.bricks %}
+            <div class="timeline-entry brick">
+                <span class="timeline-badge brick">brick{{ ' · ' ~ b.craving ~ '/10' if b.craving is not none else '' }}</span>
+                <div>
+                    <strong>{{ b.hook }}</strong>
+                    {% if b.story %}<div class="timeline-note">{{ (b.story or '')[:120] }}{{ '...' if (b.story or '')|length > 120 else '' }}</div>{% endif %}
+                    <details class="timeline-edit">
+                        <summary>Edit record</summary>
+                        <form method="POST" action="/freedom/bricks/{{ b.id }}/edit">
+                            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                            <label>Date<input type="date" name="date" value="{{ b.date }}" max="{{ today }}" required></label>
+                            <label>Name<input type="text" name="hook" value="{{ b.hook }}" maxlength="200" required></label>
+                            <label>Craving 0-10<input type="number" name="craving" value="{{ b.craving if b.craving is not none else '' }}" min="0" max="10"></label>
+                            <label>Story<textarea name="story" rows="3">{{ b.story or '' }}</textarea></label>
+                            <button type="submit" class="btn btn-secondary btn-sm">Save correction</button>
+                        </form>
+                        <form method="POST" action="/freedom/bricks/{{ b.id }}/delete"
+                              onsubmit="return confirm('Remove this brick from your history? This only corrects your record.')">
+                            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                            <button type="submit" class="btn btn-danger btn-sm">Remove record</button>
+                        </form>
+                    </details>
+                </div>
+            </div>
+            {% endfor %}
+            {% if t.day %}
+            <div class="timeline-entry {{ 'used' if t.day.slipped else 'clean' }}">
+                <span class="timeline-badge {{ 'used' if t.day.slipped else 'clean' }}">{{ 'slip' if t.day.slipped else 'clean' }}</span>
+                <div>
+                    {% if t.day.slipped %}
+                    {{ (t.day.amount ~ ' ' ~ habit.amount_unit) if t.day.amount is not none else '' }}
+                    {% if t.day.near_miss and habit.near_miss_label %}&middot; {{ habit.near_miss_label | lower }}{% endif %}
+                    {% endif %}
+                    {% if t.day.note %}<div class="timeline-note">{{ t.day.note }}</div>{% endif %}
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- This habit's own rules, edited where they are used -->
+<details class="card freedom-settings">
+    <summary>{{ habit.name }} settings</summary>
+    <form method="POST" action="/freedom/{{ habit.slug }}/settings" class="freedom-settings-form">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <div class="grid">
+            <label>Name<input type="text" name="name" value="{{ habit.name }}" maxlength="40" required></label>
+            <label>Slip button<input type="text" name="slip_label" value="{{ habit.slip_label }}" maxlength="30" required></label>
+        </div>
+        <label>What counts as a slip
+            <textarea name="slip_definition" rows="2" maxlength="600">{{ habit.slip_definition }}</textarea>
+        </label>
+        <div class="grid">
+            <label>Amount unit <small class="text-muted">empty: no amount asked</small>
+                <input type="text" name="amount_unit" value="{{ habit.amount_unit }}" maxlength="20" placeholder="minutes, drinks">
+            </label>
+            <label>A slip starts at <small class="text-muted">in that unit</small>
+                <input type="number" name="slip_threshold" value="{{ habit.slip_threshold if habit.slip_threshold is not none else '' }}" min="1" max="1440">
+            </label>
+            <label>Near miss <small class="text-muted">empty: not asked</small>
+                <input type="text" name="near_miss_label" value="{{ habit.near_miss_label }}" maxlength="30">
+            </label>
+        </div>
+        <div class="grid">
+            <label>Started<input type="date" name="start_date" value="{{ habit.start_date }}" max="{{ today }}" required></label>
+            <label>Target, days<input type="number" name="target_days" value="{{ habit.target_days }}" min="1" max="3650" required></label>
+        </div>
+        <label>Your why <small class="text-muted">shown at the top of this habit</small>
+            <textarea name="big_why" rows="2" maxlength="2000">{{ habit.big_why }}</textarea>
+        </label>
+        <div class="form-actions freedom-settings-actions">
+            <button type="submit" class="btn btn-primary">Save {{ habit.name }}</button>
+        </div>
+    </form>
+    <form method="POST" action="/freedom/{{ habit.slug }}/untrack" class="freedom-untrack"
+          onsubmit="return confirm('Stop tracking this habit? Its history is kept and comes back if you track it again.')">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <button type="submit" class="btn btn-outline btn-sm">Stop tracking {{ habit.name }}</button>
+    </form>
+</details>
+
+<details class="card freedom-add">
+    <summary>Track another habit</summary>
+    {{ habit_picker(catalog) }}
+</details>
+{% endif %}
+{% endblock %}

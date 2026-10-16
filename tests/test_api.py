@@ -3,7 +3,7 @@
 import sqlite3
 from datetime import date
 
-from conftest import user_db_path
+from conftest import track_porn, user_db_path
 
 KEY = {"X-API-Key": "test-key-123"}
 
@@ -136,6 +136,7 @@ def test_noporn_range_out_of_bounds_422(auth_client, monkeypatch):
 
 
 def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
+    porn = track_porn()
     """Seed a relapse + journal + a session with a reps and a timed exercise; assert the
     endpoints surface them (grouped, with duration on the timed lift). Cleans up after
     itself so the shared session DB stays empty for other tests."""
@@ -171,7 +172,10 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
                 (sid, time_ex, 1, None, 16.0, 40.0),
             ],
         )
-        cur.execute("INSERT INTO pmo_events (date, event_type, notes) VALUES ('2026-07-05', 'relapse', 'tired, bored')")
+        cur.execute(
+            "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, '2026-07-05', 'relapse', 'tired, bored')",
+            (porn,),
+        )
         cur.execute(
             "INSERT INTO feniks_journal (date, emotions, triggers) VALUES ('2026-07-05', 'flat', 'evening downtime')"
         )

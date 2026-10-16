@@ -3,6 +3,7 @@ from datetime import date, timedelta
 
 from app.db import get_setting
 from app.services.experiment_weeks import experiment_week_number
+from app.services.habits import list_habits
 from app.services.llm import call_llm
 from app.services.streak import get_streak
 
@@ -16,11 +17,11 @@ async def _gather_context(db) -> str:
     today_iso = today.isoformat()
     parts = []
 
-    # Streak (only if Feniks enabled)
-    feniks_enabled = await get_setting(db, "feature_no_porn", "0") == "1"
-    if feniks_enabled:
-        streak_days, _ = await get_streak(db)
-        parts.append(f"No Porn streak: {streak_days} days clean")
+    # Freedom streaks, one per tracked habit (only if the module is on)
+    if await get_setting(db, "feature_freedom", "0") == "1":
+        for habit in await list_habits(db):
+            streak_days, _ = await get_streak(db, habit["id"])
+            parts.append(f"{habit['name']}-free streak: {streak_days} days")
 
     # Yesterday's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (yesterday,))

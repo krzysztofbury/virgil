@@ -9,7 +9,7 @@ lands with every set or not at all.
 import sqlite3
 from datetime import date, timedelta
 
-from conftest import user_db_path
+from conftest import track_porn, user_db_path
 
 KEY = {"X-API-Key": "test-key-123"}
 
@@ -65,6 +65,7 @@ def test_feniks_writes_require_the_sensitive_scope(auth_client):
 
 def test_feniks_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    porn = track_porn()
     day = (date.today() - timedelta(days=41)).isoformat()
     other = (date.today() - timedelta(days=42)).isoformat()
     try:
@@ -78,11 +79,14 @@ def test_feniks_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, m
 
         clean = auth_client.put(f"/api/feniks/daily/{day}", json={"used": False, "minutes": 20}, headers=KEY)
         assert clean.status_code == 200
-        assert _fetchall("SELECT used, minutes, edging FROM feniks_daily WHERE date = ?", (day,)) == [(0, None, 0)]
+        assert _fetchall("SELECT slipped, amount, near_miss FROM feniks_daily WHERE date = ?", (day,)) == [(0, None, 0)]
         assert _fetchall("SELECT COUNT(*) FROM pmo_events WHERE date = ?", (day,)) == [(0,)]
 
         # A relapse recorded by another path is history the day log must not erase.
-        _execute("INSERT INTO pmo_events (date, event_type, notes) VALUES (?, 'relapse', 'manual')", (other,))
+        _execute(
+            "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'relapse', 'manual')",
+            (porn, other),
+        )
         auth_client.put(f"/api/feniks/daily/{other}", json={"used": False}, headers=KEY)
         assert _fetchall("SELECT notes FROM pmo_events WHERE date = ?", (other,)) == [("manual",)]
     finally:
@@ -93,17 +97,19 @@ def test_feniks_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, m
 
 def test_feniks_day_refuses_short_watched_and_future_days(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    track_porn()
     day = (date.today() - timedelta(days=43)).isoformat()
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
     short = auth_client.put(f"/api/feniks/daily/{day}", json={"used": True, "minutes": 3}, headers=KEY)
     assert short.status_code == 422
-    assert "5 total minutes" in short.json()["detail"]
+    assert "at least 5 minutes" in short.json()["detail"]
     assert auth_client.put(f"/api/feniks/daily/{tomorrow}", json={"used": False}, headers=KEY).status_code == 422
     assert _fetchall("SELECT COUNT(*) FROM feniks_daily WHERE date IN (?, ?)", (day, tomorrow)) == [(0,)]
 
 
 def test_brick_requires_a_hook_and_stores_its_own_date(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    track_porn()
     day = (date.today() - timedelta(days=44)).isoformat()
     try:
         blank = auth_client.post("/api/feniks/bricks", json={"date": day, "hook": "  "}, headers=KEY)

@@ -18,7 +18,9 @@ def _row() -> dict:
 
 def _cycle(client, field: str):
     token = csrf_token(client, "/")
-    return client.post(f"/daily/{DAY}/cycle", data={"field": field}, headers={"X-CSRF-Token": token, "HX-Request": "true"})
+    return client.post(
+        f"/daily/{DAY}/cycle", data={"field": field}, headers={"X-CSRF-Token": token, "HX-Request": "true"}
+    )
 
 
 def test_a_tap_advances_one_status_and_keeps_the_rest_of_the_day(auth_client):
@@ -43,7 +45,12 @@ def test_a_tap_advances_one_status_and_keeps_the_rest_of_the_day(auth_client):
 
     # /daily/save would have reset these: the tapping page never posts them.
     row = _row()
-    assert (row["energy"], row["andy_body_desc"], row["notes"], row["water"]) == (7, "Zone-2 walk", "slept well", "done")
+    assert (row["energy"], row["andy_body_desc"], row["notes"], row["water"]) == (
+        7,
+        "Zone-2 walk",
+        "slept well",
+        "done",
+    )
 
 
 def test_a_tap_on_an_unlogged_day_starts_it(auth_client):

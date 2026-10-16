@@ -612,7 +612,7 @@ function toggleTheme() {
         'e': '/experiments',
         'g': '/goals'
     };
-    if (features.no_porn) navMap['f'] = '/feniks';
+    if (features.freedom) navMap['f'] = '/freedom';
 
     document.addEventListener('keydown', function(e) {
         // Skip if focused on input
@@ -678,7 +678,7 @@ function toggleShortcutOverlay() {
     overlay.className = 'shortcut-overlay';
     overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
     var feat = JSON.parse(document.body.getAttribute('data-features') || '{}');
-    var feniksRow = feat.feniks ? '<div class="shortcut-row"><span>Feniks</span><span class="kbd-combo"><kbd>g</kbd><kbd>f</kbd></span></div>' : '';
+    var freedomRow = feat.freedom ? '<div class="shortcut-row"><span>Freedom</span><span class="kbd-combo"><kbd>g</kbd><kbd>f</kbd></span></div>' : '';
     overlay.innerHTML =
         '<div class="shortcut-card">' +
         '<h3>Keyboard Shortcuts</h3>' +
@@ -687,7 +687,7 @@ function toggleShortcutOverlay() {
         '<div class="shortcut-row"><span>Dashboard</span><span class="kbd-combo"><kbd>g</kbd><kbd>d</kbd></span></div>' +
         '<div class="shortcut-row"><span>Daily</span><span class="kbd-combo"><kbd>g</kbd><kbd>l</kbd></span></div>' +
         '<div class="shortcut-row"><span>Training</span><span class="kbd-combo"><kbd>g</kbd><kbd>t</kbd></span></div>' +
-        feniksRow +
+        freedomRow +
         '<div class="shortcut-row"><span>Oura</span><span class="kbd-combo"><kbd>g</kbd><kbd>o</kbd></span></div>' +
         '<div class="shortcut-row"><span>Bloodwork</span><span class="kbd-combo"><kbd>g</kbd><kbd>b</kbd></span></div>' +
         '<div class="shortcut-row"><span>Experiments</span><span class="kbd-combo"><kbd>g</kbd><kbd>e</kbd></span></div>' +

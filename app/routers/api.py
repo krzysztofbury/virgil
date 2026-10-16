@@ -4,7 +4,8 @@ Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
 The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
 otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
 Writes cover canonical goals/reps, experiment logging, exercise-library CRUD,
-the daily log (habits and A.N.D.Y.), Feniks day logs, bricks and config, training
+the daily log (habits and A.N.D.Y.), Freedom (/api/freedom; day logs, bricks and config
+per habit under the historical /api/feniks paths), training
 sessions and body measurements.
 """
 
@@ -15,22 +16,22 @@ from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
 from app.library_validation import LibraryWriteError, normalize_tag
 from app.services.daily_log import DailyLogError, delete_daily_log, get_daily_log, upsert_daily_log
 from app.services.experiment_weeks import experiment_calendar, experiment_week_number
-from app.services.feniks_log import (
-    FeniksWriteError,
+from app.services.freedom_log import (
+    FreedomWriteError,
     add_brick,
     delete_brick,
+    habit_overview,
     save_day,
     update_brick,
 )
-from app.services.feniks_log import delete_day as delete_feniks_day
-from app.services.feniks_log import update_config as update_feniks_config
+from app.services.freedom_log import delete_day as delete_feniks_day
 from app.services.goal_data import (
     GOAL_STATUSES,
     REP_STATUSES,
@@ -43,6 +44,7 @@ from app.services.goal_data import (
     update_goal,
     update_rep,
 )
+from app.services.habits import HabitError, list_habits, resolve_habit, update_habit
 from app.services.library import write_library
 from app.services.measurements import MeasurementError, delete_measurements, list_measurements, upsert_measurements
 from app.services.movement_vocab import EQUIPMENT, aliases_by_library_id
@@ -107,7 +109,8 @@ ApiDb = Annotated[aiosqlite.Connection, Depends(api_db)]
 
 @router.get("/summary")
 async def api_summary(db: ApiDb):
-    """Today's snapshot: daily habits, Feniks streak, latest Oura, training this week, latest measurements."""
+    """Today's snapshot: daily habits, the first Freedom habit's streak (key "feniks", kept for
+    older readers), latest Oura, training this week, latest measurements."""
     today = date.today()
     today_iso = today.isoformat()
 
@@ -121,7 +124,11 @@ async def api_summary(db: ApiDb):
             "notes": log["notes"],
         }
 
-    streak_days, last_relapse = await get_streak(db)
+    try:
+        first_habit = await resolve_habit(db)
+        streak_days, last_relapse = await get_streak(db, first_habit["id"])
+    except LookupError:
+        streak_days, last_relapse = 0, None
 
     oura_rows = await db.execute_fetchall("SELECT * FROM oura_daily ORDER BY date DESC LIMIT 1")
 
@@ -723,7 +730,7 @@ async def api_noporn(
     db: ApiDb,
     days: int = Query(30, ge=1, le=365, alias="range"),
 ):
-    """No-porn (Feniks) detail: config, streak, current-week clean rate (Gola), plus the
+    """Freedom's Porn habit in detail: config, streak, current-week clean rate (Gola), plus the
     relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and logged
     pleasures from the last N days (?range=30). This is the WHY behind the streak.
 
@@ -739,13 +746,15 @@ async def api_noporn(
     today = date.today()
     since = (today - timedelta(days=days - 1)).isoformat()
 
-    conf = await db.execute_fetchall("SELECT start_date, target_days, big_why FROM feniks_config WHERE id = 1")
-    streak_days, last_relapse = await get_streak(db)
-    clean, elapsed, pct = await get_week_clean(db)
+    porn = await db.execute_fetchall("SELECT id, start_date, target_days, big_why FROM habits WHERE slug = 'porn'")
+    habit_id = porn[0]["id"] if porn else -1
+    conf = [{key: porn[0][key] for key in ("start_date", "target_days", "big_why")}] if porn else []
+    streak_days, last_relapse = await get_streak(db, habit_id)
+    clean, elapsed, pct = await get_week_clean(db, habit_id)
 
     events = await db.execute_fetchall(
-        "SELECT date, event_type, notes FROM pmo_events WHERE date >= ? ORDER BY date DESC",
-        (since,),
+        "SELECT date, event_type, notes FROM pmo_events WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
+        (habit_id, since),
     )
     journal = await db.execute_fetchall(
         "SELECT date, emotions, triggers, thoughts, desired_feelings, coping_strategies "
@@ -756,15 +765,20 @@ async def api_noporn(
         "SELECT date, pleasure_1, pleasure_2 FROM feniks_pleasures WHERE date >= ? ORDER BY date DESC",
         (since,),
     )
+    # The legacy field names: this endpoint's readers predate Freedom.
     daily = await db.execute_fetchall(
-        "SELECT date, used, minutes, edging, note FROM feniks_daily WHERE date >= ? ORDER BY date DESC",
-        (since,),
+        "SELECT date, slipped AS used, amount AS minutes, near_miss AS edging, note FROM feniks_daily "
+        "WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
+        (habit_id, since),
     )
     bricks = await db.execute_fetchall(
-        "SELECT id, date, hook, craving, story FROM feniks_bricks WHERE date BETWEEN ? AND ? ORDER BY date DESC, id DESC",
-        (since, today.isoformat()),
+        "SELECT id, date, hook, craving, story FROM feniks_bricks "
+        "WHERE habit_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, id DESC",
+        (habit_id, since, today.isoformat()),
     )
-    bricks_total = (await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks"))[0]["c"]
+    bricks_total = (
+        await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks WHERE habit_id = ?", (habit_id,))
+    )[0]["c"]
     return {
         "range_days": days,
         "since": since,
@@ -948,8 +962,35 @@ def _require_sensitive() -> None:
     if not config.API_SENSITIVE:
         raise HTTPException(
             status_code=403,
-            detail="Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to write Feniks data)",
+            detail="Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to use Freedom data)",
         )
+
+
+async def _habit(db, slug: str | None) -> dict:
+    """The habit a Freedom call is about: ?habit=<slug>, else the first one tracked."""
+    try:
+        return await resolve_habit(db, slug)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+HabitParam = Annotated[str | None, Query(description="Habit slug; defaults to the first tracked habit")]
+
+
+@router.get("/freedom")
+async def api_freedom(db: ApiDb):
+    """Freedom: every tracked habit with where it stands today (streak, this week,
+    today's entry, urges survived) and its own definition of a slip."""
+    _require_sensitive()
+    habits = []
+    for habit in await list_habits(db):
+        definition = {
+            key: habit[key]
+            for key in ("slip_label", "slip_definition", "amount_unit", "slip_threshold", "near_miss_label")
+        }
+        settings = {key: habit[key] for key in ("start_date", "target_days", "big_why")}
+        habits.append({**await habit_overview(db, habit), "definition": definition, "settings": settings})
+    return {"habits": habits}
 
 
 class ApiDailyPatch(BaseModel):
@@ -984,11 +1025,13 @@ async def api_put_daily(day: str, payload: ApiDailyPatch, db: ApiDb):
 
 
 class ApiFeniksDay(BaseModel):
+    """One habit's day. The legacy names (used, minutes, edging) still work."""
+
     model_config = ConfigDict(extra="forbid")
 
-    used: bool
-    minutes: int | None = None
-    edging: bool = False
+    slipped: bool = Field(validation_alias=AliasChoices("slipped", "used"))
+    amount: int | None = Field(None, validation_alias=AliasChoices("amount", "minutes"))
+    near_miss: bool = Field(False, validation_alias=AliasChoices("near_miss", "edging"))
     note: str = ""
 
 
@@ -1002,22 +1045,32 @@ class ApiBrick(BaseModel):
 
 
 @router.put("/feniks/daily/{day}")
-async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb):
+async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb, habit: HabitParam = None):
     _require_sensitive()
+    target = await _habit(db, habit)
     try:
         return await save_day(
-            db, day, used=payload.used, minutes=payload.minutes, edging=payload.edging, note=payload.note
+            db,
+            target,
+            day,
+            slipped=payload.slipped,
+            amount=payload.amount,
+            near_miss=payload.near_miss,
+            note=payload.note,
         )
-    except FeniksWriteError as exc:
+    except FreedomWriteError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @router.post("/feniks/bricks", status_code=201)
-async def api_add_brick(payload: ApiBrick, db: ApiDb):
+async def api_add_brick(payload: ApiBrick, db: ApiDb, habit: HabitParam = None):
     _require_sensitive()
+    target = await _habit(db, habit)
     try:
-        return await add_brick(db, payload.date, hook=payload.hook, craving=payload.craving, story=payload.story)
-    except FeniksWriteError as exc:
+        return await add_brick(
+            db, target, payload.date, hook=payload.hook, craving=payload.craving, story=payload.story
+        )
+    except FreedomWriteError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
@@ -1123,10 +1176,11 @@ async def api_delete_daily(day: str, db: ApiDb):
 
 
 @router.delete("/feniks/daily/{day}")
-async def api_delete_feniks_day(day: str, db: ApiDb):
+async def api_delete_feniks_day(day: str, db: ApiDb, habit: HabitParam = None):
     _require_sensitive()
+    target = await _habit(db, habit)
     try:
-        await delete_feniks_day(db, _iso_day(day))
+        await delete_feniks_day(db, target, _iso_day(day))
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"deleted": True, "date": _iso_day(day)}
@@ -1149,7 +1203,7 @@ async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: ApiDb):
         raise HTTPException(status_code=422, detail="Provide at least one brick field")
     try:
         return await update_brick(db, brick_id, changes)
-    except FeniksWriteError as exc:
+    except FreedomWriteError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -1174,15 +1228,18 @@ class ApiFeniksConfig(BaseModel):
 
 
 @router.patch("/feniks/config")
-async def api_update_feniks_config(payload: ApiFeniksConfig, db: ApiDb):
+async def api_update_feniks_config(payload: ApiFeniksConfig, db: ApiDb, habit: HabitParam = None):
+    """One habit's start date, target and "why"."""
     _require_sensitive()
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Provide at least one config field")
+    target = await _habit(db, habit)
     try:
-        return await update_feniks_config(db, changes)
-    except FeniksWriteError as exc:
+        updated = await update_habit(db, target["slug"], changes)
+    except HabitError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {key: updated[key] for key in ("slug", "start_date", "target_days", "big_why")}
 
 
 @router.get("/training/sessions/{session_id}")

@@ -47,6 +47,7 @@ PUBLIC_PATHS = frozenset(
         "/api/training",
         "/api/training/detail",
         "/api/noporn",
+        "/api/freedom",
         "/api/library",
         # Inventory entry only (tests assert every API route is enumerated here);
         # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
@@ -101,6 +102,15 @@ def _login_response(scope) -> Response:
     if is_htmx:
         return Response(status_code=200, headers={"HX-Redirect": "/login", "Cache-Control": "no-store"})
     return RedirectResponse("/login", status_code=303)
+
+
+def _stale_session_response(scope) -> Response:
+    """Send a signed session whose account is gone or disabled to the login page
+    and drop the cookie: /login turns away any validly signed session, so keeping
+    it would bounce the browser between the two pages forever."""
+    response = _login_response(scope)
+    response.headers.append("set-cookie", clear_session_cookie())
+    return response
 
 
 def _get_signer() -> TimestampSigner:
@@ -200,8 +210,7 @@ class AuthMiddleware:
 
         # Validate UUID format before DB lookup.
         if not valid_uuid(user_id):
-            response = _login_response(scope)
-            await response(scope, receive, send)
+            await _stale_session_response(scope)(scope, receive, send)
             return
 
         # Look up user in central DB.
@@ -210,8 +219,7 @@ class AuthMiddleware:
         user = await get_user_by_id(user_id)
 
         if not user or not user["is_active"]:
-            response = _login_response(scope)
-            await response(scope, receive, send)
+            await _stale_session_response(scope)(scope, receive, send)
             return
 
         # Open per-user database connection.

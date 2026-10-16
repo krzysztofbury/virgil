@@ -24,6 +24,7 @@ from app.central_db import (  # noqa: E402
     get_user_by_email,
     init_central_db,
 )
+from app.services.habits import track, update_habit  # noqa: E402
 from app.user_db import close_user_db, create_user_db, delete_user_db, open_user_db  # noqa: E402
 
 DEMO_EMAIL = "demo@virgil.app"
@@ -39,7 +40,7 @@ async def _seed(db) -> None:
     # --- account state: skip onboarding, enable the No Porn module ---
     await db.executemany(
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
-        [("onboarding_completed", "1"), ("feature_no_porn", "1")],
+        [("onboarding_completed", "1"), ("feature_freedom", "1")],
     )
 
     # The default seed lists some exercises twice — dedup for clean demo screenshots.
@@ -150,14 +151,30 @@ async def _seed(db) -> None:
         ],
     )
 
-    # --- No Porn (feniks): 90-day goal, one slip 12 days ago -> streak 12 ---
+    # --- Freedom: two habits, so the Today list and the habit switcher have content.
+    # Porn: one slip 12 days ago (streak 12); Alcohol: clean since it started. ---
+    await db.commit()
+    porn = await track(db, "porn")
+    await update_habit(db, "porn", {"start_date": d(60), "big_why": "Stay clear-headed and present."})
+    alcohol = await track(db, "alcohol")
+    await update_habit(db, "alcohol", {"start_date": d(30), "big_why": "Sharper mornings, better sleep."})
     await db.execute(
-        "INSERT OR REPLACE INTO feniks_config (id, start_date, target_days, big_why) VALUES (1, ?, 90, ?)",
-        (d(60), "Stay clear-headed and present."),
+        "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'relapse', ?)",
+        (porn["id"], d(12), "Tired and bored, noted the trigger."),
     )
-    await db.execute(
-        "INSERT INTO pmo_events (date, event_type, notes) VALUES (?, 'relapse', ?)",
-        (d(12), "Tired and bored — noted the trigger."),
+    await db.executemany(
+        "INSERT INTO feniks_daily (habit_id, date, slipped, amount, near_miss, note) VALUES (?, ?, ?, ?, ?, ?)",
+        [(porn["id"], d(12), 1, 25, 0, "Late night, phone in bed")]
+        + [(porn["id"], d(i), 0, None, 0, "") for i in range(1, 6)]
+        + [(alcohol["id"], d(i), 0, None, 0, "Friday dinner, sparkling water" if i == 1 else "") for i in range(1, 8)],
+    )
+    await db.executemany(
+        "INSERT INTO feniks_bricks (habit_id, date, hook, craving, story) VALUES (?, ?, ?, ?, ?)",
+        [
+            (porn["id"], d(3), "Phone out of the bedroom", 6, "Charged it in the kitchen. Urge passed in ten minutes."),
+            (porn["id"], d(8), "Walked it off", 7, "Evening slump. Twenty minutes outside, gone."),
+            (alcohol["id"], d(2), "Ordered first, ordered soda", 4, "Team drinks. Said it before anyone asked."),
+        ],
     )
     await db.executemany(
         "INSERT INTO feniks_journal (date, emotions, triggers, thoughts, desired_feelings, coping_strategies) "

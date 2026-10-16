@@ -8,7 +8,7 @@
 """Virgil MCP server — thin stdio wrapper over the Virgil REST API.
 
 Exposes Virgil data (daily habits, Oura, streaks, experiments, training)
-and its writes (goals, daily log and A.N.D.Y., Feniks, training) to MCP
+and its writes (goals, daily log and A.N.D.Y., Freedom habits, training) to MCP
 clients (Claude Code, OpenClaw). No local DB access — everything goes
 through the authenticated REST API, so it works from any machine.
 
@@ -32,6 +32,7 @@ The Virgil app also serves these same tools over Streamable HTTP at /mcp
 """
 
 import os
+from urllib.parse import urlencode
 
 import httpx
 from mcp.server import MCPServer
@@ -83,6 +84,11 @@ def _check(resp: httpx.Response) -> None:
         raise ToolError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
 
 
+def _habit_query(habit: str) -> str:
+    """?habit=<slug> for Freedom calls; without it the server uses the first tracked habit."""
+    return f"?{urlencode({'habit': habit})}" if habit else ""
+
+
 def _get(path: str, params: dict | None = None) -> dict:
     resp = _http().get(path, params=params)
     _check(resp)
@@ -128,8 +134,20 @@ def get_oura_stats() -> dict:
 
 @mcp.tool()
 def get_streaks() -> dict:
-    """No-porn module status: days since last relapse and last relapse date."""
+    """Freedom status of the first tracked habit (Porn, for an account that started with
+    the No Porn module): days since its last slip and that date. get_habits covers every
+    habit being tracked."""
     return _get("/api/summary")["feniks"]
+
+
+@mcp.tool()
+def get_habits() -> dict:
+    """Freedom: every habit being broken (porn, alcohol, nicotine, the person's own...) with
+    where it stands today: streak, this week's clean rate, today's entry, urges survived
+    (bricks), its own definition of a slip (button label, amount unit and threshold, near-miss
+    label) and its settings. `habit` in each item is the slug the other Freedom tools take.
+    Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    return _get("/api/freedom")
 
 
 @mcp.tool()
@@ -359,8 +377,8 @@ def get_training_detail(days: int = 7) -> dict:
 
 @mcp.tool()
 def get_noporn(days: int = 30) -> dict:
-    """No-porn (Feniks) detail for the last N days (1-365): config, streak, current-week clean
-    rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
+    """Freedom's Porn habit (formerly the No Porn module) for the last N days (1-365): config,
+    streak, current-week clean rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
     pleasures, the daily log (used/minutes/edging/note — the honest metric, a day counter
     cannot see edging) and bricks (urges survived: hook/craving/story — the progress unit).
     Use this to see WHY relapses happened — get_streaks only gives the count."""
@@ -541,21 +559,32 @@ def log_daily(
 
 
 @mcp.tool()
-def log_feniks_day(date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "") -> dict:
-    """Record one Feniks day (YYYY-MM-DD, today or earlier), replacing that day's entry.
-    used=true means watched, which needs at least 5 total minutes; a shorter exposure is
-    recorded as used=false with the detail in `note`. A watched day also marks a relapse
-    for the streak; correcting it to clean removes only that marker.
-    Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
-    return _put(f"/api/feniks/daily/{date}", {"used": used, "minutes": minutes, "edging": edging, "note": note})
+def log_feniks_day(
+    date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "", habit: str = ""
+) -> dict:
+    """Record one Freedom habit's day (YYYY-MM-DD, today or earlier), replacing that day's entry.
+    `habit` is a slug from get_habits; empty means the first tracked habit (Porn, for an
+    account that started with the No Porn module). used=true means the person slipped.
+    `minutes` is the amount in the habit's own unit (minutes for porn, drinks for alcohol),
+    required for a slip when the habit has a threshold (porn: at least 5 minutes; less is
+    used=false with the detail in `note`). `edging` is the habit's near miss, when it has one.
+    A slip also marks a relapse for that habit's streak; correcting it to clean removes only
+    that marker. Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    return _put(
+        f"/api/feniks/daily/{date}{_habit_query(habit)}",
+        {"used": used, "minutes": minutes, "edging": edging, "note": note},
+    )
 
 
 @mcp.tool()
-def add_brick(date: str, hook: str, craving: int | None = None, story: str = "") -> dict:
-    """Add a Feniks brick: one urge survived. `hook` is the short memorable name (required),
+def add_brick(date: str, hook: str, craving: int | None = None, story: str = "", habit: str = "") -> dict:
+    """Add a Freedom brick: one urge survived for one habit (`habit` slug from get_habits;
+    empty means the first tracked habit). `hook` is the short memorable name (required),
     `craving` 0-10, `story` what happened. Date YYYY-MM-DD, today or earlier.
     Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
-    return _post("/api/feniks/bricks", {"date": date, "hook": hook, "craving": craving, "story": story})
+    return _post(
+        f"/api/feniks/bricks{_habit_query(habit)}", {"date": date, "hook": hook, "craving": craving, "story": story}
+    )
 
 
 @mcp.tool()
@@ -623,10 +652,11 @@ def delete_daily(date: str) -> dict:
 
 
 @mcp.tool()
-def delete_feniks_day(date: str) -> dict:
-    """Delete one Feniks day entry and the relapse marker it created; relapses recorded
-    another way stay. Requires the server's sensitive scope."""
-    return _delete(f"/api/feniks/daily/{date}")
+def delete_feniks_day(date: str, habit: str = "") -> dict:
+    """Delete one Freedom habit's day entry (`habit` slug; empty means the first tracked habit)
+    and the relapse marker it created; relapses recorded another way stay. Requires the
+    server's sensitive scope."""
+    return _delete(f"/api/feniks/daily/{date}{_habit_query(habit)}")
 
 
 @mcp.tool()
@@ -637,7 +667,7 @@ def update_brick(
     craving: int | None = None,
     story: str | None = None,
 ) -> dict:
-    """Edit a Feniks brick (ids from get_noporn). Only the supplied fields change; the
+    """Edit a Freedom brick (ids from get_noporn). Only the supplied fields change; the
     hook cannot become blank. Requires the server's sensitive scope."""
     fields = {"date": date, "hook": hook, "craving": craving, "story": story}
     payload = {key: value for key, value in fields.items() if value is not None}
@@ -648,21 +678,22 @@ def update_brick(
 
 @mcp.tool()
 def delete_brick(brick_id: int) -> dict:
-    """Delete a Feniks brick permanently. Requires the server's sensitive scope."""
+    """Delete a Freedom brick permanently. Requires the server's sensitive scope."""
     return _delete(f"/api/feniks/bricks/{brick_id}")
 
 
 @mcp.tool()
 def update_feniks_config(
-    start_date: str | None = None, target_days: int | None = None, big_why: str | None = None
+    start_date: str | None = None, target_days: int | None = None, big_why: str | None = None, habit: str = ""
 ) -> dict:
-    """Change the Feniks module settings: `start_date` (YYYY-MM-DD, today or earlier),
-    `target_days` (1-3650) and `big_why`. Requires the server's sensitive scope."""
+    """Change one Freedom habit's settings (`habit` slug; empty means the first tracked habit):
+    `start_date` (YYYY-MM-DD, today or earlier), `target_days` (1-3650) and `big_why`.
+    Requires the server's sensitive scope."""
     fields = {"start_date": start_date, "target_days": target_days, "big_why": big_why}
     payload = {key: value for key, value in fields.items() if value is not None}
     if not payload:
         raise ToolError("update_feniks_config needs at least one field to change")
-    return _patch("/api/feniks/config", payload)
+    return _patch(f"/api/feniks/config{_habit_query(habit)}", payload)
 
 
 @mcp.tool()

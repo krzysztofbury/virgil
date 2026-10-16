@@ -1094,6 +1094,92 @@ input[type="range"]#energy-slider::-moz-range-thumb {
   margin: 0.75rem auto 0;
 }
 
+.streak-progress-head { display: flex; justify-content: space-between; align-items: baseline; gap: 0.5rem; margin-bottom: 0.35rem; }
+.streak-target-bar { position: relative; }
+.streak-target-mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text-secondary); opacity: 0.55; }
+.streak-progress-note { display: block; margin-top: 0.35rem; }
+
+/* ── Freedom ── */
+.module-toggle { display: flex; align-items: flex-start; gap: 0.75rem; margin: 0; padding: 0.5rem 0; cursor: pointer; }
+.module-toggle input { margin-top: 0.3rem; flex-shrink: 0; }
+.module-toggle strong { display: block; font-size: 1rem; }
+.module-desc { display: block; color: var(--text-secondary); font-size: 0.875rem; font-weight: 400; line-height: 1.5; max-width: 60ch; }
+.module-habits { margin: 0.75rem 0 0 1.75rem; padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius-sm); display: grid; gap: 0.75rem; }
+.module-habits legend { padding: 0 0.35rem; font-size: 0.875rem; font-weight: 600; color: var(--text-primary); }
+.module-habit-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(7rem, 1fr)); gap: 0.25rem 1rem; }
+.module-habit { display: flex; align-items: center; gap: 0.5rem; min-height: 40px; margin: 0; font-size: 0.9375rem; color: var(--text-primary); cursor: pointer; }
+.module-custom { margin: 0; max-width: 24rem; }
+.module-actions { justify-content: flex-start; }
+@media (max-width: 560px) { .module-habits { margin-left: 0; } }
+.freedom-today { padding: 0.5rem; }
+.freedom-today-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border-radius: var(--radius-sm);
+}
+.freedom-today-row + .freedom-today-row { border-top: 1px solid var(--border); }
+.freedom-today-row.is-selected { background: var(--overlay-2); }
+.freedom-today-name { display: flex; flex-direction: column; min-width: 0; }
+.freedom-today-name small { color: var(--text-secondary); font-size: 0.8125rem; }
+.freedom-today-name:hover strong { color: var(--accent); }
+.freedom-today-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
+.freedom-today-actions form { margin: 0; }
+.freedom-today-actions svg, .freedom-status svg, .habit-chip svg { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
+.freedom-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.freedom-status.clean { color: var(--green); background: rgba(44, 182, 125, 0.12); }
+.freedom-status.slipped { color: var(--red); background: rgba(229, 83, 75, 0.12); }
+.freedom-habit-head { margin: 0.5rem 0 1rem; }
+.freedom-habit-head h2 { margin-bottom: 0.25rem; }
+.freedom-why { color: var(--text-secondary); font-style: italic; max-width: 60ch; }
+.day-definition { margin: 0; font-size: 0.8125rem; line-height: 1.5; color: var(--text-secondary); }
+.day-definition strong { color: var(--text-primary); font-weight: 600; }
+.freedom-empty h3 { margin-bottom: 0.5rem; }
+.freedom-empty > p { margin-bottom: 1.25rem; max-width: 60ch; }
+.habit-picker { display: grid; gap: 1rem; }
+.habit-chips { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.habit-chips form { margin: 0; }
+.habit-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-height: 40px;
+  padding: 0.45rem 0.9rem;
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  background: var(--overlay-1);
+  color: var(--text-primary);
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition: border-color 0.15s, background 0.15s;
+}
+.habit-chip:hover { border-color: var(--accent); background: var(--overlay-3); }
+.habit-custom { display: flex; gap: 0.5rem; max-width: 28rem; }
+.habit-custom input { flex: 1; min-width: 0; }
+.freedom-settings > summary, .freedom-add > summary { font-weight: 600; }
+.freedom-settings-form { display: grid; gap: 0.75rem; }
+.freedom-settings-form label { margin: 0; }
+.freedom-untrack { margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+.timeline-edit { margin-top: 0.35rem; }
+.timeline-edit form { margin-top: 0.5rem; }
+@media (max-width: 560px) {
+  .freedom-today-row { flex-wrap: wrap; }
+  .freedom-today-actions { width: 100%; }
+  .freedom-today-actions form, .freedom-today-actions > a { flex: 1; }
+  .freedom-today-actions .btn { width: 100%; }
+}
+
 /* ── Chart Container ── */
 .chart-container {
   position: relative;
