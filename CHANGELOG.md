@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `scripts/screenshots.py` regenerates the README screenshots from the demo
+  seeder on a throwaway instance, and shoots other pages or phone widths to check
+  a change. The seeder now includes fictional goals, three of them in focus.
 - The dashboard checks Freedom habits off for today in one tap, and each active
   experiment card logs today's entry (a yes/no, +1, a rating or minutes) and shows
   what is already logged. Both redraw in place; a slip opens the habit's day form,
@@ -80,6 +83,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Long goal titles wrap on phones instead of being cut off mid-word; they stay
+  editable in place, and Enter still saves.
 - Only the account that owns the install can import the Second Brain folder; it
   holds the owner's notes, so other accounts no longer see or reach the import.
 - Leaving an unfinished MFA login for `/login` could loop between `/login` and
