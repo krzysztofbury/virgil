@@ -19,7 +19,7 @@ def _drop_probe_sessions():
 
     auth_client is session-scoped over one shared DB, so sessions left with
     wod_parsed armed accumulate across the file. That residue is not inert: it
-    fills /training with 'dokończ' links, which is what made an ungated link
+    fills /training with 'Finish' links, which is what made an ungated link
     indistinguishable from a gated one in this file's own tests.
     """
     yield
@@ -125,12 +125,12 @@ def test_note_survives_an_llm_failure(auth_client, monkeypatch):
     latest = _sessions()[0]
     assert latest["notes"] == "5x5 back squat 70, potem metcon", "raw text must be persisted before parsing"
     assert "timed out" in resp.text or "parsowanie" in resp.text.lower()
-    assert "uzupełnić wpisy ręcznie" not in resp.text, (
+    assert "enter the sets by hand later" not in resp.text, (
         "I3: the old parse_error message claimed a manual-entry path that did not "
         "exist. The path it points at now — the seeded row on this very confirm "
         "screen — is real; see test_parse_failure_still_offers_a_usable_entry_row."
     )
-    assert "historii treningów" in resp.text, "the parse_error message must point to where the note actually is"
+    assert "training history" in resp.text, "the parse_error message must point to where the note actually is"
 
 
 def test_garbled_llm_response_still_saves_the_note(auth_client, monkeypatch):
@@ -322,7 +322,7 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
     """entries == [] with unmatched != [] is the 'nothing recognised' case. The
     confirm form must still render — with a select (defaulting to a skip
     option) and blank reps/weight/duration inputs for the unmatched movement —
-    instead of falling through to the dead-end 'nic nie udało się' message
+    instead of falling through to the dead-end 'nothing could be read' message
     that the old {% if entries %} guard produced.
     """
     _stub_llm(monkeypatch, {"entries": [], "unmatched": ["Sled Push"]})
@@ -342,12 +342,12 @@ def test_entries_empty_unmatched_present_renders_editable_row_not_dead_end(auth_
     assert "Sled Push" in resp.text
     assert 'name="entry_0_movement"' in resp.text, "the unmatched movement must render as an editable row"
     assert 'option value=""' in resp.text, "the row's select must offer an empty (skip) option"
-    assert "Zapisz wpisy" in resp.text, "the confirm form must render, not the dead-end fallback"
-    assert "Nic nie udało się sparsować" not in resp.text
+    assert "Save entries" in resp.text, "the confirm form must render, not the dead-end fallback"
+    assert "Nothing could be read from the note" not in resp.text
 
 
 def test_all_rows_skipped_on_confirm_creates_no_entry(auth_client, monkeypatch):
-    """Submitting with every row left on '— pomiń' must create no entries.
+    """Submitting with every row left on '- skip' must create no entries.
 
     Renamed from test_unmatched_row_skipped_on_confirm_creates_no_entry. It still
     reaches the resolve_movement -> continue path for every row, but the outcome
@@ -481,7 +481,7 @@ def test_skipping_a_parsed_entry_drops_only_that_row(auth_client, monkeypatch):
             "_csrf_token": token,
             "session_id": str(session_id),
             "entry_count": "2",
-            "entry_0_movement": "",  # user picked "— pomiń" for the unwanted Burpee row
+            "entry_0_movement": "",  # user picked "- skip" for the unwanted Burpee row
             "entry_0_set_number": "1",
             "entry_0_reps": "",
             "entry_0_weight": "",
@@ -614,7 +614,7 @@ def test_confirm_get_with_library_over_bound_renders_instead_of_500ing(auth_clie
 
         resp = auth_client.get(f"/training/wod/confirm/{session_id}", follow_redirects=False)
         assert resp.status_code == 200, "an oversized library must not 500 the confirm GET — the note is already safe"
-        assert "zapisana" in resp.text, "the degraded confirm screen must reassure the user the note is safe"
+        assert "is saved" in resp.text, "the degraded confirm screen must reassure the user the note is safe"
     finally:
         conn.execute("DELETE FROM exercise_library WHERE name LIKE 'Over Bound Movement %'")
         if session_id is not None:
@@ -651,7 +651,7 @@ def test_parse_failure_still_offers_a_usable_entry_row(auth_client, monkeypatch)
     POST /training/wod/confirm is the only route in the codebase that writes
     training_entries. The confirm form used to be gated on
     `entries|length + unmatched|length > 0`, so an LLM outage rendered no form at
-    all — and "+ dodaj serię" clones an existing <tr>, so there was nothing to
+    all - and "+ add set" clones an existing <tr>, so there was nothing to
     clone either. Weekly volume and Personal Bests would simply stop moving,
     silently, for as long as the provider was down.
 
@@ -679,13 +679,16 @@ def test_parse_failure_still_offers_a_usable_entry_row(auth_client, monkeypatch)
     )
     assert 'name="entry_0_movement"' in resp.text, "a blank editable row must be seeded"
     assert f"wodConfirmForm({SEED_ROWS_ON_PARSE_FAILURE}, {MAX_CONFIRM_ENTRIES})" in resp.text, (
-        "the Alpine row counter must account for EVERY seeded row - one short, '+ dodaj serię' "
+        "the Alpine row counter must account for EVERY seeded row - one short, '+ add set' "
         "re-mints an existing entry_N_* and the two rows collide on submit"
     )
     assert 'name="entry_0_reps"' in resp.text
     assert 'name="entry_count"' in resp.text
 
-    assert "usuń tę sesję" not in resp.text, "the message must not instruct the user to destroy the saved note"
+    # "do not delete this session" is the protective wording; any other mention is an instruction.
+    assert "delete this session" not in resp.text.replace("do not delete this session", ""), (
+        "the message must not instruct the user to destroy the saved note"
+    )
 
 
 def test_seeded_row_can_actually_save_an_entry(auth_client, monkeypatch):
@@ -808,7 +811,7 @@ def test_seed_row_field_names_match_what_the_route_reads(auth_client, monkeypatc
 
 def test_no_seed_row_when_the_movement_list_is_unavailable(auth_client):
     """N3: under library_error the vocabulary is empty, so a seeded row would
-    render a select whose only option is "— pomiń" — a manual-entry path that
+    render a select whose only option is "- skip" - a manual-entry path that
     cannot write anything, advertised by prose promising it can.
 
     Uses the same over-bound trigger as the degraded-GET test above: the
@@ -838,13 +841,13 @@ def test_no_seed_row_when_the_movement_list_is_unavailable(auth_client):
         assert 'name="entry_0_movement"' not in resp.text, (
             "no seed row when there is no vocabulary to pick from — it could not save anything"
         )
-        assert "lista ruchów" in resp.text, "the page must say why manual entry is unavailable"
-        assert "pusty wiersz do ręcznego wpisania" not in resp.text, (
+        assert "movement list" in resp.text, "the page must say why manual entry is unavailable"
+        assert "empty row to fill in by hand" not in resp.text, (
             "the prose must not promise a manual-entry row that was not rendered"
         )
         # The parse_error paragraph made the same promise independently and this
         # test walked straight past it, checking only the newer sentence.
-        assert "w tabeli poniżej" not in resp.text, "no paragraph may point at a table that did not render"
+        assert "in the table below" not in resp.text, "no paragraph may point at a table that did not render"
         assert 'action="/training/wod/confirm"' not in resp.text, "no form renders when there is nothing to pick"
     finally:
         conn.execute("DELETE FROM exercise_library WHERE name LIKE 'NoSeed Bound Movement %'")
@@ -994,7 +997,7 @@ def test_pending_session_is_linked_from_the_training_page(auth_client, monkeypat
     )
     assert settled, "precondition: at least one settled session must exist for the control to mean anything"
     assert f'href="/training/wod/confirm/{settled[0]["id"]}"' not in page, (
-        "a session with no pending parse must not be offered a 'dokończ' link"
+        "a session with no pending parse must not be offered a 'Finish' link"
     )
 
 
@@ -1102,7 +1105,7 @@ def test_discard_works_when_the_parse_holds_an_out_of_range_value(auth_client, m
     # A refusal now re-renders the submitted rows (200) rather than redirecting.
     # The control still holds: saving is refused and the reason is on screen.
     assert blocked.status_code == 200, "control: an out-of-range reps value must be refused on save"
-    assert "poza zakresem" in blocked.text
+    assert "is outside" in blocked.text
 
     resp = auth_client.post(
         "/training/wod/confirm",
@@ -1173,8 +1176,8 @@ def test_missing_entry_count_reports_the_right_cause(auth_client, monkeypatch):
         follow_redirects=False,
     )
     message = parse_qs(urlsplit(resp.headers["location"]).query)["err"][0]
-    assert "Zbyt dużo wpisów" not in message, "a missing field is not a too-many-rows problem"
-    assert "niekompletny" in message
+    assert "Too many entries" not in message, "a missing field is not a too-many-rows problem"
+    assert "incomplete" in message
     pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert pending, "a rejected submission must leave the parse armed"
 
@@ -1227,7 +1230,7 @@ def test_discard_on_a_settled_session_is_a_logged_no_op(auth_client, monkeypatch
 def test_unusable_wod_parsed_is_cleared_instead_of_500ing_or_sticking(auth_client, stored):
     """Valid JSON that is not an object reached parsed.get(...) as an
     AttributeError — a permanent 500 on the GET the corrupt-JSON guard exists to
-    keep reachable, now also offered as a clickable 'dokończ' link.
+    keep reachable, now also offered as a clickable 'Finish' link.
 
     Clearing rather than redirecting: an unreadable parse carries nothing, but
     leaving it armed kept the session flagged forever behind a link that only

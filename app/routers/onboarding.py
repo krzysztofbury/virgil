@@ -49,11 +49,14 @@ def _safe_float(value: str) -> float | None:
     return parsed if math.isfinite(parsed) else None
 
 
+# Goal areas by their fixed display_order (app/db.py SEED_GOAL_AREAS): 1 Life Planning,
+# 2 Spirituality, 3 Health, 4 Work, 5 Social Life, 6 Growth, 7 Relaxation, 8 Family.
+# Looked up by order, not name, so a renamed or translated area still matches.
 GOAL_CATEGORY_MAP = {
-    "mind": ["Duchowość", "Rozwój"],
-    "body": ["Zdrowie"],
-    "finance": ["Planowanie Życia", "Praca"],
-    "relations": ["Rodzina", "Życie Towarzyskie", "Relaks"],
+    "mind": [2, 6],
+    "body": [3],
+    "finance": [1, 4],
+    "relations": [8, 5, 7],
 }
 
 
@@ -179,8 +182,8 @@ async def save_step3(
         if not content.strip():
             continue
         # Map to the first goal area in the category.
-        area_name = GOAL_CATEGORY_MAP[category][0]
-        area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (area_name,))
+        area_order = GOAL_CATEGORY_MAP[category][0]
+        area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE display_order = ?", (area_order,))
         if area_row:
             area_id = area_row[0]["id"]
             existing = await db.execute_fetchall(

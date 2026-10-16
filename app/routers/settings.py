@@ -301,7 +301,7 @@ async def save_training_schedule(request: Request):
     # the one exception — that is an explicit "no fixed days", which the planner
     # renders as such.
     if raw_days.strip() and not days:
-        return reject("Nie rozpoznano żadnego dnia — użyj mon,tue,wed,thu,fri,sat,sun")
+        return reject("No day recognised - use mon,tue,wed,thu,fri,sat,sun")
 
     # Same policy for the swim target, which previously had none: an
     # unparseable value silently became 0 and reported success, dropping
@@ -321,9 +321,9 @@ async def save_training_schedule(request: Request):
         try:
             swim = int(raw_swim)
         except ValueError:
-            return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+            return reject(f"Swim sessions must be a whole number from 0 to {SWIM_PER_WEEK_MAX}")
         if not 0 <= swim <= SWIM_PER_WEEK_MAX:
-            return reject(f"Liczba basenów musi być liczbą całkowitą 0–{SWIM_PER_WEEK_MAX}")
+            return reject(f"Swim sessions must be a whole number from 0 to {SWIM_PER_WEEK_MAX}")
     else:
         swim = 0
 

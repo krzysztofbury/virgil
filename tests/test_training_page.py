@@ -365,7 +365,7 @@ def test_capture_copy_is_user_facing(auth_client):
     before the LLM runs - was nowhere on the page.
     """
     html = auth_client.get("/training").text
-    assert "Zapisz trening" in html
+    assert "Log a workout" in html
     assert "Zapisz i sparsuj" not in html
-    assert "opcjonalnie" in html, "duration is optional and must say so"
-    assert "Notatka zapisuje się" in html, "the user must know the note survives a failed parse"
+    assert "optional" in html, "duration is optional and must say so"
+    assert "The note is saved before it is read" in html, "the user must know the note survives a failed parse"

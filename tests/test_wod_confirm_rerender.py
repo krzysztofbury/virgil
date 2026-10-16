@@ -72,8 +72,8 @@ def test_rejected_row_rerenders_every_submitted_value(auth_client):
     assert 'value="99999"' in resp.text, "the rejected value must stay visible"
     assert 'value="keep me"' in resp.text, "row 1 note was dropped"
     assert 'value="Thruster" selected' in resp.text, "the chosen movement was dropped"
-    assert "powtórzenia" in resp.text, "the message must name the field"
-    assert "wpis 2" in resp.text, "the message must name the row"
+    assert "reps" in resp.text, "the message must name the field"
+    assert "row 2" in resp.text, "the message must name the row"
     assert _pending(session_id) is not None, "a rejected submission must not consume the parse"
     assert _entry_count(session_id) == 0, "a rejected submission must write nothing"
 
@@ -126,10 +126,10 @@ def test_rejected_non_numeric_value_comes_back_as_typed(auth_client):
             "entry_count": "1",
             "entry_0_movement": "Thruster",
             "entry_0_set_number": "1",
-            "entry_0_reps": "dwadzieścia jeden",
+            "entry_0_reps": "twenty one",
         },
         follow_redirects=False,
     )
     assert resp.status_code == 200
-    assert 'value="dwadzieścia jeden"' in resp.text
-    assert "nie jest liczbą całkowitą" in resp.text
+    assert 'value="twenty one"' in resp.text
+    assert "is not a whole number" in resp.text

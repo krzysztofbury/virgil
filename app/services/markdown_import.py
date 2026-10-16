@@ -330,50 +330,50 @@ async def import_badania(db):
 
     # Map known markers to categories
     marker_categories = {
-        "Leukocyty (WBC)": "Morfologia",
-        "Erytrocyty (RBC)": "Morfologia",
-        "Hemoglobina (HGB)": "Morfologia",
-        "Hematokryt (HCT)": "Morfologia",
-        "Płytki krwi (PLT)": "Morfologia",
-        "Morfologia - parametry czerwonokrwinkowe (MCV, MCH, MCHC)": "Morfologia",
-        "Morfologia - rozmaz (ilościowo)": "Morfologia",
-        "TSH": "Tarczyca i Hormony",
-        "FT3": "Tarczyca i Hormony",
-        "FT4": "Tarczyca i Hormony",
-        "Testosteron": "Tarczyca i Hormony",
-        "Prolaktyna": "Tarczyca i Hormony",
-        "SHBG": "Tarczyca i Hormony",
-        "Kortyzol": "Tarczyca i Hormony",
-        "Glukoza (na czczo)": "Metabolizm",
-        "Hemoglobina glikowana (HbA1c)": "Metabolizm",
-        "Insulina": "Metabolizm",
-        "Cholesterol całkowity": "Lipidy",
-        "Cholesterol LDL": "Lipidy",
-        "Cholesterol HDL": "Lipidy",
-        "Cholesterol nie-HDL": "Lipidy",
-        "Triglicerydy (TG)": "Lipidy",
-        "Lipoproteina Lp(a)": "Lipidy",
-        "Apo B": "Lipidy",
-        "Witamina D3 (Metabolit 25(OH))": "Witaminy i Minerały",
-        "Ferrytyna": "Witaminy i Minerały",
-        "Żelazo": "Witaminy i Minerały",
-        "Witamina B12": "Witaminy i Minerały",
-        "Kwas foliowy": "Witaminy i Minerały",
-        "Homocysteina": "Witaminy i Minerały",
-        "CRP (wysokiej czułości)": "Stany zapalne",
-        "ALT": "Wątroba i Nerki",
-        "AST": "Wątroba i Nerki",
-        "GGTP": "Wątroba i Nerki",
-        "Bilirubina całkowita": "Wątroba i Nerki",
-        "Fosfataza zasadowa": "Wątroba i Nerki",
-        "Kinaza kreatynowa (CK)": "Wątroba i Nerki",
-        "Kreatynina": "Wątroba i Nerki",
-        "eGFR": "Wątroba i Nerki",
-        "Kwas moczowy": "Wątroba i Nerki",
-        "Amylaza": "Wątroba i Nerki",
-        "Lipaza": "Wątroba i Nerki",
-        "Magnez": "Witaminy i Minerały",
-        "Elektrolity (Sód, Potas)": "Witaminy i Minerały",
+        "Leukocyty (WBC)": "Blood count",
+        "Erytrocyty (RBC)": "Blood count",
+        "Hemoglobina (HGB)": "Blood count",
+        "Hematokryt (HCT)": "Blood count",
+        "Płytki krwi (PLT)": "Blood count",
+        "Morfologia - parametry czerwonokrwinkowe (MCV, MCH, MCHC)": "Blood count",
+        "Morfologia - rozmaz (ilościowo)": "Blood count",
+        "TSH": "Thyroid & hormones",
+        "FT3": "Thyroid & hormones",
+        "FT4": "Thyroid & hormones",
+        "Testosteron": "Thyroid & hormones",
+        "Prolaktyna": "Thyroid & hormones",
+        "SHBG": "Thyroid & hormones",
+        "Kortyzol": "Thyroid & hormones",
+        "Glukoza (na czczo)": "Metabolic",
+        "Hemoglobina glikowana (HbA1c)": "Metabolic",
+        "Insulina": "Metabolic",
+        "Cholesterol całkowity": "Lipids",
+        "Cholesterol LDL": "Lipids",
+        "Cholesterol HDL": "Lipids",
+        "Cholesterol nie-HDL": "Lipids",
+        "Triglicerydy (TG)": "Lipids",
+        "Lipoproteina Lp(a)": "Lipids",
+        "Apo B": "Lipids",
+        "Witamina D3 (Metabolit 25(OH))": "Vitamins & minerals",
+        "Ferrytyna": "Vitamins & minerals",
+        "Żelazo": "Vitamins & minerals",
+        "Witamina B12": "Vitamins & minerals",
+        "Kwas foliowy": "Vitamins & minerals",
+        "Homocysteina": "Vitamins & minerals",
+        "CRP (wysokiej czułości)": "Inflammation",
+        "ALT": "Liver & kidneys",
+        "AST": "Liver & kidneys",
+        "GGTP": "Liver & kidneys",
+        "Bilirubina całkowita": "Liver & kidneys",
+        "Fosfataza zasadowa": "Liver & kidneys",
+        "Kinaza kreatynowa (CK)": "Liver & kidneys",
+        "Kreatynina": "Liver & kidneys",
+        "eGFR": "Liver & kidneys",
+        "Kwas moczowy": "Liver & kidneys",
+        "Amylaza": "Liver & kidneys",
+        "Lipaza": "Liver & kidneys",
+        "Magnez": "Vitamins & minerals",
+        "Elektrolity (Sód, Potas)": "Vitamins & minerals",
     }
 
     current_marker = None
@@ -384,7 +384,7 @@ async def import_badania(db):
         hm = re.match(r"^###\s+(.+)", line)
         if hm:
             name = hm.group(1).strip()
-            category = marker_categories.get(name, "Inne")
+            category = marker_categories.get(name, "Other")
             display_order += 1
 
             # Extract unit from first result line (next pass)
@@ -553,8 +553,22 @@ async def import_cele(db):
         "RELACJE": "Rodzina",
     }
 
+    # The names above identify areas in the person's Polish notes (and in each
+    # imported goal's source_ref); the area itself is found by its fixed order,
+    # since migration 036 gave the areas English names.
+    area_order = {
+        "Planowanie Życia": 1,
+        "Duchowość": 2,
+        "Zdrowie": 3,
+        "Praca": 4,
+        "Życie Towarzyskie": 5,
+        "Rozwój": 6,
+        "Relaks": 7,
+        "Rodzina": 8,
+    }
+
     async def area_id(name: str) -> int | None:
-        rows = await db.execute_fetchall("SELECT id FROM goal_areas WHERE name = ?", (name,))
+        rows = await db.execute_fetchall("SELECT id FROM goal_areas WHERE display_order = ?", (area_order.get(name),))
         return rows[0]["id"] if rows else None
 
     async def upsert_imported_goal(

@@ -242,8 +242,8 @@ async def save_brick(
     story: str = Form(""),
     craving: OptionalFormInt = None,
 ):
-    """A brick = one urge survived, in Gola's structure. The hook (hak
-    pamięciowy) is what makes it retrievable under pressure - required."""
+    """A brick = one urge survived, in Gola's structure. The hook (a memory
+    anchor) is what makes it retrievable under pressure - required."""
     habit, refusal = await _habit_or_redirect(request, slug)
     if refusal:
         return refusal

@@ -38,6 +38,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- The UI is English only. The training capture and confirm flow, its messages and
+  the equipment labels were Polish. New accounts get English goal areas, and
+  migration 036 renames the seeded areas and the importer's blood-test categories
+  in existing ones; names the person chose stay. A test keeps Polish out of
+  templates, scripts and route messages.
+- The seeded No Porn config no longer carries a personal motivation text, and
+  the dropped milestone table is no longer seeded.
 - Freedom's REST paths and MCP tools carry its name: `/api/freedom/{habit}/days/{date}`,
   `/api/freedom/{habit}/bricks`, `/api/freedom/bricks/{id}`, `PATCH /api/freedom/{habit}`
   (every habit setting) and the tools `log_freedom_day`, `delete_freedom_day` and

@@ -16,10 +16,10 @@
   <div class="card-body">
     <p role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
-      Analizuję notatkę. Zostań tutaj - wpisy pojawią się same.
+      Reading your note. Stay here - the entries will appear on their own.
     </p>
-    <p class="text-muted">Notatka jest już zapisana. Jeśli analiza się nie powiedzie,
-      w historii na <a href="/training">stronie treningu</a> ta sesja pozwoli wpisać serie ręcznie.</p>
+    <p class="text-muted">The note is already saved. If reading it fails, this session in the
+      history on the <a href="/training">training page</a> lets you enter the sets by hand.</p>
   </div>
 </div>
 {% else %}
@@ -38,21 +38,20 @@
     {% set seed_row = parsed_row_count == 0 and movements %}
 
     {% if parse_error %}
-      <p class="text-muted">Parsowanie nie powiodło się: {{ parse_error }}.
-      Notatka jest zapisana i widoczna w historii treningów na stronie /training -
-      nie usuwaj tej sesji.
-      {% if rows %}Ruchy i serie możesz wpisać ręcznie w tabeli poniżej.{% endif %}</p>
+      <p class="text-muted">The note could not be read: {{ parse_error }}.
+      It is saved and shown in the training history on /training - do not delete this session.
+      {% if rows %}You can enter the movements and sets by hand in the table below.{% endif %}</p>
     {% endif %}
 
     {% if dropped %}
-      <p class="text-muted">Notatka sparsowała się na więcej niż {{ max_entries }} wierszy.
-      Pokazane są pierwsze {{ max_entries }}; {{ dropped }} pominięto. Zapisz te wpisy,
-      a resztę dopisz kolejną notatką.</p>
+      <p class="text-muted">The note produced more than {{ max_entries }} rows.
+      The first {{ max_entries }} are shown; {{ dropped }} were left out. Save these entries
+      and add the rest with another note.</p>
     {% endif %}
 
     {% if library_error %}
-      <p class="text-muted">Lista ruchów jest chwilowo niedostępna ({{ library_error }}).
-      Notatka jest zapisana i widoczna w historii treningów na stronie /training.</p>
+      <p class="text-muted">The movement list is unavailable right now ({{ library_error }}).
+      The note is saved and shown in the training history on /training.</p>
     {% endif %}
 
     {# The form renders whenever there is a row to render. It used to be gated on
@@ -61,7 +60,7 @@
        with no rows there was no way to record a set at all - an LLM outage
        silently froze weekly volume and PBs. The router seeds blank rows instead,
        and it seeds none when there is no vocabulary to pick from, because a
-       select whose only option is "pomiń" cannot write anything. #}
+       select whose only option is "skip" cannot write anything. #}
     {% set form_rows = rows | length %}
     {% if form_rows > 0 %}
     <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }}, {{ max_entries }})"
@@ -78,7 +77,7 @@
       <input type="hidden" name="session_id" value="{{ session_id }}">
       <div class="overflow-x">
       <table class="wod-table">
-        <thead><tr><th>Ruch</th><th>Seria</th><th>Powt.</th><th>Ciężar (kg)</th><th>Czas (s)</th><th>Sprzęt</th><th>Notatka</th><th></th></tr></thead>
+        <thead><tr><th>Movement</th><th>Set</th><th>Reps</th><th>Weight (kg)</th><th>Time (s)</th><th>Equipment</th><th>Note</th><th></th></tr></thead>
         <tbody>
         {# One numbered list for every row type: a parsed entry, an unmatched
            name, and the blank seed rows a failed parse gets. The router owns the
@@ -103,43 +102,43 @@
          where the binding is absent. #}
       <input type="hidden" name="entry_count" x-ref="entryCount"
              value="{{ form_rows }}" :value="base + extraRows.length">
-      {# A row for a DIFFERENT movement, which "+ dodaj serię" cannot give: that
+      {# A row for a DIFFERENT movement, which "+ add set" cannot give: that
          one clones the movement of the row it sits in and increments its set
          number, which is right for another set and wrong for another exercise.
          Reaching a second movement used to mean adding a "set" and then changing
          its select, so the only labelled way in described the wrong action. #}
       <button type="button" class="btn btn-outline" @click="addExercise()"
-              x-show="!atLimit" style="margin-bottom:0.75rem;">+ dodaj ćwiczenie</button>
+              x-show="!atLimit" style="margin-bottom:0.75rem;">+ add exercise</button>
       <p class="text-muted" x-show="atLimit" x-cloak style="margin-bottom:0.75rem;">
-        Osiągnięto limit {{ max_entries }} wierszy w jednym zapisie. Zapisz te wpisy,
-        a resztę dodaj w kolejnym kroku.</p>
+        One save takes at most {{ max_entries }} rows. Save these entries
+        and add the rest in the next step.</p>
       <div>
-      <button type="submit" class="btn btn-primary">Zapisz wpisy</button>
+      <button type="submit" class="btn btn-primary">Save entries</button>
       {# The supported way to end with the note and no entries. formnovalidate so
          a half-filled row cannot block the exit. #}
       <button type="submit" name="action" value="discard" formnovalidate
               class="btn btn-outline" style="margin-left:0.5rem;"
-              onclick="return confirm('Odrzucić sparsowane wpisy? Notatka zostanie w historii treningów.')">
-        Odrzuć parsowanie
+              onclick="return confirm('Discard the parsed entries? The note stays in your training history.')">
+        Discard entries
       </button>
       </div>
     </form>
     {% endif %}
     {% if parsed_row_count == 0 %}
       {% if seed_row %}
-      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować -
-      powyżej jest {{ seed_rows }} pustych wierszy do ręcznego wpisania. „+ dodaj ćwiczenie”
-      dodaje kolejny ruch, a „+ dodaj serię” w wierszu - następną serię tego samego ruchu.
-      Puste wiersze są pomijane przy zapisie, więc nie musisz ich wypełniać.
-      Jeśli notatka sama w sobie wystarczy, użyj „Odrzuć parsowanie” -
-      <a href="/training">powrót do treningu</a> zostawi tę sesję oznaczoną jako
-      niedokończoną.</p>
+      <p class="text-muted" style="margin-top:0.5rem;">Nothing could be read from the note -
+      above are {{ seed_rows }} empty rows to fill in by hand. "+ add exercise" adds another
+      movement, and "+ add set" in a row adds the next set of the same movement.
+      Empty rows are skipped when you save, so you do not have to fill them.
+      If the note is enough on its own, use "Discard entries" -
+      <a href="/training">going back to training</a> leaves this session marked as
+      unfinished.</p>
       {% else %}
-      <p class="text-muted" style="margin-top:0.5rem;">Nic nie udało się sparsować, a lista ruchów
-      jest chwilowo niedostępna - bez niej nie ma z czego wybrać, więc ręczne wpisanie serii
-      trzeba odłożyć. Notatka jest zapisana. W historii na
-      <a href="/training">stronie treningu</a> ta sesja ma odnośnik „dokończ” - wróć nim tutaj,
-      gdy lista będzie z powrotem dostępna.</p>
+      <p class="text-muted" style="margin-top:0.5rem;">Nothing could be read from the note, and the
+      movement list is unavailable right now - without it there is nothing to pick from, so entering
+      sets by hand has to wait. The note is saved. In the history on the
+      <a href="/training">training page</a> this session has a "Finish" link - come back here with it
+      when the list is available again.</p>
       {% endif %}
     {% endif %}
 
@@ -221,7 +220,7 @@ function movementRow() {
             const recent = select.querySelectorAll('option[data-recent="1"]');
             if (!recent.length) return;
             const group = document.createElement('optgroup');
-            group.label = 'Ostatnio używane';
+            group.label = 'Recently used';
             recent.forEach(function (opt) {
                 const clone = opt.cloneNode(true);
                 // Otherwise one select carries two selected options: the

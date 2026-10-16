@@ -1,7 +1,7 @@
 """A failed parse must leave a usable manual-entry path, not one blank line.
 
 Reported after the truncation fix: when parsing fails the confirm screen offered
-a single blank row whose only labelled action was "+ dodaj serię" - another SET
+a single blank row whose only labelled action was "+ add set" - another SET
 of one movement. A WOD is never one set of one movement, and reaching a second
 *exercise* meant adding a "set" and then changing its select, so the only way in
 described the wrong action.
@@ -68,7 +68,7 @@ def test_failed_parse_offers_several_blank_rows(auth_client, monkeypatch):
     _fail_parse(monkeypatch)
     resp = _capture(auth_client)
     assert resp.status_code == 200
-    assert "Parsowanie nie powiodło się" in resp.text
+    assert "The note could not be read" in resp.text
 
     for i in range(SEED_ROWS_ON_PARSE_FAILURE):
         assert f'name="entry_{i}_movement"' in resp.text, f"seed row {i} must be rendered"
@@ -98,9 +98,9 @@ def test_add_exercise_control_is_offered(auth_client, monkeypatch):
     """A labelled way to add a DIFFERENT movement, distinct from adding a set."""
     _fail_parse(monkeypatch)
     resp = _capture(auth_client)
-    assert "+ dodaj ćwiczenie" in resp.text
+    assert "+ add exercise" in resp.text
     assert "addExercise()" in resp.text
-    assert "+ dodaj serię" in resp.text, "and adding a set must still exist"
+    assert "+ add set" in resp.text, "and adding a set must still exist"
     # addExercise must start a fresh exercise, not clone-and-increment.
     assert "addRow('', 1)" in resp.text
 
@@ -235,10 +235,10 @@ def test_parse_failure_prose_describes_both_controls(auth_client, monkeypatch):
     self-evidently different, and the old copy described only adding sets."""
     _fail_parse(monkeypatch)
     resp = _capture(auth_client)
-    assert "dodaj ćwiczenie" in resp.text
-    assert "następną serię tego samego ruchu" in resp.text
-    assert "Puste wiersze są pomijane przy zapisie" in resp.text
-    assert "pusty wiersz do ręcznego wpisania" not in resp.text, "the singular copy is what this replaces"
+    assert "add exercise" in resp.text
+    assert "the next set of the same movement" in resp.text
+    assert "Empty rows are skipped when you save" in resp.text
+    assert "empty row to fill in by hand" not in resp.text, "the singular copy is what this replaces"
 
 
 def test_library_error_still_suppresses_the_seed_rows(auth_client, monkeypatch):
@@ -257,8 +257,8 @@ def test_library_error_still_suppresses_the_seed_rows(auth_client, monkeypatch):
     resp = auth_client.get(f"/training/wod/confirm/{session_id}")
     assert resp.status_code == 200
     assert 'name="entry_0_movement"' not in resp.text
-    assert "+ dodaj ćwiczenie" not in resp.text
-    assert "lista ruchów" in resp.text
+    assert "+ add exercise" not in resp.text
+    assert "movement list" in resp.text
 
 
 def test_parsed_rows_also_get_the_add_exercise_control(auth_client, monkeypatch):
@@ -279,7 +279,7 @@ def test_parsed_rows_also_get_the_add_exercise_control(auth_client, monkeypatch)
     monkeypatch.setattr(wp, "call_llm", fake_call_llm)
     resp = _capture(auth_client)
     assert 'value="Row" selected' in resp.text
-    assert "+ dodaj ćwiczenie" in resp.text
+    assert "+ add exercise" in resp.text
     assert f"wodConfirmForm(1, {MAX_CONFIRM_ENTRIES})" in resp.text
 
 
@@ -289,7 +289,7 @@ def test_stranded_session_offers_manual_entry(auth_client):
     capture_wod commits the session before the LLM runs and stores the parse in a
     second commit. A crash between the two - a container recreated mid-parse,
     which this deployment does unattended - left the note with no form, no
-    "dokończ" link and no route back.
+    "Finish" link and no route back.
     """
     conn = sqlite3.connect(user_db_path())
     try:

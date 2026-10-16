@@ -250,7 +250,7 @@ reads back what was logged:
 - This Week KPIs - sessions count, total volume (Core, kg), total reps
 - Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window);
   a set on other equipment than the movement's usual one (a dumbbell hang snatch) is its own record
-- `Niedokończone` - every session whose parse is still waiting, whatever its date
+- `Unfinished` - every session whose parse is still waiting, whatever its date
 - Year calendar history - duration heatmap with hover and keyboard summaries;
   selecting a training day opens bounded pages of its sessions, sets, notes,
   recovery actions, and delete actions. Navigation keeps every recorded year reachable.
@@ -299,7 +299,7 @@ Write one free-text note from memory after training and let it be parsed:
   for one parse. A reused page carrying different text is a new capture, not a
   replay, so the back button cannot drop a note you just wrote.
 - **A note that lost its parse can still gain entries.** A session left with only
-  its text - a container recreated mid-parse, say - offers `Wpisz serie ręcznie`,
+  its text - a container recreated mid-parse, say - offers `Enter sets by hand`,
   which arms an empty parse and gives you the manual rows.
 - **Movements you don't already train** are created with `ad_hoc = 1`: they count
   toward session history, weekly volume and Personal Bests. The flag is what keeps
@@ -601,6 +601,7 @@ Current migrations:
 | 033 | `movement_taxonomy` | Adds movement families, aliases, default and per-set equipment; adds missing CrossFit variants and merges duplicate movements with their history |
 | 034 | `freedom_habits` | Adds `habits`; keys day logs, bricks and relapse events by habit; moves No Porn history onto a Porn habit and renames `feature_no_porn` to `feature_freedom` |
 | 035 | `drop_no_porn_leftovers` | Drops `feniks_config` (moved onto the Porn habit) and `feniks_milestones`; keeps the journal and pleasures |
+| 036 | `english_labels` | Renames the seeded goal areas and the importer's blood-test categories to English; names the person chose stay |
 
 Central registry migrations:
 | Version | Name | Description |

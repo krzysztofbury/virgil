@@ -21,17 +21,17 @@ from app.validation import truncate, valid_date
 
 WOD_PARSE_JOB_KIND = "wod_parse"
 
-# Polish labels for the confirm form's equipment picker and for records.
+# Labels for the confirm form's equipment picker and for records.
 EQUIPMENT_LABELS = {
-    "barbell": "sztanga",
-    "dumbbell": "hantle",
+    "barbell": "barbell",
+    "dumbbell": "dumbbell",
     "kettlebell": "kettlebell",
-    "plate": "talerz",
-    "bodyweight": "masa ciała",
-    "ball": "piłka",
-    "band": "guma",
-    "machine": "maszyna",
-    "other": "inne",
+    "plate": "plate",
+    "bodyweight": "bodyweight",
+    "ball": "ball",
+    "band": "band",
+    "machine": "machine",
+    "other": "other",
 }
 
 logger = logging.getLogger(__name__)
@@ -146,7 +146,7 @@ def _confirm_rows(parsed: dict, seed_rows: int) -> list[dict]:
     it gives confirm_wod something to re-render a rejected submission from.
 
     seed_rows is 0 when there is no vocabulary to pick from: a select whose only
-    option is "pomiń" is a manual-entry path that cannot write anything.
+    option is "skip" is a manual-entry path that cannot write anything.
     """
     rows: list[dict] = []
     for entry in parsed.get("entries") or []:
@@ -212,9 +212,9 @@ def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int |
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        raise _ConfirmRejected(f"wpis {row + 1}: {field} „{raw}” nie jest liczbą całkowitą") from None
+        raise _ConfirmRejected(f'row {row + 1}: {field} "{raw}" is not a whole number') from None
     if value < minimum or value > maximum:
-        raise _ConfirmRejected(f"wpis {row + 1}: {field}={value} poza zakresem [{minimum}, {maximum}]")
+        raise _ConfirmRejected(f"row {row + 1}: {field}={value} is outside [{minimum}, {maximum}]")
     return value
 
 
@@ -225,9 +225,9 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        raise _ConfirmRejected(f"wpis {row + 1}: {field} „{raw}” nie jest liczbą") from None
+        raise _ConfirmRejected(f'row {row + 1}: {field} "{raw}" is not a number') from None
     if value < minimum or value > maximum:
-        raise _ConfirmRejected(f"wpis {row + 1}: {field}={value} poza zakresem [{minimum}, {maximum}]")
+        raise _ConfirmRejected(f"row {row + 1}: {field}={value} is outside [{minimum}, {maximum}]")
     return value
 
 
@@ -602,11 +602,11 @@ async def capture_wod(request: Request):
 
     session_date = form.get("date", date.today().isoformat())
     if not valid_date(session_date):
-        return error_redirect(request, "/training", "Nieprawidłowa data treningu.")
+        return error_redirect(request, "/training", "That training date is not valid.")
 
     wod_text = truncate(form.get("wod_text", "").strip(), 4000)
     if not wod_text:
-        return error_redirect(request, "/training", "Wpisz notatkę treningową.")
+        return error_redirect(request, "/training", "Write a training note.")
 
     duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
 
@@ -630,10 +630,10 @@ async def capture_wod(request: Request):
             return success_redirect(
                 request,
                 f"/training/wod/confirm/{replay_id}",
-                "Notatka treningowa zapisana. Sprawdź wpisy przed zatwierdzeniem.",
+                "Training note saved. Check the entries before you save them.",
             )
         if session_id is None:
-            return error_redirect(request, "/training", "Nie udało się zapisać notatki treningowej.")
+            return error_redirect(request, "/training", "The training note could not be saved.")
 
     # The paid parse belongs to the worker. The note is already committed, so a
     # parse that never runs costs structure, never the record - and the confirm
@@ -649,14 +649,14 @@ async def capture_wod(request: Request):
         return success_redirect(
             request,
             f"/training/wod/confirm/{session_id}",
-            "Notatka treningowa zapisana. Analiza wpisów już trwa.",
+            "Training note saved. Its entries are already being read.",
         )
     except Exception:
         logger.exception("WOD parse enqueue failed for session %s", session_id)
         return error_redirect(
             request,
             "/training",
-            "Notatka zapisana, ale analiza się nie zakolejkowała. Uzupełnij wpisy ręcznie.",
+            "Note saved, but reading it could not be queued. Enter the sets by hand.",
         )
 
     from app.routers.jobs import wake_worker_for
@@ -666,7 +666,7 @@ async def capture_wod(request: Request):
     return success_redirect(
         request,
         f"/training/wod/confirm/{session_id}?job_id={result.job_id}",
-        "Notatka treningowa zapisana. Analizuję wpisy.",
+        "Training note saved. Reading its entries.",
     )
 
 
@@ -739,7 +739,7 @@ async def wod_confirm_page(request: Request, session_id: int, job_id: int | None
     if unusable:
         # Clear it rather than redirecting and leaving it armed. An unreadable
         # parse carries no information, so nothing is lost — but leaving it in
-        # place kept the session flagged "dokończ" on /training forever, behind a
+        # place kept the session flagged "Finish" on /training forever, behind a
         # link that only redirects back here. The user's only escape was deleting
         # the session, which cascades and takes the raw note with it: exactly what
         # this screen's own prose tells them not to do.
@@ -816,7 +816,7 @@ async def _render_confirm(
     parsed = parsed or {}
     if rows is None:
         # No vocabulary means no seed rows: a picker whose only option is
-        # "pomiń" is a manual-entry path that cannot write anything.
+        # "skip" is a manual-entry path that cannot write anything.
         rows = _confirm_rows(parsed, SEED_ROWS_ON_PARSE_FAILURE if movements else 0)
         parsed_row_count = len(parsed.get("entries") or []) + len(parsed.get("unmatched") or [])
     else:
@@ -897,7 +897,7 @@ async def confirm_wod(request: Request):
 
     session_id = _parse_int_in_range(form.get("session_id"), 1, 2**31 - 1)
     if session_id is None:
-        return error_redirect(request, "/training", "Nieprawidłowy identyfikator sesji treningowej.")
+        return error_redirect(request, "/training", "That training session id is not valid.")
 
     # "Discard this parse": the supported way to end up with the note and no
     # entries. Without an explicit exit, "I reviewed this and want none of it" is
@@ -927,11 +927,9 @@ async def confirm_wod(request: Request):
         if cursor.rowcount == 0:
             logger.warning("WOD discard for session %s matched nothing (unknown id or already settled)", session_id)
             await db.commit()
-            return error_redirect(
-                request, "/training", "Nie odrzucono parsowania: sesja jest nieznana lub nieaktualna."
-            )
+            return error_redirect(request, "/training", "Entries not discarded: the session is unknown or out of date.")
         await db.commit()
-        return success_redirect(request, "/training", "Parsowanie odrzucone. Notatka treningowa została zachowana.")
+        return success_redirect(request, "/training", "Entries discarded. The training note is kept.")
 
     entry_count_raw = form.get("entry_count")
     entry_count = _parse_int_in_range(entry_count_raw, 0, MAX_CONFIRM_ENTRIES)
@@ -947,9 +945,9 @@ async def confirm_wod(request: Request):
         )
         blank = entry_count_raw is None or str(entry_count_raw).strip() == ""
         message = (
-            "Formularz dotarł niekompletny — odśwież stronę i spróbuj ponownie. Notatka jest zapisana."
+            "The form arrived incomplete - reload the page and try again. The note is saved."
             if blank
-            else "Zbyt dużo wpisów naraz — spróbuj ponownie."
+            else "Too many entries at once - try again."
         )
         return error_redirect(request, f"/training/wod/confirm/{session_id}", message)
 
@@ -957,14 +955,14 @@ async def confirm_wod(request: Request):
     try:
         for i in range(entry_count):
             movement = (form.get(f"entry_{i}_movement") or "").strip()
-            set_number = _confirm_int(form.get(f"entry_{i}_set_number"), 1, 100, "seria", i)
-            reps = _confirm_int(form.get(f"entry_{i}_reps"), 0, REPS_MAX, "powtórzenia", i)
-            weight = _confirm_float(form.get(f"entry_{i}_weight"), 0, WEIGHT_KG_MAX, "ciężar", i)
-            duration = _confirm_float(form.get(f"entry_{i}_duration"), 0, DURATION_SECONDS_MAX, "czas", i)
+            set_number = _confirm_int(form.get(f"entry_{i}_set_number"), 1, 100, "set", i)
+            reps = _confirm_int(form.get(f"entry_{i}_reps"), 0, REPS_MAX, "reps", i)
+            weight = _confirm_float(form.get(f"entry_{i}_weight"), 0, WEIGHT_KG_MAX, "weight", i)
+            duration = _confirm_float(form.get(f"entry_{i}_duration"), 0, DURATION_SECONDS_MAX, "time", i)
             note = truncate(form.get(f"entry_{i}_note", ""), 200)
             equipment = (form.get(f"entry_{i}_equipment") or "").strip() or None
             if not valid_equipment(equipment):
-                raise _ConfirmRejected(f"wpis {i + 1}: nieznany sprzęt „{equipment}”")
+                raise _ConfirmRejected(f'row {i + 1}: unknown equipment "{equipment}"')
             parsed_rows.append(
                 (movement, set_number if set_number is not None else 1, reps, weight, duration, note, equipment)
             )
@@ -977,7 +975,7 @@ async def confirm_wod(request: Request):
             session_id,
             session_date,
             rows=_rows_from_form(form, entry_count),
-            error=f"{exc}. Reszta formularza jest zachowana - popraw to jedno pole i zapisz ponownie.",
+            error=f"{exc}. The rest of the form is kept - fix that one field and save again.",
         )
 
     # B1: atomically consume the pending parse result. rowcount != 1 means
@@ -994,14 +992,14 @@ async def confirm_wod(request: Request):
     )
     if cursor.rowcount != 1:
         await db.commit()
-        return error_redirect(request, "/training", "Nie zapisano wpisów: sesja jest nieznana lub nieaktualna.")
+        return error_redirect(request, "/training", "Entries not saved: the session is unknown or out of date.")
 
     rows: list[tuple] = []
     skipped: list[str] = []
     for movement, set_number, reps, weight, duration, note, equipment in parsed_rows:
         exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
-            # A blank movement is the deliberate skip ("- pomiń", I4) and needs
+            # A blank movement is the deliberate skip ("- skip", I4) and needs
             # no report. A NAMED movement that does not resolve is a different
             # thing: the user reviewed that row and it vanished anyway, with no
             # message, because the guard below only fires when NOTHING resolved.
@@ -1045,8 +1043,8 @@ async def confirm_wod(request: Request):
         return error_redirect(
             request,
             f"/training/wod/confirm/{session_id}",
-            "Żaden wiersz nie wskazał znanego ruchu, więc nic nie zapisano. "
-            "Wybierz ruch z listy albo użyj „Odrzuć parsowanie”, jeśli notatka wystarczy.",
+            "No row named a known movement, so nothing was saved. "
+            'Pick a movement from the list, or use "Discard entries" if the note is enough.',
         )
 
     await db.executemany(
@@ -1059,13 +1057,13 @@ async def confirm_wod(request: Request):
     if skipped:
         names = ", ".join(sorted(set(skipped))[:MAX_SKIPPED_NAMED])
         message = (
-            f"Zapisano {len(rows)} z {len(rows) + len(skipped)} wierszy. "
-            f"Pominięto ruchy, których nie ma w bibliotece: {names}. "
-            "Dodaj je w Ustawieniach i dopisz kolejną notatką."
+            f"Saved {len(rows)} of {len(rows) + len(skipped)} rows. "
+            f"Skipped movements that are not in the library: {names}. "
+            "Add them in Settings and log them with another note."
         )
         logger.warning("WOD confirm skipped unresolved movements for session %s: %s", session_id, names)
         return success_redirect(request, "/training", message)
-    return success_redirect(request, "/training", f"Zapisano {len(rows)} wpisów treningowych.")
+    return success_redirect(request, "/training", f"Saved {len(rows)} training entries.")
 
 
 @router.post("/training/session/{session_id}/manual")
@@ -1087,7 +1085,7 @@ async def arm_manual_entry(request: Request, session_id: int):
     )
     if not rows or rows[0]["entries"] or rows[0]["wod_parsed"] is not None:
         logger.warning("manual entry refused for session %s (unknown, has entries, or already armed)", session_id)
-        return error_redirect(request, "/training", "Nie można otworzyć ręcznego wpisu dla tej sesji.")
+        return error_redirect(request, "/training", "Manual entry cannot be opened for this session.")
 
     armed = json.dumps({"entries": [], "unmatched": [], "parse_error": "", "dropped": 0, "manual": True})
     cursor = await db.execute(
@@ -1098,11 +1096,11 @@ async def arm_manual_entry(request: Request, session_id: int):
     if cursor.rowcount != 1:
         # Another request armed it between the read and this write.
         logger.warning("manual entry for session %s lost the arming race", session_id)
-        return error_redirect(request, "/training", "Sesja zmieniła się przed otwarciem ręcznego wpisu.")
+        return error_redirect(request, "/training", "The session changed before manual entry opened.")
     return success_redirect(
         request,
         f"/training/wod/confirm/{session_id}",
-        "Ręczny wpis jest gotowy. Uzupełnij i zapisz ćwiczenia.",
+        "Manual entry is ready. Fill in the exercises and save.",
     )
 
 
@@ -1112,5 +1110,5 @@ async def delete_session(request: Request, session_id: int):
     cursor = await db.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
     await db.commit()
     if cursor.rowcount == 0:
-        return error_redirect(request, "/training", "Nie usunięto sesji: sesja nie istnieje.")
-    return success_redirect(request, "/training", "Sesja treningowa usunięta.")
+        return error_redirect(request, "/training", "Session not deleted: it does not exist.")
+    return success_redirect(request, "/training", "Training session deleted.")

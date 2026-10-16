@@ -303,7 +303,7 @@ def test_records_split_by_equipment_other_than_the_default(auth_client):
     try:
         page = auth_client.get("/training").text
         assert stat_value_for_label(page, "Hang Power Snatch") == 40
-        assert stat_value_for_label(page, "Hang Power Snatch (hantle)") == 15
+        assert stat_value_for_label(page, "Hang Power Snatch (dumbbell)") == 15
     finally:
         _execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
         _execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
