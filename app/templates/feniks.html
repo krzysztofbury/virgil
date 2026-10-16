@@ -41,7 +41,7 @@
           data-draft-key="feniks-daily:{{ form_date }}" data-draft-fields="note">
         <div class="day-card-head">
             <h3>How was {{ 'today' if form_date == today else form_date }}?</h3>
-            <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required
+            <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required aria-label="Day to log"
                    onchange="window.location='/feniks?date='+this.value">
         </div>
         <input type="hidden" name="used" :value="used">

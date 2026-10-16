@@ -240,8 +240,8 @@
             </div>
             <div>
                 <label for="entry_value">Value</label>
-                <input type="number" id="entry_value" name="value" :placeholder="hints[kinds[sel]] || ''" required>
-                <small class="text-muted" x-text="hints[kinds[sel]] || ''"></small>
+                <input type="number" id="entry_value" name="value" required aria-describedby="entry_value_hint">
+                <small class="text-muted" id="entry_value_hint" x-text="hints[kinds[sel]] || ''"></small>
             </div>
             <div>
                 <label for="entry_notes">Notes</label>

@@ -41,12 +41,31 @@
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header"><h3>Today's Vitals</h3></div>
 
+    {# Each group names itself once; the tiles under it say which number is which. #}
     <h4 class="vitals-group">Sleep</h4>
     <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
-            <div class="stat-label">Sleep</div>
+            <div class="stat-label">Score</div>
         </div>
+        {% if oura_today.sleep_duration_hours %}
+        <div class="stat-card">
+            <div class="stat-value">{{ '%.1f'|format(oura_today.sleep_duration_hours) }}<small>h</small></div>
+            <div class="stat-label">Total</div>
+        </div>
+        {% endif %}
+        {% if oura_today.deep_sleep_hours %}
+        <div class="stat-card">
+            <div class="stat-value">{{ '%.1f'|format(oura_today.deep_sleep_hours) }}<small>h</small></div>
+            <div class="stat-label">Deep</div>
+        </div>
+        {% endif %}
+        {% if oura_today.rem_sleep_hours %}
+        <div class="stat-card">
+            <div class="stat-value">{{ '%.1f'|format(oura_today.rem_sleep_hours) }}<small>h</small></div>
+            <div class="stat-label">REM</div>
+        </div>
+        {% endif %}
     </div>
 
     <h4 class="vitals-group">Activity</h4>
@@ -54,21 +73,21 @@
         <div class="stat-card">
             {% if oura_today.activity_score %}
             <div class="stat-value">{{ oura_today.activity_score }}</div>
-            <div class="stat-label">Activity</div>
+            <div class="stat-label">Score</div>
             {% elif yesterday_fallback.activity_score %}
             <div class="stat-value">{{ yesterday_fallback.activity_score }}</div>
-            <div class="stat-label">Activity <small class="text-muted">(yesterday)</small></div>
+            <div class="stat-label">Score <small class="text-muted">(yesterday)</small></div>
             {% else %}
             <div class="stat-value">-</div>
-            <div class="stat-label">Activity</div>
+            <div class="stat-label">Score</div>
             {% endif %}
         </div>
         <div class="stat-card">
             {% if oura_today.steps %}
-            <div class="stat-value">{{ oura_today.steps }}</div>
+            <div class="stat-value">{{ oura_today.steps|thousands }}</div>
             <div class="stat-label">Steps</div>
             {% elif yesterday_fallback.steps %}
-            <div class="stat-value">{{ yesterday_fallback.steps }}</div>
+            <div class="stat-value">{{ yesterday_fallback.steps|thousands }}</div>
             <div class="stat-label">Steps <small class="text-muted">(yesterday)</small></div>
             {% else %}
             <div class="stat-value">-</div>
@@ -92,13 +111,6 @@
             <div class="stat-label">RHR (bpm)</div>
         </div>
     </div>
-    {% if oura_today.sleep_duration_hours %}
-    <div style="margin-top:0.75rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
-        <small>Sleep: <strong>{{ '%.1f'|format(oura_today.sleep_duration_hours) }}h</strong></small>
-        {% if oura_today.deep_sleep_hours %}<small>Deep: <strong>{{ '%.1f'|format(oura_today.deep_sleep_hours) }}h</strong></small>{% endif %}
-        {% if oura_today.rem_sleep_hours %}<small>REM: <strong>{{ '%.1f'|format(oura_today.rem_sleep_hours) }}h</strong></small>{% endif %}
-    </div>
-    {% endif %}
     {% if oura_today.stress_high is not none or oura_today.stress_rest is not none %}
     <div style="margin-top:0.5rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
         {% if oura_today.stress_high %}<small>Stress: <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
@@ -112,9 +124,9 @@
 <div id="metric-content">
 <!-- Monthly Chart -->
 <div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-        <h3 style="margin:0;">Monthly Trends</h3>
-        <select onchange="window.location.href='/oura/' + this.value + '#metric-content'" class="metric-select">
+    <div class="card-header">
+        <h3>Monthly Trends</h3>
+        <select aria-label="Metric" onchange="window.location.href='/oura/' + this.value + '#metric-content'" class="metric-select">
             {% for key, name, unit in metrics %}
             <option value="{{ key }}" {{ 'selected' if current_metric == key else '' }}>{{ name }}{% if unit %} ({{ unit }}){% endif %}</option>
             {% endfor %}
@@ -145,8 +157,8 @@
                 responsive: true,
                 interaction: { intersect: false, mode: 'index' },
                 scales: {
-                    x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 11 } } },
-                    y: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 11 } } }
+                    x: { grid: { color: colors.grid }, ticks: { color: colors.text } },
+                    y: { grid: { color: colors.grid }, ticks: { color: colors.text } }
                 },
                 plugins: { legend: { display: false } }
             }
@@ -174,9 +186,9 @@
 <details style="margin-bottom: 1.5rem;">
     <summary>History</summary>
     <div class="card" style="margin-top: 0.75rem;">
-        <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
-            <h3 style="margin:0;">History</h3>
-            <select class="metric-select" id="history-view"
+        <div class="card-header">
+            <h3>History</h3>
+            <select class="metric-select" id="history-view" aria-label="History view"
                     onchange="document.getElementById('hist-daily').style.display = this.value === 'daily' ? '' : 'none'; document.getElementById('hist-monthly').style.display = this.value === 'monthly' ? '' : 'none';">
                 <option value="daily">Daily</option>
                 <option value="monthly">Monthly</option>
@@ -208,7 +220,7 @@
                         <td>{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
                         <td>{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
                         <td>{{ '%.1f'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
-                        <td>{{ d.steps or '-' }}</td>
+                        <td>{{ d.steps|thousands or '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -237,7 +249,7 @@
                         <td>{{ d.sleep_score|int if d.sleep_score else '-' }}</td>
                         <td>{{ d.readiness|int if d.readiness else '-' }}</td>
                         <td>{{ d.activity|int if d.activity else '-' }}</td>
-                        <td>{{ d.steps if d.steps else '-' }}</td>
+                        <td>{{ d.steps|thousands or '-' }}</td>
                         <td>{{ d.sleep_duration if d.sleep_duration else '-' }}</td>
                         <td>{{ d.hrv|int if d.hrv else '-' }}</td>
                         <td>{{ d.rhr|int if d.rhr else '-' }}</td>
@@ -334,12 +346,13 @@
             yAxisID: 'y',
         }
     ], {
-        yScale: { position: 'left', title: { display: true, text: 'HRV/RHR', color: '#8b8b9e' } },
         chartOptions: {
+            // A spread replaces createLineChart's whole scales object, so every
+            // axis is stated here, in theme colours.
             scales: {
-                y: { position: 'left', grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8b8b9e' } },
-                y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: '#8b8b9e' }, title: { display: true, text: 'Score', color: '#8b8b9e' } },
-                x: { grid: { color: 'rgba(255,255,255,0.06)' }, ticks: { color: '#8b8b9e', maxRotation: 45 } }
+                y: { position: 'left', grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text }, title: { display: true, text: 'HRV / RHR', color: getChartColors().text } },
+                y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: getChartColors().text }, title: { display: true, text: 'Score', color: getChartColors().text } },
+                x: { grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text } }
             }
         }
     });

@@ -70,15 +70,17 @@ def test_stat_cards_may_shrink_below_their_content():
     assert "min-width: 0" in stat_card
 
 
-def test_card_headers_stack_on_mobile():
+def test_card_headers_wrap_helper_copy_on_mobile():
     """A title and a long helper sentence cannot share one flex row at 390px.
 
     Settings App Config puts both in one `.card-header`, so the title collapsed
-    into a one-word-per-line column. No card header carries a control, so
-    stacking is safe everywhere.
+    into a one-word-per-line column. Some headers also carry a control (the Notes
+    Edit button, the Oura metric select), which must stay beside its title: the
+    header wraps, and the helper `small` alone takes a full row.
     """
     block = _mobile_block()
     start = block.index(".card-header {")
     header_rule = block[start : block.index("}", start)]
-    assert "flex-direction: column" in header_rule
-    assert "align-items: flex-start" in header_rule
+    assert "flex-wrap: wrap" in header_rule
+    assert "flex-direction: column" not in header_rule, "a column pushes every control under its title"
+    assert ".card-header > small { flex-basis: 100%;" in block, "helper copy must get its own row"
