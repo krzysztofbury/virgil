@@ -660,6 +660,9 @@ label {
   margin: 0;
   font-size: 0.85rem;
 }
+/* Under the done card's Edit disclosure; `margin: 0` above outranks the shared
+   details spacing rule. */
+details > .andy-desc { margin-top: 0.5rem; }
 @media (max-width: 480px) {
   .andy-grid {
     grid-template-columns: 1fr;
@@ -1111,7 +1114,12 @@ input[type="range"]#energy-slider::-moz-range-thumb {
 .module-custom { margin: 0; max-width: 24rem; }
 .module-actions { justify-content: flex-start; }
 @media (max-width: 560px) { .module-habits { margin-left: 0; } }
-.freedom-today { padding: 0.5rem; }
+/* Exercise library: search and section filter share a row, wrapping on phones. */
+.library-controls { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.75rem; }
+.library-controls input, .library-controls select { flex: 1 1 12rem; width: auto; margin: 0; }
+/* Eight columns: on a phone the table scrolls sideways instead of wrapping each name word by word. */
+.library-table { min-width: 52rem; }
+.freedom-today { padding: 0.5rem; display: grid; gap: 0.25rem; }
 .freedom-today-row {
   display: flex;
   align-items: center;
@@ -1121,6 +1129,9 @@ input[type="range"]#energy-slider::-moz-range-thumb {
   border-radius: var(--radius-sm);
 }
 .freedom-today-row + .freedom-today-row { border-top: 1px solid var(--border); }
+/* The selected row's own background already separates it from its neighbours. */
+.freedom-today-row.is-selected + .freedom-today-row,
+.freedom-today-row + .freedom-today-row.is-selected { border-top-color: transparent; }
 .freedom-today-row.is-selected { background: var(--overlay-2); }
 .freedom-today-name { display: flex; flex-direction: column; min-width: 0; }
 .freedom-today-name small { color: var(--text-secondary); font-size: 0.8125rem; }
@@ -2421,7 +2432,7 @@ input.flatpickr-input:hover {
   margin-bottom: 0.75rem;
 }
 
-/* Alpine: hide until initialised. Used by onboarding.html and feniks.html —
+/* Alpine: hide until initialised. Used by onboarding.html and freedom.html -
    this rule lived inside the Rest Timer block and is NOT part of it. */
 [x-cloak] { display: none !important; }
 
@@ -2885,7 +2896,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* Unified timeline */
-.timeline { display: flex; flex-direction: column; gap: 0.9rem; margin-top: 1.5rem; }
+.timeline { display: flex; flex-direction: column; gap: 0.9rem; margin: 1.5rem 0; }
 .timeline-day {
   display: grid;
   grid-template-columns: 6.5rem 1fr;
