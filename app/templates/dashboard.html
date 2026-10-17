@@ -5,6 +5,8 @@
 
 {% include "partials/today_block.html" %}
 
+{% if freedom_overviews %}{% include "partials/freedom_today.html" %}{% endif %}
+
 <!-- Focus: the starred goals, so direction sits beside the day's actions
      instead of three taps away. -->
 <div class="section" id="focus-block">
@@ -83,22 +85,7 @@
 <div class="section">
     <div class="section-title">Active Experiments</div>
     {% for exp in active_experiments %}
-    <div class="card" style="margin-bottom: 0.75rem;">
-        <div class="flex-between">
-            <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
-            {% if exp.not_started %}
-            <small class="text-muted">Starts {{ exp.start_date }}</small>
-            {% else %}
-            <small class="text-muted">Week {{ exp.current_week }}/{{ exp.num_weeks }}</small>
-            {% endif %}
-        </div>
-        <div class="exp-widget-bar">
-            <div class="progress-bar" style="height: 6px; flex: 1;">
-                <div class="fill" style="width: {{ (exp.current_week / exp.num_weeks * 100)|round if not exp.not_started else 0 }}%;"></div>
-            </div>
-            <small class="text-muted">{{ exp.logged_label }}</small>
-        </div>
-    </div>
+    {% include "partials/experiment_card.html" %}
     {% endfor %}
 </div>
 {% endif %}

@@ -273,7 +273,7 @@ def test_out_of_range_reps_rejects_the_whole_submission(auth_client):
     # are unchanged: the message is surfaced, nothing is written, and the parse
     # stays armed for the retry.
     assert resp.status_code == 200
-    assert "poza zakresem" in resp.text, "the rejection must be surfaced, not swallowed"
+    assert "is outside" in resp.text, "the rejection must be surfaced, not swallowed"
     assert 'value="1500"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
@@ -291,7 +291,7 @@ def test_out_of_range_set_number_rejects_the_whole_submission(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 200
-    assert "poza zakresem" in resp.text
+    assert "is outside" in resp.text
     assert 'value="150"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
 
@@ -312,7 +312,7 @@ def test_out_of_range_weight_rejects_the_whole_submission(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 200
-    assert "poza zakresem" in resp.text
+    assert "is outside" in resp.text
     assert 'value="1500"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
@@ -328,7 +328,7 @@ def test_added_rows_beyond_server_rendered_count_are_written(auth_client):
     legitimately exceed the number of rows the confirm GET originally
     rendered, as long as it reflects the true submitted row count and every
     entry_N_* field for i in range(entry_count) is present. This is exactly
-    what Alpine's client-side "+ dodaj serię" button appends (see
+    what Alpine's client-side "+ add set" button appends (see
     wod_confirm.html) — no server route change was needed for it, but nothing
     previously exercised a submission wider than what the GET rendered, so
     this is the regression guard for the reported defect: "only ever N rows,
@@ -348,14 +348,14 @@ def test_added_rows_beyond_server_rendered_count_are_written(auth_client):
             "entry_0_duration": "",
             "entry_0_note": "21-15-9",
             # Appended client-side off row 0: same movement, set_number + 1 —
-            # exactly what clicking "+ dodaj serię" on row 0 produces.
+            # exactly what clicking "+ add set" on row 0 produces.
             "entry_1_movement": "Thruster",
             "entry_1_set_number": "2",
             "entry_1_reps": "15",
             "entry_1_weight": "43",
             "entry_1_duration": "",
             "entry_1_note": "",
-            # Appended but left on "— pomiń" (blank movement) — must be
+            # Appended but left on "- skip" (blank movement) - must be
             # skipped, exactly like an unmatched row nobody picked one for.
             "entry_2_movement": "",
             "entry_2_set_number": "3",
@@ -445,7 +445,7 @@ def test_out_of_range_duration_rejects_the_whole_submission(auth_client):
         follow_redirects=False,
     )
     assert resp.status_code == 200
-    assert "poza zakresem" in resp.text
+    assert "is outside" in resp.text
     assert 'value="100000"' in resp.text, "the rejected value must stay on screen"
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
@@ -513,7 +513,7 @@ def test_a_rejected_field_never_reaches_the_consume(auth_client, monkeypatch, ca
             follow_redirects=False,
         )
     assert resp.status_code == 200, "a rejection re-renders the submitted rows"
-    assert "poza zakresem" in resp.text, "the rejection names the offending field"
+    assert "is outside" in resp.text, "the rejection names the offending field"
     assert 'value="21"' in resp.text, "the valid row's values must survive its sibling's rejection"
     assert "parse re-armed" not in caplog.text, (
         "a rejected submission must never reach the consume — re-arming means it did"
@@ -537,7 +537,7 @@ def test_out_of_range_entry_count_never_reaches_the_consume(auth_client, monkeyp
             follow_redirects=False,
         )
     redirect = urlsplit(resp.headers["location"])
-    assert "Zbyt dużo wpisów" in parse_qs(redirect.query)["err"][0]
+    assert "Too many entries" in parse_qs(redirect.query)["err"][0]
     assert "parse re-armed" not in caplog.text, "an over-bound entry_count must be refused before the consume"
 
 

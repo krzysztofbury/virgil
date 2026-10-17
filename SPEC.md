@@ -32,9 +32,8 @@ app/
     runner.py           - Migration discovery + execution engine
     001_*.py ... 034_*.py
 
-  models/               - Data models (query helpers, not ORMs)
-    daily.py, bloodwork.py, experiments.py, feniks.py,
-    goals.py, life_scores.py, oura.py
+  models/               - Query helpers that predate the services layer
+    user_profile.py     - user_profiles reads and writes (onboarding)
 
   routers/              - FastAPI route handlers (one per feature)
     auth.py, dashboard.py, daily.py, training.py, freedom.py,
@@ -46,8 +45,7 @@ app/
     oura_api.py         - Oura OAuth2 + API v2 client + sync
     llm.py              - LLM API client (Claude/OpenAI/Gemini)
     briefing.py         - AI morning briefing generation
-    markdown_export.py  - Scoped markdown export
-    markdown_import.py  - Markdown to DB parsers (onboarding)
+    markdown_export.py  - Scoped markdown download
     scheduler.py        - Background task loop (backup + sync + export)
     backup.py           - SQLite backup with rolling retention
     experiment_summary.py - AI weekly summaries
@@ -77,7 +75,7 @@ app/
 5. **Multi-user model.** Central `virgil-central.db` user registry; one isolated SQLite database per user (`data/users/{uuid}.db`), opened per request by the auth middleware.
 6. **Training data model.** The WOD confirm screen (`POST /training/wod/confirm`) is the only writer of `training_entries`. `training_entries.duration` is SECONDS (migration 020) and renders through `app.formatting.format_duration_seconds`. `training_entries.notes` holds the metcon result for that movement: a finishing time, or rounds plus reps. A `training_sessions` row with a non-NULL `wod_parsed` has a parse waiting for review, and `/training` lists every one of them. History is grouped into a year-addressable calendar backed by one aggregate row per date; selecting a day loads bounded pages of its sessions and sets. Personal Bests group maximum loads by movement and comparable effort (rep count or timed duration). `training_sessions.capture_token` (migration 024) makes one rendered capture form write one session. `training_exercises.name` is unique with SQLite `NOCASE` semantics (migration 026), and movement resolution uses an upsert so concurrent WOD confirmations return one row. `exercise_library.sets` / `reps` are parser fallbacks, not a prescription; `training_exercises.ad_hoc` is provenance with no reader.
 7. **Page shape.** Five pages converged on one shape in v0.6.0, and a sixth should not invent another. The first block is what to do now: the current state stated in words or numbers, plus one primary action. Reference and analytics follow, under an `Insights` or `Your trends` heading. History is last. A secondary form and every destructive action live behind a `<details>`; an input inside a closed `<details>` still submits, so nothing is lost by collapsing one. A `<details>` never contains a Chart.js canvas: a canvas with no layout renders at zero size and stays wrong after opening, so charts get reordered instead. A mobile-only view pairs `.on-mobile` with `.on-desktop` and never duplicates markup - one Jinja macro renders both. Layout lives in `app/static/css/app.css`; a page-level inline `grid-template-columns: repeat(<n>, ...)` outranks every media query and `tests/test_mobile_layout.py` refuses it.
-8. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, markdown export) without external dependencies like Celery.
+8. **Background scheduler.** An asyncio loop handles periodic tasks (backup, Oura sync, briefings, experiment summaries) without external dependencies like Celery.
 
 ## Middleware Stack (Processing Order)
 
@@ -116,7 +114,8 @@ uv run --locked --extra dev bandit -q -c pyproject.toml -r app/ scripts/ mcp_ser
 
 ### Adding a New Feature Page
 
-1. Create a model in `app/models/` with query helpers
+1. Put persistence in a service in `app/services/`, which owns validation,
+   transaction boundaries and rollback
 2. Create a router in `app/routers/` with route handlers
 3. Create a template in `app/templates/`
 4. Register the router in `app/main.py`
@@ -147,7 +146,6 @@ All via environment variables (see `.env.example`):
 |---|---|---|
 | `VIRGIL_ENV` | `local` | `local` (hot reload) or `prod` (no reload) |
 | `VIRGIL_CENTRAL_DB_PATH` | `./data/virgil-central.db` | Central user registry (per-user DBs live in `data/users/`) |
-| `VIRGIL_SECOND_BRAIN_PATH` | (empty) | Path to markdown export directory |
 | `VIRGIL_HOST` | `0.0.0.0` | Server bind host |
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL for OAuth callbacks |
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for secret encryption |

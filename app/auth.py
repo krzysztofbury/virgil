@@ -48,6 +48,11 @@ PUBLIC_PATHS = frozenset(
         "/api/training/detail",
         "/api/noporn",
         "/api/freedom",
+        # Inventory entries only; runtime matching for these happens via PUBLIC_PATTERNS.
+        "/api/freedom/{habit}",
+        "/api/freedom/{habit}/days/{day}",
+        "/api/freedom/{habit}/bricks",
+        "/api/freedom/bricks/{brick_id}",
         "/api/library",
         # Inventory entry only (tests assert every API route is enumerated here);
         # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
@@ -90,6 +95,11 @@ PUBLIC_PATTERNS = (
     re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
     re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
     re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    # A habit slug is lowercase ASCII letters, digits and hyphens (habits.slugify).
+    re.compile(r"^/api/freedom/[a-z0-9-]+\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+/days/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+/bricks\Z"),
+    re.compile(r"^/api/freedom/bricks/[0-9]+\Z"),
 )
 
 BCRYPT_ROUNDS = 12
@@ -154,6 +164,25 @@ def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str 
         return None
 
 
+# A password-verified login waiting for its TOTP code. It only lets the browser
+# reach /mfa/verify, so it lives minutes, not the full session lifetime.
+MFA_PENDING_PREFIX = "_mfa_pending:"
+MFA_PENDING_MAX_AGE_SECONDS = 600
+
+
+def signed_in_user_id(token: str) -> str | None:
+    """The user a session cookie fully signs in, or None. A pending MFA login is not
+    signed in: treating it as one sent /login to / and the middleware back again."""
+    user_id = validate_session(token) if token else None
+    return None if not user_id or user_id.startswith(MFA_PENDING_PREFIX) else user_id
+
+
+def mfa_pending_user_id(token: str) -> str | None:
+    """The user a still-fresh pending MFA login belongs to, or None."""
+    value = validate_session(token, max_age=MFA_PENDING_MAX_AGE_SECONDS) if token else None
+    return value.removeprefix(MFA_PENDING_PREFIX) if value and value.startswith(MFA_PENDING_PREFIX) else None
+
+
 def session_cookie_header(token: str) -> str:
     """Build Set-Cookie header value for the session.
 
@@ -171,11 +200,6 @@ def clear_session_cookie() -> str:
     """Build Set-Cookie header value that clears the session."""
     secure = "; Secure" if BASE_URL.startswith("https") else ""
     return f"{SESSION_COOKIE}=; HttpOnly; SameSite=Lax{secure}; Max-Age=0; Path=/"
-
-
-def mark_onboarding_complete():
-    """No-op in multi-user mode — onboarding state is per-user DB."""
-    pass
 
 
 class AuthMiddleware:
@@ -203,7 +227,7 @@ class AuthMiddleware:
         session_token = request.cookies.get(SESSION_COOKIE, "")
         user_id = validate_session(session_token) if session_token else None
 
-        if not user_id or user_id.startswith("_mfa_pending:"):
+        if not user_id or user_id.startswith(MFA_PENDING_PREFIX):
             response = _login_response(scope)
             await response(scope, receive, send)
             return

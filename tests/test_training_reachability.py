@@ -31,7 +31,7 @@ def test_backdated_pending_session_is_listed(auth_client):
 
     html = auth_client.get("/training").text
     assert f"/training/wod/confirm/{old}" in html, "a backdated pending session vanished with its only route back"
-    assert "Niedokończone" in html
+    assert "Unfinished" in html
 
 
 def test_history_year_navigation_reaches_older_sessions(auth_client):
@@ -95,7 +95,7 @@ def test_pending_card_is_bounded(auth_client):
 
     html = auth_client.get("/training").text
     # Count links inside the pending card only.
-    card = html.split("Niedokończone", 1)[1].split("Workout History", 1)[0]
+    card = html.split("Unfinished", 1)[1].split("Workout History", 1)[0]
     listed = len(re.findall(r'href="/training/wod/confirm/\d+"', card))
     assert listed == MAX_PENDING_LISTED, f"pending card is unbounded: {listed} rows"
-    assert "Niedokończonych sesji jest więcej" in card
+    assert "There are more unfinished sessions" in card

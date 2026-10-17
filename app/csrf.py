@@ -49,6 +49,10 @@ CSRF_EXEMPT_PATTERNS = (
     re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
     re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
     re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+/days/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
+    re.compile(r"^/api/freedom/[a-z0-9-]+/bricks\Z"),
+    re.compile(r"^/api/freedom/bricks/[0-9]+\Z"),
 )
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB

@@ -8,11 +8,9 @@ from app.central_db import get_active_users
 from app.db import get_setting, set_setting
 from app.services.job_producers import (
     BACKUP_JOB_KIND,
-    MARKDOWN_EXPORT_JOB_KIND,
     OURA_SYNC_JOB_KIND,
     ActiveWorkloadConflictError,
     enqueue_backup_job,
-    enqueue_markdown_export_job,
     enqueue_oura_sync_job,
     scheduled_job_key,
 )
@@ -62,28 +60,6 @@ async def _enqueue_backup_if_due(db, now: datetime) -> None:
         logger.info("Scheduled backup is waiting for queued backup work")
     except Exception:
         logger.exception("Failed to enqueue scheduled backup")
-
-
-async def _enqueue_export_if_due(db, now: datetime) -> None:
-    try:
-        if await get_setting(db, "export_enabled", "0") != "1":
-            return
-        interval = float(await get_setting(db, "export_interval_hours", "6"))
-        if _hours_since(await get_setting(db, "export_last_run", "")) < interval:
-            return
-        result = await enqueue_markdown_export_job(
-            db,
-            trigger="scheduled",
-            scope="weekly",
-            sections=None,
-            idempotency_key=scheduled_job_key(MARKDOWN_EXPORT_JOB_KIND, interval, now=now),
-        )
-        if result.created:
-            logger.info("Scheduled markdown export job queued: %d", result.job_id)
-    except ActiveWorkloadConflictError:
-        logger.info("Scheduled markdown export is waiting for queued export work")
-    except Exception:
-        logger.exception("Failed to enqueue scheduled markdown export")
 
 
 async def _enqueue_oura_if_due(db, now: datetime) -> None:
@@ -137,7 +113,6 @@ async def _enqueue_due_summaries(db) -> None:
 async def _enqueue_due_jobs(db) -> None:
     now = datetime.now(UTC)
     await _enqueue_backup_if_due(db, now)
-    await _enqueue_export_if_due(db, now)
     await _enqueue_oura_if_due(db, now)
     await _enqueue_due_summaries(db)
 

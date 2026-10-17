@@ -175,7 +175,7 @@ def test_full_migration_chain_records_latest_version(tmp_path):
             await db.close()
 
     marker, tables = asyncio.run(scenario())
-    assert marker == (34, "034_freedom_habits.py")
+    assert marker == (37, "037_drop_second_brain.py")
     assert tables == {"jobs", "llm_publications"}
 
 
@@ -242,11 +242,6 @@ def test_migration_028_reconciles_duplicate_v27_workloads(tmp_path):
             "oura_sync",
             '{"days_back":30,"trigger":"scheduled"}',
             '{"days_back":2,"trigger":"webhook"}',
-        ),
-        (
-            "markdown_export",
-            '{"scope":"weekly","sections":null,"trigger":"scheduled"}',
-            '{"scope":"monthly","sections":null,"trigger":"manual"}',
         ),
     ],
 )

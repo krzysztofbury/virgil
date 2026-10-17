@@ -1,6 +1,8 @@
-"""Data export completeness, per-user export filenames, and deployment health."""
+"""Data export completeness, the markdown download, and deployment health."""
 
-from app.services.markdown_export import valid_export_filename
+import sqlite3
+
+from conftest import csrf_token, user_db_path
 
 
 def test_json_export_includes_all_user_tables(auth_client):
@@ -24,54 +26,31 @@ def test_json_export_includes_all_user_tables(auth_client):
     assert "integrations" not in data
 
 
-def test_export_filename_validation():
-    assert valid_export_filename("virgil.md")
-    assert valid_export_filename("virgil-kb.md")
-    assert not valid_export_filename("")
-    assert not valid_export_filename(".md")
-    assert not valid_export_filename("../evil.md")
-    assert not valid_export_filename("dir/evil.md")
-    assert not valid_export_filename("dir\\evil.md")
-    assert not valid_export_filename(".hidden.md")
-    assert not valid_export_filename("notes.txt")
-    assert not valid_export_filename("x" * 200 + ".md")
+def test_markdown_export_is_a_download_of_the_chosen_sections(auth_client):
+    """Nothing is written on the server: the person gets the file."""
+    with sqlite3.connect(user_db_path()) as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO daily_logs (date, energy, notes) VALUES (date('now', 'localtime'), 7, 'ZZ export note')"
+        )
+    try:
+        token = csrf_token(auth_client, "/settings?tab=data")
+        resp = auth_client.post(
+            "/settings/export", data={"scope": "weekly", "sections": ["daily_logs"], "_csrf_token": token}
+        )
+        assert resp.status_code == 200
+        assert resp.headers["content-type"].startswith("text/markdown")
+        assert resp.headers["content-disposition"].startswith('attachment; filename="virgil-weekly-')
+        assert "ZZ export note" in resp.text
 
-
-def test_export_filename_defaults_are_per_user(tmp_path, monkeypatch):
-    """The primary user keeps legacy virgil.md; others get unique defaults so
-    scheduled exports in the shared second-brain dir can't collide."""
-    import asyncio
-
-    async def scenario():
-        import aiosqlite
-
-        from app.migrations.runner import run_migrations
-        from app.services.markdown_export import export_filename_for
-
-        async def fake_primary():
-            return "primary-user-id"
-
-        monkeypatch.setattr("app.central_db.get_primary_user_id", fake_primary)
-
-        db = await aiosqlite.connect(tmp_path / "exp.db")
-        db.row_factory = aiosqlite.Row
-        await run_migrations(db)
-        primary = await export_filename_for(db, "primary-user-id")
-        secondary = await export_filename_for(db, "aabbccdd-2222-3333-4444-555566667777")
-        await db.close()
-        return primary, secondary
-
-    primary, secondary = asyncio.run(scenario())
-    assert primary == "virgil.md"
-    assert secondary == "virgil-aabbccdd.md"
-    assert primary != secondary
-
-
-def test_export_filename_shown_in_data_tab(auth_client):
-    """Filename is derived (never user-chosen) and displayed read-only."""
-    page = auth_client.get("/settings?tab=data")
-    assert page.status_code == 200
-    assert "virgil.md" in page.text  # the single test user is the primary account
+        refused = auth_client.post(
+            "/settings/export",
+            data={"scope": "decade", "sections": ["daily_logs"], "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert refused.status_code == 303
+    finally:
+        with sqlite3.connect(user_db_path()) as conn:
+            conn.execute("DELETE FROM daily_logs WHERE notes = 'ZZ export note'")
 
 
 def test_healthz_ok(client):

@@ -46,3 +46,32 @@ def test_mcp_tool_write_lands_in_api_user_db(auth_client, client, monkeypatch):
 
     stored = auth_client.get("/api/measurements", headers=KEY).json()["measurements"]
     assert [row["weight"] for row in stored if row["date"] == day] == [81.5]
+
+
+def test_freedom_tools_write_through_the_new_paths_and_the_old_names_still_work(auth_client, client, monkeypatch):
+    from conftest import track_porn
+
+    monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    rest = TestClient(app, headers=KEY)
+    rest.portal = client.portal
+    monkeypatch.setattr(virgil_mcp, "_client", rest)
+    track_porn()
+    old_day = (date.today() - timedelta(days=61)).isoformat()
+    new_day = (date.today() - timedelta(days=62)).isoformat()
+
+    calls = (
+        ("log_feniks_day", {"date": old_day, "used": True, "minutes": 9}),
+        ("log_freedom_day", {"habit": "porn", "date": new_day, "slipped": False, "note": "ZZ clean"}),
+    )
+    try:
+        for name, arguments in calls:
+            call = _rpc(client, "tools/call", {"name": name, "arguments": arguments})
+            assert call.status_code == 200, call.text
+            assert call.json()["result"]["isError"] is False, call.text
+
+        days = {row["date"]: row for row in auth_client.get("/api/noporn?range=90", headers=KEY).json()["daily"]}
+        assert (days[old_day]["used"], days[old_day]["minutes"]) == (1, 9)
+        assert (days[new_day]["used"], days[new_day]["note"]) == (0, "ZZ clean")
+    finally:
+        for day in (old_day, new_day):
+            auth_client.delete(f"/api/freedom/porn/days/{day}", headers=KEY)

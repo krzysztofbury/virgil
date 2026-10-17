@@ -98,17 +98,17 @@ def test_the_confirm_screen_waits_instead_of_bouncing_the_user_away(auth_client,
 
     waiting = auth_client.get(f"/training/wod/confirm/{session_id}?job_id={job_id}")
     assert waiting.status_code == 200
-    assert "Analizuję notatkę" in waiting.text
+    assert "Reading your note" in waiting.text
     assert 'hx-target="#wod-confirm-root"' in waiting.text
     assert f'data-job-id="{job_id}"' in waiting.text, "the job itself reports in the tray"
 
     training = auth_client.get("/training?year=2026&day=2026-08-11")
-    assert "Analizuję notatkę" in training.text
-    assert "Wpisz serie ręcznie" not in training.text, "a parse in flight is not a stranded session"
+    assert "Reading your note" in training.text
+    assert "Enter sets by hand" not in training.text, "a parse in flight is not a stranded session"
 
     drain_jobs()
     settled = auth_client.get(f"/training/wod/confirm/{session_id}")
-    assert "Analizuję notatkę" not in settled.text
+    assert "Reading your note" not in settled.text
     assert 'name="session_id"' in settled.text
 
 

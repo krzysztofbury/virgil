@@ -233,6 +233,36 @@ async def save_daily(
     )
 
 
+@router.post("/freedom/{slug}/clean-today", response_class=HTMLResponse)
+async def clean_today(request: Request, slug: str):
+    """Mark one habit clean for today from the dashboard and redraw its Freedom block.
+
+    Only the clean outcome is one tap: a slip can need an amount and has its own
+    definition, so the dashboard links to the habit's day form for that.
+    """
+    db = get_user_db_from_request(request)
+    habit, refusal = await _habit_or_redirect(request, slug)
+    if refusal:
+        return refusal
+    today = date.today().isoformat()
+    # A page left open can offer the tap after today was logged elsewhere: never
+    # turn a recorded slip (or a note) into a bare clean day.
+    logged = await db.execute_fetchall(
+        "SELECT 1 FROM feniks_daily WHERE habit_id = ? AND date = ?", (habit["id"], today)
+    )
+    if not logged:
+        try:
+            await save_day(db, habit, today, slipped=False, amount=None, near_miss=False, note="")
+        except FreedomWriteError as exc:
+            return error_redirect(request, "/", str(exc))
+    if request.headers.get("HX-Request") != "true":
+        return success_redirect(request, "/", f"{habit['name']}: clean today.")
+    overviews = [await habit_overview(db, h) for h in await habit_service.list_habits(db)]
+    return templates.TemplateResponse(
+        request, "partials/freedom_today.html", {"request": request, "freedom_overviews": overviews}
+    )
+
+
 @router.post("/freedom/{slug}/bricks")
 async def save_brick(
     request: Request,
@@ -242,8 +272,8 @@ async def save_brick(
     story: str = Form(""),
     craving: OptionalFormInt = None,
 ):
-    """A brick = one urge survived, in Gola's structure. The hook (hak
-    pamięciowy) is what makes it retrievable under pressure - required."""
+    """A brick = one urge survived, in Gola's structure. The hook (a memory
+    anchor) is what makes it retrievable under pressure - required."""
     habit, refusal = await _habit_or_redirect(request, slug)
     if refusal:
         return refusal

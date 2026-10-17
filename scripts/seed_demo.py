@@ -305,6 +305,20 @@ async def _seed(db) -> None:
         ],
     )
 
+    # --- Goals: three in current focus, and one long one so the Goals page shows wrapping ---
+    goals = [
+        (8, "1yr", "One weekend trip with family every quarter", 1),
+        (4, "1yr", "Ship the v1 of the side project", 1),
+        (3, "1yr", "Run a half marathon under 1:50", 1),
+        (6, "3yr", "Read thirty books a year and keep short notes on each, so the ideas stay usable", 0),
+    ]
+    for area_order, horizon, content, focus in goals:
+        area = await db.execute_fetchall("SELECT id FROM goal_areas WHERE display_order = ?", (area_order,))
+        await db.execute(
+            "INSERT INTO goals (area_id, horizon, content, active) VALUES (?, ?, ?, ?)",
+            (area[0]["id"], horizon, content, focus),
+        )
+
     # --- Bloodwork: a few markers + latest results (so the Blood page isn't empty) ---
     markers = [
         ("Testosterone", "Hormones", "ng/dL", 300.0, 1000.0, 0),

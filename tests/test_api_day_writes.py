@@ -1,8 +1,8 @@
-"""REST writes for the daily log, Feniks and training sessions.
+"""REST writes for the daily log, Freedom and training sessions.
 
 A check-in agent records a day through these routes instead of the forms, so
 each one must keep the form path's data contract: a partial daily write merges,
-a Feniks day keeps its relapse marker consistent, and a training session either
+a Freedom day keeps its relapse marker consistent, and a training session either
 lands with every set or not at all.
 """
 
@@ -55,29 +55,29 @@ def test_daily_put_rejects_invalid_values_without_writing(auth_client):
     assert _fetchall("SELECT COUNT(*) FROM daily_logs WHERE date = ?", (day,)) == [(0,)]
 
 
-def test_feniks_writes_require_the_sensitive_scope(auth_client):
+def test_freedom_writes_require_the_sensitive_scope(auth_client):
     day = (date.today() - timedelta(days=40)).isoformat()
-    assert auth_client.put(f"/api/feniks/daily/{day}", json={"used": False}, headers=KEY).status_code == 403
+    assert auth_client.put(f"/api/freedom/porn/days/{day}", json={"slipped": False}, headers=KEY).status_code == 403
     brick = {"date": day, "hook": "closed the tab"}
-    assert auth_client.post("/api/feniks/bricks", json=brick, headers=KEY).status_code == 403
+    assert auth_client.post("/api/freedom/porn/bricks", json=brick, headers=KEY).status_code == 403
     assert _fetchall("SELECT COUNT(*) FROM feniks_daily WHERE date = ?", (day,)) == [(0,)]
 
 
-def test_feniks_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, monkeypatch):
+def test_freedom_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
     porn = track_porn()
     day = (date.today() - timedelta(days=41)).isoformat()
     other = (date.today() - timedelta(days=42)).isoformat()
     try:
         watched = auth_client.put(
-            f"/api/feniks/daily/{day}", json={"used": True, "minutes": 20, "edging": True}, headers=KEY
+            f"/api/freedom/porn/days/{day}", json={"slipped": True, "amount": 20, "near_miss": True}, headers=KEY
         )
         assert watched.status_code == 200, watched.text
         assert _fetchall("SELECT notes FROM pmo_events WHERE date = ? AND event_type = 'relapse'", (day,)) == [
             ("via daily log",)
         ]
 
-        clean = auth_client.put(f"/api/feniks/daily/{day}", json={"used": False, "minutes": 20}, headers=KEY)
+        clean = auth_client.put(f"/api/freedom/porn/days/{day}", json={"slipped": False, "amount": 20}, headers=KEY)
         assert clean.status_code == 200
         assert _fetchall("SELECT slipped, amount, near_miss FROM feniks_daily WHERE date = ?", (day,)) == [(0, None, 0)]
         assert _fetchall("SELECT COUNT(*) FROM pmo_events WHERE date = ?", (day,)) == [(0,)]
@@ -87,7 +87,7 @@ def test_feniks_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, m
             "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'relapse', 'manual')",
             (porn, other),
         )
-        auth_client.put(f"/api/feniks/daily/{other}", json={"used": False}, headers=KEY)
+        auth_client.put(f"/api/freedom/porn/days/{other}", json={"slipped": False}, headers=KEY)
         assert _fetchall("SELECT notes FROM pmo_events WHERE date = ?", (other,)) == [("manual",)]
     finally:
         for d in (day, other):
@@ -95,15 +95,17 @@ def test_feniks_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, m
             _execute("DELETE FROM pmo_events WHERE date = ?", (d,))
 
 
-def test_feniks_day_refuses_short_watched_and_future_days(auth_client, monkeypatch):
+def test_freedom_day_refuses_short_watched_and_future_days(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
     track_porn()
     day = (date.today() - timedelta(days=43)).isoformat()
     tomorrow = (date.today() + timedelta(days=1)).isoformat()
-    short = auth_client.put(f"/api/feniks/daily/{day}", json={"used": True, "minutes": 3}, headers=KEY)
+    short = auth_client.put(f"/api/freedom/porn/days/{day}", json={"slipped": True, "amount": 3}, headers=KEY)
     assert short.status_code == 422
     assert "at least 5 minutes" in short.json()["detail"]
-    assert auth_client.put(f"/api/feniks/daily/{tomorrow}", json={"used": False}, headers=KEY).status_code == 422
+    assert (
+        auth_client.put(f"/api/freedom/porn/days/{tomorrow}", json={"slipped": False}, headers=KEY).status_code == 422
+    )
     assert _fetchall("SELECT COUNT(*) FROM feniks_daily WHERE date IN (?, ?)", (day, tomorrow)) == [(0,)]
 
 
@@ -112,15 +114,39 @@ def test_brick_requires_a_hook_and_stores_its_own_date(auth_client, monkeypatch)
     track_porn()
     day = (date.today() - timedelta(days=44)).isoformat()
     try:
-        blank = auth_client.post("/api/feniks/bricks", json={"date": day, "hook": "  "}, headers=KEY)
+        blank = auth_client.post("/api/freedom/porn/bricks", json={"date": day, "hook": "  "}, headers=KEY)
         assert blank.status_code == 422
         resp = auth_client.post(
-            "/api/feniks/bricks", json={"date": day, "hook": "walked the dog", "craving": 14}, headers=KEY
+            "/api/freedom/porn/bricks", json={"date": day, "hook": "walked the dog", "craving": 14}, headers=KEY
         )
         assert resp.status_code == 201, resp.text
         assert _fetchall("SELECT hook, craving FROM feniks_bricks WHERE date = ?", (day,)) == [("walked the dog", 10)]
     finally:
         _execute("DELETE FROM feniks_bricks WHERE date = ?", (day,))
+
+
+def test_deprecated_feniks_paths_keep_the_no_porn_names(auth_client, monkeypatch):
+    """Agents written for the No Porn module still record the first tracked habit's day."""
+    monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    porn = track_porn()
+    day = (date.today() - timedelta(days=45)).isoformat()
+    try:
+        old = auth_client.put(
+            f"/api/feniks/daily/{day}", json={"used": True, "minutes": 12, "edging": True}, headers=KEY
+        )
+        assert old.status_code == 200, old.text
+        assert _fetchall("SELECT habit_id, slipped, amount, near_miss FROM feniks_daily WHERE date = ?", (day,)) == [
+            (porn, 1, 12, 1)
+        ]
+        brick = auth_client.post("/api/feniks/bricks", json={"date": day, "hook": "ZZ old path"}, headers=KEY)
+        assert brick.status_code == 201
+        assert _fetchall("SELECT habit_id FROM feniks_bricks WHERE date = ?", (day,)) == [(porn,)]
+        # The Freedom path takes only the Freedom names.
+        strict = auth_client.put(f"/api/freedom/porn/days/{day}", json={"used": False}, headers=KEY)
+        assert strict.status_code == 422
+    finally:
+        for table in ("feniks_daily", "feniks_bricks", "pmo_events"):
+            _execute(f"DELETE FROM {table} WHERE date = ?", (day,))  # noqa: S608 - fixed table names
 
 
 def _library_names(count: int) -> list[str]:
@@ -277,7 +303,7 @@ def test_records_split_by_equipment_other_than_the_default(auth_client):
     try:
         page = auth_client.get("/training").text
         assert stat_value_for_label(page, "Hang Power Snatch") == 40
-        assert stat_value_for_label(page, "Hang Power Snatch (hantle)") == 15
+        assert stat_value_for_label(page, "Hang Power Snatch (dumbbell)") == 15
     finally:
         _execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
         _execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))

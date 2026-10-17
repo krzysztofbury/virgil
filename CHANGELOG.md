@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `scripts/screenshots.py` regenerates the README screenshots from the demo
+  seeder on a throwaway instance, and shoots other pages or phone widths to check
+  a change. The seeder now includes fictional goals, three of them in focus.
+- The dashboard checks Freedom habits off for today in one tap, and each active
+  experiment card logs today's entry (a yes/no, +1, a rating or minutes) and shows
+  what is already logged. Both redraw in place; a slip opens the habit's day form,
+  and a tap never overwrites a day already logged elsewhere.
 - Freedom replaces the No Porn module and tracks any habit being broken, several
   at once: porn, alcohol, nicotine, cannabis, drugs, gambling, social media,
   sugar, or one in your own words. Each habit defines its own slip (label,
@@ -38,6 +45,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Second Brain is gone. Virgil no longer reads markdown from a server folder
+  (the Settings import, `scripts/import_data.py`, the A.N.D.Y. `plan.md`) or
+  writes exports into it (manual and scheduled). Markdown export is a download
+  from Settings > Data instead. `VIRGIL_SECOND_BRAIN_PATH` and its compose volume
+  are removed; migration 037 clears the leftover export jobs and settings.
+- Every account goes through onboarding once: the skip button and route are
+  gone, and "Continue without AI" finishes it without the paid extras.
+- The UI is English only. The training capture and confirm flow, its messages and
+  the equipment labels were Polish. New accounts get English goal areas, and
+  migration 036 renames the seeded areas and the importer's blood-test categories
+  in existing ones; names the person chose stay. A test keeps Polish out of
+  templates, scripts and route messages.
+- The seeded No Porn config no longer carries a personal motivation text, and
+  the dropped milestone table is no longer seeded.
+- Freedom's REST paths and MCP tools carry its name: `/api/freedom/{habit}/days/{date}`,
+  `/api/freedom/{habit}/bricks`, `/api/freedom/bricks/{id}`, `PATCH /api/freedom/{habit}`
+  (every habit setting) and the tools `log_freedom_day`, `delete_freedom_day` and
+  `update_habit`. The `/api/feniks/*` paths and the `log_feniks_day`,
+  `delete_feniks_day` and `update_feniks_config` tools are deprecated aliases for one
+  release.
+- Migration 035 drops `feniks_config`, now on the Porn habit, and the unused
+  `feniks_milestones`. The No Porn journal and pleasures stay.
+- The roadmap moved from `TODO.md` to GitHub issues.
 - `/feniks` redirects to `/freedom`, and `g f` opens Freedom. Migration 034
   moves No Porn days, bricks, relapse events and settings onto a Porn habit and
   renames the `feature_no_porn` flag to `feature_freedom`.
@@ -60,6 +90,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Long goal titles wrap on phones instead of being cut off mid-word; they stay
+  editable in place, and Enter still saves.
+- Leaving an unfinished MFA login for `/login` could loop between `/login` and
+  `/`. A pending MFA login is now treated as signed out there, and it expires
+  after 10 minutes instead of 7 days.
+- `/api/summary` (and the MCP `get_streaks` tool) return the Freedom status only
+  in the sensitive scope, like the other Freedom reads.
 - A signed session cookie for a deleted or disabled account sent the browser
   back and forth between `/` and `/login`. The cookie is now cleared.
 - The keyboard shortcut help read a feature flag that no longer existed, so it

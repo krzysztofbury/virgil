@@ -746,3 +746,23 @@ function closeShortcutOverlay() {
         }
     }, { passive: true });
 })();
+
+// Textareas marked .autosize grow with their text. CSS field-sizing does this where
+// supported; this covers the rest (Safari). A hidden one reports no height, so it is
+// left alone until it is shown.
+(function () {
+    function autosize(el) {
+        el.style.height = 'auto';
+        if (el.scrollHeight > 0) el.style.height = el.scrollHeight + 'px';
+    }
+    function autosizeAll(root) {
+        (root || document).querySelectorAll('textarea.autosize').forEach(autosize);
+    }
+    document.addEventListener('input', function (e) {
+        if (e.target.matches && e.target.matches('textarea.autosize')) autosize(e.target);
+    });
+    document.addEventListener('DOMContentLoaded', function () { autosizeAll(); });
+    document.addEventListener('htmx:afterSettle', function (e) { autosizeAll(e.target); });
+    document.addEventListener('toggle', function (e) { autosizeAll(e.target); }, true);
+    window.addEventListener('resize', function () { autosizeAll(); });
+})();

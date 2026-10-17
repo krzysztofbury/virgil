@@ -837,7 +837,10 @@ async def add_entry(
     metric_id: int = Form(...),
     value: str = Form("1"),
     notes: str = Form(""),
+    view: str = Form(""),
 ):
+    """Log one entry. view=dashboard comes from a dashboard card: an htmx tap gets
+    that card redrawn, a plain post goes back to the dashboard."""
     from datetime import date as calendar_date
 
     if not valid_date(date):
@@ -883,6 +886,17 @@ async def add_entry(
         (experiment_id, date, metric_id, v, notes),
     )
     await db.commit()
+    if view == "dashboard":
+        if request.headers.get("HX-Request") == "true":
+            from app.services.experiment_card import experiment_card
+
+            card = await experiment_card(db, experiment, calendar_date.today())
+            return templates.TemplateResponse(
+                request,
+                "partials/experiment_card.html",
+                {"request": request, "exp": card, "today": calendar_date.today().isoformat()},
+            )
+        return success_redirect(request, "/", "Entry logged.")
     return success_redirect(request, f"/experiments/{experiment_id}", "Entry logged.")
 
 

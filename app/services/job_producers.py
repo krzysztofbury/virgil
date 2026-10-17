@@ -1,11 +1,10 @@
-"""Canonical producers for durable backup, export, and Oura jobs."""
+"""Canonical producers for durable backup and Oura jobs."""
 
 import hashlib
 import json
 import math
 import re
 import sqlite3
-from collections.abc import Iterable
 from datetime import UTC, datetime
 
 import aiosqlite
@@ -13,24 +12,9 @@ import aiosqlite
 from app.services.jobs import JOB_TERMINAL_HISTORY_MAX, EnqueueResult, enqueue_job, prune_terminal_jobs
 
 BACKUP_JOB_KIND = "backup"
-MARKDOWN_EXPORT_JOB_KIND = "markdown_export"
 OURA_SYNC_JOB_KIND = "oura_sync"
-WORKLOAD_JOB_KINDS = frozenset({BACKUP_JOB_KIND, MARKDOWN_EXPORT_JOB_KIND, OURA_SYNC_JOB_KIND})
+WORKLOAD_JOB_KINDS = frozenset({BACKUP_JOB_KIND, OURA_SYNC_JOB_KIND})
 WORKLOAD_JOB_MAX_ATTEMPTS = 3
-EXPORT_SCOPES = frozenset({"weekly", "monthly", "yearly", "all"})
-EXPORT_SECTIONS = frozenset(
-    {
-        "daily_logs",
-        "training",
-        "body_measurements",
-        "feniks",
-        "oura",
-        "life_scores",
-        "experiments",
-        "bloodwork",
-        "goals",
-    }
-)
 JOB_TRIGGERS = frozenset({"manual", "scheduled", "webhook"})
 _MANUAL_NONCE_RE = re.compile(r"^[0-9a-f]{32}$")
 WEBHOOK_TIMESTAMP_SKEW_SECONDS = 300
@@ -94,8 +78,6 @@ async def _running_workload(db: aiosqlite.Connection, kind: str) -> dict | None:
 
 
 async def _existing_owned_key(db: aiosqlite.Connection, kind: str, idempotency_key: str) -> EnqueueResult | None:
-    if kind == MARKDOWN_EXPORT_JOB_KIND:
-        return None
     rows = await db.execute_fetchall("SELECT id, kind FROM jobs WHERE idempotency_key = ?", (idempotency_key,))
     if not rows:
         return None
@@ -133,9 +115,7 @@ def _successor_payload(kind: str, running_payload_json: str, requested: dict) ->
             "days_back": max(running_days, requested_days),
             "trigger": _merged_trigger(running.get("trigger"), requested.get("trigger")),
         }
-    if running != requested:
-        raise ActiveWorkloadConflictError("Running markdown export does not cover the requested export")
-    return requested
+    raise ActiveWorkloadConflictError(f"No successor policy for {kind}")
 
 
 def _queued_job_satisfies(kind: str, existing_payload_json: str, requested_payload: dict) -> bool:
@@ -210,33 +190,6 @@ async def enqueue_backup_job(
         db,
         BACKUP_JOB_KIND,
         {"trigger": normalized_trigger},
-        idempotency_key=idempotency_key,
-    )
-
-
-async def enqueue_markdown_export_job(
-    db: aiosqlite.Connection,
-    *,
-    trigger: str,
-    scope: str,
-    sections: Iterable[str] | None,
-    idempotency_key: str,
-) -> EnqueueResult:
-    normalized_trigger = _trigger(trigger, frozenset({"manual", "scheduled"}))
-    if scope not in EXPORT_SCOPES:
-        raise ValueError("Unsupported export scope")
-    normalized_sections = None
-    if sections is not None:
-        if isinstance(sections, (str, bytes)):
-            raise ValueError("Export sections must be a collection")
-        values = list(sections)
-        if not values or len(values) > len(EXPORT_SECTIONS) or any(value not in EXPORT_SECTIONS for value in values):
-            raise ValueError("Export sections must contain known section names")
-        normalized_sections = sorted(set(values))
-    return await _enqueue_workload(
-        db,
-        MARKDOWN_EXPORT_JOB_KIND,
-        {"scope": scope, "sections": normalized_sections, "trigger": normalized_trigger},
         idempotency_key=idempotency_key,
     )
 

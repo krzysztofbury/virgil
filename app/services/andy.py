@@ -1,11 +1,9 @@
 """A.N.D.Y. daily suggestions: gather context, buy four lines, store them."""
 
 import logging
-import os
 from datetime import date as date_module
 from datetime import timedelta
 
-from app.config import SECOND_BRAIN_PATH
 from app.services.llm import call_llm, parse_andy_response
 from app.services.training_schedule import schedule_block
 
@@ -73,13 +71,6 @@ async def _context_parts(db, target_date: date_module) -> list[str]:
     # anchor training_entries), so the staleness had no natural end. See
     # app/services/training_schedule.py.
     context_parts.append(await schedule_block(db, target_date))
-
-    # 4. plan.md from disk (user-written, not generated)
-    if SECOND_BRAIN_PATH:
-        plan_path = os.path.join(SECOND_BRAIN_PATH, "plan.md")
-        if os.path.isfile(plan_path):
-            with open(plan_path, encoding="utf-8") as f:
-                context_parts.append(f"--- plan.md ---\n{f.read()[:3000]}")
 
     return context_parts
 

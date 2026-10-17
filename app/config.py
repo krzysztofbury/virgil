@@ -14,7 +14,6 @@ if _env_path.exists():
 ENV = os.environ.get("VIRGIL_ENV", "local")  # "local" or "prod"
 IS_PROD = ENV == "prod"
 
-SECOND_BRAIN_PATH = os.environ.get("VIRGIL_SECOND_BRAIN_PATH", "")
 ENCRYPTION_KEY = os.environ.get("VIRGIL_ENCRYPTION_KEY", "")
 BASE_URL = os.environ.get("VIRGIL_BASE_URL", "http://localhost:8123")
 HOST = os.environ.get("VIRGIL_HOST", "0.0.0.0")

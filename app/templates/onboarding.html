@@ -6,9 +6,6 @@
 <div style="margin-bottom:2rem;">
     <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.75rem;">
         <span style="font-size:0.8rem;color:var(--text-secondary);">Step {{ step }} of 6</span>
-        <form method="POST" action="/onboarding/skip" style="margin:0;">
-            <button type="submit" class="btn btn-sm btn-outline">Skip onboarding</button>
-        </form>
     </div>
     <div style="display:flex;gap:4px;">
         {% for i in range(1, 7) %}
@@ -354,7 +351,8 @@
 <div style="display:flex;justify-content:space-between;gap:1rem;">
     <a href="/onboarding?step=5" class="btn btn-outline">Back</a>
     <div style="display:flex;gap:0.5rem;">
-        <form method="POST" action="/onboarding/skip" style="margin:0;">
+        <form method="POST" action="/onboarding/confirm" style="margin:0;">
+            <input type="hidden" name="without_ai" value="1">
             <button type="submit" class="btn btn-outline" data-pending-label="Finishing...">
                 Continue without AI
             </button>

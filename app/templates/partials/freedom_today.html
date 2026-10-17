@@ -1,0 +1,39 @@
+{# Freedom on the dashboard: every tracked habit, checked off for today where it
+   is shown. Clean saves in one tap and redraws this block in place; a slip opens
+   the habit's day form, since it can need an amount and has its own definition.
+
+   Rendered by the dashboard and, after each tap, by POST /freedom/{slug}/clean-today. #}
+<div class="section" id="freedom-today-block">
+    <div class="section-title today-head">
+        <span>Freedom</span>
+        <a href="/freedom" class="section-link">Open Freedom</a>
+    </div>
+    <div class="card freedom-today">
+        {% for o in freedom_overviews %}
+        <div class="freedom-today-row">
+            <a href="/freedom?habit={{ o.habit }}" class="freedom-today-name">
+                <strong>{{ o.name }}</strong>
+                <small>{{ o.streak_days }} {{ 'day' if o.streak_days == 1 else 'days' }} clean &middot; this week {{ o.week_clean.pct }}%</small>
+            </a>
+            {% if o.today %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status {{ 'slipped' if o.today.slipped else 'clean' }}">
+                <i data-lucide="{{ 'x' if o.today.slipped else 'check' }}" aria-hidden="true"></i>
+                {{ 'Slipped' if o.today.slipped else 'Clean' }}
+            </a>
+            {% else %}
+            <div class="freedom-today-actions">
+                <form method="POST" action="/freedom/{{ o.habit }}/clean-today"
+                      hx-post="/freedom/{{ o.habit }}/clean-today" hx-target="#freedom-today-block"
+                      hx-swap="outerHTML" hx-sync="#freedom-today-block:drop">
+                    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                    <button type="submit" class="btn btn-sm btn-outline freedom-clean-btn" aria-label="{{ o.name }}: clean today">
+                        <i data-lucide="check" aria-hidden="true"></i> Clean
+                    </button>
+                </form>
+                <a href="/freedom?habit={{ o.habit }}#day-card" class="btn btn-sm btn-outline" aria-label="{{ o.name }}: log a slip">Slipped</a>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>

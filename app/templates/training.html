@@ -12,7 +12,7 @@
      committed before the parser runs, so a parse failure costs structure, never
      the record. -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Zapisz trening</h3></div>
+    <div class="card-header"><h3>Log a workout</h3></div>
     <div class="card-body">
         <form method="post" action="/training/wod">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
@@ -24,18 +24,18 @@
                     </label>
                 </div>
                 <div>
-                    <label>Czas (min, opcjonalnie)
-                        <input type="number" name="duration_minutes" placeholder="minuty" min="1">
+                    <label>Duration (min, optional)
+                        <input type="number" name="duration_minutes" placeholder="minutes" min="1">
                     </label>
                 </div>
             </div>
             <textarea name="wod_text" rows="4" maxlength="4000"
-                placeholder="np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42&#10;albo po prostu: basen 40 min"></textarea>
+                placeholder="e.g. back squat 5x5 70 kg, then 21-15-9 thruster 43 / pull-up, 8:42&#10;or simply: swim 40 min"></textarea>
             {# The property that makes a parse failure harmless, said out loud. #}
-            <small class="text-muted form-hint">Notatka zapisuje się przed parsowaniem, więc nawet nieudane
-            parsowanie nie kasuje tego, co napisałeś.</small>
+            <small class="text-muted form-hint">The note is saved before it is read, so even a failed
+            read never loses what you wrote.</small>
             <div class="form-actions">
-                <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="Saving...">Zapisz trening</button>
+                <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="Saving...">Log workout</button>
             </div>
         </form>
     </div>
@@ -97,19 +97,19 @@
 <!-- 4. Unfinished captures — listed in full, whatever their date -->
 {% if pending_sessions %}
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Niedokończone</h3></div>
+    <div class="card-header"><h3>Unfinished</h3></div>
     <div class="card-body">
         <ul style="margin:0;padding-left:1.1rem;">
         {% for p in pending_sessions %}
             <li><strong>{{ p.date }}</strong>
-                <a href="/training/wod/confirm/{{ p.id }}">dokończ</a>
+                <a href="/training/wod/confirm/{{ p.id }}">Finish</a>
                 {% if p.notes %}<span class="text-muted"><small>{{ p.notes[:60] }}</small></span>{% endif %}
             </li>
         {% endfor %}
         </ul>
         {% if pending_overflow %}
-        <p class="text-muted"><small>Pokazano pierwsze {{ pending_sessions | length }}.
-        Niedokończonych sesji jest więcej - dokończ te, żeby zobaczyć kolejne.</small></p>
+        <p class="text-muted"><small>Showing the first {{ pending_sessions | length }}.
+        There are more unfinished sessions - finish these to see the next ones.</small></p>
         {% endif %}
     </div>
 </div>
@@ -190,25 +190,25 @@
             <div class="training-session-head">
                 <strong>Session {{ loop.index }}</strong>
                 {% if s.duration_minutes %}<span class="text-muted">{{ s.duration_minutes }} min</span>{% endif %}
-                {% if s.wod_parsed %}<a href="/training/wod/confirm/{{ s.id }}">dokończ</a>{% endif %}
+                {% if s.wod_parsed %}<a href="/training/wod/confirm/{{ s.id }}">Finish</a>{% endif %}
             </div>
             {% if s.notes %}<p class="training-session-note">{{ s.notes }}</p>{% endif %}
             {% if s.parsing %}
             <p class="text-muted" role="status" aria-live="polite">
                 <span class="spinner" aria-hidden="true"></span>
-                Analizuję notatkę - <a href="/training/wod/confirm/{{ s.id }}">poczekaj na wpisy</a>.
+                Reading your note - <a href="/training/wod/confirm/{{ s.id }}">wait for the entries</a>.
             </p>
             {% endif %}
             {% if s.stranded %}
             <form method="POST" action="/training/session/{{ s.id }}/manual">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                <button type="submit" class="btn btn-sm btn-outline">Wpisz serie ręcznie</button>
+                <button type="submit" class="btn btn-sm btn-outline">Enter sets by hand</button>
             </form>
             {% endif %}
             {% if s.entries %}
             <div class="overflow-x">
                 <table>
-                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Notatka</th></tr></thead>
+                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Note</th></tr></thead>
                     <tbody>
                         {% for e in s.entries %}
                         <tr>
