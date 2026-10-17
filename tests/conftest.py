@@ -21,6 +21,8 @@ else:
     os.environ["_VIRGIL_TEST_TMP"] = _TMP
     os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
     os.environ["VIRGIL_API_KEY"] = "test-key-123"  # pragma: allowlist secret - synthetic fixture
+    # The key serves this account only. An empty email must not pick an admin.
+    os.environ["VIRGIL_API_USER_EMAIL"] = "test@example.com"
     os.environ["VIRGIL_ADMIN_EMAILS"] = "test@example.com"
     # Hermetic tests: app/config.py setdefault-loads the developer's real .env,
     # which may carry a live LLM key or open registration — pin both here so a

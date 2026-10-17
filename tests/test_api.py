@@ -30,6 +30,119 @@ def test_unknown_api_user_503(client, monkeypatch):
     assert client.get("/api/summary", headers=KEY).status_code == 503
 
 
+def test_startup_logs_when_the_api_key_has_no_user(caplog, monkeypatch):
+    """Operators must see the missing pin at boot, before the first 503."""
+    import logging
+
+    import app.routers.api as api_module
+
+    monkeypatch.setattr(api_module, "API_KEY", "test-key-123")
+    monkeypatch.setattr(api_module, "API_USER_EMAIL", "")
+    with caplog.at_level(logging.ERROR):
+        api_module.warn_if_api_user_unconfigured()
+    assert "VIRGIL_API_USER_EMAIL" in caplog.text
+
+    caplog.clear()
+    monkeypatch.setattr(api_module, "API_USER_EMAIL", "owner@example.com")
+    with caplog.at_level(logging.ERROR):
+        api_module.warn_if_api_user_unconfigured()
+    assert caplog.text == ""
+
+
+def test_api_key_without_user_email_refuses(auth_client, client, monkeypatch):
+    """An unset VIRGIL_API_USER_EMAIL must not bind the key to whoever is the earliest active admin."""
+    import app.routers.api as api_module
+
+    monkeypatch.setattr(api_module, "API_USER_EMAIL", "")
+    resp = client.get("/api/summary", headers=KEY)
+    assert resp.status_code == 503
+    assert "VIRGIL_API_USER_EMAIL" in resp.json()["detail"]
+
+
+def test_disabled_owner_does_not_hand_the_api_key_to_the_next_admin(auth_client, client, monkeypatch):
+    """Disabling the owner must not move an unpinned key onto the next admin, Freedom data included.
+
+    /mcp uses this same user mapping: its tools call the REST API.
+    """
+    import os
+
+    from conftest import TEST_EMAIL, csrf_token
+    from fastapi.testclient import TestClient
+
+    import app.routers.api as api_module
+    import app.routers.auth as auth_module
+    from app.main import app
+
+    other_email = "other-admin@example.com"
+    marker = "other-admin-private-note"
+    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
+    second_db = None
+    central = sqlite3.connect(os.environ["VIRGIL_CENTRAL_DB_PATH"])
+    try:
+        second = TestClient(app)
+        token = csrf_token(second, "/signup")
+        created = second.post(
+            "/signup",
+            data={
+                "email": other_email,
+                "password": "other-admin-password",  # pragma: allowlist secret - synthetic fixture
+                "password_confirm": "other-admin-password",  # pragma: allowlist secret - synthetic fixture
+                "_csrf_token": token,
+            },
+            follow_redirects=False,
+        )
+        assert created.status_code == 303, created.text
+
+        central.execute("UPDATE users SET role = 'admin' WHERE email = ?", (other_email,))
+        second_db = central.execute("SELECT db_filename FROM users WHERE email = ?", (other_email,)).fetchone()[0]
+        central.commit()
+
+        users_dir = os.path.join(os.environ["_VIRGIL_TEST_TMP"], "users")
+        user_conn = sqlite3.connect(os.path.join(users_dir, second_db))
+        user_conn.execute(
+            "INSERT INTO daily_logs (date, notes) VALUES (?, ?)",
+            (date.today().isoformat(), marker),
+        )
+        user_conn.commit()
+        user_conn.close()
+
+        # The email pin still reaches that account. The fallback below must not.
+        monkeypatch.setattr(api_module, "API_USER_EMAIL", other_email)
+        mapped = client.get("/api/summary", headers=KEY)
+        assert mapped.status_code == 200
+        assert mapped.json()["daily"]["notes"] == marker
+
+        central.execute("UPDATE users SET is_active = 0 WHERE email = ?", (TEST_EMAIL,))
+        central.commit()
+        owner = central.execute("SELECT role, is_active FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()
+        other = central.execute("SELECT role, is_active FROM users WHERE email = ?", (other_email,)).fetchone()
+        assert owner == ("admin", 0)
+        assert other == ("admin", 1)
+
+        monkeypatch.setattr(api_module, "API_USER_EMAIL", "")
+        refused = client.get("/api/summary", headers=KEY)
+        assert refused.status_code == 503, refused.text
+        assert marker not in refused.text
+        assert "VIRGIL_API_USER_EMAIL" in refused.json()["detail"]
+
+        monkeypatch.setattr(api_module, "API_USER_EMAIL", TEST_EMAIL)
+        still_owner = client.get("/api/summary", headers=KEY)
+        assert still_owner.status_code == 503
+        assert marker not in still_owner.text
+    finally:
+        central.execute("UPDATE users SET is_active = 1 WHERE email = ?", (TEST_EMAIL,))
+        if second_db:
+            central.execute("DELETE FROM users WHERE email = ?", (other_email,))
+        central.commit()
+        central.close()
+        if second_db:
+            users_dir = os.path.join(os.environ["_VIRGIL_TEST_TMP"], "users")
+            for suffix in ("", "-wal", "-shm"):
+                path = os.path.join(users_dir, second_db + suffix)
+                if os.path.exists(path):
+                    os.remove(path)
+
+
 def test_summary_shape(auth_client):
     resp = auth_client.get("/api/summary", headers=KEY)
     assert resp.status_code == 200

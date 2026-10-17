@@ -173,8 +173,8 @@ def test_totp_secret_encrypted_at_rest(auth_client):
     try:
         page = auth_client.get("/settings/mfa")
         assert page.status_code == 200
-        # The setup page shows the manual-entry secret in a <code> block (the
-        # provisioning URI itself is URL-encoded inside the QR image src).
+        # The setup page shows the manual-entry secret in a <code> block.
+        # The QR is a separate same-origin image; the secret is not in its URL.
         shown = re.search(r"<code[^>]*>([A-Z2-7]{16,})</code>", page.text)
         assert shown, "MFA setup page must show the base32 secret"
         plain_secret = shown.group(1)
@@ -222,6 +222,84 @@ def test_user_db_closes_when_feature_flags_fail(auth_client, monkeypatch):
         for db in opened:
             if db not in closed:
                 auth_client.portal.call(real_close, db)
+
+
+def _png_pixels(data: bytes) -> bytes:
+    import io
+
+    from PIL import Image
+
+    with Image.open(io.BytesIO(data)) as img:
+        return img.tobytes()
+
+
+def test_mfa_setup_never_puts_the_totp_secret_in_a_url(auth_client, client):
+    """The QR is built for the signed-in user. The otpauth URI must not ride in a query string,
+    and neither the page nor the image may be cached."""
+    import io
+
+    import pyotp
+    import qrcode
+
+    from app.services.encryption import decrypt
+
+    central = _central_conn()
+    try:
+        page = auth_client.get("/settings/mfa")
+        assert page.status_code == 200
+        assert page.headers["cache-control"] == "no-store"
+        assert "otpauth" not in page.text.lower()
+        assert "/mfa/qr.png?" not in page.text
+        assert 'src="/mfa/qr.png"' in page.text
+        shown = re.search(r"<code[^>]*>([A-Z2-7]{16,})</code>", page.text)
+        assert shown, "MFA setup page must show the base32 secret for manual entry"
+        secret = shown.group(1)
+        assert not re.search(r"""(?:src|href)=["'][^"']*""" + re.escape(secret), page.text)
+
+        attacker = "otpauth://totp/Evil:attacker@example.com?secret=AAAAAAAAAAAAAAAA&issuer=Evil"
+        image = auth_client.get("/mfa/qr.png", params={"uri": attacker})
+        assert image.status_code == 200
+        assert image.headers["content-type"] == "image/png"
+        assert image.headers["cache-control"] == "no-store"
+        expected_uri = pyotp.TOTP(secret).provisioning_uri(name=TEST_EMAIL, issuer_name="Virgil")
+        expected = io.BytesIO()
+        qrcode.make(expected_uri, box_size=6, border=2).save(expected, format="PNG")
+        attacker_png = io.BytesIO()
+        qrcode.make(attacker, box_size=6, border=2).save(attacker_png, format="PNG")
+        assert _png_pixels(image.content) == _png_pixels(expected.getvalue())
+        assert _png_pixels(image.content) != _png_pixels(attacker_png.getvalue())
+
+        assert client.get("/mfa/qr.png", follow_redirects=False).status_code == 303
+
+        bad = "000000" if pyotp.TOTP(secret).now() != "000000" else "111111"
+        token = csrf_token(auth_client, "/settings/mfa")
+        rejected = auth_client.post(
+            "/settings/mfa/enable",
+            data={"totp_code": bad, "_csrf_token": token},
+        )
+        assert rejected.status_code == 200
+        assert "Invalid code" in rejected.text
+        assert rejected.headers["cache-control"] == "no-store"
+        assert "otpauth" not in rejected.text.lower()
+        assert "/mfa/qr.png?" not in rejected.text
+
+        token = csrf_token(auth_client, "/settings/mfa")
+        enabled = auth_client.post(
+            "/settings/mfa/enable",
+            data={"totp_code": pyotp.TOTP(secret).now(), "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert enabled.status_code == 303
+        stored = central.execute(
+            "SELECT totp_secret, totp_enabled FROM users WHERE email = ?",
+            (TEST_EMAIL,),
+        ).fetchone()
+        assert stored[1] == 1
+        assert decrypt(stored[0]) == secret
+    finally:
+        central.execute("UPDATE users SET totp_secret = '', totp_enabled = 0 WHERE email = ?", (TEST_EMAIL,))
+        central.commit()
+        central.close()
 
 
 def test_an_unfinished_mfa_login_can_start_over_instead_of_looping(client, monkeypatch):

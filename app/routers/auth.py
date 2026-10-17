@@ -27,6 +27,7 @@ from app.user_db import create_user_db
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+_NO_STORE = {"Cache-Control": "no-store"}
 
 # Constant-time-ish login for unknown emails: verify against this throwaway
 # hash so response timing doesn't reveal whether an account exists.
@@ -51,6 +52,21 @@ def _totp_secret_stored(plain: str) -> str:
     from app.services.encryption import encrypt
 
     return encrypt(plain)
+
+
+def _qr_png(data: str) -> bytes:
+    img = qrcode.make(data, box_size=6, border=2)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+def _mfa_setup_response(request: Request, **context):
+    """Setup HTML. Pages that include the TOTP secret must not be cached."""
+    response = templates.TemplateResponse(request, "auth_mfa_setup.html", {"request": request, **context})
+    if context.get("secret"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 async def registration_allowed() -> bool:
@@ -236,25 +252,15 @@ async def mfa_setup_page(request: Request):
         return RedirectResponse("/login", status_code=303)
 
     if user["totp_enabled"]:
-        return templates.TemplateResponse(
-            request,
-            "auth_mfa_setup.html",
-            {"request": request, "mfa_enabled": True, "qr_url": ""},
-        )
+        return _mfa_setup_response(request, mfa_enabled=True)
 
-    # Generate a new TOTP secret if not already stored (encrypted at rest)
+    # Generate a new TOTP secret if not already stored (encrypted at rest).
+    # The QR image is a separate same-origin GET; the secret never goes in a URL.
     secret = _totp_secret_plain(user["totp_secret"]) or pyotp.random_base32()
     if not user["totp_secret"]:
         await update_user(user["id"], totp_secret=_totp_secret_stored(secret))
 
-    totp = pyotp.TOTP(secret)
-    provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="Virgil")
-
-    return templates.TemplateResponse(
-        request,
-        "auth_mfa_setup.html",
-        {"request": request, "mfa_enabled": False, "provisioning_uri": provisioning_uri, "secret": secret},
-    )
+    return _mfa_setup_response(request, mfa_enabled=False, secret=secret)
 
 
 @router.post("/settings/mfa/enable")
@@ -266,17 +272,11 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
     secret = _totp_secret_plain(user["totp_secret"])
     totp = pyotp.TOTP(secret)
     if not totp.verify(totp_code, valid_window=1):
-        provisioning_uri = totp.provisioning_uri(name=user["email"], issuer_name="Virgil")
-        return templates.TemplateResponse(
+        return _mfa_setup_response(
             request,
-            "auth_mfa_setup.html",
-            {
-                "request": request,
-                "mfa_enabled": False,
-                "provisioning_uri": provisioning_uri,
-                "secret": secret,
-                "error": "Invalid code. Please try again.",
-            },
+            mfa_enabled=False,
+            secret=secret,
+            error="Invalid code. Please try again.",
         )
 
     # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
@@ -292,11 +292,7 @@ async def mfa_disable(request: Request, password: str = Form(...)):
 
     # verify_password raises on empty input — treat it as a wrong password.
     if not password or not verify_password(password, user["password_hash"]):
-        return templates.TemplateResponse(
-            request,
-            "auth_mfa_setup.html",
-            {"request": request, "mfa_enabled": True, "error": "Invalid password."},
-        )
+        return _mfa_setup_response(request, mfa_enabled=True, error="Invalid password.")
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
     return success_redirect(request, "/settings", "MFA disabled.")
@@ -342,11 +338,15 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
 
 
 @router.get("/mfa/qr.png")
-async def mfa_qr_image(request: Request, uri: str = ""):
-    if not uri or not uri.startswith("otpauth://"):
-        return Response(status_code=400)
-    img = qrcode.make(uri, box_size=6, border=2)
-    buf = io.BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return Response(content=buf.read(), media_type="image/png")
+async def mfa_qr_image(request: Request):
+    """QR for the signed-in user's unfinished MFA setup.
+
+    Built from the stored secret. The route takes no query parameters, so the
+    setup page cannot put the secret in a URL.
+    """
+    user = getattr(request.state, "user", None)
+    secret = _totp_secret_plain(user["totp_secret"]) if user else ""
+    if not user or user["totp_enabled"] or not secret:
+        return Response(status_code=404, headers=_NO_STORE)
+    uri = pyotp.TOTP(secret).provisioning_uri(name=user["email"], issuer_name="Virgil")
+    return Response(content=_qr_png(uri), media_type="image/png", headers=_NO_STORE)

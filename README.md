@@ -194,7 +194,7 @@ All configuration via environment variables:
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (empty = API disabled) |
-| `VIRGIL_API_USER_EMAIL` | (empty) | Which user's data the API serves (default: first active admin) |
+| `VIRGIL_API_USER_EMAIL` | (empty) | The only account `VIRGIL_API_KEY` may read or write. Required when the key is set. Empty, missing, or deactivated returns 503 for `/api` and `/mcp` and does not fall back to another admin. The web UI keeps working |
 | `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 
@@ -520,7 +520,7 @@ Virgil is installable as a PWA. The service worker provides:
 
 ### Authentication
 - Email + password with bcrypt hashing
-- Optional TOTP MFA via `pyotp` + `qrcode`
+- Optional TOTP MFA via `pyotp` + `qrcode`. The setup QR is generated for the signed-in user at `/mfa/qr.png`; the secret is not put in a URL, and responses that carry it are `Cache-Control: no-store`
 - Signed cookie sessions via `itsdangerous.TimestampSigner` (7-day expiry)
 - MFA-pending sessions blocked from protected routes; they expire after 10 minutes, and `/login` treats them as signed out
 - A signed session whose account was deleted or disabled is cleared on the way to

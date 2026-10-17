@@ -304,6 +304,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reject trailing newlines before any mutation or central database lookup.
 
 ### Security
+- **The API key no longer follows the first active admin.** `VIRGIL_API_USER_EMAIL` is required whenever `VIRGIL_API_KEY` is set. If it is empty, or that account is missing or deactivated, `/api` and `/mcp` return 503 and startup logs the reason. The web UI keeps working. Upgrade: set the variable to the email the key should serve (previously the earliest active admin, usually the owner) and restart.
+- **The TOTP secret is no longer placed in a URL during MFA setup.** `/mfa/qr.png` builds the QR for the signed-in user, and the setup page and image are `Cache-Control: no-store`.
 - **Forwarded client IPs have an explicit trust boundary.** Rate limiting uses
   `CF-Connecting-IP` only when Cloudflare trust is enabled and the direct peer
   is listed in `VIRGIL_TRUSTED_PROXY_IPS`. Direct ingress ignores spoofed

@@ -32,6 +32,7 @@ services:
       VIRGIL_INTERNAL_LLM_MODEL: ${VIRGIL_INTERNAL_LLM_MODEL:-gemini/gemini-3-flash-preview}
       VIRGIL_INTERNAL_LLM_KEY: ${VIRGIL_INTERNAL_LLM_KEY:-}
       VIRGIL_API_KEY: ${VIRGIL_API_KEY:-}
+      # Required when the key is set. Empty no longer means "first active admin".
       VIRGIL_API_USER_EMAIL: ${VIRGIL_API_USER_EMAIL:-}
       # Opt-in: expose /api/noporn (intimate journal content) over the API key.
       VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
