@@ -3,13 +3,13 @@ import io
 import json
 import logging
 import secrets
-from datetime import UTC
+from datetime import UTC, date
 from urllib.parse import quote
 
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
-from app.config import BASE_URL, SECOND_BRAIN_PATH
+from app.config import BASE_URL
 from app.db import get_feature_flags, get_setting, set_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
@@ -72,7 +72,6 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         from app.services.backup import db_main_path
 
         context["db_path"] = await db_main_path(db)
-        context["second_brain_path"] = SECOND_BRAIN_PATH
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
         context["freedom_choices"] = await _freedom_choices(db)
@@ -118,11 +117,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["webhook_url"] = registration["endpoint"] if registration else ""
 
     elif tab == "data":
-        from app.services.markdown_export import export_filename_for
-
-        context["second_brain_path"] = SECOND_BRAIN_PATH
-        context["export_filename"] = await export_filename_for(db, request.state.user["id"])
-        context["can_import"] = await _owns_second_brain(request)
+        pass
 
     elif tab == "automation":
         from app.routers.jobs import build_job_view
@@ -134,8 +129,6 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["oura_sync_enabled"] = await get_setting(db, "oura_sync_enabled", "0") == "1"
         context["oura_sync_interval_hours"] = await get_setting(db, "oura_sync_interval_hours", "6")
         context["briefing_enabled"] = await get_setting(db, "briefing_enabled", "0") == "1"
-        context["export_enabled"] = await get_setting(db, "export_enabled", "0") == "1"
-        context["export_interval_hours"] = await get_setting(db, "export_interval_hours", "6")
         # Check if oura is connected
         oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
         context["oura_connected"] = bool(oura_row and oura_row[0]["status"] == "connected")
@@ -374,21 +367,12 @@ async def save_automation(request: Request):
     if not isfinite(oura_interval) or not 1 <= oura_interval <= 168:
         return error_redirect(request, "/settings?tab=automation", "Oura sync interval must be a number from 1 to 168.")
 
-    try:
-        export_interval = float(form.get("export_interval_hours", "6"))
-    except (TypeError, ValueError):
-        return error_redirect(request, "/settings?tab=automation", "Export interval must be a number from 1 to 168.")
-    if not isfinite(export_interval) or not 1 <= export_interval <= 168:
-        return error_redirect(request, "/settings?tab=automation", "Export interval must be a number from 1 to 168.")
-
     await set_setting(db, "backup_enabled", "1" if form.get("backup_enabled") else "0")
     await set_setting(db, "backup_interval_hours", str(backup_interval))
     await set_setting(db, "backup_max_copies", str(backup_max))
     await set_setting(db, "oura_sync_enabled", "1" if form.get("oura_sync_enabled") else "0")
     await set_setting(db, "oura_sync_interval_hours", str(oura_interval))
     await set_setting(db, "briefing_enabled", "1" if form.get("briefing_enabled") else "0")
-    await set_setting(db, "export_enabled", "1" if form.get("export_enabled") else "0")
-    await set_setting(db, "export_interval_hours", str(export_interval))
 
     return success_redirect(request, "/settings?tab=automation", "Automation settings saved.")
 
@@ -473,14 +457,12 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
 
 
 @router.post("/settings/export")
-async def trigger_export(request: Request, job_nonce: str = Form(...)):
-    from app.services.job_producers import (
-        EXPORT_SCOPES,
-        EXPORT_SECTIONS,
-        MARKDOWN_EXPORT_JOB_KIND,
-        enqueue_markdown_export_job,
-        manual_job_key,
-    )
+async def export_markdown_download(request: Request):
+    """Download a readable markdown summary of the chosen period and sections, for
+    reading or pasting into an LLM. Built on request; nothing is written to disk."""
+    from fastapi.responses import Response
+
+    from app.services.markdown_export import EXPORT_SCOPES, EXPORT_SECTIONS, export_markdown
 
     form = await request.form()
     scope = form.get("scope", "weekly")
@@ -491,51 +473,13 @@ async def trigger_export(request: Request, job_nonce: str = Form(...)):
         return error_redirect(request, "/settings?tab=data", "Choose only valid export sections.")
     if not sections:
         return error_redirect(request, "/settings?tab=data", "Choose at least one export section.")
-    db = get_user_db_from_request(request)
-    try:
-        result = await enqueue_markdown_export_job(
-            db,
-            trigger="manual",
-            scope=scope,
-            sections=sections,
-            idempotency_key=manual_job_key(MARKDOWN_EXPORT_JOB_KIND, job_nonce),
-        )
-    except Exception:
-        logger.exception("Export enqueue failed")
-        return error_redirect(request, "/settings?tab=data", "Export could not be queued. Try again.")
-    from app.routers.jobs import wake_worker_for
-
-    wake_worker_for(request)
-
-    return success_redirect(
-        request,
-        f"/settings?tab=data&job_id={result.job_id}",
-        f"{scope.capitalize()} export queued.",
+    content = await export_markdown(get_user_db_from_request(request), scope, sections=set(sections))
+    filename = f"virgil-{scope}-{date.today().isoformat()}.md"
+    return Response(
+        content,
+        media_type="text/markdown; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
-async def _owns_second_brain(request: Request) -> bool:
-    """The Second Brain directory is one server-wide folder of the install owner's
-    notes, so only the owner (the oldest account) may import it."""
-    from app.central_db import get_primary_user_id
-
-    return request.state.user["id"] == await get_primary_user_id()
-
-
-@router.post("/settings/import")
-async def trigger_import(request: Request):
-    from app.services.markdown_import import import_all
-
-    if not await _owns_second_brain(request):
-        return error_redirect(request, "/settings?tab=data", "Only the account that owns this install can import.")
-    db = get_user_db_from_request(request)
-    try:
-        await import_all(db)
-        return success_redirect(request, "/settings?tab=data", "Import completed.")
-    except Exception:
-        await db.rollback()
-        logger.exception("Import failed")
-        return error_redirect(request, "/settings?tab=data", "Import failed. Try again.")
 
 
 @router.get("/settings/backup")

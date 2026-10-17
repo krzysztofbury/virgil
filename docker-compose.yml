@@ -21,7 +21,6 @@ services:
     env_file: .env
     environment:
       VIRGIL_CENTRAL_DB_PATH: /data/virgil-central.db
-      VIRGIL_SECOND_BRAIN_PATH: /second-brain
       VIRGIL_ENV: prod
       VIRGIL_BASE_URL: ${VIRGIL_BASE_URL:-https://localhost:8123}
       VIRGIL_ADMIN_EMAILS: ${VIRGIL_ADMIN_EMAILS:-}
@@ -39,7 +38,6 @@ services:
       TZ: Europe/Warsaw
     volumes:
       - ./data:/data
-      - "${VIRGIL_SECOND_BRAIN_PATH:-.}/second-brain:/second-brain:rw"
     # Security hardening
     security_opt:
       - no-new-privileges:true

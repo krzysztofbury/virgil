@@ -202,11 +202,6 @@ def clear_session_cookie() -> str:
     return f"{SESSION_COOKIE}=; HttpOnly; SameSite=Lax{secure}; Max-Age=0; Path=/"
 
 
-def mark_onboarding_complete():
-    """No-op in multi-user mode — onboarding state is per-user DB."""
-    pass
-
-
 class AuthMiddleware:
     def __init__(self, app: ASGIApp):
         self.app = app

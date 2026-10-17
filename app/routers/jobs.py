@@ -31,7 +31,6 @@ _KIND_LABELS = {
     "andy_generation": "A.N.D.Y. suggestions",
     "backup": "Backup",
     "experiment_summary": "Experiment week summary",
-    "markdown_export": "Markdown export",
     "medical_import": "Medical record import",
     "morning_briefing": "Morning briefing",
     "onboarding_enrichment": "Onboarding AI extras",

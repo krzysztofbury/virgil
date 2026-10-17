@@ -45,11 +45,10 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 uv sync --locked --extra dev --python 3.12.14
 
 # Run the app (hot reload enabled, port 8123)
-VIRGIL_SECOND_BRAIN_PATH="/path/to/second-brain/0 - LLM/ZYCIE/" \
-  uv run python -m app
+uv run python -m app
 ```
 
-On first launch, navigate to `http://localhost:8123` — sign up at `/signup` (email + password) and complete the onboarding wizard. Registration is closed by default, but the **first** account can always be created (bootstrap owner); open it for more users with `VIRGIL_REGISTRATION_OPEN=true`.
+On first launch, navigate to `http://localhost:8123`, sign up at `/signup` (email + password) and complete the onboarding wizard; every account goes through it once. Registration is closed by default, but the **first** account can always be created (bootstrap owner); open it for more users with `VIRGIL_REGISTRATION_OPEN=true`.
 
 `VIRGIL_ENV` defaults to `local` which enables hot reload. Set to `prod` to disable.
 
@@ -77,10 +76,9 @@ Cloudflare Edge
 |  | (tunnel)     |    | FastAPI + SQLite|  |
 |  +-------------+    +-----------------+  |
 |                          |               |
-|              +-----------+----------+    |
-|              |                      |    |
-|         /data (DB)        /second-brain  |
-|         (read-write)       (read-write)  |
+|                          |               |
+|                     /data (DB)           |
+|                     (read-write)         |
 +------------------------------------------+
 ```
 
@@ -152,16 +150,6 @@ verification, off-machine copies, restore into a new directory, and a restore
 drill. Per-user database downloads alone do not include the registry or encryption
 key and are not whole-instance recovery artifacts.
 
-To import markdown into an existing account:
-
-```bash
-VIRGIL_SECOND_BRAIN_PATH=/path/to/markdown \
-  uv run --locked python scripts/import_data.py --email account@example.com
-```
-
-The importer refuses missing accounts or databases. It never creates a legacy
-single-user database.
-
 The MCP wrapper has its own committed dependency lock:
 
 ```bash
@@ -195,7 +183,6 @@ All configuration via environment variables:
 |---|---|---|
 | `VIRGIL_ENV` | `local` | `local` (hot reload) or `prod` (no reload) |
 | `VIRGIL_CENTRAL_DB_PATH` | `./data/virgil-central.db` | Central user registry database |
-| `VIRGIL_SECOND_BRAIN_PATH` | (empty) | Path to markdown files directory |
 | `VIRGIL_HOST` | `0.0.0.0` | Server bind host |
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL (for OAuth callbacks, webhook URLs) |
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for encrypting secrets |
@@ -449,8 +436,8 @@ Six-tab settings page:
 - **General** - Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Freedom, with its habit checklist)
 - **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
-- **Data** - Markdown export (weekly/monthly/yearly/all), Second Brain import (only for the account that owns the install, since the folder is the owner's), JSON/CSV download, database backup
-- **Automation** — Backup scheduling, Oura auto-sync interval, morning briefing toggle, markdown auto-export (for OpenClaw integration)
+- **Data** - Markdown download (weekly/monthly/yearly/all), JSON/CSV download, database backup
+- **Automation** - Backup scheduling, Oura auto-sync interval, morning briefing toggle
 - **Security** — MFA setup/disable (TOTP with QR code), sync log viewer
 
 ## Background work
@@ -475,7 +462,7 @@ write and job completion cannot cause a double charge.
 
 | Kind | Retry | Triggered by |
 |---|---|---|
-| `backup`, `markdown_export`, `oura_sync` | automatic, bounded | manual button, schedule, Oura webhook |
+| `backup`, `oura_sync` | automatic, bounded | manual button, schedule, Oura webhook |
 | `morning_briefing` | manual | dashboard button, daily schedule |
 | `wod_parse` | manual | saving a training note |
 | `andy_generation` | manual | the AI button on Daily |
@@ -604,6 +591,7 @@ Current migrations:
 | 034 | `freedom_habits` | Adds `habits`; keys day logs, bricks and relapse events by habit; moves No Porn history onto a Porn habit and renames `feature_no_porn` to `feature_freedom` |
 | 035 | `drop_no_porn_leftovers` | Drops `feniks_config` (moved onto the Porn habit) and `feniks_milestones`; keeps the journal and pleasures |
 | 036 | `english_labels` | Renames the seeded goal areas and the importer's blood-test categories to English; names the person chose stay |
+| 037 | `drop_second_brain` | Removes queued markdown export jobs and the scheduled-export settings left from the Second Brain folder |
 
 Central registry migrations:
 | Version | Name | Description |
@@ -631,7 +619,7 @@ Central registry migrations:
 - `habits` - Freedom habits: slip label and definition, amount unit and threshold, near-miss label, start date, target, why, tracked flag
 - `feniks_daily`, `feniks_bricks` - Freedom day logs and bricks, keyed by habit
 - `pmo_events` - relapse/reset events, keyed by habit
-- `feniks_journal`, `feniks_pleasures` - the No Porn program's journal and pleasures, read by `/api/noporn` and the markdown export
+- `feniks_journal`, `feniks_pleasures` - the No Porn program's journal and pleasures, read by `/api/noporn` and the markdown download
 - `oura_daily` — Oura Ring per-day data (from API or webhook)
 - `oura_monthly` — Oura Ring monthly averages (computed from daily or manual)
 - `oura_workouts` — Oura workout data
@@ -689,7 +677,7 @@ Daily data is stored in `oura_daily` (per-day) and aggregated into `oura_monthly
 
 ## Markdown Export
 
-Generates a single markdown file in the second-brain directory (per-user filename, default `virgil.md` — configurable in Settings > Data so multiple users never overwrite each other), scoped by time range:
+Settings > Data downloads a readable markdown summary, for reading or pasting into an AI assistant. It is built on request and nothing is written on the server. Choose the sections and the time range:
 
 | Scope | Content |
 |---|---|
@@ -697,8 +685,6 @@ Generates a single markdown file in the second-brain directory (per-user filenam
 | Monthly | Weekly data + oura, life scores, experiments (current month) |
 | Yearly | Monthly data + blood work, goals (current year) |
 | All | Everything in the database |
-
-Export can be triggered manually from Settings > Data, or run automatically on a schedule (Settings > Automation). Auto-export writes `virgil.md` to the Second Brain directory at a configurable interval (default 6h), keeping external tools like OpenClaw up to date without manual intervention.
 
 ## Project Structure
 
@@ -752,8 +738,7 @@ virgil/
 │   │   ├── briefing.py       # AI morning briefing generation
 │   │   ├── andy.py           # A.N.D.Y. daily suggestions (context + prompts)
 │   │   ├── medical_import.py # Staged blood-panel upload, extraction and storage
-│   │   ├── markdown_export.py # On-demand scoped markdown export
-│   │   ├── markdown_import.py # Markdown → DB parsers (onboarding)
+│   │   ├── markdown_export.py # Scoped markdown download
 │   │   ├── scheduler.py      # Background task loop (enqueues due work, runs the job worker)
 │   │   ├── backup.py         # SQLite backup with rolling retention
 │   │   ├── experiment_summary.py # AI weekly summaries for experiments

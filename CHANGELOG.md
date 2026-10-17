@@ -45,6 +45,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Second Brain is gone. Virgil no longer reads markdown from a server folder
+  (the Settings import, `scripts/import_data.py`, the A.N.D.Y. `plan.md`) or
+  writes exports into it (manual and scheduled). Markdown export is a download
+  from Settings > Data instead. `VIRGIL_SECOND_BRAIN_PATH` and its compose volume
+  are removed; migration 037 clears the leftover export jobs and settings.
+- Every account goes through onboarding once: the skip button and route are
+  gone, and "Continue without AI" finishes it without the paid extras.
 - The UI is English only. The training capture and confirm flow, its messages and
   the equipment labels were Polish. New accounts get English goal areas, and
   migration 036 renames the seeded areas and the importer's blood-test categories
@@ -85,8 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - Long goal titles wrap on phones instead of being cut off mid-word; they stay
   editable in place, and Enter still saves.
-- Only the account that owns the install can import the Second Brain folder; it
-  holds the owner's notes, so other accounts no longer see or reach the import.
 - Leaving an unfinished MFA login for `/login` could loop between `/login` and
   `/`. A pending MFA login is now treated as signed out there, and it expires
   after 10 minutes instead of 7 days.

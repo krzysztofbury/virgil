@@ -13,7 +13,6 @@ git switch -c your-change
 
 Start the application with `uv run --locked python -m app`. The first account
 is created at `/signup`. Local mode enables reload; production mode disables it.
-Set `VIRGIL_SECOND_BRAIN_PATH` only when importing markdown is intended.
 
 ## Required checks
 

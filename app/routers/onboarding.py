@@ -328,14 +328,15 @@ def _discard(user_id: str, token: str) -> None:
 
 
 @router.post("/onboarding/confirm")
-async def confirm_onboarding(request: Request):
+async def confirm_onboarding(request: Request, without_ai: str = Form("")):
     """Finish onboarding now; the AI extras arrive on their own.
 
     Six sequential provider calls used to run inside this request. The account
     is usable without any of them, so completion no longer waits: the steps are
-    queued, and the onboarding screen reports each one.
+    queued, and the onboarding screen reports each one. `without_ai` finishes
+    without buying them. Onboarding cannot be skipped: every account goes
+    through it once.
     """
-    from app.auth import mark_onboarding_complete
     from app.config import INTERNAL_LLM_KEY
     from app.services.job_producers import ActiveWorkloadConflictError
     from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
@@ -353,8 +354,9 @@ async def confirm_onboarding(request: Request):
         logger.info("Freedom enabled with the Porn habit, based on onboarding habits")
 
     await set_setting(db, "onboarding_completed", "1")
-    mark_onboarding_complete()
 
+    if without_ai:
+        return success_redirect(request, "/", "Onboarding complete.")
     if not INTERNAL_LLM_KEY:
         logger.warning("No VIRGIL_INTERNAL_LLM_KEY set - skipping LLM enrichment")
         return success_redirect(request, "/", "Onboarding complete.")
@@ -414,15 +416,3 @@ async def retry_enrichment(request: Request):
         f"/onboarding?step=6&job_id={result.job_id}",
         "Finishing the AI extras.",
     )
-
-
-@router.post("/onboarding/skip")
-async def skip_onboarding(request: Request):
-    db = get_user_db_from_request(request)
-    await set_setting(db, "onboarding_completed", "1")
-
-    from app.auth import mark_onboarding_complete
-
-    mark_onboarding_complete()
-
-    return success_redirect(request, "/", "Onboarding skipped.")

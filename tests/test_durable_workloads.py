@@ -1,4 +1,4 @@
-"""Production backup, export, and Oura jobs from enqueue through execution."""
+"""Production backup and Oura jobs from enqueue through execution."""
 
 import asyncio
 import json
@@ -13,15 +13,12 @@ import aiosqlite
 import pytest
 
 import app.services.backup as backup_module
-import app.services.markdown_export as export_module
-from app.services.job_handlers import handle_backup, handle_markdown_export
+from app.services.job_handlers import handle_backup
 from app.services.job_producers import (
     BACKUP_JOB_KIND,
-    MARKDOWN_EXPORT_JOB_KIND,
     OURA_SYNC_JOB_KIND,
     ActiveWorkloadConflictError,
     enqueue_backup_job,
-    enqueue_markdown_export_job,
     enqueue_oura_sync_job,
     manual_job_key,
 )
@@ -40,7 +37,7 @@ def _clear_workloads() -> None:
     try:
         db.execute("DELETE FROM jobs")
         db.execute("DELETE FROM integrations WHERE provider = 'oura'")
-        db.execute("DELETE FROM app_settings WHERE key IN ('backup_last_run', 'export_last_run', 'oura_sync_last_run')")
+        db.execute("DELETE FROM app_settings WHERE key IN ('backup_last_run', 'oura_sync_last_run')")
         db.commit()
     finally:
         db.close()
@@ -91,7 +88,6 @@ def test_manual_routes_only_enqueue_and_duplicate_submission_reuses_job(auth_cli
         raise AssertionError("request route must not execute workload I/O")
 
     monkeypatch.setattr(backup_module, "run_backup", forbidden)
-    monkeypatch.setattr(export_module, "write_export", forbidden)
     monkeypatch.setattr("app.services.oura_api.sync_oura_from_api", forbidden)
     _seed_connected_oura()
 
@@ -105,20 +101,6 @@ def test_manual_routes_only_enqueue_and_duplicate_submission_reuses_job(auth_cli
     assert backup.status_code == backup_duplicate.status_code == 303
     backup_id = _redirect_job_id(backup)
     assert _redirect_job_id(backup_duplicate) == backup_id
-
-    data_page = auth_client.get("/settings?tab=data")
-    export = auth_client.post(
-        "/settings/export",
-        data={
-            "_csrf_token": csrf_token(auth_client, "/settings?tab=data"),
-            "job_nonce": _job_nonce(data_page.text),
-            "scope": "monthly",
-            "sections": ["training", "daily_logs", "training"],
-        },
-        follow_redirects=False,
-    )
-    assert export.status_code == 303
-    export_id = _redirect_job_id(export)
 
     oura_page = auth_client.get("/oura")
     oura = auth_client.post(
@@ -151,19 +133,10 @@ def test_manual_routes_only_enqueue_and_duplicate_submission_reuses_job(auth_cli
         db.close()
     assert rows == [
         (backup_id, "backup", '{"trigger":"manual"}', "automatic", 3, "queued"),
-        (
-            export_id,
-            "markdown_export",
-            '{"scope":"monthly","sections":["daily_logs","training"],"trigger":"manual"}',
-            "automatic",
-            3,
-            "queued",
-        ),
         (oura_id, "oura_sync", '{"days_back":30,"trigger":"manual"}', "automatic", 3, "queued"),
     ]
 
     assert f'data-job-id="{backup_id}"' in auth_client.get(backup.headers["location"]).text
-    assert f'data-job-id="{export_id}"' in auth_client.get(export.headers["location"]).text
     assert f'data-job-id="{oura_id}"' in auth_client.get(oura.headers["HX-Redirect"]).text
 
 
@@ -171,10 +144,7 @@ def test_scheduled_producers_coalesce_and_registered_handlers_execute_once(auth_
     import app.services.scheduler as scheduler
 
     backup_dir = tmp_path / "backups"
-    export_dir = tmp_path / "exports"
-    export_dir.mkdir()
     monkeypatch.setattr(backup_module, "BACKUP_DIR", backup_dir)
-    monkeypatch.setattr(export_module, "SECOND_BRAIN_PATH", str(export_dir))
     oura_calls = []
 
     async def fake_sync(db, days_back):
@@ -191,8 +161,6 @@ def test_scheduled_producers_coalesce_and_registered_handlers_execute_once(auth_
             [
                 ("backup_enabled", "1"),
                 ("backup_interval_hours", "24"),
-                ("export_enabled", "1"),
-                ("export_interval_hours", "6"),
                 ("oura_sync_enabled", "1"),
                 ("oura_sync_interval_hours", "6"),
             ],
@@ -220,21 +188,20 @@ def test_scheduled_producers_coalesce_and_registered_handlers_execute_once(auth_
             jobs = await control.execute_fetchall("SELECT id, kind, status, result_json FROM jobs ORDER BY id")
             settings = await control.execute_fetchall(
                 "SELECT key, value FROM app_settings "
-                "WHERE key IN ('backup_last_run', 'export_last_run', 'oura_sync_last_run') ORDER BY key"
+                "WHERE key IN ('backup_last_run', 'oura_sync_last_run') ORDER BY key"
             )
             return queued, batch, jobs, settings
         finally:
             await control.close()
 
     queued, batch, jobs, settings = asyncio.run(scenario())
-    assert [row["kind"] for row in queued] == ["backup", "markdown_export", "oura_sync"]
+    assert [row["kind"] for row in queued] == ["backup", "oura_sync"]
     assert all(row["retry_policy"] == "automatic" and row["status"] == "queued" for row in queued)
-    assert [result.status for result in batch.jobs] == ["succeeded", "succeeded", "succeeded"]
-    assert [row["status"] for row in jobs] == ["succeeded", "succeeded", "succeeded"]
+    assert [result.status for result in batch.jobs] == ["succeeded", "succeeded"]
+    assert [row["status"] for row in jobs] == ["succeeded", "succeeded"]
     assert len(list(backup_dir.glob("*.db"))) == 1
-    assert (export_dir / "virgil.md").exists()
     assert oura_calls == [30]
-    assert [row["key"] for row in settings] == ["backup_last_run", "export_last_run", "oura_sync_last_run"]
+    assert [row["key"] for row in settings] == ["backup_last_run", "oura_sync_last_run"]
     assert all(row["value"] for row in settings)
 
     oura_job_id = next(row["id"] for row in jobs if row["kind"] == "oura_sync")
@@ -327,38 +294,6 @@ def test_distinct_backup_jobs_in_same_minute_publish_distinct_snapshots(auth_cli
         second_db.close()
 
 
-def test_markdown_export_handler_replay_atomically_replaces_one_artifact(auth_client, monkeypatch, tmp_path):
-    export_dir = tmp_path / "exports"
-    export_dir.mkdir()
-    monkeypatch.setattr(export_module, "SECOND_BRAIN_PATH", str(export_dir))
-
-    async def scenario():
-        db = await aiosqlite.connect(user_db_path())
-        db.row_factory = aiosqlite.Row
-        try:
-            queued = await enqueue_markdown_export_job(
-                db,
-                trigger="manual",
-                scope="monthly",
-                sections={"daily_logs", "training"},
-                idempotency_key=manual_job_key(MARKDOWN_EXPORT_JOB_KIND, "5" * 32),
-            )
-            context = JobContext(db=db, user_id=_user_id(), job_id=queued.job_id, attempt=1)
-            payload = {
-                "scope": "monthly",
-                "sections": ["daily_logs", "training"],
-                "trigger": "manual",
-            }
-            return await handle_markdown_export(context, payload), await handle_markdown_export(context, payload)
-        finally:
-            await db.close()
-
-    first, second = asyncio.run(scenario())
-    assert first == second
-    assert [path.name for path in export_dir.iterdir()] == [first["filename"]]
-    assert (export_dir / first["filename"]).read_text(encoding="utf-8").endswith("---\n")
-
-
 def test_backup_job_recovers_after_dead_claim_and_process_restart(monkeypatch, tmp_path):
     from app.migrations.runner import run_migrations
 
@@ -419,13 +354,13 @@ def test_production_registry_contains_only_migrated_workloads():
     from app.services.job_worker import JOB_HANDLERS
     from app.services.llm_jobs import PAID_LLM_JOB_KINDS
 
-    operational = {BACKUP_JOB_KIND, MARKDOWN_EXPORT_JOB_KIND, OURA_SYNC_JOB_KIND}
+    operational = {BACKUP_JOB_KIND, OURA_SYNC_JOB_KIND}
     assert set(JOB_HANDLERS) - operational <= set(PAID_LLM_JOB_KINDS), "only known kinds may reach a handler"
     assert operational | set(PAID_LLM_JOB_KINDS) == set(JOB_HANDLERS), (
         "every paid kind has a handler now: nothing paid is left on the request path"
     )
     assert json.dumps(sorted(JOB_HANDLERS)) == (
-        '["andy_generation", "backup", "experiment_summary", "markdown_export", "medical_import", '
+        '["andy_generation", "backup", "experiment_summary", "medical_import", '
         '"morning_briefing", "onboarding_enrichment", "oura_sync", "wod_parse"]'
     )
 

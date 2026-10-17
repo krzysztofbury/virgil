@@ -32,21 +32,9 @@ JOB_TERMINAL_HISTORY_MAX = 100
 _KIND_PATTERN = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
 _RETRY_POLICIES = {"automatic", "manual"}
 _EXPLICIT_RETRY_STATUSES = {"failed", "cancelled", "needs_attention"}
-_SINGLE_QUEUED_SUCCESSOR_KINDS = {"backup", "markdown_export", "oura_sync"}
+_SINGLE_QUEUED_SUCCESSOR_KINDS = {"backup", "oura_sync"}
 _SINGLE_QUEUED_SUCCESSOR_INDEX = "idx_jobs_queued_workload_kind"
 _WORKLOAD_TRIGGERS = {"manual", "scheduled", "webhook"}
-_EXPORT_SCOPES = {"weekly", "monthly", "yearly", "all"}
-_EXPORT_SECTIONS = {
-    "daily_logs",
-    "training",
-    "body_measurements",
-    "feniks",
-    "oura",
-    "life_scores",
-    "experiments",
-    "bloodwork",
-    "goals",
-}
 
 
 class IdempotencyConflictError(ValueError):
@@ -328,21 +316,6 @@ def _successor_covers_running(kind: str, running_json: str, successor_json: str)
             and not isinstance(successor_days, bool)
             and 1 <= running_days <= successor_days <= 30
         )
-    if kind == "markdown_export":
-        if set(running) != set(successor) or set(running) != {"scope", "sections", "trigger"}:
-            return False
-        if running["trigger"] not in {"manual", "scheduled"} or successor["trigger"] not in {"manual", "scheduled"}:
-            return False
-        if running["scope"] not in _EXPORT_SCOPES or successor["scope"] != running["scope"]:
-            return False
-        for sections in (running["sections"], successor["sections"]):
-            if sections is not None and (
-                not isinstance(sections, list)
-                or sections != sorted(set(sections))
-                or any(section not in _EXPORT_SECTIONS for section in sections)
-            ):
-                return False
-        return running["sections"] == successor["sections"]
     return False
 
 

@@ -34,7 +34,14 @@ PAGES = {
     "freedom": "/freedom",
     "experiments": "/experiments",
 }
-EXTRA = {"goals": "/goals", "blood": "/bloodwork", "settings": "/settings", "app-config": "/settings?tab=configuration"}
+EXTRA = {
+    "goals": "/goals",
+    "blood": "/bloodwork",
+    "settings": "/settings",
+    "app-config": "/settings?tab=configuration",
+    "data": "/settings?tab=data",
+    "onboarding": "/onboarding?step=6",
+}
 
 
 def _wait_until_up(port: int, server: subprocess.Popen, timeout: float = 60) -> None:
@@ -123,7 +130,6 @@ def main() -> None:
         **os.environ,
         "VIRGIL_ENV": "local",
         "VIRGIL_CENTRAL_DB_PATH": str(workdir / "virgil-central.db"),
-        "VIRGIL_SECOND_BRAIN_PATH": "",
         "VIRGIL_API_KEY": "",
     }
     server = None

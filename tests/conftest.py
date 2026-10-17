@@ -22,7 +22,6 @@ else:
     os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
     os.environ["VIRGIL_API_KEY"] = "test-key-123"  # pragma: allowlist secret - synthetic fixture
     os.environ["VIRGIL_ADMIN_EMAILS"] = "test@example.com"
-    os.environ["VIRGIL_SECOND_BRAIN_PATH"] = ""
     # Hermetic tests: app/config.py setdefault-loads the developer's real .env,
     # which may carry a live LLM key or open registration — pin both here so a
     # test can never fire a real LLM call and the signup path always exercises

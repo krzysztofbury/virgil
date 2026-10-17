@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from app.db import set_setting
-from app.services.job_producers import EXPORT_SCOPES, EXPORT_SECTIONS, JOB_TRIGGERS
+from app.services.job_producers import JOB_TRIGGERS
 from app.services.llm_jobs import paid_llm_job_key, paid_llm_trigger, run_paid_llm_job
 
 if TYPE_CHECKING:
@@ -59,35 +59,6 @@ async def handle_backup(context: "JobContext", payload: Mapping[str, Any]) -> Ma
     if trigger == "scheduled":
         await set_setting(context.db, "backup_last_run", datetime.now(UTC).isoformat())
     return {"filename": path.name}
-
-
-async def handle_markdown_export(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
-    from app.services.markdown_export import export_filename_for, write_export
-
-    _exact_payload(payload, {"scope", "sections", "trigger"})
-    trigger = _trigger(payload)
-    if trigger not in {"manual", "scheduled"}:
-        raise ValueError("Markdown export trigger is invalid")
-    scope = payload["scope"]
-    if not isinstance(scope, str) or scope not in EXPORT_SCOPES:
-        raise ValueError("Stored export scope is invalid")
-    raw_sections = payload["sections"]
-    sections = None
-    if raw_sections is not None:
-        if not isinstance(raw_sections, list) or not raw_sections:
-            raise ValueError("Stored export sections are invalid")
-        if len(raw_sections) > len(EXPORT_SECTIONS) or any(
-            not isinstance(section, str) or section not in EXPORT_SECTIONS for section in raw_sections
-        ):
-            raise ValueError("Stored export sections are invalid")
-        if raw_sections != sorted(set(raw_sections)):
-            raise ValueError("Stored export sections are not canonical")
-        sections = set(raw_sections)
-    filename = await export_filename_for(context.db, context.user_id)
-    content = await write_export(context.db, scope=scope, sections=sections, filename=filename)
-    if trigger == "scheduled":
-        await set_setting(context.db, "export_last_run", datetime.now(UTC).isoformat())
-    return {"bytes": len(content.encode("utf-8")), "filename": filename, "scope": scope}
 
 
 async def handle_oura_sync(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
