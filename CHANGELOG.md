@@ -90,6 +90,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Saving the daily form without rating energy no longer stores 5. An unrated
+  day stays empty, and a rating already entered is kept.
+- Auth closes the user database when loading feature flags fails, instead of
+  leaking the connection.
+- Hosted MCP tool calls dial the configured bind host and port. Wildcard and
+  IPv6 binds no longer send every tool to 127.0.0.1:8123.
 - Long goal titles wrap on phones instead of being cut off mid-word; they stay
   editable in place, and Enter still saves.
 - Leaving an unfinished MFA login for `/login` could loop between `/login` and

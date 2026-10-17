@@ -27,12 +27,17 @@
             <small class="text-muted"><span id="done-count">{{ done_count }}/{{ done_total }}</span> complete today</small>
         </div>
 
-        {% set energy_val = log.energy if log and log.energy else 5 %}
+        {# The slider needs a position, but an untouched day has no rating.
+           The named field stays blank until the slider actually moves, so
+           saving notes does not store the midpoint as energy 5. #}
+        {% set energy_rated = log.energy if log and log.energy else none %}
+        {% set slider_val = energy_rated if energy_rated else 5 %}
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
-            <span class="energy-display" id="energy-val">{{ energy_val }}</span>
-            <input type="range" name="energy" id="energy-slider" min="1" max="10" value="{{ energy_val }}" aria-label="Energy, 1 to 10"
-                   style="flex: 1; --pct: {{ ((energy_val - 1) / 9 * 100) | round }}%;"
-                   oninput="this.style.setProperty('--pct', ((this.value - 1) / 9 * 100) + '%'); document.getElementById('energy-val').textContent = this.value;">
+            <span class="energy-display" id="energy-val">{% if energy_rated %}{{ energy_rated }}{% else %}—{% endif %}</span>
+            <input type="hidden" name="energy" id="energy-field" value="{% if energy_rated %}{{ energy_rated }}{% endif %}">
+            <input type="range" id="energy-slider" min="1" max="10" value="{{ slider_val }}" aria-label="Energy, 1 to 10"
+                   style="flex: 1; --pct: {{ ((slider_val - 1) / 9 * 100) | round }}%;"
+                   oninput="this.style.setProperty('--pct', ((this.value - 1) / 9 * 100) + '%'); document.getElementById('energy-val').textContent = this.value; document.getElementById('energy-field').value = this.value;">
             <span class="text-muted">/10</span>
         </div>
         {# A bare 1-10 scale says nothing about what 4 means. #}
