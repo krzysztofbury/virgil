@@ -246,28 +246,28 @@ class AuthMiddleware:
             await _stale_session_response(scope)(scope, receive, send)
             return
 
-        # Open per-user database connection.
+        # Open per-user database connection. Opening and every step after it
+        # stay in this try so a failure (flag loading included) still closes it.
         from app.user_db import close_user_db, open_user_db
 
-        user_db = await open_user_db(user["db_filename"])
-
-        # Store user + DB + feature flags in request state.
-        # Flags MUST be loaded here (not in a separate outer middleware): only here
-        # is user_db guaranteed open, and this dict overwrites scope["state"] wholesale.
-        from app.db import get_feature_flags
-
-        scope["state"] = {
-            **scope.get("state", {}),
-            "username": user["email"],
-            "user": user,
-            "user_db": user_db,
-            "features": await get_feature_flags(user_db),
-        }
-
+        user_db = None
         try:
-            # Check onboarding for this user.
-            from app.db import get_setting
+            user_db = await open_user_db(user["db_filename"])
 
+            # Store user + DB + feature flags in request state.
+            # Flags MUST be loaded here (not in a separate outer middleware): only here
+            # is user_db guaranteed open, and this dict overwrites scope["state"] wholesale.
+            from app.db import get_feature_flags, get_setting
+
+            scope["state"] = {
+                **scope.get("state", {}),
+                "username": user["email"],
+                "user": user,
+                "user_db": user_db,
+                "features": await get_feature_flags(user_db),
+            }
+
+            # Check onboarding for this user.
             done = await get_setting(user_db, "onboarding_completed", "0")
             if done != "1" and not path.startswith(("/onboarding", "/static/", "/api/", "/logout", "/service-worker")):
                 response = RedirectResponse("/onboarding", status_code=303)
