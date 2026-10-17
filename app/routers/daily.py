@@ -12,7 +12,7 @@ from app.services.daily_log import DailyLogError, cycle_status, day_progress, up
 from app.services.llm import llm_available
 from app.services.measurements import MeasurementError, upsert_measurements
 from app.user_db import get_user_db_from_request
-from app.validation import truncate, valid_date
+from app.validation import OptionalFormInt, truncate, valid_date
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -184,7 +184,7 @@ async def cycle_daily_status(request: Request, day: str, field: str = Form(...))
 async def save_daily(
     request: Request,
     date: str = Form(...),
-    energy: int = Form(0),
+    energy: OptionalFormInt = None,
     morning_routine: str = Form("pending"),
     evening_routine: str = Form("pending"),
     water: str = Form("pending"),
@@ -200,7 +200,9 @@ async def save_daily(
 ):
     if not valid_date(date):
         return error_redirect(request, "/daily", "Invalid daily-log date.")
-    energy = max(1, min(10, energy))
+    # Blank means the day was not rated. A number is still clamped into 1-10.
+    if energy is not None:
+        energy = max(1, min(10, energy))
     andy_body_desc = truncate(andy_body_desc, 500)
     andy_spirit_desc = truncate(andy_spirit_desc, 500)
     andy_account_desc = truncate(andy_account_desc, 500)

@@ -189,6 +189,41 @@ def test_totp_secret_encrypted_at_rest(auth_client):
         central.close()
 
 
+def test_user_db_closes_when_feature_flags_fail(auth_client, monkeypatch):
+    """Flag loading used to run before the try/finally that closes the user
+    database, so a failure leaked the connection and its thread."""
+    from app.user_db import close_user_db as real_close
+    from app.user_db import open_user_db as real_open
+
+    opened: list = []
+    closed: list = []
+
+    async def tracking_open(filename):
+        db = await real_open(filename)
+        opened.append(db)
+        return db
+
+    async def tracking_close(db):
+        closed.append(db)
+        await real_close(db)
+
+    async def broken_flags(_db):
+        raise RuntimeError("flags unavailable")
+
+    monkeypatch.setattr("app.user_db.open_user_db", tracking_open)
+    monkeypatch.setattr("app.user_db.close_user_db", tracking_close)
+    monkeypatch.setattr("app.db.get_feature_flags", broken_flags)
+    try:
+        with pytest.raises(RuntimeError, match="flags unavailable"):
+            auth_client.get("/daily")
+        assert opened, "the request must open the user database before reading flags"
+        assert closed == opened, "the user database must be closed when flag loading raises"
+    finally:
+        for db in opened:
+            if db not in closed:
+                auth_client.portal.call(real_close, db)
+
+
 def test_an_unfinished_mfa_login_can_start_over_instead_of_looping(client, monkeypatch):
     """Leaving /mfa/verify for /login must show the login form. /login used to treat the
     pending session as signed in and send it to /, which sent it back to /login."""

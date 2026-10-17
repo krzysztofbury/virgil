@@ -1,5 +1,6 @@
 """Hosted MCP endpoint (/mcp): the API-key gate and a real tool call over Streamable HTTP."""
 
+import importlib
 from datetime import date, timedelta
 
 import pytest
@@ -46,6 +47,32 @@ def test_mcp_tool_write_lands_in_api_user_db(auth_client, client, monkeypatch):
 
     stored = auth_client.get("/api/measurements", headers=KEY).json()["measurements"]
     assert [row["weight"] for row in stored if row["date"] == day] == [81.5]
+
+
+@pytest.mark.parametrize(
+    ("host", "port", "url"),
+    [
+        ("0.0.0.0", 8123, "http://127.0.0.1:8123"),
+        ("::", 9443, "http://[::1]:9443"),
+        ("::1", 9000, "http://[::1]:9000"),
+        ("192.0.2.8", 9000, "http://192.0.2.8:9000"),
+    ],
+)
+def test_hosted_mcp_tool_client_follows_bind_host_and_port(monkeypatch, host, port, url):
+    """Tool calls used to dial 127.0.0.1:8123 no matter how the app was bound."""
+    import app.mcp_endpoint as endpoint
+
+    previous = virgil_mcp._client
+    monkeypatch.setattr("app.config.HOST", host)
+    monkeypatch.setattr("app.config.PORT", port)
+    try:
+        importlib.reload(endpoint)
+        assert str(virgil_mcp._client.base_url).rstrip("/") == url
+    finally:
+        current = virgil_mcp._client
+        virgil_mcp.use_client(previous)
+        if current is not previous:
+            current.close()
 
 
 def test_freedom_tools_write_through_the_new_paths_and_the_old_names_still_work(auth_client, client, monkeypatch):
