@@ -252,10 +252,6 @@ function showFeedback(message, kind) {
     renderFeedback(status, message, kind === 'pending' ? 'feedback-pending' : 'feedback-success', false);
 }
 
-function showToast(message, isError) {
-    showFeedback(message, isError ? 'error' : 'success');
-}
-
 function flashSaved() {
     showFeedback('Saved', 'success');
 }

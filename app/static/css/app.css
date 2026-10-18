@@ -1,13 +1,3 @@
-/* ═══════════════════════════════════════════
-   Virgil Design System v2.0 (Modernized)
-   Custom CSS — utilizing Glassmorphism & Neomorphism elements
-   ═══════════════════════════════════════════ */
-
-/* ── Asset Usage ── */
-/*
-   - Logo: /static/icons/logo.png (Used in Nav)
-*/
-
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; scroll-behavior: smooth; }
@@ -25,7 +15,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --bg-primary: #06080d;
   --bg-secondary: #0b0e16;
   --bg-card: rgba(16, 20, 32, 0.65);
-  --bg-card-hover: rgba(24, 30, 46, 0.8);
   --bg-input: rgba(255, 255, 255, 0.03);
   --bg-surface: rgba(255, 255, 255, 0.05);
 
@@ -45,7 +34,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --yellow: #e5a940;
   --red: #e5534b;
   --blue: #539bf5;
-  --purple: #a07ce4;
   --orange: #d18a36;
   --job-info: var(--blue);
   --job-success: var(--green);
@@ -56,7 +44,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --border: rgba(255, 255, 255, 0.08);
   --border-light: rgba(255, 255, 255, 0.12);
   --glass-border: 1px solid rgba(255, 255, 255, 0.05);
-  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
   --backdrop-blur: blur(16px);
 
   /* Radius */
@@ -90,7 +77,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --bg-datepicker: rgba(16, 20, 32, 0.95);
   --chart-grid: rgba(255,255,255,0.06);
   --chart-text: #8b95a8;
-  --chart-text-muted: #4a5364;
   --bg-gradient-accent-1: rgba(44, 182, 125, 0.06);
   --bg-gradient-accent-2: rgba(160, 124, 228, 0.05);
 
@@ -108,7 +94,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --bg-primary: #f5f7fa;
   --bg-secondary: #ffffff;
   --bg-card: rgba(255, 255, 255, 0.92);
-  --bg-card-hover: rgba(245, 247, 250, 0.95);
   --bg-input: rgba(0, 0, 0, 0.03);
   --bg-surface: rgba(0, 0, 0, 0.04);
 
@@ -127,7 +112,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --border: rgba(0, 0, 0, 0.08);
   --border-light: rgba(0, 0, 0, 0.14);
   --glass-border: 1px solid rgba(0, 0, 0, 0.06);
-  --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
 
   --bg-nav: rgba(255, 255, 255, 0.88);
   --bg-nav-scrolled: rgba(255, 255, 255, 0.96);
@@ -144,7 +128,6 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --bg-datepicker: rgba(255, 255, 255, 0.98);
   --chart-grid: rgba(0, 0, 0, 0.08);
   --chart-text: #3d4b5e;
-  --chart-text-muted: #8b95a8;
   --bg-gradient-accent-1: rgba(44, 182, 125, 0.04);
   --bg-gradient-accent-2: rgba(160, 124, 228, 0.03);
 
@@ -416,7 +399,7 @@ main.container {
 }
 
 /* Only lift cards that are explicitly interactive (links, clickable) */
-a.card:hover, .card-interactive:hover {
+a.card:hover {
   transform: translateY(-2px);
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
   border-color: var(--border-light);
@@ -459,17 +442,6 @@ a.card:hover, .card-interactive:hover {
 .stat-card:hover {
   background: var(--overlay-2);
   border-color: var(--accent);
-}
-.stat-icon {
-  margin-bottom: 0.5rem;
-  padding: 8px;
-  background: var(--overlay-3);
-  border-radius: 50%;
-  width: 40px;
-  height: 40px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .stat-value {
   font-size: 1.75rem;
@@ -586,27 +558,6 @@ label {
   border-radius: var(--radius-full);
   transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
   box-shadow: 0 0 8px var(--accent-glow);
-}
-
-/* ── Hero / Greeting ── */
-.greeting {
-  position: relative;
-  padding: 2rem 0;
-  margin-bottom: 2rem;
-  border-bottom: 1px solid var(--border);
-}
-.greeting::before {
-  content: '';
-  position: absolute;
-  top: -50px; right: -50px;
-  width: 300px; height: 300px;
-  background: radial-gradient(circle, rgba(44,182,125,0.08) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: -1;
-}
-.greeting h1 {
-  color: var(--text-primary);
-  margin-bottom: 0.25rem;
 }
 
 /* ── Lists & A.N.D.Y. ── */
@@ -861,12 +812,6 @@ form[aria-busy="true"] { cursor: progress; }
 .page-header { margin-bottom: 1.5rem; }
 .page-header h1 { margin-bottom: 0.25rem; }
 .page-header .page-subtitle {
-  color: var(--text-secondary);
-  font-size: 0.875rem;
-}
-
-/* ── Greeting Date ── */
-.greeting-date {
   color: var(--text-secondary);
   font-size: 0.875rem;
 }
@@ -1303,7 +1248,6 @@ details > :not(summary) { margin-top: 1rem; }
   .today-routine { flex-direction: column; gap: 0.35rem; font-size: 0.8125rem; }
 }
 
-/* ── A.N.D.Y. AI Loading ── */
 .andy-label {
   font-weight: 600;
   font-size: 0.875rem;
@@ -1311,28 +1255,7 @@ details > :not(summary) { margin-top: 1rem; }
   color: var(--text-secondary);
 }
 .andy-card { position: relative; }
-.andy-card.htmx-request::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: var(--bg-overlay);
-  border-radius: var(--radius-md);
-  z-index: 10;
-  pointer-events: all;
-}
-.andy-card.htmx-request .andy-item input,
-.andy-card.htmx-request .andy-item button,
-.andy-card.htmx-request .andy-item .toggle-group {
-  pointer-events: none;
-  opacity: 0.4;
-}
 .andy-btn-idle { display: inline-flex; align-items: center; gap: 0.35rem; }
-.andy-card.htmx-request .andy-gen-btn {
-  pointer-events: none;
-  opacity: 0.8;
-  position: relative;
-  z-index: 11;
-}
 
 /* ── Spinner ── */
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -2367,22 +2290,6 @@ input.flatpickr-input:hover {
 }
 
 /* ── Extra Utilities ── */
-.text-yellow { color: var(--yellow); }
-.text-blue { color: var(--blue); }
-.text-purple { color: var(--purple); }
-.text-center { text-align: center; }
-.text-right { text-align: right; }
-.mb-0 { margin-bottom: 0; }
-.mb-1 { margin-bottom: 0.5rem; }
-.mb-2 { margin-bottom: 1rem; }
-.mb-3 { margin-bottom: 1.5rem; }
-.mt-1 { margin-top: 0.5rem; }
-.mt-2 { margin-top: 1rem; }
-.mt-3 { margin-top: 1.5rem; }
-.flex { display: flex; }
-.flex-center { display: flex; align-items: center; }
-.gap-1 { gap: 0.5rem; }
-.gap-2 { gap: 1rem; }
 .overflow-x { overflow-x: auto; }
 
 /* Two views of the same data, one per width. Switched by the stylesheet alone:

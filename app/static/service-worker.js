@@ -10,8 +10,6 @@ var PRECACHE_URLS = [
     '/static/icons/icon-512x512.png',
     '/static/icons/favicon-32x32.png',
     '/static/icons/favicon-64x64.png',
-    '/static/icons/screenshot-wide.png',
-    '/static/icons/screenshot-narrow.png',
     '/static/manifest.json',
     '/offline'
 ];
