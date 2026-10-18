@@ -33,7 +33,8 @@ Virgil is a **multi-user, self-hosted** application. The threat model assumes:
 
 ### Key Security Features
 
-- **Authentication**: Email + password with bcrypt hashing (SHA-256 pre-hash), optional TOTP MFA
+- **Authentication**: Email + password with bcrypt hashing (SHA-256 pre-hash), optional TOTP MFA. The setup QR is built server-side for the signed-in user; the TOTP secret is never placed in a URL, and responses that carry it are not cached
+- **API key binding**: `VIRGIL_API_KEY` serves only `VIRGIL_API_USER_EMAIL`. An empty email, or a missing or deactivated account, returns 503. The key does not follow another admin
 - **Session management**: Signed cookie sessions via `itsdangerous` (7-day expiry, HttpOnly, SameSite=Lax so OAuth callbacks work; all state changes are CSRF-protected)
 - **CSRF protection**: Double-submit cookie on all POST forms (urlencoded and multipart)
 - **Rate limiting**: Per-IP sliding window (120/min general, 10/min auth)

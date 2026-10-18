@@ -1,15 +1,18 @@
 """REST API for machine-to-machine access (OpenClaw, AI agents, scripts).
 
 Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
-The key maps to a single user's database: VIRGIL_API_USER_EMAIL if set,
-otherwise the first active admin account. API is disabled when VIRGIL_API_KEY is empty.
-Writes cover canonical goals/reps, experiment logging, exercise-library CRUD,
+The key maps to exactly one account, named by VIRGIL_API_USER_EMAIL. There is
+no fallback: an empty email, or a missing or deactivated account, returns 503
+instead of serving someone else. API is disabled when VIRGIL_API_KEY is empty.
+`/mcp` uses this same mapping. Writes cover canonical goals/reps, experiment logging,
+exercise-library CRUD,
 the daily log (habits and A.N.D.Y.), Freedom (/api/freedom: habits, their days, bricks and
 settings; the /api/feniks paths are deprecated aliases), training
 sessions and body measurements.
 """
 
 import hmac
+import logging
 from datetime import date, timedelta
 from typing import Annotated
 from uuid import uuid4
@@ -59,6 +62,7 @@ from app.services.training_log import (
 from app.user_db import close_user_db, open_user_db
 from app.validation import clamp_metric_value, truncate, valid_date
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api", tags=["api"])
 
 HABIT_FIELDS = (
@@ -80,20 +84,35 @@ def require_api_key(provided: str) -> None:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
 
+def warn_if_api_user_unconfigured() -> None:
+    """Log at startup when a key is set without the account it must serve.
+
+    The key used to follow the earliest active admin, so disabling that account
+    or adding another admin moved it onto someone else's data. Empty email now
+    fails closed on each request; this line is how an existing deploy notices.
+    """
+    if API_KEY and not API_USER_EMAIL:
+        logger.error(
+            "VIRGIL_API_KEY is set but VIRGIL_API_USER_EMAIL is empty. "
+            "API and /mcp requests will return 503 until it names the account the key should serve. "
+            "The key no longer falls back to the first active admin."
+        )
+
+
 async def api_db(request: Request):
-    """Authenticate via X-API-Key and yield the mapped user's DB connection."""
+    """Authenticate via X-API-Key and yield the one configured user's DB connection."""
     require_api_key(request.headers.get("x-api-key", ""))
+    if not API_USER_EMAIL:
+        raise HTTPException(
+            status_code=503,
+            detail="API user not configured (set VIRGIL_API_USER_EMAIL to the account this key should serve)",
+        )
 
     central = await get_central_db()
-    if API_USER_EMAIL:
-        rows = await central.execute_fetchall(
-            "SELECT db_filename FROM users WHERE email = ? AND is_active = 1",
-            (API_USER_EMAIL.lower(),),
-        )
-    else:
-        rows = await central.execute_fetchall(
-            "SELECT db_filename FROM users WHERE role = 'admin' AND is_active = 1 ORDER BY created_at LIMIT 1"
-        )
+    rows = await central.execute_fetchall(
+        "SELECT db_filename FROM users WHERE email = ? AND is_active = 1",
+        (API_USER_EMAIL.lower(),),
+    )
     if not rows:
         raise HTTPException(status_code=503, detail="API user not found")
 

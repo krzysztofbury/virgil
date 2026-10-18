@@ -114,6 +114,10 @@ async def _start_application(app: FastAPI):
     # Version banner — proves WHICH code is running in the deploy logs.
     _log = logging.getLogger("uvicorn")
     _version = get_app_version()
+    # Before any request: a key with no pinned account must not boot quietly.
+    from app.routers.api import warn_if_api_user_unconfigured
+
+    warn_if_api_user_unconfigured()
 
     app.state.central_migration_failure = False
     app.state.migration_failures = []
