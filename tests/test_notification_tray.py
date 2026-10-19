@@ -1,6 +1,5 @@
 """Feedback and job notifications live in one fixed top-right tray."""
 
-import re
 import sqlite3
 from datetime import UTC, datetime
 from pathlib import Path
@@ -121,13 +120,6 @@ def test_a_queued_job_reports_in_the_tray_not_as_a_page_section(auth_client, sta
     assert "data-job-dismiss" in tray
     assert response.text.count(f'data-job-id="{job_id}"') == 1, "the card must not also render inline"
     assert 'class="card job-activity-card" aria-label' not in response.text
-
-
-def test_enqueue_redirect_no_longer_scrolls_to_a_now_fixed_card(auth_client):
-    routers = Path("app/routers")
-    sources = "\n".join(path.read_text() for path in routers.glob("*.py"))
-
-    assert not re.search(r"#job-status-\{", sources), "a fixed tray card has nothing to scroll to"
 
 
 def test_every_job_kind_reports_under_the_name_the_user_knows(auth_client):

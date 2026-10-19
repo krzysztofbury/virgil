@@ -4,7 +4,6 @@ import asyncio
 import re
 import sqlite3
 from datetime import date
-from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import aiosqlite
@@ -15,7 +14,7 @@ from app.services.job_handlers import handle_morning_briefing
 from app.services.job_worker import AmbiguousJobError, JobContext
 from app.services.llm import LLMCallAmbiguousError
 from app.services.llm_jobs import enqueue_paid_llm_job, llm_result_published, paid_llm_job_key
-from tests.conftest import csrf_token, user_db_path
+from tests.conftest import csrf_token, record_provider_calls, user_db_path
 
 _KIND = "morning_briefing"
 _TODAY = date.today().isoformat()
@@ -69,21 +68,13 @@ def _rows(sql: str, params: tuple = ()) -> list[tuple]:
         db.close()
 
 
-def test_no_request_path_still_calls_the_provider_for_a_briefing():
-    """The route may only persist intent; the charge belongs to the worker."""
-    source = Path("app/routers/dashboard.py").read_text()
-    assert "generate_briefing_text" not in source
-    assert "call_llm" not in source
-    scheduler = Path("app/services/scheduler.py").read_text()
-    assert "generate_briefing" not in scheduler, "a 60-second tick must not wait on a provider"
-
-
 def test_generating_queues_one_job_and_a_double_submit_reuses_it(auth_client, monkeypatch):
     _enable_briefing()
     monkeypatch.setattr("app.services.llm.llm_available", _always_available)
     page = auth_client.get("/")
     nonce = _nonce(page.text)
     token = csrf_token(auth_client, "/")
+    provider = record_provider_calls(monkeypatch)
 
     responses = [
         auth_client.post(
@@ -103,6 +94,7 @@ def test_generating_queues_one_job_and_a_double_submit_reuses_it(auth_client, mo
     assert len(job_ids) == 1
     kind, attempts, policy = _rows("SELECT kind, max_attempts, retry_policy FROM jobs")[0]
     assert (kind, attempts, policy) == (_KIND, 1, "manual"), "a paid job never retries itself"
+    assert provider == [], "the request only queues; the worker buys the briefing"
 
 
 def test_a_missing_provider_is_refused_before_a_job_exists(auth_client):

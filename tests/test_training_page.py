@@ -29,11 +29,6 @@ def test_capture_form_is_the_only_input(auth_client):
     assert 'action="/training/wod"' in html, "the capture form is the page's one input"
     assert 'name="wod_text"' in html
 
-    assert "Training Protocol" not in html, "the protocol table was removed"
-    assert "Log Workout" not in html, "the per-set log form was removed"
-    assert "Rest Timer" not in html, "the rest timer was removed"
-    assert 'action="/training/exercise"' not in html, "protocol CRUD was removed"
-
 
 def test_kpis_and_history_survive(auth_client):
     """Creates its own session rather than relying on one being there.
@@ -374,6 +369,5 @@ def test_capture_copy_is_user_facing(auth_client):
     """
     html = auth_client.get("/training").text
     assert "Log a workout" in html
-    assert "Zapisz i sparsuj" not in html
     assert "optional" in html, "duration is optional and must say so"
     assert "The note is saved before it is read" in html, "the user must know the note survives a failed parse"

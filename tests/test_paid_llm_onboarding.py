@@ -3,7 +3,6 @@
 import asyncio
 import json
 import sqlite3
-from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import aiosqlite
@@ -14,7 +13,7 @@ from app.services.job_handlers import handle_medical_import, handle_onboarding_e
 from app.services.job_worker import AmbiguousJobError, JobContext, VisibleJobError
 from app.services.llm import LLMCallAmbiguousError
 from app.services.llm_jobs import enqueue_paid_llm_job, llm_result_published, paid_llm_job_key
-from tests.conftest import csrf_token, user_db_path
+from tests.conftest import csrf_token, record_provider_calls, user_db_path
 
 _ENRICHMENT = "onboarding_enrichment"
 _MEDICAL = "medical_import"
@@ -78,11 +77,27 @@ def _seed_profile(**fields) -> None:
         db.close()
 
 
-def test_confirming_onboarding_never_waits_on_a_provider():
-    source = Path("app/routers/onboarding.py").read_text()
-    assert "run_enrichment" not in source
-    assert "litellm" not in source, "the medical calls moved to app/services/medical_import.py"
-    assert "acompletion" not in source
+def _execute(sql: str) -> None:
+    with sqlite3.connect(user_db_path()) as db:
+        db.execute(sql)
+
+
+def test_confirming_onboarding_never_waits_on_a_provider(auth_client, monkeypatch):
+    """Six sequential provider calls used to run inside this request."""
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "test-key")
+    provider = record_provider_calls(monkeypatch)
+    _execute("DELETE FROM jobs WHERE kind = 'onboarding_enrichment'")
+    _execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('onboarding_completed', '0')")
+    try:
+        token = csrf_token(auth_client, "/onboarding?step=6")
+        done = auth_client.post("/onboarding/confirm", data={"_csrf_token": token}, follow_redirects=False)
+
+        assert done.status_code == 303
+        assert _rows("SELECT status FROM jobs WHERE kind = 'onboarding_enrichment'") == [{"status": "queued"}]
+        assert provider == []
+    finally:
+        _execute("DELETE FROM jobs WHERE kind = 'onboarding_enrichment'")
+        _execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('onboarding_completed', '1')")
 
 
 def _step_of(system_prompt: str) -> str:

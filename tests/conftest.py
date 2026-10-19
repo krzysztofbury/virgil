@@ -114,6 +114,24 @@ def drain_jobs(worker_id: str = "test-worker") -> list:
     return asyncio.run(scenario())
 
 
+def record_provider_calls(monkeypatch) -> list:
+    """Every paid provider call goes through litellm.acompletion; record them.
+
+    Patching the library itself, not a name a module imported, so an import
+    alias cannot route a request around the check.
+    """
+    import litellm
+
+    calls = []
+
+    async def recorder(*args, **kwargs):
+        calls.append(kwargs.get("model", ""))
+        raise AssertionError("a request path called the provider")
+
+    monkeypatch.setattr(litellm, "acompletion", recorder)
+    return calls
+
+
 def stat_value_for_label(html: str, label: str) -> float:
     """Numeric value of a "kg" KPI or grouped personal best.
 
