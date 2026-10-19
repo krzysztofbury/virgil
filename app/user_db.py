@@ -1,7 +1,9 @@
 """Per-user database management — create, connect, migrate."""
 
 import os
+import sqlite3
 from pathlib import Path
+from urllib.parse import quote
 
 import aiosqlite
 from starlette.requests import Request
@@ -30,12 +32,25 @@ async def create_user_db(db_filename: str) -> None:
     await db.close()
 
 
+class UserDatabaseMissing(FileNotFoundError):
+    """The account's database file is gone: deleted, or replaced by a factory reset."""
+
+
 async def open_user_db(db_filename: str) -> aiosqlite.Connection:
-    """Open a connection to an existing per-user database."""
+    """Open a connection to an existing per-user database.
+
+    Read-write, never create: a request that loaded the account before a reset or
+    delete would otherwise get a new, empty, unmigrated file nobody cleans up.
+    """
     if not db_filename or ".." in db_filename or "/" in db_filename:
         raise ValueError(f"Invalid db_filename: {db_filename}")
-    db_path = str(Path(USERS_DB_DIR) / db_filename)
-    db = await aiosqlite.connect(db_path)
+    db_path = Path(USERS_DB_DIR) / db_filename
+    try:
+        db = await aiosqlite.connect(f"file:{quote(str(db_path))}?mode=rw", uri=True)
+    except sqlite3.OperationalError as error:
+        if not db_path.exists():
+            raise UserDatabaseMissing(db_filename) from error
+        raise
     db.row_factory = aiosqlite.Row
     await db.execute("PRAGMA journal_mode=WAL")
     await db.execute("PRAGMA foreign_keys=ON")

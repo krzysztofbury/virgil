@@ -405,7 +405,8 @@ async def training_page(
     training_months = _training_calendar(selected_year, summaries_by_date, today)
     training_days = [day for month in training_months for day in month["days"] if day["session_count"]]
     open_day = None
-    if day and valid_date(day) and date.fromisoformat(day).year == selected_year and day in summaries_by_date:
+    day = valid_date(day) if day else None
+    if day and date.fromisoformat(day).year == selected_year and day in summaries_by_date:
         open_day = day
     if before_id is not None and after_id is not None:
         raise HTTPException(status_code=422, detail="Use either before_id or after_id, not both")
@@ -601,7 +602,8 @@ async def capture_wod(request: Request):
     form = await request.form()
 
     session_date = form.get("date", date.today().isoformat())
-    if not valid_date(session_date):
+    session_date = valid_date(session_date)
+    if not session_date:
         return error_redirect(request, "/training", "That training date is not valid.")
 
     wod_text = truncate(form.get("wod_text", "").strip(), 4000)

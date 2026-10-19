@@ -137,6 +137,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instead of wrapping each name word by word.
 - MCP tools now return the API's error detail to the client. The SDK hid the
   text of every failure, so a refused write read only "Error executing tool".
+- The daily, measurement, life-score, bloodwork, training and experiment forms
+  store dates as `YYYY-MM-DD`. They accepted any spelling Python parses
+  (`20261017`, `2026-W42-6`) and stored it as typed, so those rows were missing
+  from date ranges and could duplicate a day.
+- A request that read an account just before a factory reset or a delete no
+  longer creates an empty, unmigrated database under the old file name. User
+  databases open read-write without create: a request that raced a reset starts
+  over at `/`, and an account whose file is gone answers 503 and is logged.
+  Startup skips it instead of recreating it, and `/healthz` stays green.
+- Two concurrent writes to the same measurements day, habit settings or brick
+  no longer drop one of the changes: each read-merge-write runs in one
+  immediate transaction.
+- Deleting an account or a factory reset deletes that database's backups and
+  pre-migration snapshots too. A reset moves the account to a new file name, so
+  nothing ever pruned them. Settings and the admin page say so.
+- One failed Oura token refresh no longer disconnects the integration for good.
+  Only Oura refusing the refresh token or the client (`invalid_grant`,
+  `invalid_client`) asks for a reconnect; a timeout, 5xx or 429 keeps it
+  connected and the next sync retries. Refreshes run one at a time per account,
+  so the scheduler and a webhook job cannot spend the same single-use refresh
+  token.
+- Freedom habits named in non-Latin script no longer collapse into one. Slugs
+  transliterate accented Latin letters (`Słodycze` is `slodycze`), and a
+  different name that folds to a slug in use is numbered (`habit-2`). The same
+  name in another case or punctuation still resumes the existing habit.
 
 ## [0.7.0] - 2026-10-11
 
