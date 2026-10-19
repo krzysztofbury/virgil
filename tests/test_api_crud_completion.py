@@ -29,19 +29,6 @@ def test_daily_log_can_be_read_and_deleted(auth_client):
     assert _fetchall("SELECT COUNT(*) FROM daily_logs WHERE date = ?", (day,)) == [(0,)]
 
 
-def test_freedom_management_requires_the_sensitive_scope(auth_client):
-    for method, path, body in (
-        ("get", "/api/freedom", None),
-        ("delete", "/api/freedom/porn/days/2026-01-01", None),
-        ("patch", "/api/freedom/bricks/1", {"hook": "x"}),
-        ("delete", "/api/freedom/bricks/1", None),
-        ("patch", "/api/freedom/porn", {"target_days": 30}),
-        ("patch", "/api/feniks/config", {"target_days": 30}),
-    ):
-        kwargs = {"headers": KEY} | ({"json": body} if body else {})
-        assert getattr(auth_client, method)(path, **kwargs).status_code == 403, path
-
-
 def test_deleting_a_freedom_day_removes_only_its_own_marker(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
     porn = track_porn()

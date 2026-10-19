@@ -116,6 +116,8 @@ def test_truncation_mid_key_falls_back_to_the_last_complete_pair():
         ('{"a": 1}', {"a": 1}),
         ('```json\n{"a": 1}\n```', {"a": 1}),
         ('{"a": 1}\n}\n', {"a": 1}),
+        # The model wraps the object in prose.
+        ('Sure, here you go:\n{"a": 1, "b": 2}\nHope that helps!', {"a": 1, "b": 2}),
     ],
 )
 def test_existing_shapes_still_parse(text, expected):

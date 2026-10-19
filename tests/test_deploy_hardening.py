@@ -3,8 +3,6 @@
 import asyncio
 import sqlite3
 
-from app.services.llm import parse_andy_response
-
 
 def test_count_pending_migrations(tmp_path):
     async def scenario():
@@ -106,19 +104,3 @@ def test_central_backup_age_guard(tmp_path, monkeypatch):
     # Fresh copy exists → the next call must be a no-op (once per 24h).
     second = asyncio.run(maybe_backup_central())
     assert second is None
-
-
-def test_truncated_andy_json_repaired():
-    """Thinking models truncate mid-object — salvage instead of failing."""
-    truncated = '{\n "andy_body_desc": "Jump rope",\n "andy_relations_desc": "Book theater for Monika"'
-    obj = parse_andy_response(truncated)
-    assert obj["andy_relations_desc"] == "Book theater for Monika"
-
-    truncated_mid_string = '{"andy_body_desc": "Jump rope", "andy_spirit_desc": "Stoic jour'
-    obj = parse_andy_response(truncated_mid_string)
-    assert obj["andy_body_desc"] == "Jump rope"
-
-
-def test_complete_andy_json_still_parses():
-    obj = parse_andy_response('prose before {"a": 1} prose after')
-    assert obj == {"a": 1}

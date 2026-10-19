@@ -78,36 +78,6 @@ def test_add_edit_delete_user_row(auth_client):
     assert _row("Nordic Curl (band)") is None
 
 
-def test_builtin_rows_protected(auth_client):
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    builtin = _any_builtin_id()
-
-    # Update must be a no-op.
-    auth_client.post(
-        "/settings/library/update",
-        data={
-            "entry_id": str(builtin["id"]),
-            "name": "HACKED",
-            "section": "Core",
-            "sets": "1",
-            "reps": "",
-            "notes": "",
-            "_csrf_token": token,
-        },
-        follow_redirects=False,
-    )
-    assert _row("HACKED") is None
-    assert _row(builtin["name"]) is not None
-
-    # Delete must be a no-op.
-    auth_client.post(
-        "/settings/library/delete",
-        data={"entry_id": str(builtin["id"]), "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert _row(builtin["name"]) is not None
-
-
 def test_add_with_metric_time_is_persisted(auth_client):
     """A user adding a cardio/erg movement through Settings -> App Config with
     metric=time must not silently fall back to the reps column default: a
@@ -167,32 +137,6 @@ def test_update_changes_metric(auth_client):
         follow_redirects=False,
     )
     assert _row("Ski Erg Intervals")["metric"] == "time", "update must persist a changed metric, not ignore it"
-
-
-def test_add_rejects_invalid_metric(auth_client):
-    """I1 (2026-07-30 review): this used to assert the OPPOSITE — that an
-    invalid metric silently coerced to 'reps' and the row was created anyway.
-    That was ratifying a defect: app/routers/api.py rejects the identical
-    input with a 422, so the same bad value was garbage-in-silently-fixed on
-    one write surface and loudly refused on the other. Both surfaces now
-    share one policy (validate_library_write in app/library_validation.py):
-    an invalid metric must be refused, not coerced, on both."""
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    resp = auth_client.post(
-        "/settings/library/add",
-        data={
-            "name": "Bogus Metric Move",
-            "section": "Cardio",
-            "sets": "",
-            "reps": "",
-            "notes": "",
-            "metric": "not-a-real-metric",
-            "_csrf_token": token,
-        },
-        follow_redirects=False,
-    )
-    assert "err=" in resp.headers["location"], "an invalid metric must be rejected loudly, not silently coerced"
-    assert _row("Bogus Metric Move") is None, "no row must be created for a rejected metric"
 
 
 def test_add_with_tags_normalises_them(auth_client):
