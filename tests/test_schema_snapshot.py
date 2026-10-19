@@ -5,10 +5,14 @@ change what a fresh database looks like. The snapshot makes that a deliberate
 diff in review. To accept a change, regenerate the files:
 
     VIRGIL_UPDATE_SCHEMA_SNAPSHOT=1 uv run --locked --extra dev pytest -q tests/test_schema_snapshot.py
+
+The stored CREATE text of a renamed table is rewritten by SQLite itself, so the
+snapshot belongs to the uv-managed Python (and its SQLite) that CI uses too.
 """
 
 import asyncio
 import os
+import sqlite3
 from pathlib import Path
 
 import aiosqlite
@@ -39,10 +43,12 @@ async def _dump(db: aiosqlite.Connection) -> str:
         "SELECT type, name, sql FROM sqlite_master WHERE name NOT LIKE 'sqlite_%' AND sql IS NOT NULL "
         "ORDER BY type, name"
     )
-    return "".join(f"-- {row['type']} {row['name']}\n{row['sql']};\n\n" for row in rows)
+    return "\n".join(f"-- {row['type']} {row['name']}\n{row['sql']};\n" for row in rows)
 
 
-@pytest.mark.parametrize(("snapshot", "build"), [("user_schema.sql", _user_database), ("central_schema.sql", _central_database)])
+@pytest.mark.parametrize(
+    ("snapshot", "build"), [("user_schema.sql", _user_database), ("central_schema.sql", _central_database)]
+)
 def test_the_schema_at_head_matches_the_snapshot(tmp_path, monkeypatch, snapshot, build):
     import app.user_db as user_db
 
@@ -60,4 +66,6 @@ def test_the_schema_at_head_matches_the_snapshot(tmp_path, monkeypatch, snapshot
     if os.environ.get("VIRGIL_UPDATE_SCHEMA_SNAPSHOT") == "1":
         path.parent.mkdir(exist_ok=True)
         path.write_text(actual)
-    assert actual == path.read_text(), f"schema changed: regenerate {path.name} if that was intended"
+    assert actual == path.read_text(), (
+        f"schema changed (SQLite {sqlite3.sqlite_version}): regenerate {path.name} if that was intended"
+    )

@@ -82,4 +82,3 @@ CREATE TABLE webhook_routes (
     provider TEXT NOT NULL DEFAULT 'oura',
     created_at TEXT DEFAULT (datetime('now'))
 );
-

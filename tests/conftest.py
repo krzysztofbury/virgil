@@ -105,9 +105,9 @@ def drain_jobs(worker_id: str = "test-worker") -> list:
                     handler_db_closer=closer,
                 )
                 if not batch.jobs:
-                    break
+                    return ran
                 ran.extend(batch.jobs)
-            return ran
+            raise AssertionError("drain_jobs: jobs still runnable after 20 batches")
         finally:
             await control.close()
 

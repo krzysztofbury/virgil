@@ -52,10 +52,10 @@ def test_one_accounts_writes_never_reach_another_account(auth_client, monkeypatc
     users_dir = os.path.join(os.environ["_VIRGIL_TEST_TMP"], "users")
     second = TestClient(app)
     second.portal = auth_client.portal
-    second_db = None
     # Read before the second database exists: user_db_path() expects exactly one.
-    conn = sqlite3.connect(user_db_path())
-    first_tracked_alcohol = bool(conn.execute("SELECT 1 FROM habits WHERE slug = 'alcohol' AND tracked = 1").fetchone())
+    first_db = user_db_path()
+    conn = sqlite3.connect(first_db)
+    alcohol_before = conn.execute("SELECT tracked FROM habits WHERE slug = 'alcohol'").fetchone()
     conn.close()
     try:
         second_db = _sign_up_second_account(second)
@@ -83,13 +83,19 @@ def test_one_accounts_writes_never_reach_another_account(auth_client, monkeypatc
         assert auth_client.get(f"/api/daily/{DAY}", headers={"X-API-Key": "test-key-123"}).status_code == 404
     finally:
         second.close()
-        if not first_tracked_alcohol:
-            token = csrf_token(auth_client, "/freedom")
-            auth_client.post("/freedom/alcohol/untrack", data={"_csrf_token": token})
+        # Files and the registry row first: a second database left on disk breaks
+        # every later test that expects exactly one.
         central = _central()
         central.execute("DELETE FROM users WHERE email = 'second@example.com'")
         central.commit()
         central.close()
-        for suffix in ("", "-wal", "-shm"):
-            if second_db and os.path.exists(os.path.join(users_dir, second_db + suffix)):
-                os.remove(os.path.join(users_dir, second_db + suffix))
+        for name in os.listdir(users_dir):
+            if not name.startswith(first_db.name):
+                os.remove(os.path.join(users_dir, name))
+        conn = sqlite3.connect(first_db)
+        if alcohol_before is None:
+            conn.execute("DELETE FROM habits WHERE slug = 'alcohol'")
+        else:
+            conn.execute("UPDATE habits SET tracked = ? WHERE slug = 'alcohol'", alcohol_before)
+        conn.commit()
+        conn.close()

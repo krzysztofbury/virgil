@@ -58,6 +58,7 @@ def test_list_returns_crossfit_vocabulary(auth_client):
     # Exactly once each: a lost dedupe would list a seeded name twice. Other tests
     # add entries of their own to the shared library, so those are left out.
     listed = [entry["name"].lower() for entry in body["entries"]]
+    assert not set(listed) & merged, "a movement merged by migration 033 must not be listed on its own"
     seeded = sorted(name for name in listed if name in expected_names)
     assert seeded == sorted(expected_names)
 
