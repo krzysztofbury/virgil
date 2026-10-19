@@ -76,8 +76,25 @@ def read_staged(user_id: str, token: str) -> bytes:
     return path.read_bytes()
 
 
+def extracted_text_path(user_id: str, token: str) -> Path:
+    """Where a paid PDF extraction is kept so a later parse can reuse it."""
+    return staged_path(user_id, token).with_suffix(".txt")
+
+
+def store_extracted_text(user_id: str, token: str, text: str) -> None:
+    extracted_text_path(user_id, token).write_text(text, encoding="utf-8")
+
+
+def read_extracted_text(user_id: str, token: str) -> str:
+    path = extracted_text_path(user_id, token)
+    if not path.is_file():
+        raise ValueError("The extracted medical text is no longer available")
+    return path.read_text(encoding="utf-8")
+
+
 def discard_staged(user_id: str, token: str) -> None:
     staged_path(user_id, token).unlink(missing_ok=True)
+    extracted_text_path(user_id, token).unlink(missing_ok=True)
 
 
 def prune_staged(user_id: str, *, max_age_seconds: int = STAGED_MAX_AGE_SECONDS) -> int:
@@ -87,13 +104,14 @@ def prune_staged(user_id: str, *, max_age_seconds: int = STAGED_MAX_AGE_SECONDS)
         return 0
     cutoff = time.time() - max_age_seconds
     removed = 0
-    for path in directory.glob("*.bin"):
-        try:
-            if path.stat().st_mtime < cutoff:
-                path.unlink(missing_ok=True)
-                removed += 1
-        except OSError:
-            logger.warning("Could not prune a staged medical upload")
+    for pattern in ("*.bin", "*.txt"):
+        for path in directory.glob(pattern):
+            try:
+                if path.stat().st_mtime < cutoff:
+                    path.unlink(missing_ok=True)
+                    removed += 1
+            except OSError:
+                logger.warning("Could not prune a staged medical upload")
     return removed
 
 

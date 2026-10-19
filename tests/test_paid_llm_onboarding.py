@@ -283,6 +283,91 @@ def test_a_failed_import_keeps_the_bytes_for_an_explicit_retry(monkeypatch, tmp_
     assert list((tmp_path / "staging").rglob("*.bin")), "a retry needs the upload it never imported"
 
 
+def test_pdf_extraction_stays_in_the_ledger_when_marker_parsing_fails(monkeypatch, tmp_path):
+    """A blood-panel PDF is two purchases. The ledger other paid paths use records
+    one row per purchase, so a failed parse must not buy the extraction again."""
+    from app.services import medical_import
+
+    monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
+    calls: list[str] = []
+
+    async def extract(pdf_bytes):
+        calls.append("extract")
+        assert pdf_bytes.startswith(b"%PDF")
+        return "### HGB\n* 2026-08-01: 15.8 g/dl"
+
+    async def parse(text):
+        calls.append("parse")
+        assert "HGB" in text
+        if calls.count("parse") == 1:
+            return []
+        return [{"marker": "HGB", "unit": "g/dl", "results": [{"date": "2026-08-01", "value": 15.8, "flag": ""}]}]
+
+    monkeypatch.setattr(medical_import, "extract_pdf_markers", extract)
+    monkeypatch.setattr(medical_import, "parse_medical_text", parse)
+    upload = medical_import.stage_upload("user", b"%PDF-1.4 fake")
+    payload = {"source": "pdf", "upload": upload}
+    extract_key = paid_llm_job_key(_MEDICAL, upload, "extract")
+    import_key = paid_llm_job_key(_MEDICAL, upload)
+
+    async def once():
+        db = await _db()
+        try:
+            queued = await enqueue_paid_llm_job(db, _MEDICAL, payload, idempotency_key=import_key)
+            context = JobContext(db=db, user_id="user", job_id=queued.job_id, attempt=1)
+            return await handle_medical_import(context, payload)
+        finally:
+            await db.close()
+
+    with pytest.raises(VisibleJobError, match="No blood test markers"):
+        asyncio.run(once())
+
+    assert calls == ["extract", "parse"]
+    assert _rows("SELECT idempotency_key FROM llm_publications ORDER BY idempotency_key") == [
+        {"idempotency_key": extract_key}
+    ], "the extraction was paid for, so the ledger has to remember it"
+
+    result = asyncio.run(once())
+
+    assert calls == ["extract", "parse", "parse"], "a retry parses the text it already bought"
+    assert result == {"published": True, "markers": 1}
+    assert _rows("SELECT idempotency_key FROM llm_publications ORDER BY idempotency_key") == [
+        {"idempotency_key": import_key},
+        {"idempotency_key": extract_key},
+    ]
+
+
+def test_rerunning_a_finished_pdf_import_buys_no_extraction(monkeypatch, tmp_path):
+    """An import finished before extraction had its own ledger row has no bytes
+    left, so a re-run must report it as done instead of extracting again."""
+    from app.services import medical_import
+    from app.services.llm_jobs import record_llm_publication
+
+    monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
+
+    async def extract(pdf_bytes):
+        raise AssertionError("a finished import must not be extracted again")
+
+    monkeypatch.setattr(medical_import, "extract_pdf_markers", extract)
+    upload = medical_import.stage_upload("user", b"%PDF-1.4 fake")
+    medical_import.discard_staged("user", upload)
+    payload = {"source": "pdf", "upload": upload}
+    import_key = paid_llm_job_key(_MEDICAL, upload)
+
+    async def scenario():
+        db = await _db()
+        try:
+            queued = await enqueue_paid_llm_job(db, _MEDICAL, payload, idempotency_key=import_key)
+            await record_llm_publication(db, _MEDICAL, import_key, queued.job_id)
+            await db.commit()
+            context = JobContext(db=db, user_id="user", job_id=queued.job_id, attempt=2)
+            return await handle_medical_import(context, payload)
+        finally:
+            await db.close()
+
+    assert asyncio.run(scenario()) == {"published": False, "reason": "already_published"}
+
+
 def test_a_staged_token_cannot_reach_another_users_directory(tmp_path, monkeypatch):
     from app.services import medical_import
 

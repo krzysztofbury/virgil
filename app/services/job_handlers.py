@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.db import set_setting
 from app.services.job_producers import JOB_TRIGGERS
-from app.services.llm_jobs import paid_llm_job_key, paid_llm_trigger, run_paid_llm_job
+from app.services.llm_jobs import llm_result_published, paid_llm_job_key, paid_llm_trigger, run_paid_llm_job
 
 if TYPE_CHECKING:
     from app.services.job_worker import JobContext
@@ -215,7 +215,11 @@ async def handle_experiment_summary(context: "JobContext", payload: Mapping[str,
 
 
 async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
-    """Import one staged blood panel: at most two paid calls, then one write."""
+    """Import one staged blood panel.
+
+    A PDF is two paid calls. Extraction publishes through the same ledger path
+    as every other paid call, so a later parse failure does not buy it again.
+    """
     from app.models.user_profile import ensure_profile, update_step5
     from app.services.medical_import import (
         MEDICAL_SOURCES,
@@ -223,8 +227,10 @@ async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any
         discard_staged,
         extract_pdf_markers,
         parse_medical_text,
+        read_extracted_text,
         read_staged,
         save_medical_markers,
+        store_extracted_text,
     )
 
     _exact_payload(payload, {"source", "upload"})
@@ -239,12 +245,26 @@ async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any
     # and a commit inside publish would split the write from its marker.
     await ensure_profile(context.db)
 
+    # A finished import has no staged bytes left to extract from.
+    if source == "pdf" and not await llm_result_published(context.db, "medical_import", key):
+
+        async def publish_extract(text: str) -> Mapping[str, Any]:
+            store_extracted_text(context.user_id, token, text)
+            return {"chars": len(text)}
+
+        await run_paid_llm_job(
+            context,
+            "medical_import",
+            paid_llm_job_key("medical_import", token, "extract"),
+            lambda: extract_pdf_markers(read_staged(context.user_id, token)),
+            publish_extract,
+        )
+
     async def produce() -> list:
-        raw = read_staged(context.user_id, token)
         if source == "pdf":
-            text = await extract_pdf_markers(raw)
+            text = read_extracted_text(context.user_id, token)
         else:
-            text = raw.decode("utf-8", errors="replace")[:MEDICAL_TEXT_MAX_CHARS]
+            text = read_staged(context.user_id, token).decode("utf-8", errors="replace")[:MEDICAL_TEXT_MAX_CHARS]
         if not text.strip():
             raise ValueError("The medical upload held nothing to import")
         markers = await parse_medical_text(text)
