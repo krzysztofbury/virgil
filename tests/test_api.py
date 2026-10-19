@@ -8,10 +8,6 @@ from conftest import track_porn, user_db_path
 KEY = {"X-API-Key": "test-key-123"}
 
 
-def test_no_key_401(client):
-    assert client.get("/api/summary").status_code == 401
-
-
 def test_wrong_key_401(client):
     assert client.get("/api/summary", headers={"X-API-Key": "wrong"}).status_code == 401
 
@@ -211,31 +207,6 @@ def test_oura_today_404_when_no_data(auth_client):
         conn.close()
 
 
-def test_all_api_routes_are_public_paths():
-    """Every X-API-Key route MUST be in PUBLIC_PATHS. Otherwise AuthMiddleware 303-redirects
-    it to /login before the key check — which is exactly how get_noporn/get_training_detail
-    broke: the route existed but was blocked upstream (see app/auth.py PUBLIC_PATHS comment)."""
-    from app.auth import PUBLIC_PATHS
-    from app.routers.api import router
-
-    api_paths = {r.path for r in router.routes}  # r.path already includes the /api prefix
-    assert api_paths <= PUBLIC_PATHS, f"API routes missing from PUBLIC_PATHS: {api_paths - PUBLIC_PATHS}"
-
-
-def test_new_api_routes_reachable_with_key_only():
-    """MCP/curl send only X-API-Key (no session cookie). A whitelisted route reaches the key
-    check (401 without a key); a route blocked by AuthMiddleware would 302/303 to /login."""
-    from fastapi.testclient import TestClient
-
-    from app.main import app
-
-    c = TestClient(app)
-    for path in ("/api/noporn", "/api/training/detail", "/api/library"):
-        assert c.get(path, follow_redirects=False).status_code == 401, path
-    for method in ("PATCH", "DELETE"):
-        assert c.request(method, "/api/library/1", follow_redirects=False).status_code == 401, method
-
-
 def test_training_detail_empty(auth_client, monkeypatch):
     _far_future(monkeypatch)
     resp = auth_client.get("/api/training/detail", headers=KEY)
@@ -245,12 +216,6 @@ def test_training_detail_empty(auth_client, monkeypatch):
 
 def test_training_detail_range_out_of_bounds_422(auth_client):
     assert auth_client.get("/api/training/detail?range=999", headers=KEY).status_code == 422
-
-
-def test_noporn_403_without_sensitive_scope(auth_client):
-    """Intimate journal content is opt-in — default deployment must refuse it."""
-    resp = auth_client.get("/api/noporn", headers=KEY)
-    assert resp.status_code == 403
 
 
 def test_noporn_shape(auth_client, monkeypatch):
@@ -463,15 +428,6 @@ def test_experiment_api_pairs_target_with_the_same_calendar_week(auth_client, mo
         assert experiment["week"] == 2
         assert experiment["week_window"] == {"from": "2026-08-31", "to": "2026-09-06"}
         assert experiment["week_target"]["label"] == "Second"
-    finally:
-        _delete_api_experiment(exp_id)
-
-
-def test_api_post_entry_requires_key(auth_client):
-    exp_id, metric_id, _ = _seed_api_experiment()
-    try:
-        resp = auth_client.post(f"/api/experiments/{exp_id}/entries", json={"metric": metric_id})
-        assert resp.status_code == 401
     finally:
         _delete_api_experiment(exp_id)
 

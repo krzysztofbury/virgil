@@ -3,7 +3,6 @@
 import asyncio
 import json
 import sqlite3
-from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import aiosqlite
@@ -14,7 +13,7 @@ from app.services.job_handlers import handle_andy_generation
 from app.services.job_worker import AmbiguousJobError, JobContext, VisibleJobError
 from app.services.llm import LLMCallAmbiguousError
 from app.services.llm_jobs import enqueue_paid_llm_job, llm_result_published, paid_llm_job_key
-from tests.conftest import csrf_token, drain_jobs, user_db_path
+from tests.conftest import csrf_token, drain_jobs, record_provider_calls, user_db_path
 
 _KIND = "andy_generation"
 _DAY = "2026-08-12"
@@ -194,12 +193,6 @@ def test_the_stored_value_is_bounded_so_one_answer_cannot_fill_the_column(monkey
     assert len(stored) == andy_module.ANDY_VALUE_MAX
 
 
-def test_no_request_path_generates_suggestions():
-    source = Path("app/routers/daily.py").read_text()
-    assert "call_llm" not in source
-    assert "generate_andy_suggestions" not in source
-
-
 def test_the_generate_button_is_not_a_form_inside_the_daily_form(auth_client, monkeypatch):
     """Reported: clicking AI issued GET /daily?...&andy_body_status=... instead.
 
@@ -229,7 +222,9 @@ def test_the_generate_button_still_queues_a_job(auth_client, monkeypatch):
     """A form= reference is easy to get subtly wrong, so exercise the real POST."""
     monkeypatch.setattr("app.routers.daily.llm_available", _available)
     monkeypatch.setattr("app.services.andy.call_llm", _stub(_FULL))
+    provider = record_provider_calls(monkeypatch)
 
     job_id = _queue(auth_client, "a" * 32)
 
     assert _rows("SELECT kind FROM jobs WHERE id = ?", (job_id,))[0]["kind"] == _KIND
+    assert provider == [], "the request only queues; the worker buys the suggestions"

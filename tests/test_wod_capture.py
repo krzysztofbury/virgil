@@ -124,7 +124,7 @@ def test_note_survives_an_llm_failure(auth_client, monkeypatch):
     assert resp.status_code == 200
     latest = _sessions()[0]
     assert latest["notes"] == "5x5 back squat 70, potem metcon", "raw text must be persisted before parsing"
-    assert "timed out" in resp.text or "parsowanie" in resp.text.lower()
+    assert "timed out" in resp.text
     assert "enter the sets by hand later" not in resp.text, (
         "I3: the old parse_error message claimed a manual-entry path that did not "
         "exist. The path it points at now — the seeded row on this very confirm "
@@ -154,7 +154,7 @@ def test_garbled_llm_response_still_saves_the_note(auth_client, monkeypatch):
     assert resp.status_code == 200
     latest = _sessions()[0]
     assert latest["notes"] == "3 rundy: 10 burpees, 15 kb swing 24", "raw text must survive a garbled LLM reply"
-    assert "did not return a JSON object" in resp.text or "parsowanie" in resp.text.lower()
+    assert "did not return a JSON object" in resp.text
 
 
 def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
@@ -199,7 +199,7 @@ def test_note_survives_a_non_valueerror_crash(auth_client, monkeypatch):
     drain_jobs()
     resp = auth_client.get(resp.url)
     assert resp.status_code == 200, "the crash must not 500 — it must land on the confirm screen via the PRG redirect"
-    assert "connection reset by peer" in resp.text or "parsowanie" in resp.text.lower()
+    assert "connection reset by peer" in resp.text
     latest = _sessions()[0]
     assert latest["notes"] == "5 rund: 10 burpee, 15 wall ball"
     assert latest["wod_parsed"], "wod_parsed must be set even on a non-ValueError crash, or the confirm GET 303s away"

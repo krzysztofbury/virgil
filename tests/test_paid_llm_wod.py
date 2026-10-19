@@ -2,7 +2,6 @@
 
 import asyncio
 import json
-import re
 import sqlite3
 from urllib.parse import parse_qs, urlsplit
 
@@ -15,7 +14,7 @@ from app.services.job_worker import AmbiguousJobError, JobContext
 from app.services.llm import LLMCallAmbiguousError
 from app.services.llm_jobs import enqueue_paid_llm_job, llm_result_published, paid_llm_job_key
 from app.services.wod_parser import ParsedEntry, ParsedWod
-from tests.conftest import csrf_token, drain_jobs, user_db_path
+from tests.conftest import csrf_token, drain_jobs, record_provider_calls, user_db_path
 
 _KIND = "wod_parse"
 
@@ -78,9 +77,10 @@ def test_capture_returns_before_any_provider_is_called(auth_client, monkeypatch)
         return json.dumps({"entries": [], "unmatched": []})
 
     monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+    provider = record_provider_calls(monkeypatch)
     session_id, job_id = _capture(auth_client)
 
-    assert called == [], "the request must not wait on the provider"
+    assert called == [] and provider == [], "the request must not wait on the provider"
     job = _rows("SELECT kind, status, max_attempts, retry_policy FROM jobs WHERE id = ?", (job_id,))[0]
     assert (job["kind"], job["status"], job["max_attempts"], job["retry_policy"]) == (_KIND, "queued", 1, "manual")
     assert _rows("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"] is None
@@ -275,13 +275,6 @@ def test_the_note_must_still_exist_before_anything_is_bought(monkeypatch):
             await db.close()
 
     asyncio.run(scenario())
-
-
-def test_no_request_path_parses_a_wod():
-    from pathlib import Path
-
-    source = Path("app/routers/training.py").read_text()
-    assert not re.search(r"\bawait parse_wod\(", source), "the route must only enqueue the parse"
 
 
 def test_a_failed_parse_takes_the_waiting_screen_somewhere_useful(auth_client, monkeypatch):

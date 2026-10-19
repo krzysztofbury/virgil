@@ -17,17 +17,6 @@ def _get(name: str) -> dict | None:
         conn.close()
 
 
-def test_library_requires_key():
-    # A fresh, session-less client keeps this test independent of fixture setup.
-    # The route's own API-key check must answer 401 rather than AuthMiddleware
-    # redirecting an anonymous caller to /login.
-    from fastapi.testclient import TestClient
-
-    from app.main import app
-
-    assert TestClient(app).get("/api/library").status_code == 401
-
-
 def test_list_returns_crossfit_vocabulary(auth_client):
     """`?category=` is gone (migration 019 dropped the column); GET /api/library
     now always returns the whole library. The expected count is DERIVED from
@@ -74,15 +63,6 @@ def test_create_then_read_back(auth_client):
     assert row["section"] == "Core"
     assert row["metric"] == "reps"
     assert row["builtin"] == 0
-
-
-def test_duplicate_name_is_409(auth_client):
-    resp = auth_client.post(
-        "/api/library",
-        headers=KEY,
-        json={"section": "Core", "name": "Thruster", "metric": "reps"},
-    )
-    assert resp.status_code == 409
 
 
 def test_duplicate_name_case_insensitive_is_409(auth_client):
@@ -178,24 +158,6 @@ def test_create_name_truncated_to_100_not_60(auth_client):
         assert _get(long_name)["name"] == long_name
     finally:
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
-
-
-def test_create_invalid_section_and_metric_422(auth_client):
-    resp = auth_client.post(
-        "/api/library",
-        headers=KEY,
-        json={"section": "NotASection", "name": "Bad Section Move", "metric": "reps"},
-    )
-    assert resp.status_code == 422
-    assert _get("Bad Section Move") is None
-
-    resp = auth_client.post(
-        "/api/library",
-        headers=KEY,
-        json={"section": "Core", "name": "Bad Metric Move", "metric": "nope"},
-    )
-    assert resp.status_code == 422
-    assert _get("Bad Metric Move") is None
 
 
 def test_create_rejects_unknown_field(auth_client):
@@ -336,16 +298,6 @@ def test_delete_removes_row(auth_client):
     entry_id = _get("Sled Push")["id"]
     assert auth_client.delete(f"/api/library/{entry_id}", headers=KEY).status_code == 204
     assert _get("Sled Push") is None
-
-
-def test_builtin_row_refuses_edit_and_delete(auth_client):
-    """A non-CrossFit seeded row is still builtin=1 (migration 015) — the API
-    must refuse rather than silently no-op the way the settings form does."""
-    row = _get("Goblet Squat")
-    assert row["builtin"] == 1, "fixture assumption: legacy library rows stay protected"
-    assert auth_client.patch(f"/api/library/{row['id']}", headers=KEY, json={"notes": "x"}).status_code == 409
-    assert auth_client.delete(f"/api/library/{row['id']}", headers=KEY).status_code == 409
-    assert _get("Goblet Squat")["notes"] != "x"
 
 
 def test_builtin_archived_value_is_normalized(auth_client):

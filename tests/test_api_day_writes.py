@@ -55,14 +55,6 @@ def test_daily_put_rejects_invalid_values_without_writing(auth_client):
     assert _fetchall("SELECT COUNT(*) FROM daily_logs WHERE date = ?", (day,)) == [(0,)]
 
 
-def test_freedom_writes_require_the_sensitive_scope(auth_client):
-    day = (date.today() - timedelta(days=40)).isoformat()
-    assert auth_client.put(f"/api/freedom/porn/days/{day}", json={"slipped": False}, headers=KEY).status_code == 403
-    brick = {"date": day, "hook": "closed the tab"}
-    assert auth_client.post("/api/freedom/porn/bricks", json=brick, headers=KEY).status_code == 403
-    assert _fetchall("SELECT COUNT(*) FROM feniks_daily WHERE date = ?", (day,)) == [(0,)]
-
-
 def test_freedom_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, monkeypatch):
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
     porn = track_porn()

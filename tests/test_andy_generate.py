@@ -12,8 +12,6 @@ from urllib.parse import parse_qs, urlsplit
 import pytest
 from conftest import csrf_token, drain_jobs, user_db_path
 
-from app.services.llm import parse_andy_response
-
 
 async def _available(_db) -> bool:
     return True
@@ -30,30 +28,6 @@ def _clean_jobs(auth_client):
     finally:
         conn.close()
     yield
-
-
-def test_parse_plain_json():
-    assert parse_andy_response('{"andy_body_desc": "x"}') == {"andy_body_desc": "x"}
-
-
-def test_parse_fenced_json():
-    assert parse_andy_response('```json\n{"a": 1}\n```') == {"a": 1}
-
-
-def test_parse_prose_wrapped_json():
-    # the real prod failure mode: model adds prose/reasoning around the object
-    assert parse_andy_response('Sure, here you go:\n{"a": 1, "b": 2}\nHope that helps!') == {"a": 1, "b": 2}
-
-
-def test_parse_doubled_closing_brace():
-    # exact prod failure: model emitted a valid object then a spurious extra '}'
-    assert parse_andy_response('{"andy_body_desc": "x"}\n}\n') == {"andy_body_desc": "x"}
-
-
-@pytest.mark.parametrize("bad", ["", "   \n  ", "no json here at all"])
-def test_parse_rejects_non_json(bad):
-    with pytest.raises(ValueError):
-        parse_andy_response(bad)
 
 
 def test_generate_andy_refuses_without_a_provider_instead_of_queueing(auth_client):

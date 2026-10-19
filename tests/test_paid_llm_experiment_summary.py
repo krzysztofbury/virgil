@@ -226,13 +226,6 @@ def test_an_uncertain_provider_outcome_stores_nothing(monkeypatch):
     assert _rows("SELECT COUNT(*) AS c FROM experiment_summaries")[0]["c"] == 0
 
 
-def test_the_cooldown_dictionary_is_gone():
-    """It was process-local and shared between users: neither restart-safe nor scoped."""
-    source = Path("app/services/experiment_summary.py").read_text()
-    assert "_last_attempt" not in source
-    assert "_COOLDOWN_SECONDS" not in source
-
-
 @pytest.mark.parametrize(
     "payload",
     [

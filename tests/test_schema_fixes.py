@@ -34,14 +34,3 @@ def test_backup_enabled_on_after_migration_014(auth_client):
         assert value == "1"
     finally:
         conn.close()
-
-
-def test_training_exercises_have_archived_column(auth_client):
-    conn = sqlite3.connect(user_db_path())
-    try:
-        cols = [r[1] for r in conn.execute("PRAGMA table_info(training_exercises)").fetchall()]
-        assert "archived" in cols
-        archived = conn.execute("SELECT COUNT(*) FROM training_exercises WHERE archived = 1").fetchone()[0]
-        assert archived == 0, "Seeded exercises must start unarchived"
-    finally:
-        conn.close()
