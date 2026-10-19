@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Settings > Automation shows how old the newest backup is and whether the
+  backups are OK, overdue (two intervals without one), running, off, or failed
+  on the last attempt. The factory reset asks for a download first, and says
+  how old the newest server backup is that the reset deletes.
 - `scripts/screenshots.py` regenerates the README screenshots from the demo
   seeder on a throwaway instance, and shoots other pages or phone widths to check
   a change. The seeder now includes fictional goals, three of them in focus.

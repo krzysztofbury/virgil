@@ -13,6 +13,7 @@ from app.config import BASE_URL
 from app.db import get_feature_flags, get_setting, set_setting
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.backup import backup_status
 from app.services.encryption import decrypt, encrypt
 from app.services.llm import REASONING_EFFORT_SETTING, REASONING_EFFORTS, resolve_reasoning_effort
 from app.services.oura_api import (
@@ -126,6 +127,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["backup_enabled"] = await get_setting(db, "backup_enabled", "1") == "1"
         context["backup_interval_hours"] = await get_setting(db, "backup_interval_hours", "24")
         context["backup_max_copies"] = await get_setting(db, "backup_max_copies", "7")
+        context["backup_status"] = await backup_status(db)
         context["oura_sync_enabled"] = await get_setting(db, "oura_sync_enabled", "0") == "1"
         context["oura_sync_interval_hours"] = await get_setting(db, "oura_sync_interval_hours", "6")
         context["briefing_enabled"] = await get_setting(db, "briefing_enabled", "0") == "1"
@@ -138,6 +140,8 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         # MFA status lives in the central users table, not per-user DB.
         user = getattr(request.state, "user", {})
         context["mfa_enabled"] = bool(user.get("totp_enabled"))
+        # The reset deletes the server's backups, so the card says what is lost.
+        context["backup_status"] = await backup_status(db)
         logs = await db.execute_fetchall("SELECT * FROM sync_log ORDER BY created_at DESC LIMIT 50")
         context["sync_logs"] = [dict(row) for row in logs]
 

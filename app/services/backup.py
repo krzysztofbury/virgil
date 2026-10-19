@@ -7,7 +7,7 @@ import time
 import uuid
 from collections.abc import Callable
 from contextlib import closing
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
 from pathlib import Path
 
@@ -225,6 +225,77 @@ async def run_backup(db, *, artifact_timestamp: str | None = None) -> Path:
 
     logger.info("Backup created: %s", dst.name)
     return dst
+
+
+# One missed tick is normal (a restart, a slow queue); two in a row are not.
+BACKUP_OVERDUE_INTERVALS = 2
+
+_ARTIFACT_TIME_RE = r"(\d{4}-\d{2}-\d{2}T\d{4})(?:-j\d{20})?\.db"
+
+
+def _latest_backup_time(stem: str) -> datetime | None:
+    """When the newest regular backup of one database was taken, from its name."""
+    if not BACKUP_DIR.exists():
+        return None
+    name = re.compile(re.escape(stem) + "-" + _ARTIFACT_TIME_RE)
+    taken = [
+        datetime.strptime(match[1], "%Y-%m-%dT%H%M").replace(tzinfo=UTC)
+        for path in BACKUP_DIR.glob(f"{stem}-*.db")
+        if (match := name.fullmatch(path.name))
+    ]
+    return max(taken, default=None)
+
+
+def _ago(then: datetime, now: datetime) -> str:
+    minutes = max(0, int((now - then).total_seconds() // 60))
+    for size, unit in ((1440, "day"), (60, "hour"), (1, "minute")):
+        if minutes >= size:
+            count = minutes // size
+            return f"{count} {unit}{'' if count == 1 else 's'} ago"
+    return "just now"
+
+
+async def backup_status(db, now: datetime | None = None) -> dict:
+    """What Settings tells the user about this account's backups.
+
+    The newest file on disk says how old the latest copy is; the newest backup
+    job says whether the attempt after it is still running or failed. Either
+    alone misleads: the file cannot show a failure, and the job history is pruned.
+    """
+    now = now or datetime.now(UTC)
+    stem = Path(await db_main_path(db)).stem
+    latest = await asyncio.to_thread(_latest_backup_time, stem)
+    enabled = await get_setting(db, "backup_enabled", "1") == "1"
+    try:
+        interval_hours = float(await get_setting(db, "backup_interval_hours", "24"))
+    except ValueError:
+        interval_hours = 24.0
+    jobs = await db.execute_fetchall(
+        "SELECT status, COALESCE(finished_at, created_at) AS at FROM jobs "
+        "WHERE kind = 'backup' ORDER BY created_at DESC, id DESC LIMIT 1"
+    )
+    job = jobs[0] if jobs else None
+
+    status = {
+        "enabled": enabled,
+        "latest_age": _ago(latest, now) if latest else None,
+        "latest_local": latest.astimezone().strftime("%Y-%m-%d %H:%M") if latest else None,
+        "failed_age": None,
+    }
+    if job and job["status"] in {"queued", "running"}:
+        status["state"] = "running"
+    elif job and job["status"] in {"failed", "needs_attention"}:
+        status["state"] = "failed"
+        status["failed_age"] = _ago(datetime.fromisoformat(job["at"]).replace(tzinfo=UTC), now)
+    elif not enabled:
+        status["state"] = "off"
+    elif latest is None:
+        status["state"] = "none"
+    elif now - latest > timedelta(hours=BACKUP_OVERDUE_INTERVALS * interval_hours):
+        status["state"] = "overdue"
+    else:
+        status["state"] = "ok"
+    return status
 
 
 PRE_MIGRATION_MAX_COPIES = 3

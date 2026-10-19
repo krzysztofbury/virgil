@@ -536,6 +536,31 @@
             Creates daily SQLite backups in <code>data/backups/</code> with rolling retention.
             A factory reset or deleting the account deletes them.
         </p>
+        {% set backup = backup_status %}
+        <p data-backup-state="{{ backup.state }}"
+           style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.75rem;font-size:var(--text-sm);">
+            {% if backup.state == 'failed' %}
+            <span class="job-status-badge job-status-badge-failed">Failed</span>
+            <span>The last backup attempt failed {{ backup.failed_age }}. Recent Jobs below has the error.</span>
+            {% elif backup.state == 'running' %}
+            <span class="job-status-badge job-status-badge-running">Running</span>
+            <span>A backup is queued or running.</span>
+            {% elif backup.state == 'overdue' %}
+            <span class="job-status-badge job-status-badge-failed">Overdue</span>
+            <span>No backup in more than two intervals.</span>
+            {% elif backup.state == 'off' %}
+            <span class="job-status-badge job-status-badge-cancelled">Off</span>
+            <span>Automated backup is off.</span>
+            {% elif backup.state == 'none' %}
+            <span class="job-status-badge job-status-badge-cancelled">None yet</span>
+            <span>No backup has been made yet.</span>
+            {% else %}
+            <span class="job-status-badge job-status-badge-succeeded">OK</span>
+            {% endif %}
+            {% if backup.latest_age %}
+            <span>Latest backup: {{ backup.latest_age }} ({{ backup.latest_local }}).</span>
+            {% endif %}
+        </p>
         <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
             <input type="checkbox" name="backup_enabled" {{ 'checked' if backup_enabled else '' }}
                    style="width:auto;margin:0;">
@@ -669,10 +694,21 @@
         Wipe all data and start fresh. Your account and login are kept; profile, goals, training,
         experiments, health data and settings are deleted, and you'll go through onboarding again.
         The server's backups of your data are deleted too.
-        Consider <a href="/settings/backup" style="color:var(--accent);">downloading a backup</a> first.
     </p>
     <details>
         <summary style="color:var(--red);">I understand, show the reset button</summary>
+        <div data-reset-backup style="margin-top:0.75rem;">
+            <p style="margin-bottom:0.5rem;font-size:0.85rem;">
+                <strong>First, keep a copy.</strong>
+                {% if backup_status.latest_age %}
+                The newest server backup ({{ backup_status.latest_age }}) goes with the reset.
+                {% else %}
+                There is no server backup to fall back on.
+                {% endif %}
+                The download is the only way back.
+            </p>
+            <a href="/settings/backup" class="btn btn-outline">Download virgil.db</a>
+        </div>
         <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;"
               onsubmit="return confirm('Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.')">
             <button type="submit" class="btn btn-danger">Reset All Data</button>
