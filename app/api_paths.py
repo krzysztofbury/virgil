@@ -13,10 +13,16 @@ from functools import cache
 from fastapi.dependencies.models import Dependant
 from fastapi.routing import APIRoute
 
-# A parameter matches one path segment; an int one only ASCII digits. `\Z`, not
-# `$`, so a trailing newline cannot sneak through.
-_SEGMENT = "[^/]+"
+# Each parameter matches only its own shape, so a session route that one day
+# shares a prefix (say /api/measurements/export) cannot fall inside an API-key
+# pattern. `\Z`, not `$`, keeps a trailing newline out; `[0-9]`, not `\d`, keeps
+# non-ASCII digits out.
 _DIGITS = "[0-9]+"
+_SHAPES = {
+    "day": "[0-9]{4}-[0-9]{2}-[0-9]{2}",
+    # A habit slug: lowercase ASCII letters, digits and hyphens (habits.slugify).
+    "habit": "[a-z0-9-]+",
+}
 
 
 def _depends_on(dependant: Dependant, call) -> bool:
@@ -25,11 +31,16 @@ def _depends_on(dependant: Dependant, call) -> bool:
 
 def _pattern(route: APIRoute) -> re.Pattern:
     kinds = {param.name: param.field_info.annotation for param in route.dependant.path_params}
+
+    def shape(name: str) -> str:
+        if kinds.get(name) is int:
+            return _DIGITS
+        if name not in _SHAPES:
+            raise RuntimeError(f"{route.path}: give the path parameter {name!r} a shape in app/api_paths.py")
+        return _SHAPES[name]
+
     parts = re.split(r"(\{\w+\})", route.path)
-    regex = "".join(
-        (_DIGITS if kinds.get(part[1:-1]) is int else _SEGMENT) if part.startswith("{") else re.escape(part)
-        for part in parts
-    )
+    regex = "".join(shape(part[1:-1]) if part.startswith("{") else re.escape(part) for part in parts)
     return re.compile(rf"^{regex}\Z")
 
 
@@ -38,7 +49,11 @@ def _api_key_patterns() -> tuple[re.Pattern, ...]:
     from app.mcp_endpoint import MCP_PATH
     from app.routers.api import api_db, router
 
-    routes = [route for route in router.routes if isinstance(route, APIRoute) and _depends_on(route.dependant, api_db)]
+    if any(not isinstance(route, APIRoute) for route in router.routes):
+        # An included sub-router would be skipped below and its key routes would
+        # demand a session; fail loudly so this module learns to walk it.
+        raise RuntimeError("app.routers.api has a nested router; teach app/api_paths.py to walk it")
+    routes = [route for route in router.routes if _depends_on(route.dependant, api_db)]
     return (re.compile(rf"^{re.escape(MCP_PATH)}\Z"), *(_pattern(route) for route in routes))
 
 

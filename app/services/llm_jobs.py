@@ -133,7 +133,7 @@ async def enqueue_paid_llm_job(
             retry_policy="manual",
         )
     except sqlite3.IntegrityError as exc:
-        # The partial unique index from migration 029 lost a race with a
+        # The partial unique index (migration 038, 029 before it) lost a race with a
         # concurrent enqueue of the same kind.
         raise ActiveWorkloadConflictError(f"Another {normalized_kind} job is already queued") from exc
     if result.created:

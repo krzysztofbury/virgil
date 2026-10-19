@@ -112,11 +112,11 @@ def timezone_warning() -> str | None:
     """Every "today" (streaks, today's entries, the future-date checks) follows the
     server's local date. Without TZ that is UTC, so the day turns at the wrong hour
     for most people; say so at startup instead of silently."""
-    utc = {"UTC", "GMT", "Etc/UTC"}
-    if not os.environ.get("TZ") and set(time.tzname) <= utc:
+    # The clock, not the variable: a misspelled TZ also falls back to UTC.
+    if time.timezone == 0 and not time.daylight:
         return (
-            "TZ is not set, so 'today' follows UTC. Set TZ to the household's time zone "
-            "(for example TZ=Europe/Warsaw) so days turn at local midnight."
+            f"The local clock is UTC (TZ={os.environ.get('TZ', '<unset>')}), so 'today' follows UTC. Set TZ to "
+            "the household's time zone (for example TZ=Europe/Warsaw) so days turn at local midnight."
         )
     return None
 

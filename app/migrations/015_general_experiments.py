@@ -8,6 +8,10 @@
 - exercise_library: builtin (seeded rows, protected from edit/delete) +
   archived (hidden from pickers, reversible).
 
+Since the runner began wrapping each migration in BEGIN IMMEDIATE, the whole
+migration is one transaction; the markers still matter for databases that ran it
+before that.
+
 Crash-retry safety: ALTER TABLE ADD COLUMN autocommits immediately under
 aiosqlite's legacy isolation, while UPDATE/DROP ride the runner's transaction.
 A crash between the two leaves the new column present but the data step

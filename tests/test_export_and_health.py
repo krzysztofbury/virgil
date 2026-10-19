@@ -91,20 +91,18 @@ def test_healthz_degraded_on_central_migration_failure(client):
 
 
 @pytest.mark.parametrize(
-    ("tz", "tzname", "warns"),
-    [(None, ("UTC", "UTC"), True), ("Europe/Warsaw", ("CET", "CEST"), False), (None, ("CET", "CEST"), False)],
-    ids=["unset-on-utc", "set", "unset-but-local-clock"],
+    ("timezone", "daylight", "warns"),
+    [(0, 0, True), (-3600, 1, False)],
+    ids=["clock-on-utc", "local-clock"],
 )
-def test_startup_warns_when_today_would_follow_utc(monkeypatch, tz, tzname, warns):
-    """Every "today" follows the server's local date; on UTC it turns at the wrong hour."""
+def test_startup_warns_when_today_would_follow_utc(monkeypatch, timezone, daylight, warns):
+    """Every "today" follows the server's local date; on UTC it turns at the wrong
+    hour. Judged by the clock, so a misspelled TZ that falls back to UTC warns too."""
     import time
 
     from app.main import timezone_warning
 
-    if tz is None:
-        monkeypatch.delenv("TZ", raising=False)
-    else:
-        monkeypatch.setenv("TZ", tz)
-    monkeypatch.setattr(time, "tzname", tzname)
+    monkeypatch.setattr(time, "timezone", timezone)
+    monkeypatch.setattr(time, "daylight", daylight)
 
     assert (timezone_warning() is not None) is warns

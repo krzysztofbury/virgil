@@ -97,3 +97,27 @@ def test_only_api_key_routes_skip_the_session(client, method, path, status):
     anonymous.portal = client.portal
     response = anonymous.request(method, path, follow_redirects=False)
     assert response.status_code == status
+
+
+def _sessions_routes():
+    from fastapi.routing import APIRoute
+
+    from app.api_paths import _depends_on
+    from app.routers.api import api_db
+
+    for route in app.routes:
+        if isinstance(route, APIRoute) and not _depends_on(route.dependant, api_db):
+            yield route
+
+
+def test_no_session_route_falls_inside_an_api_key_pattern():
+    """A session route matching an API-key pattern would skip both login and CSRF."""
+    from app.api_paths import is_api_key_path
+
+    samples = {"day": "2026-01-01", "habit": "porn", "slug": "porn"}
+    leaks = []
+    for route in _sessions_routes():
+        path = re.sub(r"\{(\w+)(:\w+)?\}", lambda m: samples.get(m.group(1), "1"), route.path)
+        if is_api_key_path(path):
+            leaks.append(route.path)
+    assert leaks == []
