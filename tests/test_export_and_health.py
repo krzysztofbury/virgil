@@ -2,6 +2,7 @@
 
 import sqlite3
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -87,3 +88,23 @@ def test_healthz_degraded_on_central_migration_failure(client):
         assert blocked.json() == {"status": "unavailable"}
     finally:
         app.state.central_migration_failure = original
+
+
+@pytest.mark.parametrize(
+    ("tz", "tzname", "warns"),
+    [(None, ("UTC", "UTC"), True), ("Europe/Warsaw", ("CET", "CEST"), False), (None, ("CET", "CEST"), False)],
+    ids=["unset-on-utc", "set", "unset-but-local-clock"],
+)
+def test_startup_warns_when_today_would_follow_utc(monkeypatch, tz, tzname, warns):
+    """Every "today" follows the server's local date; on UTC it turns at the wrong hour."""
+    import time
+
+    from app.main import timezone_warning
+
+    if tz is None:
+        monkeypatch.delenv("TZ", raising=False)
+    else:
+        monkeypatch.setenv("TZ", tz)
+    monkeypatch.setattr(time, "tzname", tzname)
+
+    assert (timezone_warning() is not None) is warns

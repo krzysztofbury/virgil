@@ -197,6 +197,7 @@ All configuration via environment variables:
 | `VIRGIL_API_USER_EMAIL` | (empty) | The only account `VIRGIL_API_KEY` may read or write. Required when the key is set. Empty, missing, or deactivated returns 503 for `/api` and `/mcp` and does not fall back to another admin. The web UI keeps working |
 | `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
+| `TZ` | `Europe/Warsaw` (compose) | Time zone for every "today": streaks, today's entries and future-date checks. Unset means UTC, and startup logs a warning |
 
 Port is always **8123**.
 
