@@ -165,7 +165,8 @@ async def cycle_daily_status(request: Request, day: str, field: str = Form(...))
     A partial write on purpose: /daily/save replaces the whole day, so a tap
     there would reset every field the tapping page did not post.
     """
-    if not valid_date(day):
+    day = valid_date(day)
+    if not day:
         return Response(
             status_code=422, headers={"X-Feedback-Message": "Invalid daily-log date.", "X-Feedback-Kind": "error"}
         )
@@ -198,7 +199,8 @@ async def save_daily(
     andy_relations_desc: str = Form(""),
     notes: str = Form(""),
 ):
-    if not valid_date(date):
+    date = valid_date(date)
+    if not date:
         return error_redirect(request, "/daily", "Invalid daily-log date.")
     # Blank means the day was not rated. A number is still clamped into 1-10.
     if energy is not None:
@@ -255,9 +257,9 @@ async def generate_andy(request: Request, date: str = Form(...), job_nonce: str 
     from app.services.job_producers import ActiveWorkloadConflictError
     from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 
-    if not valid_date(date):
+    day = valid_date(date)
+    if not day:
         return error_redirect(request, "/daily", "Invalid planning date.")
-    day = date_module.fromisoformat(date).isoformat()
 
     db = get_user_db_from_request(request)
     if not await llm_available(db):
@@ -295,7 +297,8 @@ async def save_measurements(
     hips: str = Form(""),
     thighs: str = Form(""),
 ):
-    if not valid_date(date):
+    date = valid_date(date)
+    if not date:
         return error_redirect(request, "/daily", "Invalid measurement date.")
 
     def to_float(v: str) -> float | None:

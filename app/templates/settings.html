@@ -534,6 +534,7 @@
         <div class="card-header"><h3>Automated Backup</h3></div>
         <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
             Creates daily SQLite backups in <code>data/backups/</code> with rolling retention.
+            A factory reset or deleting the account deletes them.
         </p>
         <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
             <input type="checkbox" name="backup_enabled" {{ 'checked' if backup_enabled else '' }}
@@ -667,6 +668,7 @@
     <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">
         Wipe all data and start fresh. Your account and login are kept; profile, goals, training,
         experiments, health data and settings are deleted, and you'll go through onboarding again.
+        The server's backups of your data are deleted too.
         Consider <a href="/settings/backup" style="color:var(--accent);">downloading a backup</a> first.
     </p>
     <details>

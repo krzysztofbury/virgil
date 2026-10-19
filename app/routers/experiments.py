@@ -411,7 +411,8 @@ async def create_experiment(
     week_labels: str = Form(""),
     goal_id: OptionalFormInt = None,
 ):
-    if not valid_date(start_date):
+    start_date = valid_date(start_date)
+    if not start_date:
         return error_redirect(request, "/experiments/new", "Choose a valid experiment start date.")
     if num_weeks < 1 or num_weeks > 52:
         return error_redirect(request, "/experiments/new", "Experiment duration must be between 1 and 52 weeks.")
@@ -660,7 +661,8 @@ async def edit_experiment(
     status: str = Form("active"),
     goal_id: OptionalFormInt = None,
 ):
-    if not valid_date(start_date):
+    start_date = valid_date(start_date)
+    if not start_date:
         return error_redirect(request, f"/experiments/{experiment_id}/edit", "Choose a valid experiment start date.")
     if num_weeks < 1 or num_weeks > 52:
         return error_redirect(
@@ -843,7 +845,8 @@ async def add_entry(
     that card redrawn, a plain post goes back to the dashboard."""
     from datetime import date as calendar_date
 
-    if not valid_date(date):
+    date = valid_date(date)
+    if not date:
         return error_redirect(request, f"/experiments/{experiment_id}", "Choose a valid entry date.")
     db = get_user_db_from_request(request)
     experiment_rows = await db.execute_fetchall("SELECT * FROM experiments WHERE id = ?", (experiment_id,))

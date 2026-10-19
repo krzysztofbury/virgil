@@ -151,6 +151,23 @@ async def add_brick(db, habit: dict, day: str, *, hook: str, craving: int | None
 
 async def update_brick(db, brick_id: int, changes: dict) -> dict:
     """Change only the supplied brick fields; the hook cannot become blank."""
+    _require_idle(db)
+    # One transaction from read to write, so concurrent edits of different fields both land.
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        brick = await _edited_brick(db, brick_id, changes)
+        await db.execute(
+            "UPDATE feniks_bricks SET date = ?, hook = ?, craving = ?, story = ? WHERE id = ?",
+            (brick["date"], brick["hook"], brick["craving"], brick["story"], brick_id),
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return {key: brick[key] for key in ("id", "habit", "date", "hook", "craving", "story")}
+
+
+async def _edited_brick(db, brick_id: int, changes: dict) -> dict:
     rows = await db.execute_fetchall(
         "SELECT b.*, h.slug AS habit FROM feniks_bricks b JOIN habits h ON h.id = b.habit_id WHERE b.id = ?",
         (brick_id,),
@@ -173,12 +190,7 @@ async def update_brick(db, brick_id: int, changes: dict) -> dict:
         brick["craving"] = None if craving is None else max(0, min(10, craving))
     if "story" in changes:
         brick["story"] = (changes["story"] or "")[:STORY_MAX]
-    await db.execute(
-        "UPDATE feniks_bricks SET date = ?, hook = ?, craving = ?, story = ? WHERE id = ?",
-        (brick["date"], brick["hook"], brick["craving"], brick["story"], brick_id),
-    )
-    await db.commit()
-    return {key: brick[key] for key in ("id", "habit", "date", "hook", "craving", "story")}
+    return brick
 
 
 async def delete_brick(db, brick_id: int) -> dict:

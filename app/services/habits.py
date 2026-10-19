@@ -11,6 +11,7 @@ again resumes where it left off.
 """
 
 import re
+import unicodedata
 from datetime import date as calendar_date
 
 NAME_MAX = 40
@@ -125,8 +126,19 @@ def _today() -> str:
     return calendar_date.today().isoformat()
 
 
+# Letters NFKD does not split into an ASCII base and a combining mark.
+_ASCII_FOLDS = str.maketrans({"ł": "l", "đ": "d", "ø": "o", "ħ": "h", "ı": "i", "ß": "ss", "æ": "ae", "œ": "oe"})
+
+
 def slugify(name: str) -> str:
-    slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+    """URL-safe ASCII for a habit name: "Słodycze" becomes "slodycze".
+
+    A name with no Latin letters at all (Cyrillic, Greek) becomes "habit";
+    add_custom then numbers it, so two such habits never share a slug.
+    """
+    folded = unicodedata.normalize("NFKD", name.lower().translate(_ASCII_FOLDS))
+    ascii_name = "".join(char for char in folded if not unicodedata.combining(char))
+    slug = re.sub(r"[^a-z0-9]+", "-", ascii_name).strip("-")
     return slug[:NAME_MAX] or "habit"
 
 
@@ -185,8 +197,17 @@ async def add_custom(db, name: str) -> dict:
     # "Alcohol" typed by hand is the catalog's Alcohol, and a name already in use
     # resumes that habit: either way its history stays in one place.
     slug = slugify(name)
-    if slug in PRESETS_BY_SLUG or await get_habit(db, slug) is not None:
+    if slug in PRESETS_BY_SLUG:
         return await track(db, slug)
+    habits = await list_habits(db, tracked_only=False)
+    same_name = next((habit for habit in habits if _name_key(habit["name"]) == _name_key(name)), None)
+    if same_name is not None:
+        return await track(db, same_name["slug"])
+    # A different name that folds to a slug in use gets its own: "habit-2", "habit-3".
+    taken = {habit["slug"] for habit in habits} | set(PRESETS_BY_SLUG)
+    base, suffix = slug, 2
+    while slug in taken:
+        slug, suffix = f"{base}-{suffix}", suffix + 1
     await _insert(
         db,
         {
@@ -200,6 +221,12 @@ async def add_custom(db, name: str) -> dict:
         },
     )
     return await get_habit(db, slug)
+
+
+def _name_key(name: str) -> str:
+    """Case and punctuation do not make a new habit: "Coffee!" is "coffee". Letters
+    in any script count, so two Cyrillic names stay two habits."""
+    return re.sub(r"[\W_]+", "", name.casefold())
 
 
 async def _insert(db, spec: dict) -> None:
@@ -246,12 +273,32 @@ def _text(changes: dict, key: str, limit: int, *, required: bool = False) -> str
 
 async def update_habit(db, slug: str, changes: dict) -> dict:
     """Change only the supplied fields of one habit."""
-    habit = await get_habit(db, slug)
-    if habit is None:
-        raise LookupError(f"No habit named {slug!r}.")
     unknown = set(changes) - set(EDITABLE)
     if unknown:
         raise HabitError(f"Unknown habit fields: {', '.join(sorted(unknown))}")
+    if db.in_transaction:
+        raise RuntimeError("Habit writes require a connection without pending writes")
+    # Read, merge and write in one transaction: two concurrent edits of different
+    # fields would otherwise each write back the other's old value.
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        habit = await get_habit(db, slug)
+        if habit is None:
+            raise LookupError(f"No habit named {slug!r}.")
+        _apply_changes(habit, changes)
+        await db.execute(
+            f"UPDATE habits SET {', '.join(f'{field} = ?' for field in EDITABLE)} WHERE id = ?",
+            (*(habit[field] for field in EDITABLE), habit["id"]),
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return habit
+
+
+def _apply_changes(habit: dict, changes: dict) -> None:
+    """Validate the supplied fields and set them on `habit` in place."""
     if "name" in changes:
         habit["name"] = _text(changes, "name", NAME_MAX, required=True)
     if "slip_label" in changes:
@@ -286,9 +333,3 @@ async def update_habit(db, slug: str, changes: dict) -> dict:
         habit["target_days"] = target
     if "big_why" in changes:
         habit["big_why"] = (changes["big_why"] or "")[:WHY_MAX]
-    await db.execute(
-        f"UPDATE habits SET {', '.join(f'{field} = ?' for field in EDITABLE)} WHERE id = ?",
-        (*(habit[field] for field in EDITABLE), habit["id"]),
-    )
-    await db.commit()
-    return habit

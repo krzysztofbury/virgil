@@ -36,7 +36,8 @@ async def save_life_score(
     diagnostic: str = Form(""),
     priorities: str = Form(""),
 ):
-    if not valid_date(date):
+    date = valid_date(date)
+    if not date:
         return error_redirect(request, "/", "Choose a valid life-score date.")
     planning = clamp(planning, 1, 10)
     spirituality = clamp(spirituality, 1, 10)

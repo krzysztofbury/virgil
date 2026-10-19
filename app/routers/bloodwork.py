@@ -152,7 +152,8 @@ async def save_result(
     value_text: str = Form(""),
     flag: str = Form(""),
 ):
-    if not valid_date(date):
+    date = valid_date(date)
+    if not date:
         return error_redirect(request, "/bloodwork", "Choose a valid bloodwork date.")
     if flag and flag not in ("", "H", "L"):
         return error_redirect(request, "/bloodwork", "Choose a valid bloodwork result flag.")

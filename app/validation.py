@@ -54,13 +54,17 @@ def clamp_metric_value(kind: str, value: int) -> int | None:
     return None
 
 
-def valid_date(s: str) -> bool:
-    """Return True if s is a valid ISO date string."""
+def valid_date(s: str) -> str | None:
+    """The date as canonical YYYY-MM-DD, or None if s is not an ISO date.
+
+    Store the returned string, never the input: date.fromisoformat also accepts
+    20261017 and 2026-W42-6, which never match the string range queries and
+    would make a second row for the same day.
+    """
     try:
-        date.fromisoformat(s)
-        return True
+        return date.fromisoformat(s).isoformat()
     except (ValueError, TypeError):
-        return False
+        return None
 
 
 def valid_month(s: str) -> bool:
