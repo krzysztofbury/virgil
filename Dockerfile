@@ -12,7 +12,7 @@ COPY mcp_server/virgil_mcp.py ./mcp_server/virgil_mcp.py
 COPY scripts/recovery.py ./scripts/recovery.py
 
 RUN adduser --disabled-password --no-create-home --gecos "" appuser
-RUN mkdir -p /data/users && chown -R appuser:appuser /data
+RUN mkdir -p /data/users /backups && chown -R appuser:appuser /data /backups
 USER appuser
 
 ARG GIT_SHA=unknown

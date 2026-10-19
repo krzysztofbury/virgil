@@ -52,14 +52,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Backups and pre-migration snapshots can live off the data volume:
   `VIRGIL_BACKUP_DIR` sets where they are written, and compose mounts
   `VIRGIL_BACKUP_HOST_DIR` (default `./backups`) there. Startup moves backups
-  left in `data/backups/` to it once, and logs an error when it is not writable.
+  left in `data/backups/` to it, deleting each only once an identical copy is on
+  disk, and logs an error when the directory cannot hold backups (not writable,
+  or no hard links on exFAT or FAT).
   Deleting or resetting an account removes its copies from both places.
-- Compose adds an `autoheal` service that restarts `virgil` when its healthcheck
-  reports unhealthy, and posts each restart to `AUTOHEAL_WEBHOOK_URL` when set.
-  The healthcheck's start period is 300 seconds, so a slow migration is never
-  restarted mid-run. Rollback stays manual, because an older image refuses a
-  newer database.
-- `cloudflared`, Watchtower and autoheal are pinned by version and digest.
+- Compose adds an `autoheal` service that restarts `virgil` when it stops
+  answering the new `/livez`, which the healthcheck now probes instead of
+  `/healthz`. A start that leaves a database unmigrated keeps `/healthz` at 503
+  and posts one alert to `ALERT_WEBHOOK_URL` instead of being restarted, since a
+  restart cannot fix it. The healthcheck's start period is 300 seconds, so a
+  migration gets about 6.5 minutes. Rollback stays manual, because an older
+  image refuses a newer database.
+- **Existing installs**: Watchtower does not apply compose changes. Create
+  `backups/` next to `data/`, writable by uid 1000 (`chown 1000:1000 backups`),
+  copy the new `docker-compose.yml`, then run `docker compose up -d`. Until
+  then backups stay in `data/backups/`, and production startup logs a warning.
+- `cloudflared`, Watchtower and autoheal are pinned by version and digest, and
+  the CI actions, including those in the job that publishes `latest`, by commit.
 - Each per-user migration runs in its own immediate transaction, so a
   failure leaves no half-applied schema behind, and a migration that commits
   on its own is refused. A database migrated by newer code is refused too:

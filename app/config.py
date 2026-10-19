@@ -41,6 +41,9 @@ USERS_DB_DIR = str(Path(CENTRAL_DB_PATH).parent / "users")
 # wiping the data volume does not take the copies with it. Empty keeps them in
 # <data>/backups.
 BACKUP_DIR_SETTING = os.environ.get("VIRGIL_BACKUP_DIR", "")
+# Receives {"text": ...} when a start leaves a database unmigrated: /healthz is
+# then red, and nothing else tells anyone. Empty sends nothing.
+ALERT_WEBHOOK_URL = os.environ.get("VIRGIL_ALERT_WEBHOOK_URL", "")
 ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS", "").split(",") if e.strip()]
 # Closed by default: the documented deployment is internet-facing (Cloudflare
 # Tunnel), and open registration would let anyone create accounts and burn

@@ -26,7 +26,7 @@ For Compose, using the image that matches the installed schema:
 docker compose stop watchtower virgil
 docker compose run --rm --no-deps virgil /app/.venv/bin/python scripts/recovery.py \
   create --central /data/virgil-central.db \
-  --destination /data/recovery/bundle-2026-10-11 --stopped
+  --destination /backups/recovery/bundle-2026-10-11 --stopped
 docker compose start virgil watchtower
 ```
 

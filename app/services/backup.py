@@ -1,4 +1,5 @@
 import asyncio
+import filecmp
 import logging
 import os
 import re
@@ -7,7 +8,7 @@ import sqlite3
 import time
 import uuid
 from collections.abc import Callable
-from contextlib import closing, suppress
+from contextlib import closing
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from math import isfinite
@@ -182,7 +183,14 @@ def delete_user_backups(db_filename: str) -> list[str]:
     # still this account's data.
     roots = dict.fromkeys((BACKUP_DIR, DATA_VOLUME_BACKUP_DIR))
     for root in roots:
-        for directory, pattern in ((root, f"{stem}-*.db"), (root / "pre-migration", f"{stem}-pre-migration-v*.db")):
+        for directory, pattern in (
+            (root, f"{stem}-*.db"),
+            (root / "pre-migration", f"{stem}-pre-migration-v*.db"),
+            # A copy cut short by a crash leaves its private name behind, and
+            # it holds this account's data as much as a finished one does.
+            (root, f".{stem}-*.tmp"),
+            (root / "pre-migration", f".{stem}-pre-migration-v*.tmp"),
+        ):
             if not directory.exists():
                 continue
             for path in directory.glob(pattern):
@@ -194,45 +202,90 @@ def delete_user_backups(db_filename: str) -> list[str]:
 
 
 def backup_dir_problem() -> str | None:
-    """Why no backup can be written, or None. A bind mount the host created for
-    root is the usual cause; every backup and pre-migration snapshot then fails."""
+    """Why no backup can be written, or None.
+
+    Checked by doing what a backup does: write a file and hard-link it into
+    place. A host directory Docker created for root fails the write; an exFAT or
+    FAT disk fails the link. Either way every backup and pre-migration snapshot
+    would fail, and with them every pending migration.
+    """
+    probe = BACKUP_DIR / f".write-check.{uuid.uuid4().hex}.tmp"
+    linked = probe.with_name(probe.name + ".link")
     try:
         BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+        probe.write_bytes(b"")
+        os.link(probe, linked)
     except OSError as exc:
-        return f"Backup directory {BACKUP_DIR} cannot be created ({exc.strerror})."
-    if not os.access(BACKUP_DIR, os.W_OK | os.X_OK):
         return (
-            f"Backup directory {BACKUP_DIR} is not writable by uid {os.getuid()}: no backup or "
-            "pre-migration snapshot can be made, and pending migrations will not run."
+            f"Backup directory {BACKUP_DIR} cannot hold backups as uid {os.getuid()} ({exc.strerror}): "
+            "no backup or pre-migration snapshot can be made, and pending migrations will not run. "
+            "It needs a Linux filesystem the container user can write."
         )
+    finally:
+        probe.unlink(missing_ok=True)
+        linked.unlink(missing_ok=True)
     return None
+
+
+def _fsync_dir(directory: Path) -> None:
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _durable_copy(source: Path, destination: Path) -> None:
+    """Copy with its timestamps, on disk before the final name appears.
+
+    The modification time is the backup's age in Settings. The flushes matter
+    because the source is deleted next, and a NAS restarting after a power cut
+    is exactly when this runs.
+    """
+    temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+    try:
+        shutil.copy2(source, temporary)
+        with open(temporary, "rb") as handle:
+            os.fsync(handle.fileno())
+        os.link(temporary, destination)
+        _fsync_dir(destination.parent)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def relocate_data_volume_backups() -> int:
     """Move backups left on the data volume into BACKUP_DIR once it points elsewhere.
 
     Left behind they would never be pruned, and Settings would not count them.
-    Runs at startup, before anything writes a backup. Copies to a private name
-    first, so an interrupted move never publishes a truncated file.
+    Runs at startup, before anything writes a backup. A source is deleted only
+    once an identical copy is on disk under the new directory.
     """
-    source, target = DATA_VOLUME_BACKUP_DIR.resolve(), BACKUP_DIR.resolve()
-    if source == target or not source.is_dir():
+    source, target = DATA_VOLUME_BACKUP_DIR, BACKUP_DIR
+    if not source.is_dir():
         return 0
-    if target.is_relative_to(source) or source.is_relative_to(target):
+    target.mkdir(parents=True, exist_ok=True)
+    # Two paths can name one directory, as when one host folder is mounted at
+    # both /data/backups and /backups. Then "moving" a file deletes the only
+    # copy, so compare the directories themselves, not their spelling.
+    if os.path.samefile(source, target):
+        return 0
+    if target.resolve().is_relative_to(source.resolve()) or source.resolve().is_relative_to(target.resolve()):
         raise RuntimeError(f"VIRGIL_BACKUP_DIR {target} must not overlap {source}")
     moved = 0
     for path in sorted(source.rglob("*.db")):
         destination = target / path.relative_to(source)
         destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
-        try:
-            shutil.copy2(path, temporary)
-            # An existing destination is a copy from a move that stopped before
-            # it could delete its source; keep that one.
-            with suppress(FileExistsError):
-                os.link(temporary, destination)
-        finally:
-            temporary.unlink(missing_ok=True)
+        if not destination.exists():
+            _durable_copy(path, destination)
+        elif os.path.samefile(path, destination):
+            # One file under two names (a nested mount): deleting either deletes both.
+            continue
+        if not filecmp.cmp(path, destination, shallow=False):
+            # Not a copy of this file, for example one cut short by a power loss
+            # after the link. Both stay for the operator to compare.
+            logger.warning("Kept %s on the data volume: %s holds a different file", path, destination)
+            continue
+        _fsync_dir(destination.parent)
         path.unlink()
         moved += 1
     return moved

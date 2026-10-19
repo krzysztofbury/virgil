@@ -53,6 +53,7 @@ Pause Watchtower before rollback. Select the known-good `sha-*` image explicitly
 in Compose rather than retagging a local image as `latest`. Check the migration
 boundary before starting an older image: image rollback cannot reverse database
 migrations, and an older image refuses a database migrated past it (its
-`/healthz` stays red, and autoheal keeps restarting it). Use matching pre-migration snapshots or the complete recovery process
+`/healthz` stays red). Stop `virgil` before restoring snapshot files; autoheal
+leaves a stopped container alone. Use matching pre-migration snapshots or the complete recovery process
 in [docs/recovery.md](docs/recovery.md), preserving current data for investigation.
 Re-enable automatic updates only after a correcting main image is verified.

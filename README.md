@@ -122,11 +122,13 @@ GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 ~5 minutes and recreates `virgil`.
 
 > **Deployment semantics - know what this is**: Watchtower is best-effort
-> auto-update, NOT a staged deployment. A broken image is deployed. When
-> `/healthz` then fails, the container turns unhealthy and the `autoheal`
-> service restarts it, posting each restart to `AUTOHEAL_WEBHOOK_URL` when set,
-> so a restart loop is announced rather than found later. A rollback is
-> deliberately not automatic: database migrations are one-way and an older image
+> auto-update, NOT a staged deployment. A broken image is deployed. Two
+> signals cover what can then go wrong. A process that stops answering `/livez`
+> turns the container unhealthy, and the `autoheal` service restarts it. A start
+> that leaves any database unmigrated keeps `/healthz` at 503 and posts one alert
+> to `ALERT_WEBHOOK_URL`; it is not restarted, because a restart cannot fix it
+> and would cut off every other account each time. Autoheal posts each restart
+> to the same URL. A rollback is deliberately not automatic: database migrations are one-way and an older image
 > refuses a newer database, so going back means restoring a **pre-migration
 > snapshot** from `backups/pre-migration/` (`*-pre-migration-vNNN.db`), as the
 > rollback procedure below describes. The CI test gate in front of every image
@@ -135,7 +137,8 @@ GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 > **Backups live off the data volume**: compose mounts `VIRGIL_BACKUP_HOST_DIR`
 > (default `./backups`) at `/backups`, separate from `./data`, so losing or
 > wiping the data directory does not take the copies with it. Point it at
-> another disk or share when there is one. Backups an older setup left in
+> another disk or share when there is one, with a Linux filesystem: backups are
+> published by hard link, which exFAT and FAT do not support. Backups an older setup left in
 > `data/backups/` are moved there at the next start. For copies off the machine,
 > see [the recovery guide](docs/recovery.md).
 >
@@ -219,7 +222,8 @@ All configuration via environment variables:
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 | `VIRGIL_BACKUP_DIR` | `<data>/backups` (`/backups` in compose) | Where backups and pre-migration snapshots are written. Startup moves any left in `<data>/backups` here and logs an error when it is not writable |
 | `VIRGIL_BACKUP_HOST_DIR` | `./backups` | Host directory compose mounts at `/backups` (docker-compose only). Must be writable by uid 1000 |
-| `AUTOHEAL_WEBHOOK_URL` | (empty) | URL that receives a JSON `{"text": ...}` post each time autoheal restarts an unhealthy `virgil` (docker-compose only) |
+| `VIRGIL_ALERT_WEBHOOK_URL` | (empty) | URL that receives a JSON `{"text": ...}` post when a start leaves a database unmigrated. Compose fills it from `ALERT_WEBHOOK_URL` |
+| `ALERT_WEBHOOK_URL` | (empty) | Compose only: the webhook for both the startup alert and each autoheal restart. Slack-style: it expects a `text` field |
 | `TZ` | `Europe/Warsaw` (compose) | Time zone for every "today": streaks, today's entries and future-date checks. Unset means UTC, and startup logs a warning |
 
 Port is always **8123**.
