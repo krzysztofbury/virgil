@@ -541,7 +541,7 @@
            style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.75rem;font-size:var(--text-sm);">
             {% if backup.state == 'failed' %}
             <span class="job-status-badge job-status-badge-failed">Failed</span>
-            <span>The last backup attempt failed {{ backup.failed_age }}. Recent Jobs below has the error.</span>
+            <span>The last backup attempt failed {{ backup.failed_age }}{% if backup.failed_error %}: {{ backup.failed_error }}{% else %}.{% endif %}</span>
             {% elif backup.state == 'running' %}
             <span class="job-status-badge job-status-badge-running">Running</span>
             <span>A backup is queued or running.</span>
@@ -703,7 +703,7 @@
                 {% if backup_status.latest_age %}
                 The newest server backup ({{ backup_status.latest_age }}) goes with the reset.
                 {% else %}
-                There is no server backup to fall back on.
+                There is no server backup to restore from.
                 {% endif %}
                 The download is the only way back.
             </p>
