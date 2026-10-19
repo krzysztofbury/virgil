@@ -61,9 +61,15 @@ def parse_trusted_proxies(raw: str) -> tuple[ipaddress.IPv4Network | ipaddress.I
         if not entry:
             continue
         try:
-            networks.append(ipaddress.ip_network(entry, strict=False))
+            network = ipaddress.ip_network(entry, strict=False)
         except ValueError:
             logging.getLogger(__name__).warning("VIRGIL_TRUSTED_PROXY_IPS: ignoring %r, not an IP or CIDR", entry)
+            continue
+        if network.prefixlen == 0:
+            # Every peer could then claim any client address.
+            logging.getLogger(__name__).warning("VIRGIL_TRUSTED_PROXY_IPS: ignoring %r, it trusts everyone", entry)
+            continue
+        networks.append(network)
     return tuple(networks)
 
 

@@ -51,12 +51,20 @@ def test_direct_ingress_ignores_spoofed_cloudflare_ips(monkeypatch):
     assert statuses[10] == 429
 
 
-@pytest.mark.parametrize("proxies", [PROXY_PEER, "172.16.0.0/12", "bogus, 10.0.0.0/8, 172.18.0.0/16"])
-def test_trusted_cloudflare_ingress_uses_valid_forwarded_ip(monkeypatch, proxies):
+@pytest.mark.parametrize(
+    ("proxies", "peer"),
+    [
+        (PROXY_PEER, PROXY_PEER),
+        ("172.16.0.0/12", PROXY_PEER),
+        ("bogus, 10.0.0.0/8, 172.18.0.0/16", PROXY_PEER),
+        ("172.18.0.0/16", f"::ffff:{PROXY_PEER}"),
+    ],
+)
+def test_trusted_cloudflare_ingress_uses_valid_forwarded_ip(monkeypatch, proxies, peer):
     """An exact address, or a range covering the Docker network, so a recreated
     tunnel container with a new address stays trusted."""
     _trust(monkeypatch, True, proxies)
-    client = _rate_limited_client()
+    client = _rate_limited_client(peer)
 
     statuses = [
         client.post("/training/wod", headers={"CF-Connecting-IP": f"198.51.100.{i + 1}"}).status_code for i in range(11)
@@ -77,7 +85,7 @@ def test_trusted_cloudflare_ingress_rejects_invalid_forwarded_ip(monkeypatch):
     assert statuses[10] == 429
 
 
-@pytest.mark.parametrize("proxies", ["192.0.2.10", "10.0.0.0/8", "not-an-address"])
+@pytest.mark.parametrize("proxies", ["192.0.2.10", "10.0.0.0/8", "not-an-address", "0.0.0.0/0", "::/0"])
 def test_trusted_cloudflare_mode_ignores_header_from_untrusted_peer(monkeypatch, proxies):
     _trust(monkeypatch, True, proxies)
     client = _rate_limited_client()

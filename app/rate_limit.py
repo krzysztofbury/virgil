@@ -43,6 +43,8 @@ def _is_trusted_proxy(peer_ip: str) -> bool:
         address = ipaddress.ip_address(peer_ip)
     except ValueError:
         return False
+    # A dual-stack socket reports an IPv4 peer as ::ffff:a.b.c.d.
+    address = getattr(address, "ipv4_mapped", None) or address
     return any(address in network for network in TRUSTED_PROXY_IPS)
 
 

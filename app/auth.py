@@ -198,11 +198,17 @@ def session_identity(token: str) -> tuple[str, int] | None:
     return user_id, int(epoch)
 
 
-def signed_in_user_id(token: str) -> str | None:
-    """The user a session cookie signs in, or None. The epoch is checked against
-    the registry by the middleware, not here."""
+async def signed_in_user(token: str) -> dict | None:
+    """The active account a session cookie signs in at its current epoch, or None."""
     identity = session_identity(token)
-    return identity[0] if identity else None
+    if not identity or not valid_uuid(identity[0]):
+        return None
+    from app.central_db import get_user_by_id
+
+    user = await get_user_by_id(identity[0])
+    if not user or not user["is_active"] or user["session_epoch"] != identity[1]:
+        return None
+    return user
 
 
 def mfa_pending_user_id(token: str) -> str | None:
@@ -269,9 +275,15 @@ class AuthMiddleware:
 
         user = await get_user_by_id(user_id)
 
-        # A bumped epoch (logout, MFA change) revokes every session signed before it.
-        if not user or not user["is_active"] or user["session_epoch"] != session_epoch:
+        if not user or not user["is_active"]:
             await _stale_session_response(scope)(scope, receive, send)
+            return
+        # A bumped epoch (logout, MFA change) revokes every session signed before it.
+        # The cookie is left alone: a poll sent just before this browser turned MFA
+        # on would otherwise clear the fresh cookie the MFA response set. /login
+        # checks the epoch too, so the stale cookie cannot loop.
+        if user["session_epoch"] != session_epoch:
+            await _login_response(scope)(scope, receive, send)
             return
 
         # Open per-user database connection. Opening and every step after it

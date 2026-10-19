@@ -131,6 +131,13 @@ def test_logout_revokes_every_session_of_the_account(auth_client, client):
 
     assert _session_is_refused(client, copied)
     assert _session_is_refused(client, legacy)
+    # A revoked cookie is not cleared (a late poll must not wipe a fresh one), so
+    # /login has to see it as signed out instead of bouncing it back to /.
+    client.cookies.set(SESSION_COOKIE, copied)
+    try:
+        assert client.get("/login", follow_redirects=False).status_code == 200
+    finally:
+        client.cookies.clear()
     # Restore the session for the rest of the shared-fixture suite.
     _login(auth_client)
     assert not _session_is_refused(client, auth_client.cookies[SESSION_COOKIE])
@@ -358,6 +365,17 @@ def test_mfa_setup_never_puts_the_totp_secret_in_a_url(auth_client, client):
         ).fetchone()
         assert stored[1] == 1
         assert decrypt(stored[0]) == secret
+
+        other_browser = auth_client.cookies[SESSION_COOKIE]
+        token = csrf_token(auth_client, "/settings/mfa")
+        disabled = auth_client.post(
+            "/settings/mfa/disable",
+            data={"password": "test-password-123", "_csrf_token": token},  # pragma: allowlist secret
+            follow_redirects=False,
+        )
+        assert disabled.status_code == 303
+        assert _session_is_refused(client, other_browser)
+        assert auth_client.get("/settings").status_code == 200
     finally:
         central.execute("UPDATE users SET totp_secret = '', totp_enabled = 0 WHERE email = ?", (TEST_EMAIL,))
         central.commit()
@@ -444,5 +462,34 @@ def test_mfa_verification_locks_the_account_after_repeated_wrong_codes(client):
             "WHERE email = ?",
             (TEST_EMAIL,),
         )
+        central.commit()
+        central.close()
+
+
+def test_parallel_mfa_guesses_stay_within_the_limit(client):
+    """Each attempt is counted before its code is checked, so a burst of parallel
+    guesses cannot all slip in before the first failure is recorded."""
+    import asyncio
+    from datetime import UTC, datetime
+
+    from app.central_db import claim_mfa_attempt
+    from app.routers.auth import MFA_LOCK_SECONDS, MFA_MAX_ATTEMPTS
+
+    central = _central_conn()
+    user_id = central.execute("SELECT id FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()[0]
+    now = datetime.now(UTC)
+
+    async def burst():
+        return await asyncio.gather(
+            *(claim_mfa_attempt(user_id, now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS) for _ in range(12))
+        )
+
+    try:
+        allowed = client.portal.call(burst)
+        assert sum(allowed) == MFA_MAX_ATTEMPTS
+        locked_until = central.execute("SELECT mfa_locked_until FROM users WHERE id = ?", (user_id,)).fetchone()[0]
+        assert locked_until > now.strftime("%Y-%m-%dT%H:%M:%SZ")
+    finally:
+        central.execute("UPDATE users SET mfa_failed_attempts = 0, mfa_locked_until = '' WHERE id = ?", (user_id,))
         central.commit()
         central.close()

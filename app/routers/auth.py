@@ -16,7 +16,7 @@ from app.auth import (
     hash_password,  # noqa: F401 — re-exported for use in tests
     mfa_pending_user_id,
     session_cookie_header,
-    signed_in_user_id,
+    signed_in_user,
     verify_password,
 )
 from app.central_db import (
@@ -103,7 +103,7 @@ async def signup_page(request: Request):
             {"request": request, "info": "Registration is closed on this server.", "registration_open": False},
         )
 
-    if signed_in_user_id(request.cookies.get(SESSION_COOKIE, "")):
+    if await signed_in_user(request.cookies.get(SESSION_COOKIE, "")):
         return RedirectResponse("/", status_code=303)
 
     return templates.TemplateResponse(request, "auth_signup.html", {"request": request})
@@ -174,7 +174,7 @@ async def signup_submit(
 
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
-    if signed_in_user_id(request.cookies.get(SESSION_COOKIE, "")):
+    if await signed_in_user(request.cookies.get(SESSION_COOKIE, "")):
         return RedirectResponse("/", status_code=303)
 
     return templates.TemplateResponse(
