@@ -90,6 +90,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- A blood-panel PDF whose markers failed to parse was missing its extraction
+  charge from the paid-call ledger, so a retry paid for the extraction again.
+  The extraction is now recorded on its own and a retry only parses.
 - Saving the daily form without rating energy no longer stores 5. An unrated
   day stays empty, and a rating already entered is kept.
 - Auth closes the user database when loading feature flags fails, instead of
