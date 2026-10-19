@@ -648,10 +648,12 @@ async def capture_wod(request: Request):
             idempotency_key=paid_llm_job_key(WOD_PARSE_JOB_KIND, str(session_id)),
         )
     except ActiveWorkloadConflictError:
-        return success_redirect(
+        # Only a key owned by another kind lands here now; say so instead of
+        # promising a parse that is not coming.
+        return error_redirect(
             request,
-            f"/training/wod/confirm/{session_id}",
-            "Training note saved. Its entries are already being read.",
+            "/training",
+            "Note saved, but reading it could not be queued. Enter the sets by hand.",
         )
     except Exception:
         logger.exception("WOD parse enqueue failed for session %s", session_id)

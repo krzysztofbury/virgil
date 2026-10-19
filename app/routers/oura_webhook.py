@@ -58,13 +58,6 @@ async def _load_oura_integration(db) -> dict | None:
     return dict(rows[0]) if rows else None
 
 
-@router.post("/api/oura/webhook")
-async def oura_webhook_legacy():
-    """Legacy single-user endpoint — subscriptions must be re-enabled to get a
-    per-user callback URL (Settings > Integrations)."""
-    return Response("Webhook endpoint moved — re-enable the webhook in Settings > Integrations", status_code=410)
-
-
 @router.get("/api/oura/webhook/{webhook_id}")
 async def oura_webhook_verify(request: Request, webhook_id: str):
     """Subscription verification challenge (Oura sends this on subscribe)."""

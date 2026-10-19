@@ -83,3 +83,41 @@ def test_freedom_routes_refuse_the_key_without_the_sensitive_scope(auth_client, 
 def test_other_reads_do_not_need_the_sensitive_scope(auth_client, path):
     """The other direction: a read missing from the table above answers without the scope."""
     assert auth_client.get(_url(path), headers=KEY).status_code != 403
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "status"),
+    [("POST", "/api/briefing/generate", 303), ("POST", "/mcp", 401)],
+    ids=["session-route-under-api", "mcp"],
+)
+def test_only_api_key_routes_skip_the_session(client, method, path, status):
+    """The exemption comes from the routes that depend on the key. A session route
+    that merely lives under /api must still send an anonymous caller to log in."""
+    anonymous = TestClient(app)
+    anonymous.portal = client.portal
+    response = anonymous.request(method, path, follow_redirects=False)
+    assert response.status_code == status
+
+
+def _sessions_routes():
+    from fastapi.routing import APIRoute
+
+    from app.api_paths import _depends_on
+    from app.routers.api import api_db
+
+    for route in app.routes:
+        if isinstance(route, APIRoute) and not _depends_on(route.dependant, api_db):
+            yield route
+
+
+def test_no_session_route_falls_inside_an_api_key_pattern():
+    """A session route matching an API-key pattern would skip both login and CSRF."""
+    from app.api_paths import is_api_key_path
+
+    samples = {"day": "2026-01-01", "habit": "porn", "slug": "porn"}
+    leaks = []
+    for route in _sessions_routes():
+        path = re.sub(r"\{(\w+)(:\w+)?\}", lambda m: samples.get(m.group(1), "1"), route.path)
+        if is_api_key_path(path):
+            leaks.append(route.path)
+    assert leaks == []

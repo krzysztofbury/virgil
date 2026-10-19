@@ -45,6 +45,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Each per-user migration runs in its own immediate transaction, so a
+  failure leaves no half-applied schema behind, and a migration that commits
+  on its own is refused. A database migrated by newer code is refused too:
+  after an image rollback the account is marked failed and `/healthz` reports
+  degraded instead of staying green.
+- Migration 001 carries its own frozen schema and seeds; `app/db.py` no longer
+  doubles as migration input. Fresh databases are unchanged.
+- The API-key and CSRF exemptions come from the routes that depend on the API
+  key (plus `/mcp`) instead of two hand-kept path lists.
+- The pre-multi-user `POST /api/oura/webhook` address, which only answered
+  410, is gone. Per-user callbacks are unaffected.
+- `TZ` is documented and overridable in compose (default `Europe/Warsaw`), and
+  startup warns when it is unset and every "today" would follow UTC.
 - Second Brain is gone. Virgil no longer reads markdown from a server folder
   (the Settings import, `scripts/import_data.py`, the A.N.D.Y. `plan.md`) or
   writes exports into it (manual and scheduled). Markdown export is a download
@@ -162,6 +175,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   transliterate accented Latin letters (`Słodycze` is `slodycze`), and a
   different name that folds to a slug in use is numbered (`habit-2`). The same
   name in another case or punctuation still resumes the existing habit.
+- A training note captured while another note's parse was still queued is
+  parsed too. It used to be saved with no parse queued and a message saying
+  its entries were being read. Migration 038 lets each note queue its own
+  parse; the other paid jobs keep one queued at a time.
 
 ## [0.7.0] - 2026-10-11
 

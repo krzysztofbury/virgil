@@ -69,6 +69,32 @@ def _capture(auth_client, text: str = "PJ 21-15-9 thruster 43") -> tuple[int, in
     return session_id, job_id
 
 
+def test_a_note_captured_while_another_parse_is_queued_gets_its_own(auth_client, monkeypatch):
+    """The second capture used to find the first parse queued, queue nothing and
+    say its entries were being read. Nothing ever read them."""
+    parsed = []
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        parsed.append(user_prompt)
+        return json.dumps({"entries": [], "unmatched": []})
+
+    monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+    first_session, first_job = _capture(auth_client, "PJ first note")
+    second_session, second_job = _capture(auth_client, "PJ second note")
+
+    assert first_job != second_job
+    statuses = _rows("SELECT status FROM jobs WHERE id IN (?, ?)", (first_job, second_job))
+    assert [row["status"] for row in statuses] == ["queued", "queued"]
+
+    drain_jobs()
+
+    assert len(parsed) == 2
+    rows = _rows(
+        "SELECT wod_parsed FROM training_sessions WHERE id IN (?, ?) ORDER BY id", (first_session, second_session)
+    )
+    assert all(row["wod_parsed"] is not None for row in rows)
+
+
 def test_capture_returns_before_any_provider_is_called(auth_client, monkeypatch):
     called = []
 

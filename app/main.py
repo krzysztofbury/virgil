@@ -108,6 +108,19 @@ def get_app_version() -> str:
     return _APP_VERSION
 
 
+def timezone_warning() -> str | None:
+    """Every "today" (streaks, today's entries, the future-date checks) follows the
+    server's local date. Without TZ that is UTC, so the day turns at the wrong hour
+    for most people; say so at startup instead of silently."""
+    # The clock, not the variable: a misspelled TZ also falls back to UTC.
+    if time.timezone == 0 and not time.daylight:
+        return (
+            f"The local clock is UTC (TZ={os.environ.get('TZ', '<unset>')}), so 'today' follows UTC. Set TZ to "
+            "the household's time zone (for example TZ=Europe/Warsaw) so days turn at local midnight."
+        )
+    return None
+
+
 async def _start_application(app: FastAPI):
     from app.central_db import init_central_db, promote_admin_emails
 
@@ -118,6 +131,8 @@ async def _start_application(app: FastAPI):
     from app.routers.api import warn_if_api_user_unconfigured
 
     warn_if_api_user_unconfigured()
+    if warning := timezone_warning():
+        _log.warning(warning)
 
     app.state.central_migration_failure = False
     app.state.migration_failures = []

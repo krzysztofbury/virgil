@@ -141,3 +141,65 @@ def test_migration_029_index_matches_the_live_kind_tuple():
     migration = importlib.import_module("app.migrations.029_llm_publications")
     assert migration._KINDS == PAID_LLM_JOB_KINDS
     assert all(f"'{kind}'" in migration._INDEX_SQL for kind in PAID_LLM_JOB_KINDS)
+
+
+def test_migration_038_caps_every_paid_kind_but_the_wod_parse():
+    from app.services.llm_jobs import PAID_LLM_ONE_QUEUED_KINDS
+
+    migration = importlib.import_module("app.migrations.038_queue_every_wod_parse")
+    assert migration._KINDS == PAID_LLM_ONE_QUEUED_KINDS
+    assert "wod_parse" not in PAID_LLM_ONE_QUEUED_KINDS
+
+
+def test_an_account_at_037_with_queued_jobs_upgrades_through_038(tmp_path, monkeypatch):
+    """The real upgrade path: jobs already queued, the old one-per-kind index in
+    place. 038 must rebuild it without touching them, then let a second WOD parse
+    queue while still refusing a second queued A.N.D.Y. job."""
+    import sqlite3
+
+    import app.migrations.runner as runner
+
+    every = runner._discover()
+
+    async def scenario():
+        db = await aiosqlite.connect(tmp_path / "upgrade.db")
+        db.row_factory = aiosqlite.Row
+        try:
+            monkeypatch.setattr(runner, "_discover", lambda: [m for m in every if m[0] <= 37])
+            await runner.run_migrations(db)
+            await db.execute(
+                "INSERT INTO jobs (kind, payload_json, idempotency_key) VALUES "
+                "('wod_parse', '{\"session_id\": 1}', 'wod_parse:1'), "
+                "('andy_generation', '{}', 'andy_generation:a')"
+            )
+            await db.commit()
+            with pytest.raises(sqlite3.IntegrityError):
+                await db.execute(
+                    "INSERT INTO jobs (kind, payload_json, idempotency_key) VALUES ('wod_parse', '{}', 'wod_parse:2')"
+                )
+            await db.rollback()
+
+            monkeypatch.setattr(runner, "_discover", lambda: every)
+            await runner.run_migrations(db)
+
+            await db.execute(
+                "INSERT INTO jobs (kind, payload_json, idempotency_key) VALUES ('wod_parse', '{}', 'wod_parse:2')"
+            )
+            with pytest.raises(sqlite3.IntegrityError):
+                await db.execute(
+                    "INSERT INTO jobs (kind, payload_json, idempotency_key) VALUES ('andy_generation', '{}', 'andy_generation:b')"
+                )
+            await db.rollback()
+            version = (await db.execute_fetchall("SELECT MAX(version) AS v FROM schema_migrations"))[0]["v"]
+            kept = [
+                row["idempotency_key"]
+                for row in await db.execute_fetchall("SELECT idempotency_key FROM jobs ORDER BY id")
+            ]
+            return version, kept
+        finally:
+            await db.close()
+
+    version, kept = asyncio.run(scenario())
+
+    assert version == 38
+    assert kept == ["wod_parse:1", "andy_generation:a"]

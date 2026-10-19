@@ -36,7 +36,7 @@ services:
       VIRGIL_API_USER_EMAIL: ${VIRGIL_API_USER_EMAIL:-}
       # Opt-in: expose /api/noporn (intimate journal content) over the API key.
       VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
-      TZ: Europe/Warsaw
+      TZ: ${TZ:-Europe/Warsaw}
     volumes:
       - ./data:/data
     # Security hardening
@@ -70,7 +70,7 @@ services:
       # exactly the state a broken image leaves behind, so the fixed image
       # would never get auto-deployed.
       WATCHTOWER_INCLUDE_RESTARTING: "true"
-      TZ: Europe/Warsaw
+      TZ: ${TZ:-Europe/Warsaw}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ${DOCKER_CONFIG_JSON:-~/.docker/config.json}:/config.json:ro

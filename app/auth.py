@@ -2,7 +2,6 @@
 
 import hashlib
 import logging
-import re
 
 import bcrypt
 from itsdangerous import BadSignature, TimestampSigner
@@ -10,6 +9,7 @@ from starlette.requests import Request
 from starlette.responses import RedirectResponse, Response
 from starlette.types import ASGIApp, Receive, Scope, Send
 
+from app.api_paths import is_api_key_path
 from app.config import BASE_URL
 from app.validation import valid_uuid
 
@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 SESSION_COOKIE = "virgil_session"
 SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
 
-# Paths that bypass auth entirely.
+# Paths that bypass session auth entirely. X-API-Key routes (REST and /mcp) are
+# found by app.api_paths from the routes themselves, so a new API route cannot
+# drift out of this list and a session route cannot slip into it.
 PUBLIC_PATHS = frozenset(
     {
         "/login",
@@ -27,80 +29,11 @@ PUBLIC_PATHS = frozenset(
         "/offline",
         "/healthz",
         "/service-worker.js",
-        "/api/oura/webhook",
-        # REST API — each route enforces its own X-API-Key auth (app/routers/api.py).
-        # Enumerated explicitly (no /api/ prefix whitelist) so future /api/* routes
-        # default to session auth unless deliberately added here.
-        "/api/summary",
-        "/api/oura/today",
-        "/api/habits",
-        "/api/experiments/active",
-        "/api/goal-areas",
-        "/api/goals",
-        "/api/goals/{goal_id}",
-        "/api/goal-reps",
-        "/api/goal-reps/{rep_id}",
-        "/api/goal-reps/{rep_id}/transition",
-        # Inventory entry only (tests assert every API route is enumerated here);
-        # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
-        "/api/experiments/{experiment_id}/entries",
-        "/api/training",
-        "/api/training/detail",
-        "/api/noporn",
-        "/api/freedom",
-        # Inventory entries only; runtime matching for these happens via PUBLIC_PATTERNS.
-        "/api/freedom/{habit}",
-        "/api/freedom/{habit}/days/{day}",
-        "/api/freedom/{habit}/bricks",
-        "/api/freedom/bricks/{brick_id}",
-        "/api/library",
-        # Inventory entry only (tests assert every API route is enumerated here);
-        # runtime matching for this parametrized path happens via PUBLIC_PATTERNS.
-        "/api/library/{entry_id}",
-        "/api/feniks/bricks",
-        "/api/training/sessions",
-        "/api/daily/{day}",
-        "/api/feniks/daily/{day}",
-        "/api/training/sessions/{session_id}",
-        "/api/feniks/config",
-        "/api/feniks/bricks/{brick_id}",
-        "/api/measurements",
-        "/api/measurements/{day}",
-        # Hosted MCP endpoint (app/mcp_endpoint.py) - enforces the same X-API-Key itself.
-        "/mcp",
     }
 )
-# /api/oura/webhook/{webhook_id} — per-user webhook callbacks authenticate via
+# /api/oura/webhook/{webhook_id}: per-user webhook callbacks authenticate via
 # HMAC signature inside the handler, never via session cookies.
 PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
-# Parametrized API routes can't exact-match a request path. Anchored regexes,
-# one numeric segment only — a broad prefix/suffix match would silently make
-# any future /api/experiments/*/entries or /api/library/* session route public.
-# The route itself still enforces X-API-Key auth.
-# `\Z` (not `$`, which also matches just before a trailing "\n") and `[0-9]`
-# (not `\d`, which is Unicode-aware and matches non-ASCII digits) so a path
-# like "/api/library/1%0A" or "/api/library/١٢٣" can't sneak
-# past the intended one-numeric-segment shape. Neither alias is exploitable
-# here (the route still enforces X-API-Key auth either way), but the pattern
-# is kept tight rather than half-hardened.
-PUBLIC_PATTERNS = (
-    re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
-    re.compile(r"^/api/library/[0-9]+\Z"),
-    re.compile(r"^/api/goals/[0-9]+\Z"),
-    re.compile(r"^/api/goal-reps/[0-9]+\Z"),
-    re.compile(r"^/api/goal-reps/[0-9]+/transition\Z"),
-    re.compile(r"^/api/training/sessions/[0-9]+\Z"),
-    # One ISO calendar date; the route rejects anything that does not parse.
-    re.compile(r"^/api/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
-    re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    # A habit slug is lowercase ASCII letters, digits and hyphens (habits.slugify).
-    re.compile(r"^/api/freedom/[a-z0-9-]+\Z"),
-    re.compile(r"^/api/freedom/[a-z0-9-]+/days/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/freedom/[a-z0-9-]+/bricks\Z"),
-    re.compile(r"^/api/freedom/bricks/[0-9]+\Z"),
-)
 
 BCRYPT_ROUNDS = 12
 
@@ -248,11 +181,7 @@ class AuthMiddleware:
         path = scope.get("path", "")
 
         # Allow public paths.
-        if (
-            path in PUBLIC_PATHS
-            or any(path.startswith(p) for p in PUBLIC_PREFIXES)
-            or any(p.match(path) for p in PUBLIC_PATTERNS)
-        ):
+        if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES) or is_api_key_path(path):
             await self.app(scope, receive, send)
             return
 

@@ -1,5 +1,4 @@
 import logging
-import re
 import secrets
 from urllib.parse import parse_qs
 
@@ -7,6 +6,7 @@ from starlette.requests import Request
 from starlette.responses import Response
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
+from app.api_paths import is_api_key_path
 from app.config import BASE_URL
 
 logger = logging.getLogger(__name__)
@@ -16,44 +16,11 @@ CSRF_COOKIE = "csrf_token"
 CSRF_HEADER = "x-csrf-token"
 CSRF_FIELD = "_csrf_token"
 SAFE_METHODS = frozenset({b"GET", b"HEAD", b"OPTIONS", b"TRACE"})
-# API writes authenticate via the X-API-Key header, never cookies — CSRF does not
-# apply (browsers cannot attach custom headers cross-site without a CORS preflight).
-# Exact paths live here; parametrized ones need PATTERNS below.
-CSRF_EXEMPT_PATHS = frozenset(
-    {
-        "/api/oura/webhook",
-        "/api/library",
-        "/api/goals",
-        "/api/goal-reps",
-        "/api/feniks/bricks",
-        "/api/feniks/config",
-        "/api/training/sessions",
-        "/api/measurements",
-        "/mcp",
-    }
-)
-# Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate via HMAC, not cookies.
+# X-API-Key routes (app.api_paths) authenticate via a header, never cookies, so
+# CSRF does not apply: browsers cannot attach custom headers cross-site without a
+# CORS preflight. Per-user webhook callbacks (/api/oura/webhook/{id}) authenticate
+# via HMAC.
 CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
-# Anchored, one numeric segment: a broad prefix/suffix match would silently exempt
-# any future session-authenticated /api/experiments/*/entries or /api/library/* route.
-# `\Z` (not `$`) and `[0-9]` (not `\d`, Unicode-aware) keep the match to exactly
-# one ASCII-digit segment — see the matching comment in app/auth.py.
-CSRF_EXEMPT_PATTERNS = (
-    re.compile(r"^/api/experiments/[0-9]+/entries\Z"),
-    re.compile(r"^/api/library/[0-9]+\Z"),
-    re.compile(r"^/api/goals/[0-9]+\Z"),
-    re.compile(r"^/api/goal-reps/[0-9]+\Z"),
-    re.compile(r"^/api/goal-reps/[0-9]+/transition\Z"),
-    re.compile(r"^/api/training/sessions/[0-9]+\Z"),
-    re.compile(r"^/api/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/feniks/daily/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/feniks/bricks/[0-9]+\Z"),
-    re.compile(r"^/api/measurements/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/freedom/[a-z0-9-]+\Z"),
-    re.compile(r"^/api/freedom/[a-z0-9-]+/days/[0-9]{4}-[0-9]{2}-[0-9]{2}\Z"),
-    re.compile(r"^/api/freedom/[a-z0-9-]+/bricks\Z"),
-    re.compile(r"^/api/freedom/bricks/[0-9]+\Z"),
-)
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB
 # (app/services/medical_import.py MEDICAL_UPLOAD_MAX_BYTES) plus multipart framing overhead.
@@ -110,9 +77,7 @@ class CSRFMiddleware:
         method = scope.get("method", "GET").encode()
         path = scope.get("path", "")
         if method not in SAFE_METHODS and (
-            path in CSRF_EXEMPT_PATHS
-            or any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES)
-            or any(p.match(path) for p in CSRF_EXEMPT_PATTERNS)
+            any(path.startswith(p) for p in CSRF_EXEMPT_PREFIXES) or is_api_key_path(path)
         ):
             await self.app(scope, receive, send_with_cookie)
             return

@@ -24,6 +24,10 @@ PAID_LLM_JOB_KINDS = (
     "onboarding_enrichment",
     "wod_parse",
 )
+# Kinds that may have one queued job at a time (the partial unique index from
+# migration 038). A WOD parse is not one of them: every captured note is its
+# own work, keyed by its session, and must wait its turn rather than be dropped.
+PAID_LLM_ONE_QUEUED_KINDS = tuple(kind for kind in PAID_LLM_JOB_KINDS if kind != "wod_parse")
 
 # One attempt, never automatic. A provider timeout does not prove the request was
 # refused, so a second attempt could buy the same answer twice.
@@ -111,12 +115,13 @@ async def enqueue_paid_llm_job(
             raise ActiveWorkloadConflictError("LLM idempotency key belongs to another job kind")
         return EnqueueResult(job_id=existing[0]["id"], created=False)
 
-    queued = await db.execute_fetchall(
-        "SELECT id FROM jobs WHERE kind = ? AND status = 'queued' ORDER BY id LIMIT 1",
-        (normalized_kind,),
-    )
-    if queued:
-        raise ActiveWorkloadConflictError(f"Another {normalized_kind} job is already queued")
+    if normalized_kind in PAID_LLM_ONE_QUEUED_KINDS:
+        queued = await db.execute_fetchall(
+            "SELECT id FROM jobs WHERE kind = ? AND status = 'queued' ORDER BY id LIMIT 1",
+            (normalized_kind,),
+        )
+        if queued:
+            raise ActiveWorkloadConflictError(f"Another {normalized_kind} job is already queued")
 
     try:
         result = await enqueue_job(
@@ -128,7 +133,7 @@ async def enqueue_paid_llm_job(
             retry_policy="manual",
         )
     except sqlite3.IntegrityError as exc:
-        # The partial unique index from migration 029 lost a race with a
+        # The partial unique index (migration 038, 029 before it) lost a race with a
         # concurrent enqueue of the same kind.
         raise ActiveWorkloadConflictError(f"Another {normalized_kind} job is already queued") from exc
     if result.created:

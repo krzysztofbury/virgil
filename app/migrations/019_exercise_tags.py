@@ -123,6 +123,10 @@ async def up(db: aiosqlite.Connection) -> None:
         tags = {t for t in (_tag_for(r["category"]) for r in group) if t}
         tags_for[key] = tags
 
+    # Since then the runner wraps every migration in BEGIN IMMEDIATE, which closes
+    # the empty-library gap described below; the DROP stays for databases that
+    # crashed mid-way under the old runner.
+    #
     # B1 (2026-07-31 review): this CREATE is the FIRST statement `up()` issues,
     # before any INSERT has opened aiosqlite's implicit transaction -- under
     # aiosqlite's legacy isolation mode, DDL does not participate in the

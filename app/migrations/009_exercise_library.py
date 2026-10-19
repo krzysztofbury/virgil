@@ -32,4 +32,3 @@ async def up(db: aiosqlite.Connection) -> None:
             "VALUES (?, ?, ?, ?, ?, ?, ?)",
             (ex["category"], ex["section"], ex["name"], ex["sets"], ex["reps"], ex["notes"], order),
         )
-    await db.commit()

@@ -75,11 +75,6 @@ def _signed_headers(body: bytes, timestamp: str | None = None, secret: str = CLI
     return {"x-oura-signature": signature, "x-oura-timestamp": timestamp, "content-type": "application/json"}
 
 
-def test_legacy_endpoint_gone(client):
-    resp = client.post("/api/oura/webhook", json={"verification_token": "x"})
-    assert resp.status_code == 410
-
-
 def test_malformed_webhook_id_404(client):
     assert client.post("/api/oura/webhook/not-a-valid-id", json={}).status_code == 404
     assert client.get("/api/oura/webhook/not-a-valid-id").status_code == 404

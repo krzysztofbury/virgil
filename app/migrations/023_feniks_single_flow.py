@@ -10,6 +10,10 @@ closes the gap for DBs that ran the released 022:
 - feniks_bricks rebuilds to hook/craving/story, merging the old free-text
   fields (situation, action, lesson) into `story` so nothing captured is lost.
 
+Since the runner began wrapping each migration in BEGIN IMMEDIATE, the whole
+migration is one transaction; the markers still matter for databases that ran it
+before that.
+
 Crash-retry safety (per the runner's semantics): ALTER/CREATE/DROP autocommit
 immediately under aiosqlite's legacy isolation, so every step is gated on its
 OWN completion marker (column presence), never on a previous step's side
