@@ -21,7 +21,7 @@ app/
   __main__.py           - Entry point: uvicorn launcher
   main.py               - FastAPI app, Jinja2 setup, middleware stack, routes
   config.py             - Environment variable configuration
-  db.py                 - Database connection, schema constants, seed data
+  db.py                 - Life-area constants and app_settings helpers (the schema lives in app/migrations/)
   auth.py               - Authentication middleware (cookie sessions)
   csrf.py               - CSRF double-submit cookie middleware
   rate_limit.py         - Per-IP sliding window limiter with an explicit trusted-proxy boundary

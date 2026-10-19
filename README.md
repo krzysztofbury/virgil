@@ -717,7 +717,7 @@ virgil/
 │   │   ├── training.py       # /training routes + exercise CRUD + KPIs
 │   │   ├── freedom.py        # /freedom routes (and the /feniks redirect)
 │   │   ├── oura.py           # /oura routes + daily trends
-│   │   ├── oura_webhook.py   # /api/oura/webhook (HMAC-verified, CSRF-exempt)
+│   │   ├── oura_webhook.py   # /api/oura/webhook/{id} (HMAC-verified, CSRF-exempt)
 │   │   ├── bloodwork.py      # /bloodwork routes
 │   │   ├── life_scores.py    # /life-scores routes
 │   │   ├── goals.py          # /goals routes

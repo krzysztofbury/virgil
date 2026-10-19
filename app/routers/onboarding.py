@@ -49,7 +49,7 @@ def _safe_float(value: str) -> float | None:
     return parsed if math.isfinite(parsed) else None
 
 
-# Goal areas by their fixed display_order (app/db.py SEED_GOAL_AREAS): 1 Life Planning,
+# Goal areas by their fixed display_order (seeded by migration 001): 1 Life Planning,
 # 2 Spirituality, 3 Health, 4 Work, 5 Social Life, 6 Growth, 7 Relaxation, 8 Family.
 # Looked up by order, not name, so a renamed or translated area still matches.
 GOAL_CATEGORY_MAP = {

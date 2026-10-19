@@ -27,7 +27,6 @@ PUBLIC_PATHS = frozenset(
         "/offline",
         "/healthz",
         "/service-worker.js",
-        "/api/oura/webhook",
         # REST API — each route enforces its own X-API-Key auth (app/routers/api.py).
         # Enumerated explicitly (no /api/ prefix whitelist) so future /api/* routes
         # default to session auth unless deliberately added here.

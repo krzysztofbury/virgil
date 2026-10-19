@@ -21,7 +21,6 @@ SAFE_METHODS = frozenset({b"GET", b"HEAD", b"OPTIONS", b"TRACE"})
 # Exact paths live here; parametrized ones need PATTERNS below.
 CSRF_EXEMPT_PATHS = frozenset(
     {
-        "/api/oura/webhook",
         "/api/library",
         "/api/goals",
         "/api/goal-reps",
