@@ -134,6 +134,17 @@ async def _start_application(app: FastAPI):
     if warning := timezone_warning():
         _log.warning(warning)
 
+    # Before anything below writes a backup or a pre-migration snapshot.
+    from app.services.backup import BACKUP_DIR, backup_dir_problem, relocate_data_volume_backups
+
+    if problem := await asyncio.to_thread(backup_dir_problem):
+        _log.error(problem)
+    try:
+        if moved := await asyncio.to_thread(relocate_data_volume_backups):
+            _log.info("Moved %d backup(s) off the data volume to %s", moved, BACKUP_DIR)
+    except Exception:
+        logging.getLogger(__name__).exception("Backups on the data volume could not be moved to %s", BACKUP_DIR)
+
     app.state.central_migration_failure = False
     app.state.migration_failures = []
     try:

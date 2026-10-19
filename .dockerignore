@@ -5,6 +5,7 @@
 .qnap.setup
 *.setup
 data/
+backups/
 .venv/
 .claude/
 .ruff_cache/

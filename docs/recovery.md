@@ -83,9 +83,10 @@ A production drill on a separate host remains an operator acceptance step.
 
 ## Daily and pre-migration snapshots
 
-Daily snapshots are under `data/backups/`. Central snapshots are validated before
+Daily snapshots are under `VIRGIL_BACKUP_DIR`: `backups/` next to `data/` with
+the compose file, `data/backups/` without it. Central snapshots are validated before
 being considered fresh. Interrupted writes never publish a final filename.
-Pre-migration snapshots are under `data/backups/pre-migration/` and retain the
+Pre-migration snapshots are under `pre-migration/` inside that directory and retain the
 schema version in `*-pre-migration-vNNN.db`. They are not complete bundles and do
 not include the encryption key. Restore a consistent matching set when reversing
 a schema deployment; an older image alone cannot undo a migration.

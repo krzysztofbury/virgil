@@ -49,6 +49,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Backups and pre-migration snapshots can live off the data volume:
+  `VIRGIL_BACKUP_DIR` sets where they are written, and compose mounts
+  `VIRGIL_BACKUP_HOST_DIR` (default `./backups`) there. Startup moves backups
+  left in `data/backups/` to it once, and logs an error when it is not writable.
+  Deleting or resetting an account removes its copies from both places.
+- Compose adds an `autoheal` service that restarts `virgil` when its healthcheck
+  reports unhealthy, and posts each restart to `AUTOHEAL_WEBHOOK_URL` when set.
+  The healthcheck's start period is 300 seconds, so a slow migration is never
+  restarted mid-run. Rollback stays manual, because an older image refuses a
+  newer database.
+- `cloudflared`, Watchtower and autoheal are pinned by version and digest.
 - Each per-user migration runs in its own immediate transaction, so a
   failure leaves no half-applied schema behind, and a migration that commits
   on its own is refused. A database migrated by newer code is refused too:

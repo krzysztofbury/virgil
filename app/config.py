@@ -37,6 +37,10 @@ CENTRAL_DB_PATH = os.environ.get(
     str(Path(__file__).parent.parent / "data" / "virgil-central.db"),
 )
 USERS_DB_DIR = str(Path(CENTRAL_DB_PATH).parent / "users")
+# Backups belong on another mount than the databases they protect, so losing or
+# wiping the data volume does not take the copies with it. Empty keeps them in
+# <data>/backups.
+BACKUP_DIR_SETTING = os.environ.get("VIRGIL_BACKUP_DIR", "")
 ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS", "").split(",") if e.strip()]
 # Closed by default: the documented deployment is internet-facing (Cloudflare
 # Tunnel), and open registration would let anyone create accounts and burn

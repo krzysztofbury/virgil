@@ -1,5 +1,6 @@
 # Data (DB, encryption keys, backups)
 data/
+backups/
 *.db
 *.key
 

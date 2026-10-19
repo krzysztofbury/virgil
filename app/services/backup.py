@@ -2,17 +2,18 @@ import asyncio
 import logging
 import os
 import re
+import shutil
 import sqlite3
 import time
 import uuid
 from collections.abc import Callable
-from contextlib import closing
+from contextlib import closing, suppress
 from datetime import UTC, datetime, timedelta
 from functools import partial
 from math import isfinite
 from pathlib import Path
 
-from app.config import CENTRAL_DB_PATH
+from app.config import BACKUP_DIR_SETTING, CENTRAL_DB_PATH
 from app.db import get_setting
 
 logger = logging.getLogger(__name__)
@@ -20,7 +21,9 @@ logger = logging.getLogger(__name__)
 # Anchored to the central DB dir (the mounted /data volume in Docker) so
 # backups survive container rebuilds. The legacy DB_PATH pointed inside
 # the image in prod, silently backing up a nonexistent (empty) database.
-BACKUP_DIR = Path(CENTRAL_DB_PATH).parent / "backups"
+DATA_VOLUME_BACKUP_DIR = Path(CENTRAL_DB_PATH).parent / "backups"
+# VIRGIL_BACKUP_DIR moves them to a mount of their own.
+BACKUP_DIR = Path(BACKUP_DIR_SETTING) if BACKUP_DIR_SETTING else DATA_VOLUME_BACKUP_DIR
 
 
 def _pre_migration_dir() -> Path:
@@ -175,15 +178,64 @@ def delete_user_backups(db_filename: str) -> list[str]:
         raise ValueError(f"Invalid db_filename: {db_filename}")
     stem = Path(db_filename).stem
     removed = []
-    for directory, pattern in ((BACKUP_DIR, f"{stem}-*.db"), (_pre_migration_dir(), f"{stem}-pre-migration-v*.db")):
-        if not directory.exists():
-            continue
-        for path in directory.glob(pattern):
-            path.unlink(missing_ok=True)
-            removed.append(path.name)
+    # The data volume too: a copy that could not be moved off it at startup is
+    # still this account's data.
+    roots = dict.fromkeys((BACKUP_DIR, DATA_VOLUME_BACKUP_DIR))
+    for root in roots:
+        for directory, pattern in ((root, f"{stem}-*.db"), (root / "pre-migration", f"{stem}-pre-migration-v*.db")):
+            if not directory.exists():
+                continue
+            for path in directory.glob(pattern):
+                path.unlink(missing_ok=True)
+                removed.append(path.name)
     if removed:
         logger.info("Deleted %d backup(s) of %s", len(removed), db_filename)
     return removed
+
+
+def backup_dir_problem() -> str | None:
+    """Why no backup can be written, or None. A bind mount the host created for
+    root is the usual cause; every backup and pre-migration snapshot then fails."""
+    try:
+        BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return f"Backup directory {BACKUP_DIR} cannot be created ({exc.strerror})."
+    if not os.access(BACKUP_DIR, os.W_OK | os.X_OK):
+        return (
+            f"Backup directory {BACKUP_DIR} is not writable by uid {os.getuid()}: no backup or "
+            "pre-migration snapshot can be made, and pending migrations will not run."
+        )
+    return None
+
+
+def relocate_data_volume_backups() -> int:
+    """Move backups left on the data volume into BACKUP_DIR once it points elsewhere.
+
+    Left behind they would never be pruned, and Settings would not count them.
+    Runs at startup, before anything writes a backup. Copies to a private name
+    first, so an interrupted move never publishes a truncated file.
+    """
+    source, target = DATA_VOLUME_BACKUP_DIR.resolve(), BACKUP_DIR.resolve()
+    if source == target or not source.is_dir():
+        return 0
+    if target.is_relative_to(source) or source.is_relative_to(target):
+        raise RuntimeError(f"VIRGIL_BACKUP_DIR {target} must not overlap {source}")
+    moved = 0
+    for path in sorted(source.rglob("*.db")):
+        destination = target / path.relative_to(source)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name(f".{destination.name}.{uuid.uuid4().hex}.tmp")
+        try:
+            shutil.copy2(path, temporary)
+            # An existing destination is a copy from a move that stopped before
+            # it could delete its source; keep that one.
+            with suppress(FileExistsError):
+                os.link(temporary, destination)
+        finally:
+            temporary.unlink(missing_ok=True)
+        path.unlink()
+        moved += 1
+    return moved
 
 
 async def db_main_path(db) -> str:
