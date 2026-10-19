@@ -58,8 +58,9 @@ def _raise_timeout(request):
         (lambda request: httpx.Response(503, text="maintenance"), "connected"),
         (lambda request: httpx.Response(429, json={"error": "rate_limited"}), "connected"),
         (_raise_timeout, "connected"),
+        (lambda request: httpx.Response(200, json={"token_type": "bearer"}), "connected"),
     ],
-    ids=["invalid-grant", "invalid-client", "other-400", "503", "429", "timeout"],
+    ids=["invalid-grant", "invalid-client", "other-400", "503", "429", "timeout", "no-token-in-200"],
 )
 def test_only_a_refused_refresh_disconnects_the_integration(tmp_path, monkeypatch, handler, status):
     from app.services.oura_api import ensure_valid_token

@@ -200,7 +200,7 @@ async def add_custom(db, name: str) -> dict:
     if slug in PRESETS_BY_SLUG:
         return await track(db, slug)
     habits = await list_habits(db, tracked_only=False)
-    same_name = next((habit for habit in habits if habit["name"].casefold() == name.casefold()), None)
+    same_name = next((habit for habit in habits if _name_key(habit["name"]) == _name_key(name)), None)
     if same_name is not None:
         return await track(db, same_name["slug"])
     # A different name that folds to a slug in use gets its own: "habit-2", "habit-3".
@@ -221,6 +221,12 @@ async def add_custom(db, name: str) -> dict:
         },
     )
     return await get_habit(db, slug)
+
+
+def _name_key(name: str) -> str:
+    """Case and punctuation do not make a new habit: "Coffee!" is "coffee". Letters
+    in any script count, so two Cyrillic names stay two habits."""
+    return re.sub(r"[\W_]+", "", name.casefold())
 
 
 async def _insert(db, spec: dict) -> None:

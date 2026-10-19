@@ -136,7 +136,7 @@ async def _start_application(app: FastAPI):
     from app.central_db import get_all_users
     from app.migrations.runner import count_pending_migrations, run_migrations
     from app.services.backup import snapshot_before_migration
-    from app.user_db import close_user_db, open_user_db
+    from app.user_db import UserDatabaseMissing, close_user_db, open_user_db
 
     _migrated = 0
     if not app.state.central_migration_failure:
@@ -153,6 +153,13 @@ async def _start_application(app: FastAPI):
                     await snapshot_before_migration(_udb)
                 await run_migrations(_udb)
                 _migrated += 1
+            except UserDatabaseMissing:
+                # Nothing to migrate, and nothing a redeploy can fix: the account
+                # answers 503 until its database is restored. Keeping /healthz
+                # green keeps every other account deployable.
+                logging.getLogger(__name__).error(
+                    "Startup migration skipped: database %s is missing", _user["db_filename"]
+                )
             except Exception:
                 logging.getLogger(__name__).exception("Startup migration failed for %s", _user["db_filename"])
                 # Surfaced via /healthz — a green healthcheck must not hide a user

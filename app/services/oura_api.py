@@ -136,6 +136,7 @@ async def _refresh(db, integration: dict, now: datetime) -> str | None:
         tokens = await refresh_access_token(
             integration["client_id"], decrypt(integration["client_secret_enc"]), refresh_tok
         )
+        new_access = tokens["access_token"]
     except OuraReconnectRequired as error:
         logger.warning("Oura refused the refresh token (%s); the integration needs reconnecting", error)
         await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
@@ -145,7 +146,6 @@ async def _refresh(db, integration: dict, now: datetime) -> str | None:
         # Still connected: the next sync tries again with the same refresh token.
         logger.warning("Oura token refresh failed; will retry on the next sync", exc_info=True)
         return None
-    new_access = tokens["access_token"]
     new_refresh = tokens.get("refresh_token", refresh_tok)
     new_expires = (now + timedelta(seconds=tokens.get("expires_in", 86400))).isoformat()
     await db.execute(

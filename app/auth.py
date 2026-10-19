@@ -255,9 +255,19 @@ class AuthMiddleware:
             try:
                 user_db = await open_user_db(user["db_filename"])
             except UserDatabaseMissing:
-                # The account row was read just before a factory reset or delete
-                # swapped the file. Start over: / sees the new file or no account.
-                await _login_response(scope, "/")(scope, receive, send)
+                current = await get_user_by_id(user_id)
+                if current and current["db_filename"] != user["db_filename"]:
+                    # The row was read just before a factory reset swapped the file.
+                    await _login_response(scope, "/")(scope, receive, send)
+                    return
+                # Gone for good (or the account was deleted meanwhile). Redirecting
+                # to / would loop, since / opens the same missing file.
+                logger.error("Database %s of account %s is missing", user["db_filename"], user_id)
+                await Response(
+                    "Your data could not be opened. Ask the administrator to restore it.",
+                    status_code=503,
+                    headers={"Cache-Control": "no-store"},
+                )(scope, receive, send)
                 return
 
             # Store user + DB + feature flags in request state.

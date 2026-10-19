@@ -405,7 +405,8 @@ async def training_page(
     training_months = _training_calendar(selected_year, summaries_by_date, today)
     training_days = [day for month in training_months for day in month["days"] if day["session_count"]]
     open_day = None
-    if day and valid_date(day) and date.fromisoformat(day).year == selected_year and day in summaries_by_date:
+    day = valid_date(day) if day else None
+    if day and date.fromisoformat(day).year == selected_year and day in summaries_by_date:
         open_day = day
     if before_id is not None and after_id is not None:
         raise HTTPException(status_code=422, detail="Use either before_id or after_id, not both")

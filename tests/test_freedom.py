@@ -352,7 +352,7 @@ def test_custom_habits_with_non_latin_names_stay_apart(auth_client):
     """Slugs kept only [a-z0-9], so every Cyrillic name became "habit" and a second
     one resumed the first, merging its days, bricks and streak into the first's."""
     token = csrf_token(auth_client, "/freedom")
-    names = ["Алкоголь", "Сахар", "АЛКОГОЛЬ", "Słodycze"]
+    names = ["Алкоголь", "Сахар", "АЛКОГОЛЬ", "Słodycze", "słodycze!"]
     try:
         for name in names:
             resp = auth_client.post(
@@ -363,7 +363,7 @@ def test_custom_habits_with_non_latin_names_stay_apart(auth_client):
         rows = _fetchall(
             "SELECT slug, name FROM habits WHERE name IN (?, ?, ?) ORDER BY id", ("Алкоголь", "Сахар", "Słodycze")
         )
-        # The same name in other case resumes the first habit instead of adding one.
+        # The same name in another case or with punctuation resumes that habit.
         assert [tuple(row) for row in rows] == [("habit", "Алкоголь"), ("habit-2", "Сахар"), ("slodycze", "Słodycze")]
     finally:
         _execute("DELETE FROM habits WHERE slug IN ('habit', 'habit-2', 'slodycze')")
