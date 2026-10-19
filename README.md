@@ -103,7 +103,9 @@ to GHCR (`ghcr.io/krzysztofbury/virgil`). The NAS only needs the compose file,
 
 ```bash
 ssh <user>@<NAS_IP>
-mkdir -p /path/to/virgil/data && cd /path/to/virgil
+mkdir -p /path/to/virgil/data /path/to/virgil/backups && cd /path/to/virgil
+# The container runs as uid 1000; it must be able to write both directories.
+chown 1000:1000 data backups
 # copy docker-compose.yml + .env here (once — they rarely change)
 docker login ghcr.io          # PAT with read:packages — needed if the package is private
 docker compose pull
@@ -119,14 +121,35 @@ builds and smoke-tests the image (with `GIT_SHA` baked in for PWA cache-busting)
 GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 ~5 minutes and recreates `virgil`.
 
-> **Deployment semantics — know what this is**: Watchtower is best-effort
-> auto-update, NOT health-gated deployment. A broken image is deployed and
-> stays deployed; `/healthz` turns the container unhealthy (visible in
-> `docker ps`) but nothing rolls back automatically. Two safety nets exist:
-> the CI test gate in front of every image, and automatic **pre-migration
-> snapshots** in `data/backups/pre-migration/` (`*-pre-migration-vNNN.db`) - database
-> migrations are one-way, so restoring a snapshot is the only way back after
-> a bad migration, not an image rollback.
+> **Deployment semantics - know what this is**: Watchtower is best-effort
+> auto-update, NOT a staged deployment. A broken image is deployed. Two
+> signals cover what can then go wrong. A process that stops answering `/livez`
+> turns the container unhealthy, and the `autoheal` service restarts it. A start
+> that leaves any database unmigrated keeps `/healthz` at 503 and posts one alert
+> to `ALERT_WEBHOOK_URL`; it is not restarted, because a restart cannot fix it
+> and would cut off every other account each time. Autoheal posts each restart
+> to the same URL. A rollback is deliberately not automatic: database migrations are one-way and an older image
+> refuses a newer database, so going back means restoring a **pre-migration
+> snapshot** from `backups/pre-migration/` (`*-pre-migration-vNNN.db`), as the
+> rollback procedure below describes. The CI test gate in front of every image
+> remains the first safety net.
+>
+> **Backups live off the data volume**: compose mounts `VIRGIL_BACKUP_HOST_DIR`
+> (default `./backups`) at `/backups`, separate from `./data`, so losing or
+> wiping the data directory does not take the copies with it. Point it at
+> another disk or share when there is one, with a Linux filesystem: backups are
+> published by hard link, which exFAT and FAT do not support. Backups an older setup left in
+> `data/backups/` are moved there at the next start. For copies off the machine,
+> see [the recovery guide](docs/recovery.md).
+>
+> **Third-party images are pinned** by version and digest. Watchtower updates
+> only `virgil`, so a cloudflared, Watchtower or autoheal upgrade is a reviewed
+> edit to `docker-compose.yml` followed by `docker compose up -d`.
+
+**Applying a `docker-compose.yml` change** (Watchtower only replaces the
+`virgil` image, never the compose file): copy the new file to the NAS, create
+any new host directory it mounts (writable by uid 1000, as above), then run
+`docker compose up -d`.
 
 **Force an immediate update:**
 
@@ -197,6 +220,10 @@ All configuration via environment variables:
 | `VIRGIL_API_USER_EMAIL` | (empty) | The only account `VIRGIL_API_KEY` may read or write. Required when the key is set. Empty, missing, or deactivated returns 503 for `/api` and `/mcp` and does not fall back to another admin. The web UI keeps working |
 | `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
+| `VIRGIL_BACKUP_DIR` | `<data>/backups` (`/backups` in compose) | Where backups and pre-migration snapshots are written. Startup moves any left in `<data>/backups` here and logs an error when it is not writable |
+| `VIRGIL_BACKUP_HOST_DIR` | `./backups` | Host directory compose mounts at `/backups` (docker-compose only). Must be writable by uid 1000 |
+| `VIRGIL_ALERT_WEBHOOK_URL` | (empty) | URL that receives a JSON `{"text": ...}` post when a start leaves a database unmigrated. Compose fills it from `ALERT_WEBHOOK_URL` |
+| `ALERT_WEBHOOK_URL` | (empty) | Compose only: the webhook for both the startup alert and each autoheal restart. Slack-style: it expects a `text` field |
 | `TZ` | `Europe/Warsaw` (compose) | Time zone for every "today": streaks, today's entries and future-date checks. Unset means UTC, and startup logs a warning |
 
 Port is always **8123**.
@@ -761,7 +788,8 @@ virgil/
 │       ├── manifest.json     # PWA manifest
 │       ├── icons/            # PWA icons + favicons
 │       └── img/              # A.N.D.Y. icons + branding
-├── data/                     # SQLite database + encryption key + backups (gitignored)
+├── data/                     # SQLite databases + encryption key (gitignored)
+├── backups/                  # Backups and pre-migration snapshots in compose (gitignored)
 ├── docker-compose.yml        # Virgil + Cloudflare Tunnel (QNAP-compatible)
 ├── Dockerfile                # Python 3.12 + uv, prod mode
 ├── .env.example              # Environment variable template

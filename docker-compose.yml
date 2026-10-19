@@ -16,6 +16,8 @@ services:
       # Opt-in marker for Watchtower (WATCHTOWER_LABEL_ENABLE) — only this
       # container is auto-updated.
       - com.centurylinklabs.watchtower.enable=true
+      # Watched by the autoheal service below.
+      - autoheal=true
     expose:
       - "8123"
     env_file: .env
@@ -37,21 +39,39 @@ services:
       # Opt-in: expose /api/noporn (intimate journal content) over the API key.
       VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
       TZ: ${TZ:-Europe/Warsaw}
+      VIRGIL_BACKUP_DIR: /backups
+      # Told once per start when a database is left unmigrated.
+      VIRGIL_ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
     volumes:
       - ./data:/data
+      # Backups on a mount of their own: losing or wiping ./data must not take
+      # the copies with it. Point it at another disk or share with a Linux
+      # filesystem (backups are published by hard link). Create it writable by
+      # the container user (uid 1000) first: `up` refuses a missing directory
+      # rather than letting Docker create one owned by root.
+      - type: bind
+        source: ${VIRGIL_BACKUP_HOST_DIR:-./backups}
+        target: /backups
+        bind:
+          create_host_path: false
     # Security hardening
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     healthcheck:
-      # /healthz returns 503 (→ urlopen raises) while any user DB failed its
-      # startup migrations — a broken schema rollout fails the deploy.
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/healthz')"]
+      # Liveness: the process answers. Not /healthz, which stays 503 while any
+      # database failed its migrations: a restart cannot fix that, and autoheal
+      # restarting on it would take every account down every few minutes. That
+      # state is reported by the startup alert (ALERT_WEBHOOK_URL) instead.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/livez')"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      # Migrations run before the server listens. Failures inside this window
+      # do not count, so a migration gets about 6.5 minutes (this plus three
+      # failed checks) before autoheal restarts it. A success ends it early.
+      start_period: 300s
     networks:
       - virgil-net
 
@@ -59,7 +79,7 @@ services:
   # Requires `docker login ghcr.io` on the host first if the package is private
   # (the mounted config.json carries the credentials).
   watchtower:
-    image: containrrr/watchtower:1.7.1
+    image: containrrr/watchtower:1.7.1@sha256:6dd50763bbd632a83cb154d5451700530d1e44200b268a4e9488fefdfcf2b038
     container_name: virgil-watchtower
     restart: unless-stopped
     environment:
@@ -80,9 +100,38 @@ services:
     networks:
       - virgil-net
 
+  # Restarts virgil when it stops answering /livez: Docker never does, and
+  # Watchtower only replaces images. A rollback is deliberately not automatic:
+  # migrations are one-way and an older image refuses a newer database, so
+  # going back means restoring a pre-migration snapshot by hand (RELEASE.md).
+  # ALERT_WEBHOOK_URL gets a JSON {"text": ...} post per restart.
+  # The socket makes this container root-equivalent on the host, so it gets
+  # nothing else: no capabilities, and a network of its own for the webhook.
+  autoheal:
+    # The project publishes no version tags past 1.2.0 (2021), only a daily
+    # `latest`; this digest is that tag as resolved on 2026-10-19.
+    image: willfarrell/autoheal:latest@sha256:8a79b7fc9654f8bc9785330c90791f4bb6688f4f749bb42a00844023f5c2ccd0
+    container_name: virgil-autoheal
+    restart: unless-stopped
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal
+      WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      TZ: ${TZ:-Europe/Warsaw}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    mem_limit: 32m
+    networks:
+      - alerts-net
+
   # Outbound-only tunnel — zero open ports on QNAP
   cloudflared:
-    image: cloudflare/cloudflared:latest
+    # Pinned like every third-party image here: Watchtower updates only virgil,
+    # so a version change is a reviewed edit to this file.
+    image: cloudflare/cloudflared:2026.9.3@sha256:072c067d25ccbe61d46e18f0d0723255f2bb5304f7317caa95b27031520ff92c
     container_name: virgil-cloudflared
     restart: unless-stopped
     command: tunnel run
@@ -104,4 +153,6 @@ services:
 
 networks:
   virgil-net:
+    driver: bridge
+  alerts-net:
     driver: bridge

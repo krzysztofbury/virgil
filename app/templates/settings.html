@@ -533,7 +533,7 @@
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header"><h3>Automated Backup</h3></div>
         <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            Creates daily SQLite backups in <code>data/backups/</code> with rolling retention.
+            Creates scheduled SQLite backups on the server with rolling retention.
             A factory reset or deleting the account deletes them.
         </p>
         {% set backup = backup_status %}

@@ -69,6 +69,8 @@ def test_healthz_degraded_on_migration_failure(client):
         resp = client.get("/healthz")
         assert resp.status_code == 503
         assert resp.json()["status"] == "degraded"
+        # Docker and autoheal watch liveness: restarting cannot fix a failed migration.
+        assert client.get("/livez").status_code == 200
     finally:
         app.state.migration_failures = original
 
@@ -86,6 +88,7 @@ def test_healthz_degraded_on_central_migration_failure(client):
         blocked = client.get("/login")
         assert blocked.status_code == 503
         assert blocked.json() == {"status": "unavailable"}
+        assert client.get("/livez").json() == {"status": "live"}
     finally:
         app.state.central_migration_failure = original
 

@@ -134,6 +134,25 @@ async def _start_application(app: FastAPI):
     if warning := timezone_warning():
         _log.warning(warning)
 
+    # Before anything below writes a backup or a pre-migration snapshot.
+    from app.services.backup import BACKUP_DIR, backup_dir_problem, relocate_data_volume_backups
+
+    if problem := await asyncio.to_thread(backup_dir_problem):
+        _log.error(problem)
+    from app.config import BACKUP_DIR_SETTING, IS_PROD
+
+    if IS_PROD and not BACKUP_DIR_SETTING:
+        # Watchtower deploys a new image under the old compose file.
+        _log.warning(
+            "Backups share the data volume (VIRGIL_BACKUP_DIR is unset): losing it loses them too. "
+            "Apply the current docker-compose.yml to give them their own mount."
+        )
+    try:
+        if moved := await asyncio.to_thread(relocate_data_volume_backups):
+            _log.info("Moved %d backup(s) off the data volume to %s", moved, BACKUP_DIR)
+    except Exception:
+        logging.getLogger(__name__).exception("Backups on the data volume could not be moved to %s", BACKUP_DIR)
+
     app.state.central_migration_failure = False
     app.state.migration_failures = []
     try:
@@ -192,6 +211,14 @@ async def _start_application(app: FastAPI):
         len(app.state.migration_failures),
     )
 
+    import app.config as config
+    from app.alerts import degraded_start_alert, send_alert
+
+    alert = degraded_start_alert(_version, app.state.central_migration_failure, len(app.state.migration_failures))
+    if alert and config.ALERT_WEBHOOK_URL:
+        # In the background: startup must not wait on a chat service.
+        app.state.startup_alert = asyncio.create_task(send_alert(config.ALERT_WEBHOOK_URL, alert))
+
     from app.services.scheduler import scheduler_loop
 
     return None if app.state.central_migration_failure else asyncio.create_task(scheduler_loop())
@@ -226,7 +253,7 @@ class CentralMigrationGuardMiddleware:
         if (
             scope["type"] == "http"
             and getattr(self.state, "central_migration_failure", False)
-            and scope["path"] != "/healthz"
+            and scope["path"] not in {"/healthz", "/livez"}
         ):
             response = JSONResponse({"status": "unavailable"}, status_code=503)
             await response(scope, receive, send)
@@ -266,6 +293,17 @@ async def healthz(request: Request):
         or getattr(request.app.state, "migration_failures", [])
     )
     return JSONResponse({"status": "degraded" if degraded else "ok"}, status_code=503 if degraded else 200)
+
+
+@app.get("/livez")
+async def livez():
+    """Liveness, for Docker's healthcheck and autoheal: the process answers.
+
+    Not /healthz, which stays red while any database failed its migrations. A
+    restart cannot fix that, and autoheal restarting on it would take every
+    healthy account down every few minutes. The startup alert reports it instead.
+    """
+    return JSONResponse({"status": "live"})
 
 
 @app.get("/service-worker.js")

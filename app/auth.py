@@ -28,6 +28,7 @@ PUBLIC_PATHS = frozenset(
         "/mfa/verify",
         "/offline",
         "/healthz",
+        "/livez",
         "/service-worker.js",
     }
 )
