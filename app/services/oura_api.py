@@ -496,6 +496,8 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
             vals = [d[field] for d in _days if d.get(field) is not None]
             return sum(vals) if vals else None
 
+        # Oura API v2 daily_stress currently sends only stress_high and
+        # recovery_high, so stress_low (and stress_normal) stays 0 until it does.
         steps_average = avg("steps")
         monthly_values = {
             "sleep_score": avg("sleep_score"),
