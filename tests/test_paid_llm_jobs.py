@@ -141,3 +141,11 @@ def test_migration_029_index_matches_the_live_kind_tuple():
     migration = importlib.import_module("app.migrations.029_llm_publications")
     assert migration._KINDS == PAID_LLM_JOB_KINDS
     assert all(f"'{kind}'" in migration._INDEX_SQL for kind in PAID_LLM_JOB_KINDS)
+
+
+def test_migration_038_caps_every_paid_kind_but_the_wod_parse():
+    from app.services.llm_jobs import PAID_LLM_ONE_QUEUED_KINDS
+
+    migration = importlib.import_module("app.migrations.038_queue_every_wod_parse")
+    assert migration._KINDS == PAID_LLM_ONE_QUEUED_KINDS
+    assert "wod_parse" not in PAID_LLM_ONE_QUEUED_KINDS

@@ -29,7 +29,7 @@ CREATE INDEX idx_jobs_claimable ON jobs(run_after, id) WHERE status = 'queued';
 CREATE UNIQUE INDEX idx_jobs_idempotency ON jobs(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 -- index idx_jobs_queued_paid_llm_kind
-CREATE UNIQUE INDEX idx_jobs_queued_paid_llm_kind ON jobs(kind) WHERE status = 'queued' AND kind IN ('andy_generation', 'experiment_summary', 'medical_import', 'morning_briefing', 'onboarding_enrichment', 'wod_parse');
+CREATE UNIQUE INDEX idx_jobs_queued_paid_llm_kind ON jobs(kind) WHERE status = 'queued' AND kind IN ('andy_generation', 'experiment_summary', 'medical_import', 'morning_briefing', 'onboarding_enrichment');
 
 -- index idx_jobs_queued_workload_kind
 CREATE UNIQUE INDEX idx_jobs_queued_workload_kind ON jobs(kind) WHERE status = 'queued' AND kind IN ('backup', 'markdown_export', 'oura_sync');
