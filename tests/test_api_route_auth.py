@@ -83,3 +83,17 @@ def test_freedom_routes_refuse_the_key_without_the_sensitive_scope(auth_client, 
 def test_other_reads_do_not_need_the_sensitive_scope(auth_client, path):
     """The other direction: a read missing from the table above answers without the scope."""
     assert auth_client.get(_url(path), headers=KEY).status_code != 403
+
+
+@pytest.mark.parametrize(
+    ("method", "path", "status"),
+    [("POST", "/api/briefing/generate", 303), ("POST", "/mcp", 401)],
+    ids=["session-route-under-api", "mcp"],
+)
+def test_only_api_key_routes_skip_the_session(client, method, path, status):
+    """The exemption comes from the routes that depend on the key. A session route
+    that merely lives under /api must still send an anonymous caller to log in."""
+    anonymous = TestClient(app)
+    anonymous.portal = client.portal
+    response = anonymous.request(method, path, follow_redirects=False)
+    assert response.status_code == status
