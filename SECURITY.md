@@ -35,12 +35,13 @@ Virgil is a **multi-user, self-hosted** application. The threat model assumes:
 
 - **Authentication**: Email + password with bcrypt hashing (SHA-256 pre-hash), optional TOTP MFA. The setup QR is built server-side for the signed-in user; the TOTP secret is never placed in a URL, and responses that carry it are not cached
 - **API key binding**: `VIRGIL_API_KEY` serves only `VIRGIL_API_USER_EMAIL`. An empty email, or a missing or deactivated account, returns 503. The key does not follow another admin
-- **Session management**: Signed cookie sessions via `itsdangerous` (7-day expiry, HttpOnly, SameSite=Lax so OAuth callbacks work; all state changes are CSRF-protected)
-- **CSRF protection**: Double-submit cookie on all POST forms (urlencoded and multipart)
-- **Rate limiting**: Per-IP sliding window (120/min general, 10/min auth)
+- **Session management**: Signed cookie sessions via `itsdangerous` (7-day expiry, HttpOnly, SameSite=Lax so OAuth callbacks work; all state changes are CSRF-protected). Each session carries the account's session epoch: logging out, turning MFA on or off, and disabling the account bump it and sign out every session
+- **MFA attempt limit**: five wrong codes lock `/mfa/verify` for that account for 15 minutes, on top of the per-IP limit
+- **CSRF protection**: Double-submit cookie on all POST forms (urlencoded and multipart). A write without the CSRF cookie is refused before its body is read, and the rate limit and auth both run before the body is buffered
+- **Rate limiting**: Per-IP sliding window (120/min general, 10/min auth). Behind a proxy, `VIRGIL_TRUSTED_PROXY_IPS` takes addresses or CIDR ranges
 - **Encryption at rest**: Fernet encryption for OAuth tokens, LLM API keys, and webhook secrets
 - **Sensitive API scope**: `/api/noporn` (intimate journal content) requires explicit `VIRGIL_API_SENSITIVE=true`
-- **Security headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **Security headers**: CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, on every response including errors, rate-limit refusals and login redirects
 - **Privacy-safe PWA**: the service worker never caches authenticated HTML — only static assets and the public offline page
 - **Webhook verification**: HMAC-SHA256 signature verification on Oura webhook payloads
 - **Input validation**: Server-side validation with length limits on all text fields

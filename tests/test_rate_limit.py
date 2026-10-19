@@ -6,14 +6,20 @@ LLM_PATHS to an empty frozenset leaves the full suite green (185 passed) because
 nothing else in the suite fires 11 consecutive requests at this path.
 """
 
+import logging
+
+import pytest
 from conftest import csrf_token
 from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 
+# The tunnel container's address on the compose bridge network.
+PROXY_PEER = "172.18.0.5"
 
-def _rate_limited_client():
+
+def _rate_limited_client(peer: str = PROXY_PEER):
     from app.rate_limit import RateLimitMiddleware
 
     async def accepted(_request):
@@ -21,14 +27,20 @@ def _rate_limited_client():
 
     app = Starlette(routes=[Route("/training/wod", accepted, methods=["POST"])])
     app.add_middleware(RateLimitMiddleware)
-    return TestClient(app)
+    return TestClient(app, client=(peer, 50000))
+
+
+def _trust(monkeypatch, enabled: bool, proxies: str = ""):
+    import app.rate_limit as rate_limit
+    from app.config import parse_trusted_proxies
+
+    monkeypatch.setattr(rate_limit, "TRUST_CLOUDFLARE_HEADERS", enabled)
+    monkeypatch.setattr(rate_limit, "TRUSTED_PROXY_IPS", parse_trusted_proxies(proxies))
+    monkeypatch.setattr(rate_limit, "_warned_untrusted_forwarding", False)
 
 
 def test_direct_ingress_ignores_spoofed_cloudflare_ips(monkeypatch):
-    import app.rate_limit as rate_limit
-
-    monkeypatch.setattr(rate_limit, "TRUST_CLOUDFLARE_HEADERS", False, raising=False)
-    monkeypatch.setattr(rate_limit, "TRUSTED_PROXY_IPS", frozenset())
+    _trust(monkeypatch, False)
     client = _rate_limited_client()
 
     statuses = [
@@ -39,11 +51,11 @@ def test_direct_ingress_ignores_spoofed_cloudflare_ips(monkeypatch):
     assert statuses[10] == 429
 
 
-def test_trusted_cloudflare_ingress_uses_valid_forwarded_ip(monkeypatch):
-    import app.rate_limit as rate_limit
-
-    monkeypatch.setattr(rate_limit, "TRUST_CLOUDFLARE_HEADERS", True)
-    monkeypatch.setattr(rate_limit, "TRUSTED_PROXY_IPS", frozenset({"testclient"}), raising=False)
+@pytest.mark.parametrize("proxies", [PROXY_PEER, "172.16.0.0/12", "bogus, 10.0.0.0/8, 172.18.0.0/16"])
+def test_trusted_cloudflare_ingress_uses_valid_forwarded_ip(monkeypatch, proxies):
+    """An exact address, or a range covering the Docker network, so a recreated
+    tunnel container with a new address stays trusted."""
+    _trust(monkeypatch, True, proxies)
     client = _rate_limited_client()
 
     statuses = [
@@ -54,10 +66,7 @@ def test_trusted_cloudflare_ingress_uses_valid_forwarded_ip(monkeypatch):
 
 
 def test_trusted_cloudflare_ingress_rejects_invalid_forwarded_ip(monkeypatch):
-    import app.rate_limit as rate_limit
-
-    monkeypatch.setattr(rate_limit, "TRUST_CLOUDFLARE_HEADERS", True)
-    monkeypatch.setattr(rate_limit, "TRUSTED_PROXY_IPS", frozenset({"testclient"}), raising=False)
+    _trust(monkeypatch, True, PROXY_PEER)
     client = _rate_limited_client()
 
     statuses = [
@@ -68,11 +77,9 @@ def test_trusted_cloudflare_ingress_rejects_invalid_forwarded_ip(monkeypatch):
     assert statuses[10] == 429
 
 
-def test_trusted_cloudflare_mode_ignores_header_from_untrusted_peer(monkeypatch):
-    import app.rate_limit as rate_limit
-
-    monkeypatch.setattr(rate_limit, "TRUST_CLOUDFLARE_HEADERS", True)
-    monkeypatch.setattr(rate_limit, "TRUSTED_PROXY_IPS", frozenset({"192.0.2.10"}), raising=False)
+@pytest.mark.parametrize("proxies", ["192.0.2.10", "10.0.0.0/8", "not-an-address"])
+def test_trusted_cloudflare_mode_ignores_header_from_untrusted_peer(monkeypatch, proxies):
+    _trust(monkeypatch, True, proxies)
     client = _rate_limited_client()
 
     statuses = [
@@ -81,6 +88,26 @@ def test_trusted_cloudflare_mode_ignores_header_from_untrusted_peer(monkeypatch)
 
     assert statuses[:10] == [200] * 10
     assert statuses[10] == 429
+
+
+@pytest.mark.parametrize(
+    ("enabled", "proxies", "reason"),
+    [(False, PROXY_PEER, "TRUST_CLOUDFLARE_HEADERS is off"), (True, "192.0.2.10", "not in VIRGIL_TRUSTED_PROXY_IPS")],
+)
+def test_an_untrusted_forwarded_ip_is_reported_once(monkeypatch, caplog, enabled, proxies, reason):
+    """Behind the tunnel with trust off, every client shares one bucket. The log
+    must say so the first time the header shows up, and not on every request."""
+    _trust(monkeypatch, enabled, proxies)
+    client = _rate_limited_client()
+
+    with caplog.at_level(logging.WARNING, logger="app.rate_limit"):
+        client.post("/training/wod")
+        assert not caplog.records
+        for _ in range(3):
+            client.post("/training/wod", headers={"CF-Connecting-IP": "198.51.100.1"})
+
+    assert len(caplog.records) == 1
+    assert reason in caplog.records[0].getMessage()
 
 
 def test_llm_path_rate_limited_while_general_path_stays_open(auth_client):

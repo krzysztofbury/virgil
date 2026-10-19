@@ -1,4 +1,5 @@
 import ipaddress
+import logging
 import time
 
 from starlette.requests import Request
@@ -6,6 +7,8 @@ from starlette.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.config import TRUST_CLOUDFLARE_HEADERS, TRUSTED_PROXY_IPS
+
+logger = logging.getLogger(__name__)
 
 # Sliding window rate limiter: per-IP, in-memory
 # General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min
@@ -31,13 +34,44 @@ def _clean_bucket(bucket: list[float], window: int, now: float) -> list[float]:
     return [t for t in bucket if t > cutoff]
 
 
+# One warning per process: the header arrives on every request through the tunnel.
+_warned_untrusted_forwarding = False
+
+
+def _is_trusted_proxy(peer_ip: str) -> bool:
+    try:
+        address = ipaddress.ip_address(peer_ip)
+    except ValueError:
+        return False
+    return any(address in network for network in TRUSTED_PROXY_IPS)
+
+
+def _warn_untrusted_forwarding(peer_ip: str) -> None:
+    """Every client then shares the proxy's bucket: ten logins a minute from anyone
+    lock everybody out. Say so once instead of failing quietly."""
+    global _warned_untrusted_forwarding
+    if _warned_untrusted_forwarding:
+        return
+    _warned_untrusted_forwarding = True
+    if not TRUST_CLOUDFLARE_HEADERS:
+        reason = "VIRGIL_TRUST_CLOUDFLARE_HEADERS is off"
+    else:
+        reason = f"peer {peer_ip} is not in VIRGIL_TRUSTED_PROXY_IPS"
+    logger.warning(
+        "CF-Connecting-IP received but not trusted (%s): rate limits count every client behind the proxy as one",
+        reason,
+    )
+
+
 def _client_ip(request: Request) -> str:
     """Return the configured rate-limit identity for this network request."""
     peer_ip = request.client.host if request.client else "unknown"
-    if not TRUST_CLOUDFLARE_HEADERS or peer_ip not in TRUSTED_PROXY_IPS:
+    forwarded_ip = request.headers.get("cf-connecting-ip", "")
+    if not TRUST_CLOUDFLARE_HEADERS or not _is_trusted_proxy(peer_ip):
+        if forwarded_ip:
+            _warn_untrusted_forwarding(peer_ip)
         return peer_ip
 
-    forwarded_ip = request.headers.get("cf-connecting-ip", "")
     try:
         return str(ipaddress.ip_address(forwarded_ip))
     except ValueError:

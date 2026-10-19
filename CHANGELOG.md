@@ -90,6 +90,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Logging out now signs out every session of the account, not only the
+  browser's cookie: a copied session token used to stay valid for 7 days.
+  Turning MFA on or off signs out the other sessions, and disabling an account
+  revokes its sessions so re-enabling it does not bring them back. Central
+  migration 003 adds the session epoch and the MFA attempt counter; sessions
+  from before it stay valid until the account's first sign-out.
+- Five wrong MFA codes lock verification for that account for 15 minutes.
+  Before, only the per-IP rate limit slowed a guesser down.
+- An anonymous request could make the server buffer up to 21 MB of body before
+  CSRF, auth or the rate limit refused it. The rate limit and auth now run
+  first, and a write without the CSRF cookie is refused before its body is read.
+  Security headers wrap every response, so the 403, 429 and 503 responses and
+  login redirects carry the CSP and X-Frame-Options too.
+- Behind the Cloudflare tunnel with header trust off, every visitor shared
+  cloudflared's rate-limit bucket: ten failed logins from anyone blocked login
+  for everyone. `VIRGIL_TRUSTED_PROXY_IPS` now takes CIDR ranges, so trust
+  survives cloudflared getting a new address on the compose network, and the
+  log warns the first time `CF-Connecting-IP` arrives untrusted.
 - A blood-panel PDF whose markers failed to parse was missing its extraction
   charge from the paid-call ledger, so a retry paid for the extraction again.
   The extraction is now recorded on its own and a retry only parses.

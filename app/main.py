@@ -213,11 +213,14 @@ class CentralMigrationGuardMiddleware:
 
 
 app = FastAPI(title="Virgil", lifespan=lifespan)
-app.add_middleware(SecurityHeadersMiddleware)
-app.add_middleware(RateLimitMiddleware)
-app.add_middleware(AuthMiddleware)
+# The last one added runs first. Outermost to innermost: security headers wrap
+# every response (403, 429, 503 and login redirects included); the rate limit
+# and auth both run before CSRF, the only layer that reads a request body.
 app.add_middleware(CSRFMiddleware)
+app.add_middleware(AuthMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(CentralMigrationGuardMiddleware, state=app.state)
+app.add_middleware(SecurityHeadersMiddleware)
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 templates = Jinja2Templates(directory=BASE_DIR / "templates")

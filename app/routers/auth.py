@@ -9,9 +9,9 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.auth import (
-    MFA_PENDING_PREFIX,
     SESSION_COOKIE,
     clear_session_cookie,
+    create_mfa_pending_session,
     create_session,
     hash_password,  # noqa: F401 — re-exported for use in tests
     mfa_pending_user_id,
@@ -19,7 +19,16 @@ from app.auth import (
     signed_in_user_id,
     verify_password,
 )
-from app.central_db import count_users, create_user, get_user_by_email, get_user_by_id, update_user
+from app.central_db import (
+    bump_session_epoch,
+    claim_mfa_attempt,
+    count_users,
+    create_user,
+    finish_mfa_attempt,
+    get_user_by_email,
+    get_user_by_id,
+    update_user,
+)
 from app.config import REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
 from app.main import templates
@@ -32,6 +41,11 @@ _NO_STORE = {"Cache-Control": "no-store"}
 # Constant-time-ish login for unknown emails: verify against this throwaway
 # hash so response timing doesn't reveal whether an account exists.
 _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing")
+
+# Wrong TOTP codes per account before verification locks. The per-IP rate limit
+# alone lets a rotating attacker keep guessing a six-digit code indefinitely.
+MFA_MAX_ATTEMPTS = 5
+MFA_LOCK_SECONDS = 15 * 60
 
 
 def _totp_secret_plain(stored: str | None) -> str:
@@ -148,7 +162,7 @@ async def signup_submit(
         await delete_user(user["id"])
         return _render_error("Could not create your account. Please try again.")
 
-    token = create_session(user["id"])
+    token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg="Account created.")
     response = RedirectResponse(target, status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
@@ -219,14 +233,14 @@ async def login_submit(
 
     # If MFA is enabled, redirect to MFA verification
     if user["totp_enabled"]:
-        token = create_session(f"{MFA_PENDING_PREFIX}{user['id']}")
+        token = create_mfa_pending_session(user["id"])
         response = RedirectResponse("/mfa/verify", status_code=303)
         response.headers["set-cookie"] = session_cookie_header(token)
         return response
 
     # No MFA — create full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
-    token = create_session(user["id"])
+    token = create_session(user["id"], user["session_epoch"])
     response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
@@ -237,6 +251,11 @@ async def login_submit(
 
 @router.post("/logout")
 async def logout(request: Request):
+    # Clearing the cookie is not enough: a copied token would stay valid for its
+    # full lifetime. Bumping the epoch signs out every session of the account.
+    user = getattr(request.state, "user", None)
+    if user:
+        await bump_session_epoch(user["id"])
     response = RedirectResponse(feedback_url("/login", msg="Signed out."), status_code=303)
     response.headers["set-cookie"] = clear_session_cookie()
     return response
@@ -281,7 +300,7 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
 
     # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
     await update_user(user["id"], totp_enabled=1, totp_secret=_totp_secret_stored(secret))
-    return success_redirect(request, "/settings", "MFA enabled.")
+    return _resign_after_mfa_change(request, user["id"], await bump_session_epoch(user["id"]), "MFA enabled.")
 
 
 @router.post("/settings/mfa/disable")
@@ -295,7 +314,14 @@ async def mfa_disable(request: Request, password: str = Form(...)):
         return _mfa_setup_response(request, mfa_enabled=True, error="Invalid password.")
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
-    return success_redirect(request, "/settings", "MFA disabled.")
+    return _resign_after_mfa_change(request, user["id"], await bump_session_epoch(user["id"]), "MFA disabled.")
+
+
+def _resign_after_mfa_change(request: Request, user_id: str, epoch: int, message: str):
+    """Every other session is signed out by the bumped epoch; this browser keeps going."""
+    response = success_redirect(request, "/settings", message)
+    response.headers.append("set-cookie", session_cookie_header(create_session(user_id, epoch)))
+    return response
 
 
 # --- MFA Verify (during login) ---
@@ -315,11 +341,25 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
         return error_redirect(request, "/login", "MFA session expired. Sign in again.")
 
     user = await get_user_by_id(user_id)
-    if not user:
+    if not user or not user["is_active"]:
         return error_redirect(request, "/login", "MFA session expired. Sign in again.")
 
+    now = datetime.now(UTC)
+    if not await claim_mfa_attempt(user["id"], now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS):
+        return templates.TemplateResponse(
+            request,
+            "auth_mfa_verify.html",
+            {
+                "request": request,
+                "error": f"Too many invalid codes. Try again in {MFA_LOCK_SECONDS // 60} minutes.",
+            },
+            status_code=429,
+        )
+
     totp = pyotp.TOTP(_totp_secret_plain(user["totp_secret"]))
-    if not totp.verify(totp_code, valid_window=1):
+    code_ok = totp.verify(totp_code, valid_window=1)
+    await finish_mfa_attempt(user["id"], code_ok, now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS)
+    if not code_ok:
         return templates.TemplateResponse(
             request,
             "auth_mfa_verify.html",
@@ -328,7 +368,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
 
     # MFA verified — upgrade to full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
-    token = create_session(user["id"])
+    token = create_session(user["id"], user["session_epoch"])
     response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
