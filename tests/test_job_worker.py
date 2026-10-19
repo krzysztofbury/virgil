@@ -509,6 +509,7 @@ def test_scheduler_runs_users_with_bounded_concurrency(monkeypatch):
         import app.services.backup as backup_module
         import app.services.job_worker as worker_module
         import app.services.scheduler as scheduler
+        import app.services.subscriptions as subscriptions_module
 
         two_started = asyncio.Event()
         release = asyncio.Event()
@@ -552,6 +553,9 @@ def test_scheduler_runs_users_with_bounded_concurrency(monkeypatch):
         monkeypatch.setattr(scheduler, "_check_and_run", no_op)
         monkeypatch.setattr(worker_module, "run_jobs_for_user", run_jobs)
         monkeypatch.setattr(backup_module, "maybe_backup_central", no_op)
+        # Unpatched, it opens the real central database and leaves its thread
+        # running, so this file alone never exits after its tests pass.
+        monkeypatch.setattr(subscriptions_module, "reconcile_due_subscriptions", no_op)
 
         tick = asyncio.create_task(scheduler.scheduler_tick())
         await asyncio.wait_for(two_started.wait(), timeout=1)

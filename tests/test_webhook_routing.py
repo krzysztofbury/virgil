@@ -113,6 +113,11 @@ def test_event_hmac_and_durable_coalescing(auth_client):
     public (no session) and CSRF-exempt — no token is sent here."""
     webhook_id = uuid.uuid4().hex
     _seed_webhook(webhook_id)
+    # A sync another test left queued would debounce this one: start from none.
+    db = sqlite3.connect(user_db_path())
+    db.execute("DELETE FROM jobs WHERE kind = 'oura_sync'")
+    db.commit()
+    db.close()
     try:
         url = f"/api/oura/webhook/{webhook_id}"
         body = json.dumps({"event_type": "update", "data_type": "daily_sleep"}).encode()
@@ -136,7 +141,9 @@ def test_event_hmac_and_durable_coalescing(auth_client):
 
         db = sqlite3.connect(user_db_path())
         try:
-            jobs = db.execute("SELECT kind, payload_json, retry_policy, status FROM jobs ORDER BY id").fetchall()
+            jobs = db.execute(
+                "SELECT kind, payload_json, retry_policy, status FROM jobs WHERE kind = 'oura_sync' ORDER BY id"
+            ).fetchall()
         finally:
             db.close()
         assert jobs == [("oura_sync", '{"days_back":2,"trigger":"webhook"}', "automatic", "queued")]

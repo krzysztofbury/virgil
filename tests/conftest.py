@@ -1,8 +1,10 @@
 """Test fixtures. Env vars MUST be set before any `app.*` import —
 app/config.py reads the environment at import time."""
 
+import atexit
 import os
 import re
+import shutil
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -19,6 +21,8 @@ if os.environ.get("_VIRGIL_TEST_TMP"):
 else:
     _TMP = tempfile.mkdtemp(prefix="virgil-test-")
     os.environ["_VIRGIL_TEST_TMP"] = _TMP
+    # Only the import that created the directory removes it, after the run.
+    atexit.register(shutil.rmtree, _TMP, ignore_errors=True)
     os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
     os.environ["VIRGIL_API_KEY"] = "test-key-123"  # pragma: allowlist secret - synthetic fixture
     # The key serves this account only. An empty email must not pick an admin.
@@ -86,17 +90,24 @@ def drain_jobs(worker_id: str = "test-worker") -> list:
 
     async def scenario():
         control = await opener(path.name)
+        ran = []
         try:
-            batch = await run_jobs_for_user(
-                control,
-                "test-user",
-                path.name,
-                worker_id=worker_id,
-                max_jobs=10,
-                handler_db_opener=opener,
-                handler_db_closer=closer,
-            )
-            return list(batch.jobs)
+            # Batch after batch: the worker takes ten at a time, and jobs another
+            # test left queued must not crowd out the one this test is waiting on.
+            for _ in range(20):
+                batch = await run_jobs_for_user(
+                    control,
+                    "test-user",
+                    path.name,
+                    worker_id=worker_id,
+                    max_jobs=10,
+                    handler_db_opener=opener,
+                    handler_db_closer=closer,
+                )
+                if not batch.jobs:
+                    break
+                ran.extend(batch.jobs)
+            return ran
         finally:
             await control.close()
 
@@ -201,11 +212,28 @@ def track_porn() -> int:
     The REST API's Freedom calls without ?habit= act on the first tracked habit,
     which is what an account migrated from the No Porn module has.
     """
+    from app.services.habits import PRESETS_BY_SLUG
+
+    # The catalog's own Porn habit, so a test that reads its labels or slip
+    # definition gets the same row whichever test happened to create it first.
+    porn = PRESETS_BY_SLUG["porn"]
     conn = sqlite3.connect(user_db_path())
     try:
         conn.execute(
             "INSERT OR IGNORE INTO habits (slug, name, slip_label, slip_definition, amount_unit, slip_threshold, "
-            "near_miss_label, start_date) VALUES ('porn', 'Porn', 'I watched', '', 'minutes', 5, 'Edging', '2026-01-01')"
+            "near_miss_label, start_date) VALUES (?, ?, ?, ?, ?, ?, ?, '2026-01-01')",
+            tuple(
+                porn[key]
+                for key in (
+                    "slug",
+                    "name",
+                    "slip_label",
+                    "slip_definition",
+                    "amount_unit",
+                    "slip_threshold",
+                    "near_miss_label",
+                )
+            ),
         )
         conn.execute("UPDATE habits SET tracked = 1, position = -1 WHERE slug = 'porn'")
         conn.commit()

@@ -1,5 +1,5 @@
-"""Auth-adjacent P0 coverage: OAuth callback state, logout, multi-user isolation,
-TOTP secret encryption at rest."""
+"""Auth-adjacent P0 coverage: login, MFA, sessions, OAuth callback state and TOTP
+secret encryption at rest. Isolation between accounts lives in test_user_isolation."""
 
 import os
 import re
@@ -168,65 +168,6 @@ def test_disabling_an_account_revokes_sessions_that_reenabling_does_not_restore(
         central.execute("DELETE FROM users WHERE id = ?", (user_id,))
         central.commit()
         central.close()
-
-
-def test_second_user_gets_isolated_database(auth_client, monkeypatch):
-    """Multi-user isolation: a second account writes to its own DB file and the
-    first user's data is untouched."""
-    import app.routers.auth as auth_module
-
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
-
-    from fastapi.testclient import TestClient
-
-    from app.main import app
-
-    second = TestClient(app)
-    token = csrf_token(second, "/signup")
-    resp = second.post(
-        "/signup",
-        data={
-            "email": "second@example.com",
-            "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
-            "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture
-            "_csrf_token": token,
-        },
-        follow_redirects=False,
-    )
-    assert resp.status_code == 303
-
-    central = _central_conn()
-    try:
-        rows = dict(central.execute("SELECT email, db_filename FROM users").fetchall())
-        assert len(rows) == 2
-        assert rows[TEST_EMAIL] != rows["second@example.com"]
-        second_db = rows["second@example.com"]
-        first_db = rows[TEST_EMAIL]
-    finally:
-        central.close()
-
-    users_dir = os.path.join(os.environ["_VIRGIL_TEST_TMP"], "users")
-    try:
-        # Write into the second user's DB; the first user's DB must not see it.
-        conn = sqlite3.connect(os.path.join(users_dir, second_db))
-        conn.execute("INSERT INTO daily_logs (date, energy) VALUES ('2026-07-02', 9)")
-        conn.commit()
-        conn.close()
-
-        conn = sqlite3.connect(os.path.join(users_dir, first_db))
-        leaked = conn.execute("SELECT COUNT(*) FROM daily_logs WHERE date = '2026-07-02'").fetchone()[0]
-        conn.close()
-        assert leaked == 0, "Second user's data leaked into the first user's database"
-    finally:
-        # Cleanup so conftest.user_db_path()'s single-DB assumption holds.
-        central = _central_conn()
-        central.execute("DELETE FROM users WHERE email = 'second@example.com'")
-        central.commit()
-        central.close()
-        for suffix in ("", "-wal", "-shm"):
-            path = os.path.join(users_dir, second_db + suffix)
-            if os.path.exists(path):
-                os.remove(path)
 
 
 def test_totp_secret_encrypted_at_rest(auth_client):
@@ -429,6 +370,8 @@ def test_mfa_verification_locks_the_account_after_repeated_wrong_codes(client):
 
     try:
         _login(client)
+        # The password alone yields a pending login that only reaches /mfa/verify.
+        assert client.get("/", follow_redirects=False).headers["location"] == "/login"
         # One GET: /mfa/verify shares the per-IP limit of 10 a minute with /login.
         token = csrf_token(client, "/mfa/verify")
 
@@ -491,5 +434,43 @@ def test_parallel_mfa_guesses_stay_within_the_limit(client):
         assert locked_until > now.strftime("%Y-%m-%dT%H:%M:%SZ")
     finally:
         central.execute("UPDATE users SET mfa_failed_attempts = 0, mfa_locked_until = '' WHERE id = ?", (user_id,))
+        central.commit()
+        central.close()
+
+
+@pytest.mark.parametrize(
+    ("email", "password", "error"),
+    [
+        (TEST_EMAIL, "not-the-password", "Invalid email or password."),
+        ("inactive@example.com", "inactive-password-123", "This account has been deactivated."),
+    ],
+    ids=["wrong-password", "inactive-account"],
+)
+def test_login_refuses_without_issuing_a_session(client, email, password, error):
+    """Accepting a wrong password, or letting a deactivated account in, both passed
+    the whole suite: no test logged in with anything but the right credentials."""
+    import uuid
+
+    from app.auth import SESSION_COOKIE, hash_password
+
+    central = _central_conn()
+    central.execute(
+        "INSERT INTO users (id, email, password_hash, db_filename, is_active) VALUES (?, ?, ?, 'inactive.db', 0)",
+        (str(uuid.uuid4()), "inactive@example.com", hash_password("inactive-password-123")),
+    )
+    central.commit()
+    client.cookies.clear()
+    try:
+        token = csrf_token(client, "/login")
+        response = client.post(
+            "/login", data={"username": email, "password": password, "_csrf_token": token}, follow_redirects=False
+        )
+        assert response.status_code == 200
+        assert error in response.text
+        assert SESSION_COOKIE not in response.cookies
+        assert client.get("/", follow_redirects=False).headers["location"] == "/login"
+    finally:
+        client.cookies.clear()
+        central.execute("DELETE FROM users WHERE email = 'inactive@example.com'")
         central.commit()
         central.close()

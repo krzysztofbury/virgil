@@ -10,6 +10,7 @@ import re
 from pathlib import Path
 
 import aiosqlite
+import pytest
 
 MIGRATIONS = Path(__file__).resolve().parents[1] / "app" / "migrations"
 
@@ -125,3 +126,86 @@ def test_a_crashed_run_can_be_repeated(tmp_path):
 
     habits, days = asyncio.run(scenario())
     assert (habits[0]["c"], days[0]["c"]) == (1, 1)
+
+
+PARTIAL_HISTORIES = {
+    "only-bricks": [
+        "INSERT INTO feniks_bricks (date, hook, craving, story) VALUES ('2026-08-03', 'walked', 7, '')",
+    ],
+    "only-relapses": [
+        "INSERT INTO pmo_events (date, event_type, notes) VALUES ('2026-07-20', 'relapse', 'by hand')",
+    ],
+    "flag-on-no-data": [
+        "INSERT OR REPLACE INTO app_settings (key, value) VALUES ('feature_no_porn', '1')",
+    ],
+}
+
+
+@pytest.mark.parametrize("history", PARTIAL_HISTORIES)
+def test_any_trace_of_the_module_gets_a_porn_habit_and_keeps_every_row(tmp_path, history):
+    """The habit used to be tested only from an account with day logs. A table the
+    rebuild copied without a Porn habit to point at would lose its rows."""
+
+    async def scenario():
+        db = await _db_at_033(tmp_path / "partial.db")
+        try:
+            for statement in PARTIAL_HISTORIES[history]:
+                await db.execute(statement)
+            await db.commit()
+            await _migration().up(db)
+            await db.commit()
+            habits = await db.execute_fetchall("SELECT id FROM habits WHERE slug = 'porn'")
+            owners = {
+                table: [row[0] for row in await db.execute_fetchall(f"SELECT habit_id FROM {table}")]  # noqa: S608
+                for table in ("feniks_daily", "feniks_bricks", "pmo_events")
+            }
+            return [row[0] for row in habits], owners
+        finally:
+            await db.close()
+
+    habits, owners = asyncio.run(scenario())
+
+    assert len(habits) == 1
+    expected = {"feniks_daily": 0, "feniks_bricks": 0, "pmo_events": 0}
+    expected.update({"only-bricks": {"feniks_bricks": 1}, "only-relapses": {"pmo_events": 1}}.get(history, {}))
+    assert {table: len(rows) for table, rows in owners.items()} == expected
+    assert all(owner == habits[0] for rows in owners.values() for owner in rows)
+
+
+def test_a_run_that_fails_midway_rolls_back_and_succeeds_on_retry(tmp_path, monkeypatch):
+    """A crash after the day log was rebuilt but before the bricks were must not
+    lose rows or leave a second Porn habit when the migration runs again."""
+    migration = _migration()
+    real_rebuild = migration._rebuild
+
+    async def fail_at_bricks(db, table, *args):
+        if table == "feniks_bricks":
+            raise RuntimeError("injected crash")
+        await real_rebuild(db, table, *args)
+
+    async def scenario():
+        db = await _db_at_033(tmp_path / "crash.db")
+        try:
+            await db.execute("INSERT INTO feniks_daily (date, used, minutes) VALUES ('2026-08-01', 1, 10)")
+            await db.execute("INSERT INTO feniks_bricks (date, hook, craving, story) VALUES ('2026-08-03', 'h', 2, '')")
+            await db.commit()
+            monkeypatch.setattr(migration, "_rebuild", fail_at_bricks)
+            with pytest.raises(RuntimeError, match="injected crash"):
+                await migration.up(db)
+            await db.rollback()
+            monkeypatch.setattr(migration, "_rebuild", real_rebuild)
+            await migration.up(db)
+            await db.commit()
+            return (
+                [row[0] for row in await db.execute_fetchall("SELECT id FROM habits")],
+                await db.execute_fetchall("SELECT habit_id, date, slipped, amount FROM feniks_daily"),
+                await db.execute_fetchall("SELECT habit_id, hook FROM feniks_bricks"),
+            )
+        finally:
+            await db.close()
+
+    habits, days, bricks = asyncio.run(scenario())
+
+    assert len(habits) == 1
+    assert [tuple(day) for day in days] == [(habits[0], "2026-08-01", 1, 10)]
+    assert [tuple(brick) for brick in bricks] == [(habits[0], "h")]

@@ -150,6 +150,12 @@ def test_selected_day_session_details_are_paginated(auth_client):
         conn.close()
 
 
+def _pb_card(html: str, exercise: str) -> str:
+    """One movement's Personal Best card; other tests leave their own records on the page."""
+    start = html.index(f'data-pb-exercise="{exercise}"')
+    return html[start : html.index("</article>", start)]
+
+
 def test_personal_bests_group_rep_records_by_movement(auth_client):
     conn = sqlite3.connect(user_db_path())
     exercise_id = session_id = None
@@ -173,9 +179,10 @@ def test_personal_bests_group_rep_records_by_movement(auth_client):
         html = _page(auth_client)
         assert html.count('data-pb-exercise="ZZ grouped PB"') == 1
         assert 'data-pb-exercise="ZZ grouped PB" data-pb-best="80.0"' in html
-        assert 'data-pb-effort="3" data-pb-weight="80.0"' in html
-        assert 'data-pb-effort="5" data-pb-weight="75.0"' in html
-        assert 'data-pb-effort="5" data-pb-weight="70.0"' not in html
+        card = _pb_card(html, "ZZ grouped PB")
+        assert 'data-pb-effort="3" data-pb-weight="80.0"' in card
+        assert 'data-pb-effort="5" data-pb-weight="75.0"' in card
+        assert 'data-pb-effort="5" data-pb-weight="70.0"' not in card
     finally:
         if session_id is not None:
             conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
@@ -298,12 +305,13 @@ def test_timed_personal_bests_group_by_duration(auth_client):
 
         html = _page(auth_client)
         assert html.count('data-pb-exercise="ZZ timed PB"') == 1
-        assert 'data-pb-effort="20" data-pb-weight="20.0"' in html
-        assert 'data-pb-effort="40" data-pb-weight="12.0"' in html
-        assert 'data-pb-effort="20" data-pb-weight="16.0"' not in html
-        assert html.count('data-pb-effort="20"') == 1
-        assert "20 s" in html
-        assert "40 s" in html
+        card = _pb_card(html, "ZZ timed PB")
+        assert 'data-pb-effort="20" data-pb-weight="20.0"' in card
+        assert 'data-pb-effort="40" data-pb-weight="12.0"' in card
+        assert 'data-pb-effort="20" data-pb-weight="16.0"' not in card
+        assert card.count('data-pb-effort="20"') == 1
+        assert "20 s" in card
+        assert "40 s" in card
     finally:
         if session_id is not None:
             conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
