@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from app.db import set_setting
 from app.services.job_producers import JOB_TRIGGERS
-from app.services.llm_jobs import paid_llm_job_key, paid_llm_trigger, run_paid_llm_job
+from app.services.llm_jobs import llm_result_published, paid_llm_job_key, paid_llm_trigger, run_paid_llm_job
 
 if TYPE_CHECKING:
     from app.services.job_worker import JobContext
@@ -245,7 +245,8 @@ async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any
     # and a commit inside publish would split the write from its marker.
     await ensure_profile(context.db)
 
-    if source == "pdf":
+    # A finished import has no staged bytes left to extract from.
+    if source == "pdf" and not await llm_result_published(context.db, "medical_import", key):
 
         async def publish_extract(text: str) -> Mapping[str, Any]:
             store_extracted_text(context.user_id, token, text)

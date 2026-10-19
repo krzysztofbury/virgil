@@ -337,6 +337,37 @@ def test_pdf_extraction_stays_in_the_ledger_when_marker_parsing_fails(monkeypatc
     ]
 
 
+def test_rerunning_a_finished_pdf_import_buys_no_extraction(monkeypatch, tmp_path):
+    """An import finished before extraction had its own ledger row has no bytes
+    left, so a re-run must report it as done instead of extracting again."""
+    from app.services import medical_import
+    from app.services.llm_jobs import record_llm_publication
+
+    monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
+
+    async def extract(pdf_bytes):
+        raise AssertionError("a finished import must not be extracted again")
+
+    monkeypatch.setattr(medical_import, "extract_pdf_markers", extract)
+    upload = medical_import.stage_upload("user", b"%PDF-1.4 fake")
+    medical_import.discard_staged("user", upload)
+    payload = {"source": "pdf", "upload": upload}
+    import_key = paid_llm_job_key(_MEDICAL, upload)
+
+    async def scenario():
+        db = await _db()
+        try:
+            queued = await enqueue_paid_llm_job(db, _MEDICAL, payload, idempotency_key=import_key)
+            await record_llm_publication(db, _MEDICAL, import_key, queued.job_id)
+            await db.commit()
+            context = JobContext(db=db, user_id="user", job_id=queued.job_id, attempt=2)
+            return await handle_medical_import(context, payload)
+        finally:
+            await db.close()
+
+    assert asyncio.run(scenario()) == {"published": False, "reason": "already_published"}
+
+
 def test_a_staged_token_cannot_reach_another_users_directory(tmp_path, monkeypatch):
     from app.services import medical_import
 
