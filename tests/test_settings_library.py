@@ -2,6 +2,7 @@
 
 import sqlite3
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -371,160 +372,49 @@ def test_training_schedule_round_trips(auth_client):
     assert 'value="mon,wed,fri"' in auth_client.get("/settings?tab=configuration").text
 
 
-def test_training_schedule_rejects_an_unparseable_day_list(auth_client):
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
+def _save_schedule(client, days: str, swim: str):
+    token = csrf_token(client, "/settings?tab=configuration")
+    return client.post(
         "/settings/training-schedule",
-        data={"training_days": "mon,wed,fri", "training_swim_per_week": "1", "_csrf_token": token},
+        data={"training_days": days, "training_swim_per_week": swim, "_csrf_token": token},
         follow_redirects=False,
     )
-    resp = auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "qqq,zzz", "training_swim_per_week": "1", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert "err=" in resp.headers["location"], "an all-garbage day list must be an error, not a silent wipe"
-    assert _setting("training_days") == "mon,wed,fri", "the previous schedule must survive a rejected write"
 
 
-def test_training_schedule_rejects_an_out_of_range_swim_target(auth_client):
-    """Rejected, not clamped — the same policy the day list already had.
+@pytest.mark.parametrize(
+    ("days", "swim"),
+    [
+        ("qqq,zzz", "1"),  # all garbage must not silently wipe the schedule
+        ("mon", "99"),  # rejected, not clamped to 7: never store a number nobody typed
+        ("mon", "abc"),  # used to store 0 and drop swimming on a typo
+        ("mon", "-1"),
+        ("mon", "\u00b2"),  # isdigit() is True, int() raises: was a 500
+        ("mon", "1" * 5000),  # trips CPython's int-conversion limit: was a 500
+        ("tue,thu", "abc"),  # valid days must not land when the swim target is refused
+    ],
+    ids=["garbage-days", "swim-99", "swim-abc", "swim-negative", "swim-superscript", "swim-huge", "half-valid"],
+)
+def test_training_schedule_rejects_bad_input_without_writing_either_field(auth_client, days, swim):
+    _save_schedule(auth_client, "mon,wed", "2")
 
-    This previously asserted the opposite (99 silently became 7). That was the
-    asymmetry a review flagged: one field in the form refused bad input while
-    the other quietly rewrote it and reported success. Storing a number the user
-    never typed is the same class of defect as storing an empty schedule for a
-    typo.
-    """
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "2", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    resp = auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "99", "_csrf_token": token},
-        follow_redirects=False,
-    )
+    resp = _save_schedule(auth_client, days, swim)
+
+    assert resp.status_code == 303
     assert "err=" in resp.headers["location"]
-    assert _setting("training_swim_per_week") == "2", "a rejected write must not touch the stored value"
+    assert (_setting("training_days"), _setting("training_swim_per_week")) == ("mon,wed", "2")
 
 
-def test_training_schedule_rejects_a_non_numeric_swim_target(auth_client):
-    """`abc` used to store 0 and report success — dropping swimming from the
-    plan on a typo, with no way to notice."""
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "3", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    resp = auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "abc", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert "err=" in resp.headers["location"]
-    assert _setting("training_swim_per_week") == "3"
+@pytest.mark.parametrize(
+    ("days", "swim", "stored"),
+    [("  ", "1", ("", "1")), ("mon", "", ("mon", "0"))],
+    ids=["blank-days-clear-the-schedule", "blank-swim-means-none"],
+)
+def test_training_schedule_blank_fields_clear_rather_than_reject(auth_client, days, swim, stored):
+    """Blank is an explicit "no fixed days" or "no swimming"; a value that parses
+    to nothing is the error case above."""
+    _save_schedule(auth_client, "mon,wed", "3")
 
+    resp = _save_schedule(auth_client, days, swim)
 
-def test_training_schedule_rejects_before_writing_either_field(auth_client):
-    """The two set_setting calls commit separately, so a half-valid submission
-    must be refused before the first write rather than repaired after it."""
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon,wed", "training_swim_per_week": "1", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    # Valid days, invalid swim: neither may land.
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "tue,thu", "training_swim_per_week": "abc", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert _setting("training_days") == "mon,wed", "days must not be written when the swim field is rejected"
-    assert _setting("training_swim_per_week") == "1"
-
-
-def test_training_schedule_blank_day_list_clears_rather_than_rejects(auth_client):
-    """A blank field is an explicit "no fixed days" and is stored; a field that
-    parses to nothing is rejected. Mutating that split (`if not days:`) left the
-    whole suite green — the reader-side test in test_training_schedule.py pins
-    how an empty schedule renders, not how the route decides to store one."""
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon,wed", "training_swim_per_week": "1", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    resp = auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "  ", "training_swim_per_week": "1", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert "err=" not in resp.headers["location"], "a blank day list is a valid 'no fixed days', not an error"
-    assert _setting("training_days") == "", "blank must actually clear the stored schedule"
-
-
-def test_training_schedule_rejects_swim_inputs_that_crash_int(auth_client):
-    """N2 regression: the range guard used str.isdigit(), whose domain is wider
-    than int()'s. '²'.isdigit() is True and int('²') raises; a very long digit
-    string passes isdigit() and trips CPython's int-conversion limit. Both
-    reached the route as an unhandled ValueError — a 500 where the previous
-    behaviour had merely stored the wrong value.
-    """
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "2", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    for bad in ("²", "1" * 5000):
-        resp = auth_client.post(
-            "/settings/training-schedule",
-            data={"training_days": "mon", "training_swim_per_week": bad, "_csrf_token": token},
-            follow_redirects=False,
-        )
-        assert resp.status_code == 303, f"{bad[:8]!r} must be rejected, not raise"
-        assert "err=" in resp.headers["location"]
-    assert _setting("training_swim_per_week") == "2", "rejected writes must leave the stored value alone"
-
-
-def test_training_schedule_rejects_a_negative_swim_target(auth_client):
-    """-1 was only rejected incidentally, via isdigit()'s refusal of the minus
-    sign. With an explicit int() parse the lower bound needs its own check."""
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "4", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    resp = auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "-1", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert "err=" in resp.headers["location"]
-    assert _setting("training_swim_per_week") == "4"
-
-
-def test_training_schedule_blank_swim_means_zero(auth_client):
-    """The number input can legitimately be submitted empty, and 0 is the
-    documented way to drop swimming from the plan. The parallel blank-days path
-    is pinned; this one was not, leaving the same asymmetry in the tests that the
-    review found in the code."""
-    token = csrf_token(auth_client, "/settings?tab=configuration")
-    auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "3", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    resp = auth_client.post(
-        "/settings/training-schedule",
-        data={"training_days": "mon", "training_swim_per_week": "", "_csrf_token": token},
-        follow_redirects=False,
-    )
-    assert "err=" not in resp.headers["location"], "blank is a valid 'no swimming', not an error"
-    assert _setting("training_swim_per_week") == "0"
+    assert "err=" not in resp.headers["location"]
+    assert (_setting("training_days"), _setting("training_swim_per_week")) == stored

@@ -5,6 +5,7 @@ week strip first and nothing actionable above the fold.
 """
 
 import sqlite3
+from datetime import date
 
 from conftest import user_db_path
 
@@ -35,22 +36,27 @@ def test_today_block_comes_before_the_analytics(auth_client):
 
 
 def test_today_block_carries_the_cta_and_the_count(auth_client):
+    # The app's own "today", not SQLite's UTC date('now'), which differs near midnight.
+    today = date.today().isoformat()
     conn = sqlite3.connect(user_db_path())
     try:
         # INSERT OR IGNORE then UPDATE: the user DB is session-scoped, and OR
         # REPLACE would wipe columns another test wrote on today's row.
-        conn.execute("INSERT OR IGNORE INTO daily_logs (date) VALUES (date('now'))")
+        conn.execute("INSERT OR IGNORE INTO daily_logs (date) VALUES (?)", (today,))
         conn.execute(
             "UPDATE daily_logs SET energy = 7, andy_body_status = 'done', andy_spirit_status = 'done', "
-            "andy_account_status = 'pending', andy_relations_status = 'skipped' WHERE date = date('now')"
+            "andy_account_status = 'pending', andy_relations_status = 'skipped' WHERE date = ?",
+            (today,),
         )
         conn.commit()
     finally:
         conn.close()
 
     html = auth_client.get("/").text
-    assert "2/4" in html, "the A.N.D.Y. count must be stated, not counted by eye"
-    assert "Finish today" in html or "Edit today" in html, "the CTA must name the next action"
+    start = html.index('id="today-block"')
+    block = html[start : html.index('<div class="section"', start + 1)]
+    assert "2/4" in block, "the A.N.D.Y. count must be stated, not counted by eye"
+    assert "Edit today's log" in block, "a day already logged offers to edit it"
 
 
 def test_year_calendar_is_collapsed_and_holds_no_canvas(auth_client):
