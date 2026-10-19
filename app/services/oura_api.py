@@ -496,11 +496,8 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
             vals = [d[field] for d in _days if d.get(field) is not None]
             return sum(vals) if vals else None
 
-        # Oura API v2 daily_stress only provides stress_high (seconds) and
-        # stress_rest/recovery_high (seconds). stress_medium and stress_low
-        # are always 0 — those fields don't exist in the API.
-        # Monthly mapping: stress_stressful = stress_high, stress_restored = stress_rest.
-        # stress_normal is kept for schema compatibility but will always be 0.
+        # Oura API v2 daily_stress currently sends only stress_high and
+        # recovery_high, so stress_low (and stress_normal) stays 0 until it does.
         steps_average = avg("steps")
         monthly_values = {
             "sleep_score": avg("sleep_score"),
@@ -513,7 +510,7 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
             "rhr": avg("resting_hr"),
             "lowest_hr": avg("lowest_hr"),
             "hrv": avg("avg_hrv"),
-            "stress_normal": 0,
+            "stress_normal": total("stress_low"),
             "stress_stressful": total("stress_high"),
             "stress_restored": total("stress_rest"),
         }

@@ -211,3 +211,65 @@ def test_scheduled_partial_sync_is_a_completed_job_result(monkeypatch):
         "failed_daily_endpoints": ["sleep"],
         "workouts_synced": False,
     }
+
+
+def test_sync_stores_nonzero_oura_stress_normal(tmp_path, monkeypatch):
+    """A non-zero daily_stress stress_low must land in oura_monthly.stress_normal.
+
+    Sibling seconds are summed (stress_high → stress_stressful, recovery_high →
+    stress_restored). stress_normal has to follow that path, not a literal 0.
+    """
+
+    async def scenario():
+        import aiosqlite
+
+        from app.migrations.runner import run_migrations
+        from app.services import oura_api
+
+        day = date.today().isoformat()
+        stress_low = 5400
+
+        class Client:
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *_args):
+                return None
+
+            async def get(self, url, headers=None, params=None):
+                endpoint = url.rsplit("/", 1)[-1]
+                if endpoint == "daily_stress":
+                    payload = [
+                        {
+                            "day": day,
+                            "stress_high": 1200,
+                            "stress_medium": 1800,
+                            "stress_low": stress_low,
+                            "recovery_high": 900,
+                        }
+                    ]
+                else:
+                    payload = []
+                return httpx.Response(200, json={"data": payload})
+
+        monkeypatch.setattr(oura_api.httpx, "AsyncClient", lambda **_kwargs: Client())
+
+        async def fake_token(_db):
+            return "token"
+
+        monkeypatch.setattr(oura_api, "ensure_valid_token", fake_token)
+
+        db = await aiosqlite.connect(tmp_path / "stress-normal.db")
+        db.row_factory = aiosqlite.Row
+        await run_migrations(db)
+        await sync_oura_from_api(db, days_back=1)
+        daily = dict((await db.execute_fetchall("SELECT * FROM oura_daily WHERE date = ?", (day,)))[0])
+        monthly = dict((await db.execute_fetchall("SELECT * FROM oura_monthly WHERE month = ?", (day[:7],)))[0])
+        await db.close()
+        return daily, monthly
+
+    daily, monthly = asyncio.run(scenario())
+    assert daily["stress_low"] == 5400
+    assert monthly["stress_stressful"] == 1200
+    assert monthly["stress_restored"] == 900
+    assert monthly["stress_normal"] == 5400
