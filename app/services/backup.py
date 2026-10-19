@@ -7,8 +7,9 @@ import time
 import uuid
 from collections.abc import Callable
 from contextlib import closing
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from functools import partial
+from math import isfinite
 from pathlib import Path
 
 from app.config import CENTRAL_DB_PATH
@@ -225,6 +226,94 @@ async def run_backup(db, *, artifact_timestamp: str | None = None) -> Path:
 
     logger.info("Backup created: %s", dst.name)
     return dst
+
+
+# One missed tick is normal (a restart, a slow queue); two in a row are not.
+BACKUP_OVERDUE_INTERVALS = 2
+
+
+def _latest_backup(stem: str) -> tuple[datetime, str] | None:
+    """When the newest regular backup of one database was written, and its name.
+
+    The write time, not the time in the name: a job's file is named after the
+    job's creation, which can be days before a delayed run actually wrote it.
+    """
+    if not BACKUP_DIR.exists():
+        return None
+    newest = max(
+        ((path.stat().st_mtime, path.name) for path in BACKUP_DIR.glob(f"{stem}-*.db")),
+        default=None,
+    )
+    if newest is None:
+        return None
+    return datetime.fromtimestamp(newest[0], UTC), newest[1]
+
+
+def _ago(then: datetime, now: datetime) -> str:
+    minutes = max(0, int((now - then).total_seconds() // 60))
+    for size, unit in ((1440, "day"), (60, "hour"), (1, "minute")):
+        if minutes >= size:
+            count = minutes // size
+            return f"{count} {unit}{'' if count == 1 else 's'} ago"
+    return "just now"
+
+
+async def backup_status(db, now: datetime | None = None) -> dict:
+    """What Settings tells the user about this account's backups.
+
+    The newest file on disk says how old the latest copy is; the backup jobs say
+    whether one is on its way or the last attempt failed. Either alone misleads:
+    a file cannot show a failure, and the job history is pruned.
+    """
+    now = now or datetime.now(UTC)
+    stem = Path(await db_main_path(db)).stem
+    latest = await asyncio.to_thread(_latest_backup, stem)
+    enabled = await get_setting(db, "backup_enabled", "1") == "1"
+    try:
+        interval_hours = float(await get_setting(db, "backup_interval_hours", "24"))
+    except ValueError:
+        interval_hours = 24.0
+    if not (isfinite(interval_hours) and 1 <= interval_hours <= 168):
+        # The bounds the Automation form saves; anything else came from elsewhere.
+        interval_hours = 24.0
+    active = await db.execute_fetchall(
+        "SELECT 1 FROM jobs WHERE kind = 'backup' AND status IN ('queued', 'running') LIMIT 1"
+    )
+    # By finish, not creation: a retried older job can finish after a newer one.
+    finished = await db.execute_fetchall(
+        "SELECT id, status, finished_at, last_error FROM jobs "
+        "WHERE kind = 'backup' AND finished_at IS NOT NULL ORDER BY finished_at DESC, id DESC LIMIT 1"
+    )
+    last = finished[0] if finished else None
+    failed = last is not None and (
+        last["status"] == "failed"
+        # Ambiguous means the job may have finished outside the worker's view;
+        # its own file on disk settles that it did.
+        or (last["status"] == "needs_attention" and not (latest and latest[1].endswith(f"-j{last['id']:020d}.db")))
+    )
+    overdue = latest is not None and now - latest[0] > timedelta(hours=BACKUP_OVERDUE_INTERVALS * interval_hours)
+
+    status = {
+        "latest_age": _ago(latest[0], now) if latest else None,
+        "latest_local": latest[0].astimezone().strftime("%Y-%m-%d %H:%M %Z") if latest else None,
+        "failed_age": None,
+        "failed_error": None,
+    }
+    if not enabled:
+        status["state"] = "off"
+    elif active and not overdue:
+        status["state"] = "running"
+    elif failed:
+        status["state"] = "failed"
+        status["failed_age"] = _ago(datetime.fromisoformat(last["finished_at"]).replace(tzinfo=UTC), now)
+        status["failed_error"] = last["last_error"] or None
+    elif latest is None:
+        status["state"] = "none"
+    elif overdue:
+        status["state"] = "overdue"
+    else:
+        status["state"] = "ok"
+    return status
 
 
 PRE_MIGRATION_MAX_COPIES = 3
