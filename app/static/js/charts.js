@@ -22,7 +22,6 @@ function getChartColors() {
     return {
         grid: style.getPropertyValue('--chart-grid').trim() || 'rgba(255,255,255,0.06)',
         text: style.getPropertyValue('--chart-text').trim() || '#8b8b9e',
-        textMuted: style.getPropertyValue('--chart-text-muted').trim() || '#55556a',
     };
 }
 
@@ -117,58 +116,6 @@ function createRadarChart(canvasId, labels, datasets) {
                     labels: { color: colors.text }
                 }
             }
-        }
-    });
-    return registerChart(chart);
-}
-
-function createSparkline(canvasId, labels, data, color) {
-    color = color || 'rgb(168, 85, 247)';
-    var ctx = document.getElementById(canvasId);
-    if (!ctx) return null;
-    var chart = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: labels,
-            datasets: [{
-                data: data,
-                borderColor: color,
-                backgroundColor: color.replace('rgb', 'rgba').replace(')', ', 0.1)'),
-                fill: true,
-                tension: 0.4,
-                pointRadius: 0,
-                borderWidth: 2,
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: { x: { display: false }, y: { display: false } },
-            plugins: { legend: { display: false }, tooltip: { enabled: false } },
-            elements: { point: { radius: 0 } },
-        }
-    });
-    return registerChart(chart);
-}
-
-function createBarChart(canvasId, labels, datasets, options) {
-    options = options || {};
-    var ctx = document.getElementById(canvasId);
-    if (!ctx) return null;
-    var colors = getChartColors();
-    var chart = new Chart(ctx, {
-        type: 'bar',
-        data: { labels: labels, datasets: datasets },
-        options: {
-            responsive: true,
-            scales: {
-                x: { grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 12 } } },
-                y: Object.assign({ grid: { color: colors.grid }, ticks: { color: colors.text, font: { size: 12 } } }, options.yScale || {}),
-            },
-            plugins: Object.assign({
-                legend: { display: datasets.length > 1, labels: { color: colors.text } }
-            }, options.plugins || {}),
-            ...(options.chartOptions || {})
         }
     });
     return registerChart(chart);
