@@ -1,3 +1,5 @@
+import ipaddress
+import logging
 import os
 from pathlib import Path
 
@@ -45,9 +47,33 @@ REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "false").lower() 
 # Trust Cloudflare's client-IP header only when the deployment guarantees that
 # the tunnel is the sole ingress. Direct/local deployments keep the peer IP.
 TRUST_CLOUDFLARE_HEADERS = os.environ.get("VIRGIL_TRUST_CLOUDFLARE_HEADERS", "false").lower() == "true"
-TRUSTED_PROXY_IPS = frozenset(
-    address.strip() for address in os.environ.get("VIRGIL_TRUSTED_PROXY_IPS", "").split(",") if address.strip()
-)
+
+
+def parse_trusted_proxies(raw: str) -> tuple[ipaddress.IPv4Network | ipaddress.IPv6Network, ...]:
+    """Addresses or CIDR ranges of the proxies allowed to send CF-Connecting-IP.
+
+    A range covers a Docker network, where the tunnel container gets a new
+    address on every recreate. An entry that is not an address or range is
+    skipped with a warning: it can only ever trust less, never more.
+    """
+    networks = []
+    for entry in (part.strip() for part in raw.split(",")):
+        if not entry:
+            continue
+        try:
+            network = ipaddress.ip_network(entry, strict=False)
+        except ValueError:
+            logging.getLogger(__name__).warning("VIRGIL_TRUSTED_PROXY_IPS: ignoring %r, not an IP or CIDR", entry)
+            continue
+        if network.prefixlen == 0:
+            # Every peer could then claim any client address.
+            logging.getLogger(__name__).warning("VIRGIL_TRUSTED_PROXY_IPS: ignoring %r, it trusts everyone", entry)
+            continue
+        networks.append(network)
+    return tuple(networks)
+
+
+TRUSTED_PROXY_IPS = parse_trusted_proxies(os.environ.get("VIRGIL_TRUSTED_PROXY_IPS", ""))
 
 # Machine-to-machine REST API. Empty key = API disabled.
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")

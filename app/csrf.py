@@ -118,6 +118,11 @@ class CSRFMiddleware:
             return
         if method not in SAFE_METHODS:
             cookie_token = request.cookies.get(CSRF_COOKIE, "")
+            if not cookie_token:
+                # Nothing could match, so refuse before buffering up to 21 MB of body.
+                response = Response("CSRF validation failed", status_code=403)
+                await response(scope, receive, send)
+                return
 
             # Check header first (HTMX)
             submitted = ""

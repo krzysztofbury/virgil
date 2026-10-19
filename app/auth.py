@@ -151,9 +151,14 @@ def verify_password(password: str, password_hash: str) -> bool:
     return bcrypt.checkpw(prehashed.encode(), password_hash.encode())
 
 
-def create_session(user_id: str) -> str:
-    """Create a signed session token containing the user UUID."""
-    return _get_signer().sign(user_id).decode()
+# A session carries the account's session epoch next to its UUID. Logout and MFA
+# changes bump the epoch in the registry, which refuses every older session.
+_EPOCH_SEPARATOR = "|"
+
+
+def create_session(user_id: str, epoch: int) -> str:
+    """Create a signed session token for the user UUID at this session epoch."""
+    return _get_signer().sign(f"{user_id}{_EPOCH_SEPARATOR}{epoch}").decode()
 
 
 def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str | None:
@@ -170,11 +175,40 @@ MFA_PENDING_PREFIX = "_mfa_pending:"
 MFA_PENDING_MAX_AGE_SECONDS = 600
 
 
-def signed_in_user_id(token: str) -> str | None:
-    """The user a session cookie fully signs in, or None. A pending MFA login is not
-    signed in: treating it as one sent /login to / and the middleware back again."""
-    user_id = validate_session(token) if token else None
-    return None if not user_id or user_id.startswith(MFA_PENDING_PREFIX) else user_id
+def create_mfa_pending_session(user_id: str) -> str:
+    """A password-verified login that may only reach /mfa/verify."""
+    return _get_signer().sign(f"{MFA_PENDING_PREFIX}{user_id}").decode()
+
+
+def session_identity(token: str) -> tuple[str, int] | None:
+    """The user UUID and session epoch a cookie fully signs in, or None.
+
+    A pending MFA login is not signed in: treating it as one sent /login to / and
+    the middleware back again. A cookie from before epochs existed carries only the
+    UUID and counts as epoch 0, so it lasts until the account's first bump.
+    """
+    value = validate_session(token) if token else None
+    if not value or value.startswith(MFA_PENDING_PREFIX):
+        return None
+    user_id, separator, epoch = value.rpartition(_EPOCH_SEPARATOR)
+    if not separator:
+        return value, 0
+    if not epoch.isascii() or not epoch.isdigit():
+        return None
+    return user_id, int(epoch)
+
+
+async def signed_in_user(token: str) -> dict | None:
+    """The active account a session cookie signs in at its current epoch, or None."""
+    identity = session_identity(token)
+    if not identity or not valid_uuid(identity[0]):
+        return None
+    from app.central_db import get_user_by_id
+
+    user = await get_user_by_id(identity[0])
+    if not user or not user["is_active"] or user["session_epoch"] != identity[1]:
+        return None
+    return user
 
 
 def mfa_pending_user_id(token: str) -> str | None:
@@ -224,13 +258,12 @@ class AuthMiddleware:
 
         # Check session cookie — contains user UUID.
         request = Request(scope)
-        session_token = request.cookies.get(SESSION_COOKIE, "")
-        user_id = validate_session(session_token) if session_token else None
-
-        if not user_id or user_id.startswith(MFA_PENDING_PREFIX):
+        identity = session_identity(request.cookies.get(SESSION_COOKIE, ""))
+        if not identity:
             response = _login_response(scope)
             await response(scope, receive, send)
             return
+        user_id, session_epoch = identity
 
         # Validate UUID format before DB lookup.
         if not valid_uuid(user_id):
@@ -244,6 +277,13 @@ class AuthMiddleware:
 
         if not user or not user["is_active"]:
             await _stale_session_response(scope)(scope, receive, send)
+            return
+        # A bumped epoch (logout, MFA change) revokes every session signed before it.
+        # The cookie is left alone: a poll sent just before this browser turned MFA
+        # on would otherwise clear the fresh cookie the MFA response set. /login
+        # checks the epoch too, so the stale cookie cannot loop.
+        if user["session_epoch"] != session_epoch:
+            await _login_response(scope)(scope, receive, send)
             return
 
         # Open per-user database connection. Opening and every step after it

@@ -189,7 +189,7 @@ All configuration via environment variables:
 | `VIRGIL_ADMIN_EMAILS` | (empty) | Comma-separated admin emails (always have admin role) |
 | `VIRGIL_REGISTRATION_OPEN` | `false` | Allow new user signups. The first account (bootstrap owner) can always be created |
 | `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Trust `CF-Connecting-IP` for rate limiting. Enable only when Cloudflare Tunnel is the sole ingress |
-| `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated direct proxy IPs allowed to supply `CF-Connecting-IP` |
+| `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated proxy IPs or CIDR ranges allowed to supply `CF-Connecting-IP`. Behind the compose tunnel, use the `virgil-net` subnet: cloudflared changes address when recreated. Without trust, every visitor shares one rate-limit bucket, and the log warns the first time the header arrives untrusted |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |

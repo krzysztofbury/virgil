@@ -199,6 +199,65 @@ async def update_user(user_id: str, **fields) -> None:
     await db.commit()
 
 
+async def bump_session_epoch(user_id: str) -> int:
+    """Revoke every session of this account; return the new epoch to sign fresh ones with."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        "UPDATE users SET session_epoch = session_epoch + 1 WHERE id = ? RETURNING session_epoch", (user_id,)
+    )
+    await db.commit()
+    if not rows:
+        raise LookupError(f"No account {user_id}")
+    return rows[0]["session_epoch"]
+
+
+def _utc_stamp(moment: datetime) -> str:
+    """Fixed-width UTC, so the stamps compare correctly as strings in SQL."""
+    return moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+async def claim_mfa_attempt(user_id: str, now: datetime, max_attempts: int, lock_seconds: int) -> bool:
+    """Count one MFA code attempt before checking it. False while verification is locked.
+
+    Counting first keeps parallel guesses inside the limit: each one takes a number,
+    and any beyond `max_attempts` is refused and locks verification.
+    """
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        """UPDATE users SET mfa_failed_attempts = mfa_failed_attempts + 1
+           WHERE id = ? AND mfa_locked_until <= ?
+           RETURNING mfa_failed_attempts""",
+        (user_id, _utc_stamp(now)),
+    )
+    await db.commit()
+    if not rows:
+        return False
+    if rows[0]["mfa_failed_attempts"] > max_attempts:
+        await _lock_mfa(db, user_id, now, lock_seconds)
+        return False
+    return True
+
+
+async def _lock_mfa(db: aiosqlite.Connection, user_id: str, now: datetime, lock_seconds: int) -> None:
+    await db.execute(
+        "UPDATE users SET mfa_failed_attempts = 0, mfa_locked_until = ? WHERE id = ?",
+        (_utc_stamp(now + timedelta(seconds=lock_seconds)), user_id),
+    )
+    await db.commit()
+
+
+async def finish_mfa_attempt(user_id: str, ok: bool, now: datetime, max_attempts: int, lock_seconds: int) -> None:
+    """Clear the count after a right code; lock verification once a wrong one reaches the limit."""
+    db = await get_central_db()
+    if ok:
+        await db.execute("UPDATE users SET mfa_failed_attempts = 0, mfa_locked_until = '' WHERE id = ?", (user_id,))
+        await db.commit()
+        return
+    rows = await db.execute_fetchall("SELECT mfa_failed_attempts FROM users WHERE id = ?", (user_id,))
+    if rows and rows[0]["mfa_failed_attempts"] >= max_attempts:
+        await _lock_mfa(db, user_id, now, lock_seconds)
+
+
 async def delete_user(user_id: str) -> str | None:
     """Delete a user. Returns their db_filename for cleanup, or None."""
     db = await get_central_db()
@@ -235,7 +294,10 @@ async def disable_user_if_unsubscribed(user_id: str) -> str:
             if subscriptions:
                 await db.rollback()
                 return "subscribed"
-            await db.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
+            # Re-enabling the account later must not revive the sessions it had.
+            await db.execute(
+                "UPDATE users SET is_active = 0, session_epoch = session_epoch + 1 WHERE id = ?", (user_id,)
+            )
             await db.commit()
             return "disabled"
         except BaseException:

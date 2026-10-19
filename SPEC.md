@@ -79,11 +79,11 @@ app/
 
 ## Middleware Stack (Processing Order)
 
-1. **Security Headers** — CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
-2. **Rate Limiting** — 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window). `CF-Connecting-IP` is accepted only when Cloudflare trust is enabled and the socket peer is listed in `VIRGIL_TRUSTED_PROXY_IPS`.
-3. **Authentication** — Cookie-based session verification (exempts: login, signup, MFA, offline, healthz, service worker, per-user Oura webhooks)
-4. **Feature Flags** — Loads `feature_*` settings into `request.state.features`
-5. **CSRF Protection** — Double-submit cookie on all POST forms (exempts: Oura webhook)
+1. **Security Headers** - CSP, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, on every response the layers below produce (errors and redirects included)
+2. **Central migration guard** - 503 for everything but `/healthz` while the registry failed to migrate
+3. **Rate Limiting** - 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window). `CF-Connecting-IP` is accepted only when Cloudflare trust is enabled and the socket peer is in `VIRGIL_TRUSTED_PROXY_IPS` (addresses or CIDR ranges).
+4. **Authentication** - Cookie-based session verification against the account's session epoch (exempts: login, signup, MFA, offline, healthz, service worker, per-user Oura webhooks). Also loads `feature_*` settings into `request.state.features`
+5. **CSRF Protection** - Double-submit cookie on all POST forms (exempts: Oura webhook, API-key routes). The only layer that reads a request body, so it runs last; a write without the CSRF cookie is refused before its body is read
 
 ## How to Work With This Codebase
 
@@ -150,7 +150,7 @@ All via environment variables (see `.env.example`):
 | `VIRGIL_BASE_URL` | `http://localhost:8123` | Public URL for OAuth callbacks |
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for secret encryption |
 | `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Allow trusted proxy peers to provide `CF-Connecting-IP` |
-| `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated direct peer IPs trusted as proxies |
+| `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated peer IPs or CIDR ranges trusted as proxies |
 
 Port is always **8123**.
 
