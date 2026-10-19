@@ -7,9 +7,10 @@ nothing else in the suite fires 11 consecutive requests at this path.
 """
 
 import logging
+import sqlite3
 
 import pytest
-from conftest import csrf_token
+from conftest import csrf_token, user_db_path
 from fastapi.testclient import TestClient
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
@@ -125,6 +126,30 @@ def test_llm_path_rate_limited_while_general_path_stays_open(auth_client):
     """
     token = csrf_token(auth_client, "/training")
     statuses = []
+    try:
+        _post_probes(auth_client, token, statuses)
+    finally:
+        # The captures queue a WOD parse, and a queued parse makes every later
+        # capture in the suite skip its own: leave the shared database as found.
+        conn = sqlite3.connect(user_db_path())
+        conn.execute(
+            "DELETE FROM jobs WHERE kind = 'wod_parse' AND json_extract(payload_json, '$.session_id') IN "
+            "(SELECT id FROM training_sessions WHERE notes LIKE 'rate limit probe %')"
+        )
+        conn.execute("DELETE FROM training_sessions WHERE notes LIKE 'rate limit probe %'")
+        conn.commit()
+        conn.close()
+
+    # The success status (200 direct render, or 303 Post/Redirect/Get) is not
+    # this test's concern - only that the rate limiter lets the first 10 through
+    # and blocks the 11th.
+    assert all(s < 400 for s in statuses[:10]), f"first 10 calls must be under the limit, got {statuses[:10]}"
+    assert statuses[10] == 429, f"the 11th POST /training/wod must be rate-limited, got {statuses[10]}"
+
+    assert auth_client.get("/training").status_code == 200, "the general tier must be unaffected by the LLM bucket"
+
+
+def _post_probes(auth_client, token, statuses):
     for i in range(11):
         resp = auth_client.post(
             "/training/wod",
@@ -137,11 +162,3 @@ def test_llm_path_rate_limited_while_general_path_stays_open(auth_client):
             follow_redirects=False,
         )
         statuses.append(resp.status_code)
-
-    # The success status (200 direct render, or 303 Post/Redirect/Get) is not
-    # this test's concern — only that the rate limiter lets the first 10 through
-    # and blocks the 11th.
-    assert all(s < 400 for s in statuses[:10]), f"first 10 calls must be under the limit, got {statuses[:10]}"
-    assert statuses[10] == 429, f"the 11th POST /training/wod must be rate-limited, got {statuses[10]}"
-
-    assert auth_client.get("/training").status_code == 200, "the general tier must be unaffected by the LLM bucket"

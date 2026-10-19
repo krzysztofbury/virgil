@@ -423,3 +423,33 @@ def test_dashboard_checks_a_habit_off_in_place_without_overwriting_a_logged_day(
 def test_dashboard_has_no_freedom_block_when_the_module_is_off(auth_client):
     _execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_freedom', '0')")
     assert 'id="freedom-today-block"' not in auth_client.get("/").text
+
+
+def test_habit_settings_round_trip_and_refuse_invalid_values(auth_client):
+    _enable(auth_client, "gambling")
+    token = csrf_token(auth_client, "/freedom?habit=gambling")
+    fields = {
+        "name": "Gambling",
+        "slip_label": "I placed a bet",
+        "amount_unit": "euros",
+        "start_date": "2026-01-01",
+        "_csrf_token": token,
+    }
+
+    saved = auth_client.post(
+        "/freedom/gambling/settings",
+        data={**fields, "slip_threshold": "3", "target_days": "45"},
+        follow_redirects=False,
+    )
+    assert saved.status_code == 303 and "err=" not in saved.headers["location"]
+    stored = "SELECT slip_threshold, target_days, amount_unit FROM habits WHERE slug = 'gambling'"
+    assert _fetchall(stored) == [(3, 45, "euros")]
+
+    for invalid in ({"slip_threshold": "0"}, {"target_days": "0"}, {"start_date": "2999-01-01"}):
+        refused = auth_client.post(
+            "/freedom/gambling/settings",
+            data={**fields, "slip_threshold": "3", "target_days": "45", **invalid},
+            follow_redirects=False,
+        )
+        assert "err=" in refused.headers["location"], invalid
+        assert _fetchall(stored) == [(3, 45, "euros")], invalid

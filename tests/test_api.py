@@ -173,7 +173,19 @@ def test_habits_range_out_of_bounds_422(auth_client):
     assert auth_client.get("/api/habits?range=999", headers=KEY).status_code == 422
 
 
-def test_training_empty(auth_client):
+def _far_future(monkeypatch):
+    """A week no other test has logged anything in: the suite shares one database."""
+
+    class FarFuture(date):
+        @classmethod
+        def today(cls):
+            return cls(2099, 1, 1)
+
+    monkeypatch.setattr("app.routers.api.date", FarFuture)
+
+
+def test_training_empty(auth_client, monkeypatch):
+    _far_future(monkeypatch)
     resp = auth_client.get("/api/training", headers=KEY)
     assert resp.status_code == 200
     assert resp.json()["sessions"] == []
@@ -186,7 +198,17 @@ def test_experiments_active(auth_client):
 
 
 def test_oura_today_404_when_no_data(auth_client):
-    assert auth_client.get("/api/oura/today", headers=KEY).status_code == 404
+    # Other tests sync Oura days into the shared database; set them aside.
+    conn = sqlite3.connect(user_db_path())
+    try:
+        conn.execute("CREATE TEMP TABLE oura_daily_aside AS SELECT * FROM oura_daily")
+        conn.execute("DELETE FROM oura_daily")
+        conn.commit()
+        assert auth_client.get("/api/oura/today", headers=KEY).status_code == 404
+    finally:
+        conn.execute("INSERT INTO oura_daily SELECT * FROM oura_daily_aside")
+        conn.commit()
+        conn.close()
 
 
 def test_all_api_routes_are_public_paths():
@@ -214,7 +236,8 @@ def test_new_api_routes_reachable_with_key_only():
         assert c.request(method, "/api/library/1", follow_redirects=False).status_code == 401, method
 
 
-def test_training_detail_empty(auth_client):
+def test_training_detail_empty(auth_client, monkeypatch):
+    _far_future(monkeypatch)
     resp = auth_client.get("/api/training/detail", headers=KEY)
     assert resp.status_code == 200
     assert resp.json()["sessions"] == []
@@ -275,12 +298,12 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
         cur = conn.cursor()
         cur.execute(
             "INSERT INTO training_exercises (name, section, target_reps, display_order, metric) "
-            "VALUES ('Goblet Squat', 'Core', '10-12', 1, 'reps')"
+            "VALUES ('ZZ API Goblet Squat', 'Core', '10-12', 1, 'reps')"
         )
         reps_ex = cur.lastrowid
         cur.execute(
             "INSERT INTO training_exercises (name, section, target_reps, display_order, metric) "
-            "VALUES ('Farmer Carry', 'Core', '40s', 2, 'time')"
+            "VALUES ('ZZ API Farmer Carry', 'Core', '40s', 2, 'time')"
         )
         time_ex = cur.lastrowid
         cur.execute("INSERT INTO training_sessions (date, duration_minutes, notes) VALUES ('2026-07-06', 25, 'test')")
@@ -306,9 +329,9 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
         detail = auth_client.get("/api/training/detail?range=90", headers=KEY).json()
         sess = next(s for s in detail["sessions"] if s["id"] == sid)
         by_name = {e["name"]: e for e in sess["exercises"]}
-        assert len(by_name["Goblet Squat"]["sets"]) == 2
-        assert by_name["Goblet Squat"]["metric"] == "reps"
-        carry = by_name["Farmer Carry"]
+        assert len(by_name["ZZ API Goblet Squat"]["sets"]) == 2
+        assert by_name["ZZ API Goblet Squat"]["metric"] == "reps"
+        carry = by_name["ZZ API Farmer Carry"]
         assert carry["metric"] == "time"
         assert carry["sets"][0]["duration"] == 40.0
         assert carry["sets"][0]["reps"] is None
@@ -326,7 +349,7 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
             "DELETE FROM training_entries WHERE session_id = (SELECT id FROM training_sessions WHERE notes='test')"
         )
         cur.execute("DELETE FROM training_sessions WHERE notes = 'test'")
-        cur.execute("DELETE FROM training_exercises WHERE name IN ('Goblet Squat', 'Farmer Carry')")
+        cur.execute("DELETE FROM training_exercises WHERE name IN ('ZZ API Goblet Squat', 'ZZ API Farmer Carry')")
         cur.execute("DELETE FROM pmo_events WHERE date = '2026-07-05'")
         cur.execute("DELETE FROM feniks_journal WHERE date = '2026-07-05'")
         conn.commit()

@@ -9,6 +9,7 @@ header that said "69 min".
 
 import asyncio
 import importlib
+import re
 from datetime import date
 
 import aiosqlite
@@ -235,7 +236,9 @@ def test_training_page_renders_seconds_as_readable_minutes(auth_client):
         day = date.today().isoformat()
         html = auth_client.get(f"/training?year={date.today().year}&day={day}").text
         assert "ZZTestBikeDuration" in html, "precondition: the entry must render at all"
-        assert "4140" not in html, "the raw second count must not reach the page"
+        # Asset links carry ?v=<sha>-<start epoch>, which can contain any digits.
+        content = re.sub(r"\?v=[^\"']*", "", html)
+        assert "4140" not in content, "the raw second count must not reach the page"
         assert "69 min" in html, "4140 s must render as 69 min — the same figure the header shows"
     finally:
         if session_id is not None:

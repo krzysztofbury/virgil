@@ -55,7 +55,12 @@ def test_list_returns_crossfit_vocabulary(auth_client):
     assert {m["name"].lower() for m in CROSSFIT_MOVEMENTS} <= reachable, (
         "every CrossFit movement must still be listed, by name or as an alias of the movement it merged into"
     )
-    assert len(body["entries"]) == len(expected_names)
+    # Exactly once each: a lost dedupe would list a seeded name twice. Other tests
+    # add entries of their own to the shared library, so those are left out.
+    listed = [entry["name"].lower() for entry in body["entries"]]
+    assert not set(listed) & merged, "a movement merged by migration 033 must not be listed on its own"
+    seeded = sorted(name for name in listed if name in expected_names)
+    assert seeded == sorted(expected_names)
 
 
 def test_create_then_read_back(auth_client):
