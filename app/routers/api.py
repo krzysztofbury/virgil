@@ -616,7 +616,8 @@ async def api_log_entry(experiment_id: int, payload: ApiEntryIn, db: ApiDb):
     metric = matches[0]  # deterministic: first by display_order
 
     entry_date = payload.date or date.today().isoformat()
-    if not valid_date(entry_date):
+    entry_date = valid_date(entry_date)
+    if not entry_date:
         raise HTTPException(status_code=422, detail="Invalid date (expected YYYY-MM-DD)")
     # Reject out-of-window dates: the entry would be invisible in the grid and
     # all progress windows — a silent success an MCP client can't notice.

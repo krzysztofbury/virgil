@@ -348,6 +348,27 @@ def test_settings_checklist_sets_the_tracked_habits(auth_client):
     assert tracked == {"porn", "gambling", "doomscrolling-news"}
 
 
+def test_custom_habits_with_non_latin_names_stay_apart(auth_client):
+    """Slugs kept only [a-z0-9], so every Cyrillic name became "habit" and a second
+    one resumed the first, merging its days, bricks and streak into the first's."""
+    token = csrf_token(auth_client, "/freedom")
+    names = ["Алкоголь", "Сахар", "АЛКОГОЛЬ", "Słodycze"]
+    try:
+        for name in names:
+            resp = auth_client.post(
+                "/freedom/habits", data={"name": name, "_csrf_token": token}, follow_redirects=False
+            )
+            assert resp.status_code == 303
+
+        rows = _fetchall(
+            "SELECT slug, name FROM habits WHERE name IN (?, ?, ?) ORDER BY id", ("Алкоголь", "Сахар", "Słodycze")
+        )
+        # The same name in other case resumes the first habit instead of adding one.
+        assert [tuple(row) for row in rows] == [("habit", "Алкоголь"), ("habit-2", "Сахар"), ("slodycze", "Słodycze")]
+    finally:
+        _execute("DELETE FROM habits WHERE slug IN ('habit', 'habit-2', 'slodycze')")
+
+
 def test_api_noporn_reads_the_porn_habit(auth_client, monkeypatch):
     _enable(auth_client)
     _brick(auth_client, "porn", date=date.today().isoformat(), hook="api-test-brick")

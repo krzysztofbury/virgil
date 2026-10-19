@@ -15,6 +15,7 @@ from app.central_db import (
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.backup import delete_user_backups
 from app.user_db import delete_user_db
 from app.validation import valid_uuid
 
@@ -98,4 +99,5 @@ async def delete_user_route(request: Request, user_id: str):
     if result == "not_found" or not db_filename:
         return error_redirect(request, "/admin/users", "User account was not found.")
     delete_user_db(db_filename)
+    delete_user_backups(db_filename)
     return success_redirect(request, "/admin/users", "User account deleted.")

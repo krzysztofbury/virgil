@@ -674,6 +674,7 @@ async def factory_reset(request: Request):
     import uuid
 
     from app.central_db import heartbeat_user_lifecycle, update_user, user_lifecycle_operation
+    from app.services.backup import delete_user_backups
     from app.user_db import create_user_db, delete_user_db
 
     user = getattr(request.state, "user", None)
@@ -700,6 +701,7 @@ async def factory_reset(request: Request):
         await create_user_db(new_filename)
         await update_user(user["id"], db_filename=new_filename)
         delete_user_db(old_filename)
+        delete_user_backups(old_filename)
 
         logger.info("Factory reset completed for user %s", user["email"])
         return success_redirect(request, "/onboarding", "Factory reset completed. Start onboarding again.")

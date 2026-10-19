@@ -48,6 +48,15 @@ async def exchange_code(client_id: str, client_secret: str, code: str, redirect_
         return resp.json()
 
 
+class OuraReconnectRequired(Exception):
+    """The token endpoint refused the refresh token or the client: only a new OAuth login helps."""
+
+
+# OAuth errors that no retry can fix. Anything else (a timeout, a 5xx, a 429) is
+# transient and must not disconnect the integration.
+_RECONNECT_ERRORS = frozenset({"invalid_grant", "invalid_client", "unauthorized_client"})
+
+
 async def refresh_access_token(client_id: str, client_secret: str, refresh_token: str) -> dict:
     async with httpx.AsyncClient(timeout=30.0) as client:
         resp = await client.post(
@@ -59,62 +68,93 @@ async def refresh_access_token(client_id: str, client_secret: str, refresh_token
                 "refresh_token": refresh_token,
             },
         )
+        if resp.status_code in (400, 401):
+            try:
+                error = resp.json().get("error", "")
+            except ValueError:
+                error = ""
+            if error in _RECONNECT_ERRORS:
+                raise OuraReconnectRequired(error)
         resp.raise_for_status()
         return resp.json()
 
 
+# A refresh token is single-use. The scheduler, a webhook job and the settings page
+# can all find the access token expired at once; one refresh per database at a
+# time, and the others pick up the token it stored. One process serves every
+# request and job, so an in-process lock is enough.
+_refresh_locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+
+
+async def _oura_integration(db) -> dict | None:
+    rows = await db.execute_fetchall("SELECT * FROM integrations WHERE provider = 'oura'")
+    return dict(rows[0]) if rows else None
+
+
+def _needs_refresh(integration: dict, now: datetime) -> bool:
+    expires_at = integration.get("token_expires_at", "")
+    if not expires_at:
+        return False
+    try:
+        exp_dt = datetime.fromisoformat(expires_at)
+    except (ValueError, TypeError):
+        # Corrupted expiry timestamp: we cannot tell whether the token is still
+        # valid, so use it as-is and let the API answer.
+        logger.warning("Could not parse token_expires_at=%r, using token as-is", expires_at)
+        return False
+    if exp_dt.tzinfo is None:
+        exp_dt = exp_dt.replace(tzinfo=UTC)
+    return now >= exp_dt - timedelta(minutes=5)
+
+
 async def ensure_valid_token(db) -> str | None:
     """Check token expiry, auto-refresh if needed, return decrypted access_token or None."""
-    row = await db.execute_fetchall("SELECT * FROM integrations WHERE provider = 'oura'")
-    if not row:
-        return None
-    integration = dict(row[0])
-    if integration["status"] != "connected":
-        return None
+    from app.services.backup import db_main_path
 
-    access_token = decrypt(integration["access_token_enc"])
-    if not access_token:
+    integration = await _oura_integration(db)
+    if not integration or integration["status"] != "connected" or not decrypt(integration["access_token_enc"]):
         return None
+    if not _needs_refresh(integration, datetime.now(UTC)):
+        return decrypt(integration["access_token_enc"])
 
-    # Check expiry
-    expires_at = integration.get("token_expires_at", "")
-    if expires_at:
-        try:
-            exp_dt = datetime.fromisoformat(expires_at)
-            if exp_dt.tzinfo is None:
-                exp_dt = exp_dt.replace(tzinfo=UTC)
-            now = datetime.now(UTC)
-            if now >= exp_dt - timedelta(minutes=5):
-                # Refresh
-                client_id = integration["client_id"]
-                client_secret = decrypt(integration["client_secret_enc"])
-                refresh_tok = decrypt(integration["refresh_token_enc"])
-                if not refresh_tok:
-                    return None
-                try:
-                    tokens = await refresh_access_token(client_id, client_secret, refresh_tok)
-                    new_access = tokens["access_token"]
-                    new_refresh = tokens.get("refresh_token", refresh_tok)
-                    expires_in = tokens.get("expires_in", 86400)
-                    new_expires = (now + timedelta(seconds=expires_in)).isoformat()
-                    await db.execute(
-                        """UPDATE integrations SET access_token_enc = ?, refresh_token_enc = ?,
-                           token_expires_at = ? WHERE provider = 'oura'""",
-                        (encrypt(new_access), encrypt(new_refresh), new_expires),
-                    )
-                    await db.commit()
-                    return new_access
-                except Exception:
-                    logger.exception("Failed to refresh Oura token")
-                    await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
-                    await db.commit()
-                    return None
-        except (ValueError, TypeError):
-            # Corrupted expiry timestamp — treat as expired, return token as-is
-            # since we cannot determine if it is still valid.
-            logger.warning("Could not parse token_expires_at=%r, using token as-is", expires_at)
+    async with _refresh_locks[await db_main_path(db)]:
+        # Another caller may have refreshed while this one waited for the lock.
+        integration = await _oura_integration(db)
+        if not integration or integration["status"] != "connected":
+            return None
+        now = datetime.now(UTC)
+        if not _needs_refresh(integration, now):
+            return decrypt(integration["access_token_enc"]) or None
+        return await _refresh(db, integration, now)
 
-    return access_token
+
+async def _refresh(db, integration: dict, now: datetime) -> str | None:
+    refresh_tok = decrypt(integration["refresh_token_enc"])
+    if not refresh_tok:
+        return None
+    try:
+        tokens = await refresh_access_token(
+            integration["client_id"], decrypt(integration["client_secret_enc"]), refresh_tok
+        )
+    except OuraReconnectRequired as error:
+        logger.warning("Oura refused the refresh token (%s); the integration needs reconnecting", error)
+        await db.execute("UPDATE integrations SET status = 'error' WHERE provider = 'oura'")
+        await db.commit()
+        return None
+    except Exception:
+        # Still connected: the next sync tries again with the same refresh token.
+        logger.warning("Oura token refresh failed; will retry on the next sync", exc_info=True)
+        return None
+    new_access = tokens["access_token"]
+    new_refresh = tokens.get("refresh_token", refresh_tok)
+    new_expires = (now + timedelta(seconds=tokens.get("expires_in", 86400))).isoformat()
+    await db.execute(
+        """UPDATE integrations SET access_token_enc = ?, refresh_token_enc = ?,
+           token_expires_at = ? WHERE provider = 'oura'""",
+        (encrypt(new_access), encrypt(new_refresh), new_expires),
+    )
+    await db.commit()
+    return new_access
 
 
 class OuraAuthError(Exception):

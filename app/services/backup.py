@@ -164,6 +164,27 @@ def _prune_backups(
         logger.info("Pruned old backup: %s", oldest.name)
 
 
+def delete_user_backups(db_filename: str) -> list[str]:
+    """Remove every backup and pre-migration snapshot of one per-user database.
+
+    Deleting an account or resetting it promises its data is gone, and a reset
+    moves the account to a new file name, so nothing would ever prune these.
+    """
+    if not db_filename or ".." in db_filename or "/" in db_filename:
+        raise ValueError(f"Invalid db_filename: {db_filename}")
+    stem = Path(db_filename).stem
+    removed = []
+    for directory, pattern in ((BACKUP_DIR, f"{stem}-*.db"), (_pre_migration_dir(), f"{stem}-pre-migration-v*.db")):
+        if not directory.exists():
+            continue
+        for path in directory.glob(pattern):
+            path.unlink(missing_ok=True)
+            removed.append(path.name)
+    if removed:
+        logger.info("Deleted %d backup(s) of %s", len(removed), db_filename)
+    return removed
+
+
 async def db_main_path(db) -> str:
     """Resolve the on-disk path of the connection's main database."""
     rows = await db.execute_fetchall("PRAGMA database_list")

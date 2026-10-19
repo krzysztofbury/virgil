@@ -35,17 +35,26 @@ def _validate(changes: dict) -> dict:
 
 async def upsert_measurements(db, day: str, changes: dict) -> dict:
     clean = _validate(changes)
-    rows = await db.execute_fetchall("SELECT * FROM body_measurements WHERE date = ?", (day,))
-    current = {field: rows[0][field] for field in FIELDS} if rows else dict.fromkeys(FIELDS)
-    current.update(clean)
-    await db.execute(
-        "INSERT INTO body_measurements (date, weight, arm, waist, hips, thighs) VALUES (?, ?, ?, ?, ?, ?) "
-        "ON CONFLICT(date) DO UPDATE SET weight = excluded.weight, arm = excluded.arm, waist = excluded.waist, "
-        "hips = excluded.hips, thighs = excluded.thighs",
-        (day, *(current[field] for field in FIELDS)),
-    )
-    await db.commit()
-    stored = await db.execute_fetchall("SELECT * FROM body_measurements WHERE date = ?", (day,))
+    if db.in_transaction:
+        raise RuntimeError("Measurement writes require a connection without pending writes")
+    # The read and the write share one transaction, so two concurrent merges into
+    # the same day cannot both read the old row and drop each other's field.
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        rows = await db.execute_fetchall("SELECT * FROM body_measurements WHERE date = ?", (day,))
+        current = {field: rows[0][field] for field in FIELDS} if rows else dict.fromkeys(FIELDS)
+        current.update(clean)
+        await db.execute(
+            "INSERT INTO body_measurements (date, weight, arm, waist, hips, thighs) VALUES (?, ?, ?, ?, ?, ?) "
+            "ON CONFLICT(date) DO UPDATE SET weight = excluded.weight, arm = excluded.arm, waist = excluded.waist, "
+            "hips = excluded.hips, thighs = excluded.thighs",
+            (day, *(current[field] for field in FIELDS)),
+        )
+        stored = await db.execute_fetchall("SELECT * FROM body_measurements WHERE date = ?", (day,))
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
     return dict(stored[0])
 
 

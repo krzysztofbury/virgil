@@ -107,11 +107,11 @@ BCRYPT_ROUNDS = 12
 _signer: TimestampSigner | None = None
 
 
-def _login_response(scope) -> Response:
+def _login_response(scope, target: str = "/login") -> Response:
     is_htmx = any(name == b"hx-request" and value.lower() == b"true" for name, value in scope.get("headers", []))
     if is_htmx:
-        return Response(status_code=200, headers={"HX-Redirect": "/login", "Cache-Control": "no-store"})
-    return RedirectResponse("/login", status_code=303)
+        return Response(status_code=200, headers={"HX-Redirect": target, "Cache-Control": "no-store"})
+    return RedirectResponse(target, status_code=303)
 
 
 def _stale_session_response(scope) -> Response:
@@ -248,11 +248,17 @@ class AuthMiddleware:
 
         # Open per-user database connection. Opening and every step after it
         # stay in this try so a failure (flag loading included) still closes it.
-        from app.user_db import close_user_db, open_user_db
+        from app.user_db import UserDatabaseMissing, close_user_db, open_user_db
 
         user_db = None
         try:
-            user_db = await open_user_db(user["db_filename"])
+            try:
+                user_db = await open_user_db(user["db_filename"])
+            except UserDatabaseMissing:
+                # The account row was read just before a factory reset or delete
+                # swapped the file. Start over: / sees the new file or no account.
+                await _login_response(scope, "/")(scope, receive, send)
+                return
 
             # Store user + DB + feature flags in request state.
             # Flags MUST be loaded here (not in a separate outer middleware): only here

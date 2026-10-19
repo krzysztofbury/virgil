@@ -601,7 +601,8 @@ async def capture_wod(request: Request):
     form = await request.form()
 
     session_date = form.get("date", date.today().isoformat())
-    if not valid_date(session_date):
+    session_date = valid_date(session_date)
+    if not session_date:
         return error_redirect(request, "/training", "That training date is not valid.")
 
     wod_text = truncate(form.get("wod_text", "").strip(), 4000)
