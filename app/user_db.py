@@ -21,15 +21,18 @@ async def create_user_db(db_filename: str) -> None:
 
     db_path = str(db_dir / db_filename)
     db = await aiosqlite.connect(db_path)
-    db.row_factory = aiosqlite.Row
+    try:
+        db.row_factory = aiosqlite.Row
 
-    result = await db.execute_fetchall("PRAGMA journal_mode=WAL")
-    assert result[0][0].lower() == "wal", f"WAL mode not enabled: {result}"
-    await db.execute("PRAGMA foreign_keys=ON")
-    await db.execute("PRAGMA busy_timeout=5000")
+        result = await db.execute_fetchall("PRAGMA journal_mode=WAL")
+        assert result[0][0].lower() == "wal", f"WAL mode not enabled: {result}"
+        await db.execute("PRAGMA foreign_keys=ON")
+        await db.execute("PRAGMA busy_timeout=5000")
 
-    await run_migrations(db)
-    await db.close()
+        await run_migrations(db)
+    finally:
+        # A failed migration must not leave the connection's thread running.
+        await db.close()
 
 
 class UserDatabaseMissing(FileNotFoundError):

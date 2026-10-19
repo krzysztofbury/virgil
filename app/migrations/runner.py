@@ -26,17 +26,32 @@ async def _current_version(db: aiosqlite.Connection) -> int:
     return row[0]["v"] if row and row[0]["v"] is not None else 0
 
 
-def _discover_pending(current: int) -> list[tuple[int, str, str]]:
-    """(version, module_name, filename) for every migration above `current`."""
+class DatabaseNewerError(RuntimeError):
+    """The database was migrated by newer code, so this code does not know its schema."""
+
+
+def _discover() -> list[tuple[int, str, str]]:
+    """(version, module_name, filename) for every migration shipped with this code."""
     pattern = re.compile(r"^(\d{3})_.+\.py$")
-    pending = []
+    found = []
     for f in sorted(MIGRATIONS_DIR.iterdir()):
         m = pattern.match(f.name)
         if m:
-            version = int(m.group(1))
-            if version > current:
-                pending.append((version, f.stem, f.name))
-    return sorted(pending)
+            found.append((int(m.group(1)), f.stem, f.name))
+    return sorted(found)
+
+
+def _discover_pending(current: int) -> list[tuple[int, str, str]]:
+    """(version, module_name, filename) for every migration above `current`.
+
+    Refuses a database at a version this code has never heard of: after an image
+    rollback, old code on a newer schema would otherwise run on unchecked.
+    """
+    migrations = _discover()
+    latest = migrations[-1][0] if migrations else 0
+    if current > latest:
+        raise DatabaseNewerError(f"Database is at migration {current:03d}, newer than this code's {latest:03d}")
+    return [migration for migration in migrations if migration[0] > current]
 
 
 async def count_pending_migrations(db: aiosqlite.Connection) -> int:
@@ -47,7 +62,14 @@ async def count_pending_migrations(db: aiosqlite.Connection) -> int:
 
 
 async def run_migrations(db: aiosqlite.Connection) -> None:
-    """Run all pending migrations in order."""
+    """Run all pending migrations in order, each in its own immediate transaction.
+
+    Without an explicit BEGIN, Python's sqlite3 opens a transaction only at the
+    first INSERT/UPDATE/DELETE, so DDL before it committed on its own and a
+    failure could leave a half-applied migration behind.
+    """
+    if db.in_transaction:
+        raise RuntimeError("Migrations require a connection with no active transaction")
     migrations = _discover_pending(await _current_version(db))
 
     if not migrations:
@@ -56,21 +78,25 @@ async def run_migrations(db: aiosqlite.Connection) -> None:
 
     for version, module_name, filename in migrations:
         logger.info("Applying migration %03d: %s", version, filename)
+        await db.execute("BEGIN IMMEDIATE")
         try:
             mod = importlib.import_module(f"app.migrations.{module_name}")
             await mod.up(db)
+            if not db.in_transaction:
+                # A commit (or executescript) inside up() split the migration.
+                raise RuntimeError(f"Migration {version:03d} ended the runner's transaction itself")
             await db.execute(
                 "INSERT INTO schema_migrations (version, name) VALUES (?, ?)",
                 (version, filename),
             )
             await db.commit()
             logger.info("Migration %03d applied successfully", version)
-        except Exception:
-            logger.exception("Migration %03d FAILED: %s", version, filename)
-            # Attempt rollback of uncommitted changes.
+        except BaseException as error:
             try:
                 await db.rollback()
             except Exception:
                 logger.exception("Rollback also failed for migration %03d", version)
-            # Stop applying further migrations — the schema is in an unknown state.
+            if isinstance(error, Exception):
+                logger.exception("Migration %03d FAILED: %s", version, filename)
+            # Stop applying further migrations: the schema is in an unknown state.
             raise
