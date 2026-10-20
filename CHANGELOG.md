@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Watchtower reports each deploy, and each poll while an update keeps failing,
+  to the optional `WATCHTOWER_NOTIFICATION_URL` (a shoutrrr URL; `.env.example`
+  shows the form for the alert webhook). Existing installs add it to compose.
 - Settings > Automation shows how old the newest backup is and whether the
   backups are OK, overdue (two intervals without one), running, off, or failed
   on the last attempt. The factory reset asks for a download first, and says

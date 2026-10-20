@@ -133,7 +133,9 @@ GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 > that leaves any database unmigrated keeps `/healthz` at 503 and posts one alert
 > to `ALERT_WEBHOOK_URL`; it is not restarted, because a restart cannot fix it
 > and would cut off every other account each time. Autoheal posts each restart
-> to the same URL. A rollback is deliberately not automatic: database migrations are one-way and an older image
+> to the same URL. With `WATCHTOWER_NOTIFICATION_URL` set, Watchtower also
+> reports each deploy, and each poll while an update keeps failing (a registry
+> login that expired, for example). A rollback is deliberately not automatic: database migrations are one-way and an older image
 > refuses a newer database, so going back means restoring a **pre-migration
 > snapshot** from `backups/pre-migration/` (`*-pre-migration-vNNN.db`), as the
 > rollback procedure below describes. The CI test gate in front of every image
@@ -230,6 +232,7 @@ All configuration via environment variables:
 | `VIRGIL_BACKUP_HOST_DIR` | `./backups` | Host directory compose mounts at `/backups` (docker-compose only). Must be writable by uid 1000 |
 | `VIRGIL_ALERT_WEBHOOK_URL` | (empty) | URL that receives a JSON `{"text": ...}` post when a start leaves a database unmigrated. Compose fills it from `ALERT_WEBHOOK_URL` |
 | `ALERT_WEBHOOK_URL` | (empty) | Compose only: the webhook for both the startup alert and each autoheal restart. Slack-style: it expects a `text` field |
+| `WATCHTOWER_NOTIFICATION_URL` | (empty) | Compose only: a [shoutrrr](https://containrrr.dev/shoutrrr/v0.8/services/overview/) URL for a message per deploy. For the alert webhook, use `generic://` instead of `https://` and append `template=json&messagekey=text` (see `.env.example`) |
 | `TZ` | `Europe/Warsaw` (compose) | Time zone for every "today": streaks, today's entries and future-date checks. Unset means UTC, and startup logs a warning |
 
 Port is always **8123**.
