@@ -8,7 +8,14 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
-from app.services.daily_log import DailyLogError, cycle_status, day_progress, upsert_daily_log
+from app.services.daily_log import (
+    STATUS_FIELDS,
+    DailyLogError,
+    completion_weeks,
+    cycle_status,
+    day_progress,
+    upsert_daily_log,
+)
 from app.services.llm import llm_available
 from app.services.measurements import MeasurementError, upsert_measurements
 from app.user_db import get_user_db_from_request
@@ -18,6 +25,8 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 ANDY_JOB_KIND = "andy_generation"
+
+HEATMAP_WEEKS = 12
 
 DAYS_PL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 
@@ -99,37 +108,18 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
                 break
         habit_streaks[field] = {"label": label, "streak": streak}
 
-    # Heatmap data: last 7 days of daily completion
+    # Completion heatmaps: the last 7 days, and 12 weeks for the longer trend.
+    # The 12 weeks always hold the last 7 days, so one query serves both.
+    weeks = await completion_weeks(db, target, HEATMAP_WEEKS)
+    done_by_day = {day["date"]: day["done"] or 0 for week in weeks for day in week["days"]}
     day_short_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
-    seven_days_ago = (target - timedelta(days=6)).isoformat()
-    heatmap_rows = await db.execute_fetchall(
-        "SELECT date, morning_routine, evening_routine, water, "
-        "andy_body_status, andy_spirit_status, andy_account_status, andy_relations_status "
-        "FROM daily_logs WHERE date >= ? AND date <= ? ORDER BY date",
-        (seven_days_ago, target.isoformat()),
-    )
-    heatmap_by_date = {}
-    for row in heatmap_rows:
-        statuses = [
-            row["morning_routine"],
-            row["evening_routine"],
-            row["water"],
-            row["andy_body_status"],
-            row["andy_spirit_status"],
-            row["andy_account_status"],
-            row["andy_relations_status"],
-        ]
-        done = sum(1 for s in statuses if s == "done")
-        pct = round(done / 7 * 100)
-        heatmap_by_date[row["date"]] = pct
     heatmap_data = []
     for i in range(7):
         d = target - timedelta(days=6 - i)
-        d_iso = d.isoformat()
         heatmap_data.append(
             {
-                "date": d_iso,
-                "pct": heatmap_by_date.get(d_iso, 0),
+                "date": d.isoformat(),
+                "pct": round(done_by_day[d.isoformat()] / len(STATUS_FIELDS) * 100),
                 "day_short": day_short_names[d.weekday()],
             }
         )
@@ -151,6 +141,8 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
             "job_nonce": secrets.token_hex(16),
             "habit_streaks": habit_streaks,
             "heatmap_data": heatmap_data,
+            "heatmap_weeks": weeks,
+            "habit_total": len(STATUS_FIELDS),
             "done_count": sum(1 for field in DONE_FIELDS if log and log[field] == "done"),
             "done_total": len(DONE_FIELDS),
         },

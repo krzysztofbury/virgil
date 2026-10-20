@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Daily > Your trends shows the last 12 weeks of completion (#54), one column
+  per week, with each week's average under it. It is a table, so a screen reader
+  reads each day as "5 of 7" and a day without a log as not logged.
 - An open page that loses its connection to Virgil turns read-only (#50): a
   banner says so and every control that writes is disabled, until Virgil
   answers again. A failed background read no longer reports unsaved changes.

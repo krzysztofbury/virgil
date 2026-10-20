@@ -2188,6 +2188,40 @@ details > :not(summary) { margin-top: 1rem; }
   letter-spacing: 0.03em;
 }
 
+/* 12 weeks: a table so the grid has a text equivalent, sized to fit a phone. */
+.heatmap-weeks-wrap { margin-top: 1rem; }
+.heatmap-weeks {
+  width: 100%;
+  max-width: 36rem;
+  border-collapse: separate;
+  border-spacing: 3px;
+  table-layout: fixed;
+  font-size: 0.65rem;
+  color: var(--text-secondary);
+}
+/* None of the data-table look: no padding, borders, banding or row hover. */
+.heatmap-weeks tr,
+.heatmap-weeks tbody tr:hover { background: none; }
+.heatmap-weeks th,
+.heatmap-weeks td {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  font-size: inherit;
+  letter-spacing: 0;
+  color: inherit;
+}
+.heatmap-weeks th { font-weight: 600; text-align: left; white-space: nowrap; overflow: visible; }
+.heatmap-weeks tbody th,
+.heatmap-weeks tfoot th { width: 1.25rem; }
+.heatmap-weeks tfoot td { text-align: center; font-variant-numeric: tabular-nums; padding-top: 0.25rem; }
+.heatmap-weeks td.heatmap-day {
+  height: 1.1rem;
+  border-radius: 3px;
+  background: rgba(127, 127, 127, 0.12);
+}
+.heatmap-weeks td.heatmap-day--future { background: transparent; outline: 1px dashed rgba(127, 127, 127, 0.25); outline-offset: -1px; }
+
 /* ── Flatpickr Dark Theme ── */
 .flatpickr-calendar.virgil-datepicker {
   background: var(--bg-datepicker);

@@ -263,7 +263,7 @@ action and the numbers, and leaves the verdict to you.
 - A.N.D.Y. AI generation — uses configured LLM to suggest daily tasks based on goals, training, and weekly context
 - Saturday body measurements (weight, arm, waist, hips, thighs)
 - Markdown notes with edit/preview toggle
-- Per-habit streak counters and the 7-day completion heatmap, together under `Your trends`
+- Per-habit streak counters, the 7-day completion heatmap and a 12-week one, together under `Your trends`. The 12 weeks are a table: each day's count is read out by a screen reader, and each week's average is shown under its column
 - Swipe left/right to navigate between days (mobile)
 - Arrow keys to navigate between days (desktop)
 
