@@ -1,3 +1,7 @@
+import sqlite3
+from math import isfinite
+from urllib.parse import quote
+
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
@@ -103,6 +107,7 @@ async def bloodwork_page(request: Request, category: str = "all"):
     chart_values = []
     chart_ref_low = None
     chart_ref_high = None
+    chart_results = []
     if chart_marker_id and chart_marker_id.isdigit():
         mid = int(chart_marker_id)
         m_row = await db.execute_fetchall("SELECT * FROM blood_markers WHERE id = ?", (mid,))
@@ -110,10 +115,16 @@ async def bloodwork_page(request: Request, category: str = "all"):
             chart_marker = dict(m_row[0])
             chart_ref_low = chart_marker.get("ref_low")
             chart_ref_high = chart_marker.get("ref_high")
-            if mid in results:
-                for d in sorted(results[mid].keys()):
-                    chart_labels.append(d)
-                    chart_values.append(results[mid][d]["value"])
+            # Its own query: the marker can sit outside the category tab shown.
+            chart_results = [
+                dict(r)
+                for r in await db.execute_fetchall(
+                    "SELECT * FROM blood_results WHERE marker_id = ? ORDER BY date DESC", (mid,)
+                )
+            ]
+            for r in reversed(chart_results):
+                chart_labels.append(r["date"])
+                chart_values.append(r["value"])
 
     return templates.TemplateResponse(
         request,
@@ -126,6 +137,17 @@ async def bloodwork_page(request: Request, category: str = "all"):
             "test_dates": test_dates,
             "results": results,
             "chart_marker": chart_marker,
+            # Newest first, for correcting or deleting one result at a time. A flag
+            # that matches the range is offered as "from the range", so a corrected
+            # value does not keep a flag its old value earned.
+            "chart_results": [
+                {
+                    **r,
+                    "flag_is_auto": r["flag"]
+                    == ("" if r["value_text"] else compute_flag(r["value"], chart_ref_low, chart_ref_high)),
+                }
+                for r in chart_results
+            ],
             "chart_labels": chart_labels,
             "chart_values": chart_values,
             "chart_ref_low": chart_ref_low,
@@ -157,6 +179,8 @@ async def save_result(
         return error_redirect(request, "/bloodwork", "Choose a valid bloodwork date.")
     if flag and flag not in ("", "H", "L"):
         return error_redirect(request, "/bloodwork", "Choose a valid bloodwork result flag.")
+    if not isfinite(value):
+        return error_redirect(request, "/bloodwork", "Enter the result as a number.")
     value_text = truncate(value_text, 200)
     db = get_user_db_from_request(request)
 
@@ -167,8 +191,11 @@ async def save_result(
         return error_redirect(request, "/bloodwork", "Blood marker was not found.")
 
     # No explicit flag → derive it from the stored reference range, so the
-    # lab-reported value can still override (labs use their own ranges).
-    if not flag:
+    # lab-reported value can still override (labs use their own ranges). Here an
+    # empty flag means "derive it"; the edit form says "auto" for the same thing,
+    # because there an empty flag is a lab saying "normal". A text result
+    # ("negative") is not flagged from the number stored beside it.
+    if not flag and not value_text:
         marker = dict(marker_rows[0])
         flag = compute_flag(value, marker["ref_low"], marker["ref_high"])
 
@@ -216,3 +243,67 @@ async def save_marker(
     )
     await db.commit()
     return success_redirect(request, "/bloodwork", "Blood marker saved.")
+
+
+def _marker_page(category: str, marker_id: int) -> str:
+    """Back to the marker's results on the tab the form came from."""
+    return f"/bloodwork/{quote(category or 'all', safe='')}?marker={marker_id}#marker-results"
+
+
+@router.post("/bloodwork/result/{result_id}/edit")
+async def edit_result(
+    request: Request,
+    result_id: int,
+    date: str = Form(...),
+    value: float = Form(...),
+    value_text: str = Form(""),
+    flag: str = Form("auto"),
+    category: str = Form("all"),
+):
+    """Correct one result: its date, value, text or flag.
+
+    `flag` is "auto" (derive it from the marker's reference range, as a new
+    result does), "", "H" or "L".
+    """
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall(
+        "SELECT r.marker_id, m.ref_low, m.ref_high FROM blood_results r JOIN blood_markers m ON m.id = r.marker_id "
+        "WHERE r.id = ?",
+        (result_id,),
+    )
+    if not rows:
+        return error_redirect(request, "/bloodwork", "That blood result no longer exists.")
+    marker = dict(rows[0])
+    destination = _marker_page(category, marker["marker_id"])
+    date = valid_date(date)
+    if not date:
+        return error_redirect(request, destination, "Choose a valid bloodwork date.")
+    if not isfinite(value):
+        return error_redirect(request, destination, "Enter the result as a number.")
+    if flag == "auto":
+        flag = "" if value_text.strip() else compute_flag(value, marker["ref_low"], marker["ref_high"])
+    elif flag not in ("", "H", "L"):
+        return error_redirect(request, destination, "Choose a valid bloodwork result flag.")
+    try:
+        await db.execute(
+            "UPDATE blood_results SET date = ?, value = ?, value_text = ?, flag = ? WHERE id = ?",
+            (date, value, truncate(value_text, 200), flag, result_id),
+        )
+    except sqlite3.IntegrityError:
+        await db.rollback()
+        return error_redirect(
+            request, destination, f"This marker already has a result on {date}. Edit or delete that one instead."
+        )
+    await db.commit()
+    return success_redirect(request, destination, "Blood result corrected.")
+
+
+@router.post("/bloodwork/result/{result_id}/delete")
+async def delete_result(request: Request, result_id: int, category: str = Form("all")):
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall("SELECT marker_id FROM blood_results WHERE id = ?", (result_id,))
+    if not rows:
+        return error_redirect(request, "/bloodwork", "That blood result no longer exists.")
+    await db.execute("DELETE FROM blood_results WHERE id = ?", (result_id,))
+    await db.commit()
+    return success_redirect(request, _marker_page(category, rows[0]["marker_id"]), "Blood result deleted.")

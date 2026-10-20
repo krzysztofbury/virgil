@@ -109,7 +109,8 @@
         <div class="day-card-head">
             <h3>How was {{ 'today' if form_date == today else form_date }}?</h3>
             <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required aria-label="Day to log"
-                   onchange="window.location='/freedom?habit={{ habit.slug }}&date='+this.value">
+                   data-habit="{{ habit.slug }}"
+                   onchange="window.location='/freedom?habit='+encodeURIComponent(this.dataset.habit)+'&date='+encodeURIComponent(this.value)">
         </div>
         {% if habit.slip_definition %}
         <p class="day-definition"><strong>What counts as a slip:</strong> {{ habit.slip_definition }}</p>

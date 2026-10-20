@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Blood results can be corrected or deleted on the page (#52): a marker's chart
+  view lists each result with its date, value, text and flag. A correction
+  recomputes the flag from the reference range unless a lab flag is chosen, and
+  a date another result already holds is refused.
 - A deleted goal can be restored for 30 days (#53), from `Recently deleted` on
   the Goals page, with its id, focus and dates, and the sub-goals and
   experiments it was linked to. Each goal keeps its last 20 changes (what
@@ -162,6 +166,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- A name with a quote in it can no longer run script or break a delete
+  confirmation (#52). The blood-result, exercise-library, experiment-metric and
+  admin user confirmations, and the Freedom day picker, wrote names and emails
+  into inline JavaScript, where HTML escaping does not hold; they now read them
+  from a data attribute. Marker names can come from imported lab PDFs, so this
+  was more than a self-inflicted case. A test keeps template values out of
+  inline handlers.
+- Adding a blood result refuses infinity and not-a-number, and a text result
+  ("negative") is no longer flagged H or L from the number stored beside it.
 - Logging out now signs out every session of the account, not only the
   browser's cookie: a copied session token used to stay valid for 7 days.
   Turning MFA on or off signs out the other sessions, and disabling an account

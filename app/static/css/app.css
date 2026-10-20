@@ -726,6 +726,20 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 /* The dark theme's yellow is unreadable on white. */
 [data-theme="light"] .oura-freshness.is-stale { color: #92400e; }
 
+/* ── Blood result corrections ── */
+.bw-edit-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; padding: 0.75rem 0; border-top: 1px solid var(--border); }
+.bw-edit-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; flex: 1; }
+.bw-edit-form label { display: grid; gap: 0.2rem; font-size: 0.75rem; color: var(--text-secondary); margin: 0; }
+.bw-edit-form input, .bw-edit-form select { margin: 0; min-width: 0; width: 9rem; }
+.bw-edit-form input[name="value"] { width: 7rem; }
+.bw-edit-row form { margin: 0; }
+@media (max-width: 640px) {
+  /* Date and flag need the full width to show; value and text share a row. */
+  .bw-edit-form { display: grid; grid-template-columns: 1fr 1fr; }
+  .bw-edit-form .bw-edit-wide { grid-column: 1 / -1; }
+  .bw-edit-form input, .bw-edit-form select, .bw-edit-form input[name="value"] { width: 100%; }
+}
+
 /* ── Offline Banner ── */
 /* Fixed under the nav at one line's height; the page moves down by the same
    amount so the banner covers nothing at its top. */
