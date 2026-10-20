@@ -229,7 +229,12 @@
     {% if chart_datasets %}
     <div class="card life-scores-chart">
         <div class="chart-container" style="max-width: 500px; margin: 0 auto;">
-            <canvas id="radarChart"></canvas>
+            <canvas id="radarChart" role="img" aria-label="
+                {%- for dataset in chart_datasets -%}
+                Life scores out of 10 on {{ dataset.label }}:
+                {%- for label in area_labels %} {{ label }} {{ dataset.data[loop.index0] }}{{ ',' if not loop.last else '.' }}{% endfor %}
+                {%- if not loop.last %} {% endif %}
+                {%- endfor -%}"></canvas>
         </div>
     </div>
     {% endif %}
@@ -353,7 +358,9 @@
                 {% endfor %}
                 {% for d in month.days %}
                 <span class="year-cal-dot year-cal-dot-{{ d.status }}"
-                      {% if d.pct > 0 %}tabindex="0" aria-label="{{ d.date }}: {{ d.pct }}%, ANDY {{ d.andy }} of 4, Routines {{ d.routines }} of 3" data-calendar-tip="{{ d.date }}: {{ d.pct }}% - ANDY {{ d.andy }}/4, Routines {{ d.routines }}/3"{% endif %}></span>
+                      {#- Read by a screen reader, not a tab stop each: a year of
+                          logged days would be hundreds of stops. -#}
+                      {% if d.pct > 0 %}role="img" aria-label="{{ d.date }}: {{ d.pct }}%, ANDY {{ d.andy }} of 4, Routines {{ d.routines }} of 3" data-calendar-tip="{{ d.date }}: {{ d.pct }}% - ANDY {{ d.andy }}/4, Routines {{ d.routines }}/3"{% endif %}></span>
                 {% endfor %}
             </div>
         </div>

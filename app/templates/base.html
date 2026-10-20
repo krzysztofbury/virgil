@@ -26,6 +26,8 @@
     {% block head %}{% endblock %}
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ request.state.csrf_token }}"}' data-features='{{ request.state.features | tojson }}'>
+    {# First in the tab order: past the eight-link nav straight to the page. #}
+    <a href="#main-content" class="skip-link">Skip to content</a>
     <!-- Top Navigation -->
     <nav class="top-nav">
         <a href="/" class="nav-logo"><img src="/static/icons/logo.png" alt="Virgil" class="nav-logo-img">Virgil</a>
@@ -64,7 +66,7 @@
     {% include "partials/feedback.html" %}
 
     <!-- Main Content -->
-    <main class="container">
+    <main class="container" id="main-content" tabindex="-1">
         {% block content %}{% endblock %}
     </main>
 
@@ -96,14 +98,16 @@
         </a>
         {% endif %}
         {% set more_paths = ['/oura', '/bloodwork', '/experiments', '/settings'] + (['/goals'] if request.state.features.freedom else []) %}
-        <div class="tab-item-wrap">
+        <div class="tab-item-wrap" @keydown.escape="if (openMenu) { openMenu = null; $refs.moreButton.focus() }"
+             @focusout="if ($event.relatedTarget && !$el.contains($event.relatedTarget)) openMenu = null">
             <button type="button" class="tab-item {{ 'active' if more_paths | select('in', request.url.path) | list else '' }}"
+                    x-ref="moreButton"
                     @click.stop="openMenu = openMenu === 'more' ? null : 'more'"
-                    :aria-expanded="(openMenu === 'more').toString()" aria-haspopup="true" aria-controls="tab-more-menu">
+                    :aria-expanded="(openMenu === 'more').toString()" aria-controls="tab-more-menu">
                 <i data-lucide="menu"></i>
                 <span>More</span>
             </button>
-            <div class="tab-dropdown" id="tab-more-menu" :class="{ 'show': openMenu === 'more' }" @click.stop @keydown.escape="openMenu = null">
+            <div class="tab-dropdown" id="tab-more-menu" :class="{ 'show': openMenu === 'more' }" @click.stop>
                 {% if request.state.features.freedom %}<a href="/goals"><i data-lucide="crosshair"></i> Goals</a>{% endif %}
                 <a href="/experiments"><i data-lucide="flask-conical"></i> Experiments</a>
                 <a href="/oura"><i data-lucide="moon"></i> Oura</a>

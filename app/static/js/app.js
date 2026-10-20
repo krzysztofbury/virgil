@@ -81,6 +81,7 @@ function initCalendarInteractions(root) {
             if (dialog && typeof dialog.showModal === 'function') {
                 e.preventDefault();
                 hideTip();
+                dialog.openedBy = dot;
                 if (!dialog.open) dialog.showModal();
                 return;
             }
@@ -94,6 +95,13 @@ function initCalendarInteractions(root) {
         dialog.dataset.calendarBound = 'true';
         dialog.addEventListener('click', function(e) {
             if (e.target === dialog) dialog.close();
+        });
+        // Back to the day that opened it, or a keyboard user starts over at the top.
+        // A dialog the server rendered open came from that day's calendar link.
+        dialog.addEventListener('close', function() {
+            var opener = dialog.openedBy ||
+                document.querySelector('[data-calendar-dialog="' + dialog.id + '"]');
+            if (opener && opener.isConnected) opener.focus();
         });
         if (dialog.hasAttribute('open') && typeof dialog.showModal === 'function') {
             dialog.removeAttribute('open');
@@ -366,6 +374,21 @@ function pendingControl(form, fallback) {
     return (form && form._feedbackSubmitter) || fallback || null;
 }
 
+// Disabling the focused submit button drops keyboard focus to the page, and
+// htmx can then put nothing back. Its id is kept to refocus it, or the control
+// with that id in the swapped-in markup, once the request settles.
+var pendingFocusId = null;
+
+function refocusPending() {
+    if (!pendingFocusId) return;
+    var active = document.activeElement;
+    if (!active || active === document.body) {
+        var target = document.getElementById(pendingFocusId);
+        if (target && !target.disabled) target.focus({ preventScroll: true });
+    }
+    pendingFocusId = null;
+}
+
 function markPending(form, control) {
     if (!form || form.dataset.feedbackPending === 'true') return;
     form.dataset.feedbackPending = 'true';
@@ -375,6 +398,7 @@ function markPending(form, control) {
         return;
     }
     form._feedbackSubmitter = control;
+    if (document.activeElement === control && control.id) pendingFocusId = control.id;
     control.dataset.feedbackOriginalHtml = control.innerHTML;
     control.dataset.feedbackWasDisabled = control.disabled ? 'true' : 'false';
     control.disabled = true;
@@ -436,9 +460,13 @@ document.addEventListener('htmx:beforeRequest', function(event) {
     markPending(form, pendingControl(form, fallback));
 });
 
+document.addEventListener('htmx:afterSettle', refocusPending);
+
 document.addEventListener('htmx:afterRequest', function(event) {
     var form = requestForm(event);
     restorePending(form);
+    // A request that swapped nothing (an error, hx-swap="none") settles nowhere.
+    if (!event.detail.successful || !event.detail.target || !event.detail.target.isConnected) refocusPending();
     if (!event.detail.successful) return;
     var xhr = event.detail.xhr;
     var message = xhr.getResponseHeader('X-Feedback-Message');
@@ -797,20 +825,27 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 })();
 
+// The overlay is a modal dialog: it takes focus, keeps Tab inside (it holds
+// nothing focusable but itself) and gives focus back to where it was opened.
+var shortcutOverlayOpener = null;
+
 function toggleShortcutOverlay() {
-    var existing = document.querySelector('.shortcut-overlay');
-    if (existing) {
-        existing.remove();
+    if (document.querySelector('.shortcut-overlay')) {
+        closeShortcutOverlay();
         return;
     }
+    shortcutOverlayOpener = document.activeElement;
     var overlay = document.createElement('div');
     overlay.className = 'shortcut-overlay';
-    overlay.onclick = function(e) { if (e.target === overlay) overlay.remove(); };
+    overlay.onclick = function(e) { if (e.target === overlay) closeShortcutOverlay(); };
+    overlay.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') e.preventDefault();
+    });
     var feat = JSON.parse(document.body.getAttribute('data-features') || '{}');
     var freedomRow = feat.freedom ? '<div class="shortcut-row"><span>Freedom</span><span class="kbd-combo"><kbd>g</kbd><kbd>f</kbd></span></div>' : '';
     overlay.innerHTML =
-        '<div class="shortcut-card">' +
-        '<h3>Keyboard Shortcuts</h3>' +
+        '<div class="shortcut-card" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" tabindex="-1">' +
+        '<h3 id="shortcut-title">Keyboard Shortcuts</h3>' +
         '<div class="shortcut-section">' +
         '<div class="shortcut-section-title">Navigation (press g then...)</div>' +
         '<div class="shortcut-row"><span>Dashboard</span><span class="kbd-combo"><kbd>g</kbd><kbd>d</kbd></span></div>' +
@@ -835,11 +870,15 @@ function toggleShortcutOverlay() {
         '</div>' +
         '</div>';
     document.body.appendChild(overlay);
+    overlay.querySelector('.shortcut-card').focus();
 }
 
 function closeShortcutOverlay() {
     var overlay = document.querySelector('.shortcut-overlay');
-    if (overlay) overlay.remove();
+    if (!overlay) return;
+    overlay.remove();
+    if (shortcutOverlayOpener && shortcutOverlayOpener.isConnected) shortcutOverlayOpener.focus();
+    shortcutOverlayOpener = null;
 }
 
 // ═══════════════════════════════════════════

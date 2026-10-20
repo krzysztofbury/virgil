@@ -16,7 +16,8 @@
                 <small>{{ o.streak_days }} {{ 'day' if o.streak_days == 1 else 'days' }} clean &middot; this week {{ o.week_clean.pct }}%</small>
             </a>
             {% if o.today %}
-            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status {{ 'slipped' if o.today.slipped else 'clean' }}">
+            {# Same id as the Clean button it replaces, so htmx moves keyboard focus here. #}
+            <a href="/freedom?habit={{ o.habit }}#day-card" id="freedom-today-{{ o.habit }}" class="freedom-status {{ 'slipped' if o.today.slipped else 'clean' }}">
                 <i data-lucide="{{ 'x' if o.today.slipped else 'check' }}" aria-hidden="true"></i>
                 {{ 'Slipped' if o.today.slipped else 'Clean' }}
             </a>
@@ -26,7 +27,7 @@
                       hx-post="/freedom/{{ o.habit }}/clean-today" hx-target="#freedom-today-block"
                       hx-swap="outerHTML" hx-sync="#freedom-today-block:drop">
                     <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                    <button type="submit" class="btn btn-sm btn-outline freedom-clean-btn" aria-label="{{ o.name }}: clean today">
+                    <button type="submit" id="freedom-today-{{ o.habit }}" class="btn btn-sm btn-outline freedom-clean-btn" aria-label="{{ o.name }}: clean today">
                         <i data-lucide="check" aria-hidden="true"></i> Clean
                     </button>
                 </form>

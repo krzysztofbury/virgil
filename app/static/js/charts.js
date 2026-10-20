@@ -14,6 +14,10 @@ if (typeof Chart !== 'undefined') {
     Chart.defaults.plugins.legend.labels.boxWidth = 8;
     Chart.defaults.plugins.legend.labels.boxHeight = 8;
     Chart.defaults.plugins.legend.labels.padding = 16;
+    // Charts draw in at once for anyone who asked the system for less motion.
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        Chart.defaults.animation = false;
+    }
 }
 
 // Read chart colors from CSS custom properties

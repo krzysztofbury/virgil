@@ -1,6 +1,9 @@
 /* ── Reset ── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; scroll-behavior: smooth; }
+html { -webkit-text-size-adjust: 100%; -moz-text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+}
 body, h1, h2, h3, h4, p, ul, ol, figure, blockquote, dl, dd { margin: 0; }
 ul, ol { list-style: none; }
 a { color: inherit; text-decoration: none; cursor: pointer; }
@@ -351,12 +354,15 @@ main.container {
     padding: 0.5rem;
     min-width: 160px;
     opacity: 0;
+    /* Hidden, not just transparent: a closed menu's links must not take focus. */
+    visibility: hidden;
     pointer-events: none;
     transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: var(--shadow-dropdown);
   }
   .tab-dropdown.show {
     opacity: 1;
+    visibility: visible;
     pointer-events: all;
     transform: translateX(-50%) scale(1);
   }
@@ -1409,7 +1415,8 @@ details > :not(summary) { margin-top: 1rem; }
 .goal-icon-form { margin: 0; }
 .goal-input { min-width: 0; margin: 0; padding: 0.42rem 0.5rem; height: auto; min-height: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; font-size: 0.9rem; font-weight: 500; line-height: 1.4; resize: none; overflow: hidden; field-sizing: content; }
 .goal-input:hover { background: var(--bg-surface); }
-.goal-input:focus { border-color: var(--accent); background: var(--overlay-3); outline: none; box-shadow: none; }
+/* A 1px border alone is too faint a focus ring for keyboard use: double it. */
+.goal-input:focus { border-color: var(--accent); background: var(--overlay-3); outline: none; box-shadow: 0 0 0 1px var(--accent); }
 .goal-focus-btn, .goal-delete-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--text-tertiary); transition: 0.15s ease; }
 .goal-focus-btn svg, .goal-delete-btn svg { width: 1rem; height: 1rem; }
 .goal-focus-btn:hover { color: var(--accent); background: rgba(44, 182, 125, 0.1); }
@@ -2596,6 +2603,33 @@ kbd {
 /* ═══════════════════════════════════════════
    Polish & Accessibility
    ═══════════════════════════════════════════ */
+
+/* ── Skip link: off screen until a keyboard focuses it ── */
+.skip-link {
+  position: fixed;
+  top: 0.5rem;
+  left: 0.5rem;
+  z-index: 3000;
+  padding: 0.6rem 1rem;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  transform: translateY(-200%);
+}
+.skip-link:focus { transform: none; }
+main.container:focus { outline: none; }
+
+/* ── Reduced motion: no animation or transition anywhere ── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  /* A spinner that stops reads as stuck: it keeps turning, slowly. */
+  .spinner { animation-duration: 1.5s !important; animation-iteration-count: infinite !important; }
+}
 
 /* ── Focus Visible (keyboard navigation) ── */
 :focus-visible {
