@@ -57,6 +57,10 @@
         </div>
     </nav>
 
+    {# Filled by app.js while the server is unreachable. The region exists from
+       the start so the announcement is read, and :empty hides it. #}
+    <div id="offline-banner" class="offline-banner" role="status" aria-live="polite"></div>
+
     {% include "partials/feedback.html" %}
 
     <!-- Main Content -->

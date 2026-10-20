@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- An open page that loses its connection to Virgil turns read-only (#50): a
+  banner says so and every control that writes is disabled, until Virgil
+  answers again. A failed background read no longer reports unsaved changes.
 - Watchtower reports each deploy, and each poll while an update keeps failing,
   to the optional `WATCHTOWER_NOTIFICATION_URL` (a shoutrrr URL; `.env.example`
   shows the form for the alert webhook and for Telegram). Existing installs

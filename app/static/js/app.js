@@ -470,6 +470,8 @@ document.addEventListener('htmx:sendError', function(event) {
     saveNetworkDraft(form);
     restorePending(form);
     clearDraftPending(form);
+    // A failed read lost nothing; the offline banner reports the connection.
+    if (event.detail.requestConfig && event.detail.requestConfig.verb === 'get') return;
     showFeedback('Network error. Your changes were not confirmed.', 'error');
 });
 
@@ -589,6 +591,92 @@ function toggleTheme() {
         }).catch(function() {});
     }
 }
+
+// ═══════════════════════════════════════════
+// Offline: read-only until the server answers again
+// ═══════════════════════════════════════════
+// There is no offline write queue, so while Virgil is unreachable every
+// control that writes is disabled and a banner says why. Reading stays as it
+// was. Only controls disabled here are re-enabled, never one the page disabled.
+var OFFLINE_PROBE_MS = 10000;
+var WRITE_CONTROL = /^(BUTTON|INPUT|SELECT|TEXTAREA|FIELDSET)$/;
+var offlineProbe = null;
+
+function isWriteForm(form) {
+    return form.method.toUpperCase() === 'POST' ||
+        ['hx-post', 'hx-put', 'hx-patch', 'hx-delete'].some(function(name) { return form.hasAttribute(name); });
+}
+
+function writeControls() {
+    var controls = [];
+    document.querySelectorAll('form').forEach(function(form) {
+        if (isWriteForm(form)) controls.push.apply(controls, form.elements);
+    });
+    document.querySelectorAll('[hx-post],[hx-put],[hx-patch],[hx-delete]').forEach(function(el) {
+        if (el.tagName === 'FORM') return;
+        if (WRITE_CONTROL.test(el.tagName)) controls.push(el);
+        else controls.push.apply(controls, el.querySelectorAll('button,input,select,textarea'));
+    });
+    return controls.filter(function(el) { return WRITE_CONTROL.test(el.tagName); });
+}
+
+function isOffline() {
+    return document.body.classList.contains('is-offline');
+}
+
+function setOffline(offline) {
+    var banner = document.getElementById('offline-banner');
+    if (!banner || offline === isOffline()) return;
+    document.body.classList.toggle('is-offline', offline);
+    if (offline) {
+        banner.innerHTML = '<i data-lucide="wifi-off" aria-hidden="true"></i>' +
+            '<span>Offline. Read-only until Virgil is back.</span>';
+        if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [banner] });
+        writeControls().forEach(function(el) {
+            if (el.disabled) return;
+            el.disabled = true;
+            el.dataset.offlineDisabled = 'true';
+        });
+        offlineProbe = setInterval(probeConnection, OFFLINE_PROBE_MS);
+        return;
+    }
+    banner.replaceChildren();
+    document.querySelectorAll('[data-offline-disabled]').forEach(function(el) {
+        el.disabled = false;
+        delete el.dataset.offlineDisabled;
+    });
+    clearInterval(offlineProbe);
+    offlineProbe = null;
+    showFeedback('Connection is back.', 'success');
+}
+
+// Any answer counts, including a redirect to a sign-in page: only a request
+// that never reaches the server means offline.
+function probeConnection() {
+    fetch('/livez', { cache: 'no-store', redirect: 'manual' })
+        .then(function() { setOffline(false); }, function() {});
+}
+
+window.addEventListener('offline', function() { setOffline(true); });
+window.addEventListener('online', probeConnection);
+// The browser can report online while the server is unreachable (a dead tunnel
+// or NAS); a request that fails on the network shows that too.
+document.addEventListener('htmx:sendError', function() { setOffline(true); });
+// A write a disabled control did not cover never leaves the page.
+document.addEventListener('htmx:confirm', function(event) {
+    if (!isOffline() || event.detail.verb === 'get') return;
+    event.preventDefault();
+    showFeedback('No connection. Nothing was saved.', 'error');
+});
+document.addEventListener('submit', function(event) {
+    if (!isOffline() || event.target.tagName !== 'FORM' || !isWriteForm(event.target)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    showFeedback('No connection. Nothing was saved.', 'error');
+}, true);
+document.addEventListener('DOMContentLoaded', function() {
+    if (!navigator.onLine) setOffline(true);
+});
 
 // ═══════════════════════════════════════════
 // Keyboard Shortcuts

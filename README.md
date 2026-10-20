@@ -553,6 +553,11 @@ Virgil is installable as a PWA. The service worker provides:
 - **Network-only** for pages — authenticated HTML is never cached (privacy), offline shows the fallback page
 - **Network-only** for POST requests (passthrough) — logging data requires a connection
 
+When the connection drops on an open page, or a request to Virgil fails on the
+network, a banner says the page is read-only and every control that writes is
+disabled. Reading stays as it was. The page checks every 10 seconds whether
+Virgil answers again, then removes both without a reload.
+
 ## Security
 
 ### Authentication

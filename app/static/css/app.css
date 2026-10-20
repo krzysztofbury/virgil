@@ -59,6 +59,7 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
 
   /* Spacing */
   --nav-height: 70px;
+  --offline-banner-height: 2.25rem;
   --bottom-bar-height: 64px;
 
   /* Theme-aware surfaces */
@@ -712,6 +713,36 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
     top: calc(var(--nav-height) + 0.5rem);
   }
 }
+
+/* ── Offline Banner ── */
+/* Fixed under the nav at one line's height; the page moves down by the same
+   amount so the banner covers nothing at its top. */
+.offline-banner {
+  position: fixed;
+  top: var(--nav-height);
+  height: var(--offline-banner-height);
+  left: 0;
+  right: 0;
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0 1rem;
+  background: rgba(146, 64, 14, 0.97);
+  border-bottom: 1px solid rgba(251, 191, 36, 0.5);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.offline-banner span { overflow: hidden; text-overflow: ellipsis; }
+.offline-banner:empty { display: none; }
+.offline-banner svg { width: 16px; height: 16px; flex: 0 0 auto; }
+body.is-offline main.container { padding-top: calc(var(--nav-height) + var(--offline-banner-height) + 2rem); }
+body.is-offline .notification-tray { top: calc(var(--nav-height) + var(--offline-banner-height) + 0.75rem); }
+body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Mutation Feedback ── */
 .mutation-feedback { display: grid; gap: 0.5rem; }
