@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Blood results can be corrected or deleted on the page (#52): a marker's chart
+  view lists each result with its date, value, text and flag. A correction
+  recomputes the flag from the reference range unless a lab flag is chosen, and
+  a date another result already holds is refused.
 - A deleted goal can be restored for 30 days (#53), from `Recently deleted` on
   the Goals page, with its id, focus and dates, and the sub-goals and
   experiments it was linked to. Each goal keeps its last 20 changes (what

@@ -63,6 +63,36 @@
                 aria-label="{{ chart_marker.name }} results over time; the results table below lists every value with its date"></canvas>
     </div>
 </div>
+
+{# One marker's results, each correctable or deletable without SQL. #}
+<details class="card" id="marker-results" style="margin-bottom: 1.5rem;"{% if request.query_params.get('msg') or request.query_params.get('err') %} open{% endif %}>
+    <summary>Correct {{ chart_marker.name }} results ({{ chart_results|length }})</summary>
+    {% if not chart_results %}<p class="text-muted">No results for this marker yet.</p>{% endif %}
+    {% for r in chart_results %}
+    <div class="bw-edit-row">
+        <form method="POST" action="/bloodwork/result/{{ r.id }}/edit" class="bw-edit-form">
+            <input type="hidden" name="category" value="{{ current_category }}">
+            <label class="bw-edit-wide">Date <input type="date" name="date" value="{{ r.date }}" required></label>
+            <label>Value <input type="number" name="value" step="any" value="{{ r.value }}" required></label>
+            <label>Text <input type="text" name="value_text" value="{{ r.value_text or '' }}" maxlength="200"></label>
+            <label class="bw-edit-wide">Flag
+                <select name="flag">
+                    <option value="auto" {{ 'selected' if r.flag_is_auto else '' }}>From the range</option>
+                    <option value="" {{ 'selected' if not r.flag_is_auto and not r.flag else '' }}>Normal (lab)</option>
+                    <option value="H" {{ 'selected' if not r.flag_is_auto and r.flag == 'H' else '' }}>H (lab)</option>
+                    <option value="L" {{ 'selected' if not r.flag_is_auto and r.flag == 'L' else '' }}>L (lab)</option>
+                </select>
+            </label>
+            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+        </form>
+        <form method="POST" action="/bloodwork/result/{{ r.id }}/delete"
+              onsubmit="return confirm('Delete the {{ chart_marker.name }} result from {{ r.date }}? This cannot be undone.')">
+            <input type="hidden" name="category" value="{{ current_category }}">
+            <button type="submit" class="btn btn-outline btn-sm" aria-label="Delete the result from {{ r.date }}">Delete</button>
+        </form>
+    </div>
+    {% endfor %}
+</details>
 {% endif %}
 
 <!-- Results: a phone gets the latest value per marker, a wide screen gets the

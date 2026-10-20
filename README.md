@@ -393,6 +393,9 @@ Blood test results organized by marker category with reference ranges, flag indi
 
 On a phone each marker is one row - latest value, H/L status and the signed
 change from the result before it - with the full date matrix under `All results`.
+A marker's chart view lists its results under `Correct ... results`: each one's
+date, value, text and flag can be fixed, or the result deleted, without SQL. The
+flag is recomputed from the reference range unless a lab flag is chosen.
 A wide screen gets the matrix directly. One Jinja macro renders both, so the two
 views cannot drift apart.
 
