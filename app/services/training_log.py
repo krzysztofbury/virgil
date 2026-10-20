@@ -176,6 +176,55 @@ async def update_session(db, session_id: int, changes: dict) -> dict:
     return await session_summary(db, session_id)
 
 
+async def update_entry(db, entry_id: int, entry: dict) -> str:
+    """Correct one stored set, with the same bounds and movement rules as a new one.
+
+    Returns the session's date, so the caller can go back to that day.
+    """
+    try:
+        movement, set_number, reps, weight, duration, note, equipment = _validate_entries([entry])[0]
+    except TrainingWriteError as exc:
+        # One set, not a list: "reps must be ...", not "entries[0].reps must be ...".
+        raise TrainingWriteError(exc.status, str(exc).replace("entries[0].", "")) from exc
+    await _begin(db)
+    try:
+        rows = await db.execute_fetchall(
+            "SELECT ts.date FROM training_entries te JOIN training_sessions ts ON ts.id = te.session_id "
+            "WHERE te.id = ?",
+            (entry_id,),
+        )
+        if not rows:
+            raise TrainingWriteError(404, "That set no longer exists")
+        exercise_id = await resolve_movement(db, movement)
+        if exercise_id is None:
+            raise TrainingWriteError(
+                422, f"{movement} is not in the exercise library. Add it there, then correct the set.", [movement]
+            )
+        await db.execute(
+            "UPDATE training_entries SET exercise_id = ?, set_number = ?, reps = ?, weight = ?, duration = ?, "
+            "notes = ?, equipment = ? WHERE id = ?",
+            (exercise_id, set_number, reps, weight, duration, note, equipment, entry_id),
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return rows[0]["date"]
+
+
+async def delete_entry(db, entry_id: int) -> str:
+    """Delete one stored set; returns its session's date. The session stays, even if now empty."""
+    rows = await db.execute_fetchall(
+        "SELECT ts.date FROM training_entries te JOIN training_sessions ts ON ts.id = te.session_id WHERE te.id = ?",
+        (entry_id,),
+    )
+    if not rows:
+        raise TrainingWriteError(404, "That set no longer exists")
+    await db.execute("DELETE FROM training_entries WHERE id = ?", (entry_id,))
+    await db.commit()
+    return rows[0]["date"]
+
+
 async def delete_session(db, session_id: int) -> None:
     cursor = await db.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
     await db.commit()

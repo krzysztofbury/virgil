@@ -279,6 +279,9 @@ reads back what was logged:
 
 - Capture form - date, optional duration, and the note itself
 - This Week KPIs - sessions count, total volume (Core, kg), total reps
+- Correcting history: each set in a day's dialog has `Edit` (movement, set, reps,
+  weight, time, equipment, note) and a confirmed delete, so a misread set is fixed
+  without SQL and without deleting the whole workout
 - Personal Bests - compact per-movement groups with records split by rep count or timed duration, over the shared 4, 12 or 26-week window (12 by default);
   a set on other equipment than the movement's usual one (a dumbbell hang snatch) is its own record
 - `Unfinished` - every session whose parse is still waiting, whatever its date
