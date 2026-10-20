@@ -726,6 +726,26 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 /* The dark theme's yellow is unreadable on white. */
 [data-theme="light"] .oura-freshness.is-stale { color: #92400e; }
 
+/* ── Training set corrections ── */
+.training-set-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 0.5rem; }
+.training-set-edit > summary { font-size: 0.8rem; }
+.training-set-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; min-width: 16rem; margin-top: 0.4rem; }
+.training-set-form label { display: grid; gap: 0.15rem; margin: 0; font-size: 0.75rem; color: var(--text-secondary); }
+.training-set-form input, .training-set-form select { margin: 0; min-width: 0; width: 100%; }
+.training-set-form .training-set-wide, .training-set-form button { grid-column: 1 / -1; }
+/* On a phone each set is a card with labelled values: seven columns scrolled
+   sideways in the dialog and cut the correction form off. */
+@media (max-width: 640px) {
+  .training-sets-table thead { display: none; }
+  .training-sets-table, .training-sets-table tbody, .training-sets-table tr { display: block; width: 100%; }
+  .training-sets-table tr { display: flex; flex-wrap: wrap; gap: 0.25rem 0.9rem; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .training-sets-table td { display: block; padding: 0; border: 0; border-radius: 0; }
+  .training-sets-table td:first-child { flex-basis: 100%; font-weight: 600; }
+  .training-sets-table td[data-label]::before { content: attr(data-label) " "; color: var(--text-tertiary); font-size: 0.75rem; }
+  .training-sets-table td.training-set-actions { flex-basis: 100%; justify-content: flex-start; }
+  .training-set-form { min-width: 0; }
+}
+
 /* ── Blood result corrections ── */
 .bw-edit-row { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; padding: 0.75rem 0; border-top: 1px solid var(--border); }
 .bw-edit-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0.5rem; flex: 1; }

@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- One set of a stored workout can be corrected or deleted (#52) from its day's
+  dialog: movement (a library name), set, reps, weight, time in minutes,
+  equipment and note, with the bounds a new set has. Personal Bests follow, and
+  deleting a set keeps the rest of the workout. On a phone each set is a card.
 - Experiment entries can be corrected (#52): each one in Recent Entries edits its
   date, value and note, within the experiment's dates and the metric's bounds,
   and a yes/no metric keeps one answer per day. This works on a completed or

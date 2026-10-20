@@ -14,7 +14,15 @@ from app.services.job_producers import ActiveWorkloadConflictError
 from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 from app.services.movement_vocab import EQUIPMENT, valid_equipment
 from app.services.ranges import range_context, range_start
-from app.services.training_log import DURATION_MINUTES_MAX, DURATION_SECONDS_MAX, REPS_MAX, WEIGHT_KG_MAX
+from app.services.training_log import (
+    DURATION_MINUTES_MAX,
+    DURATION_SECONDS_MAX,
+    REPS_MAX,
+    WEIGHT_KG_MAX,
+    TrainingWriteError,
+    delete_entry,
+    update_entry,
+)
 from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements
 from app.user_db import get_user_db_from_request
@@ -546,6 +554,10 @@ async def training_page(
             "open_day": open_day,
             "open_day_summary": open_day_summary,
             "open_day_sessions": open_day_sessions,
+            # For correcting a set in the day dialog: the movement names the
+            # library knows, and the equipment a set can name.
+            "movement_names": [m["name"] for m in await canonical_movements(db)] if open_day else [],
+            "equipment_options": [(value, EQUIPMENT_LABELS[value]) for value in EQUIPMENT],
             "day_has_newer": day_has_newer,
             "day_has_older": day_has_older,
             "personal_bests_overflow": personal_bests_overflow,
@@ -1117,6 +1129,75 @@ async def arm_manual_entry(request: Request, session_id: int):
         f"/training/wod/confirm/{session_id}",
         "Manual entry is ready. Fill in the exercises and save.",
     )
+
+
+def _training_day(day: str) -> str:
+    """The training page opened on one day's dialog."""
+    return f"/training?year={day[:4]}&day={day}#training-day-{day}"
+
+
+def _optional_number(raw, cast, field: str):
+    raw = (raw or "").strip()
+    if not raw:
+        return None
+    try:
+        value = cast(raw)
+    except ValueError as exc:
+        raise TrainingWriteError(422, f"{field} must be a number") from exc
+    if value != value or value in (float("inf"), float("-inf")):
+        raise TrainingWriteError(422, f"{field} must be a number")
+    return value
+
+
+def _seconds(minutes: float | None) -> float | None:
+    return None if minutes is None else float(round(minutes * 60))
+
+
+@router.post("/training/entry/{entry_id}/edit")
+async def edit_entry(request: Request, entry_id: int):
+    """Correct one set of a stored session without SQL."""
+    form = await request.form()
+    db = get_user_db_from_request(request)
+    rows = await db.execute_fetchall(
+        "SELECT ts.date, te.duration FROM training_entries te JOIN training_sessions ts ON ts.id = te.session_id "
+        "WHERE te.id = ?",
+        (entry_id,),
+    )
+    if not rows:
+        return error_redirect(request, "/training", "That set no longer exists.")
+    destination = _training_day(rows[0]["date"])
+    try:
+        set_number = _optional_number(form.get("set_number"), int, "set")
+        minutes = _optional_number(form.get("duration_minutes"), float, "time")
+        if minutes is not None and not 0 <= minutes <= DURATION_MINUTES_MAX:
+            raise TrainingWriteError(422, f"time must be between 0 and {int(DURATION_MINUTES_MAX)} minutes")
+        stored = rows[0]["duration"]
+        # The form shows minutes to two decimals. When that is what came back,
+        # keep the stored seconds: converting 0.62 min back would turn 37 s into 37.2 s.
+        unchanged = stored is not None and minutes is not None and round(stored / 60, 2) == minutes
+        entry = {
+            "movement": str(form.get("movement") or ""),
+            "set_number": 1 if set_number is None else set_number,
+            "reps": _optional_number(form.get("reps"), int, "reps"),
+            "weight": _optional_number(form.get("weight"), float, "weight"),
+            "duration": stored if unchanged else _seconds(minutes),
+            "note": str(form.get("note") or "").strip(),
+            "equipment": str(form.get("equipment") or "") or None,
+        }
+        await update_entry(db, entry_id, entry)
+    except TrainingWriteError as exc:
+        return error_redirect(request, destination, f"Set not saved: {exc}.")
+    return success_redirect(request, destination, "Set corrected.")
+
+
+@router.post("/training/entry/{entry_id}/delete")
+async def delete_one_entry(request: Request, entry_id: int):
+    db = get_user_db_from_request(request)
+    try:
+        day = await delete_entry(db, entry_id)
+    except TrainingWriteError:
+        return error_redirect(request, "/training", "That set no longer exists.")
+    return success_redirect(request, _training_day(day), "Set deleted.")
 
 
 @router.post("/training/session/{session_id}/delete")
