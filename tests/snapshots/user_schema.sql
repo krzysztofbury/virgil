@@ -10,6 +10,9 @@ CREATE INDEX idx_experiments_goal_id ON experiments(goal_id);
 -- index idx_feniks_bricks_habit_date
 CREATE INDEX idx_feniks_bricks_habit_date ON feniks_bricks(habit_id, date);
 
+-- index idx_goal_changes_goal
+CREATE INDEX idx_goal_changes_goal ON goal_changes(goal_id, id);
+
 -- index idx_goal_reps_carried_from
 CREATE UNIQUE INDEX idx_goal_reps_carried_from ON goal_reps(carried_from_id) WHERE carried_from_id IS NOT NULL;
 
@@ -141,6 +144,15 @@ CREATE TABLE daily_logs (
     created_at TEXT DEFAULT (datetime('now')),
     updated_at TEXT DEFAULT (datetime('now'))
 );
+
+-- table deleted_goals
+CREATE TABLE deleted_goals (
+            id INTEGER PRIMARY KEY,
+            goal_json TEXT NOT NULL,
+            child_goal_ids TEXT NOT NULL DEFAULT '[]',
+            experiment_ids TEXT NOT NULL DEFAULT '[]',
+            deleted_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
 
 -- table exercise_aliases
 CREATE TABLE exercise_aliases (
@@ -288,6 +300,17 @@ CREATE TABLE goal_areas (
     icon TEXT DEFAULT '',
     display_order INTEGER DEFAULT 0
 );
+
+-- table goal_changes
+CREATE TABLE goal_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            goal_id INTEGER NOT NULL,
+            changed_at TEXT NOT NULL DEFAULT (datetime('now')),
+            event TEXT NOT NULL CHECK(event IN ('created', 'edited', 'focused', 'unfocused', 'deleted', 'restored')),
+            fields TEXT NOT NULL DEFAULT '',
+            status_from TEXT,
+            status_to TEXT
+        );
 
 -- table goal_reps
 CREATE TABLE goal_reps (

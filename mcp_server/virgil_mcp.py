@@ -264,7 +264,10 @@ def update_goal(
 
 @mcp.tool()
 def delete_goal(goal_id: int) -> dict:
-    """Delete a goal only when it has no execution history. Otherwise mark it abandoned."""
+    """Delete a goal only when it has no execution history. Otherwise mark it abandoned.
+
+    The user can restore a deleted goal from the Goals page for 30 days.
+    """
     return _delete(f"/api/goals/{goal_id}")
 
 

@@ -5,12 +5,17 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.goal_data import (
     GOAL_STATUSES,
+    GOAL_TRASH_DAYS,
     REP_PERIODS,
     GoalDataError,
     create_goal,
     create_rep,
     delete_goal_record,
     delete_rep_record,
+    goal_history,
+    list_deleted_goals,
+    record_goal_change,
+    restore_goal_record,
     transition_rep,
     update_goal,
     update_rep,
@@ -77,11 +82,16 @@ async def goals_page(request: Request, horizon: str = DEFAULT_HORIZON):
         )
     ]
 
+    shown_ids = {g["id"] for g in focus} | {g["id"] for goals in goals_by_area.values() for g in goals}
+
     return templates.TemplateResponse(
         request,
         "goals.html",
         {
             "request": request,
+            "goal_changes": await goal_history(db, shown_ids),
+            "deleted_goals": await list_deleted_goals(db),
+            "trash_days": GOAL_TRASH_DAYS,
             "areas": areas,
             "horizons": HORIZONS,
             "horizon": horizon,
@@ -114,12 +124,16 @@ async def toggle_focus(request: Request, goal_id: int = Form(...), horizon: str 
     if rows[0]["status"] != "active":
         return error_redirect(request, destination, "Only active goals can be added to current focus.")
     cursor = await db.execute(
-        "UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ? AND status = 'active'",
+        "UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ? AND status = 'active' "
+        "RETURNING active",
         (goal_id,),
     )
-    await db.commit()
-    if cursor.rowcount == 0:
+    changed = await cursor.fetchall()
+    if not changed:
+        await db.rollback()
         return error_redirect(request, destination, "Goal focus changed concurrently. Try again.")
+    await record_goal_change(db, goal_id, "focused" if changed[0]["active"] else "unfocused")
+    await db.commit()
     return success_redirect(request, destination, "Goal focus updated.")
 
 
@@ -203,7 +217,22 @@ async def delete_goal(request: Request, goal_id: int = Form(...), horizon: str =
         await db.rollback()
         return error_redirect(request, destination, exc.message)
     await db.commit()
-    return success_redirect(request, destination, "Goal deleted.")
+    return success_redirect(
+        request, destination, f"Goal deleted. Restore it under Recently deleted for {GOAL_TRASH_DAYS} days."
+    )
+
+
+@router.post("/goals/restore")
+async def restore_goal(request: Request, goal_id: int = Form(...), horizon: str = Form(DEFAULT_HORIZON)):
+    db = get_user_db_from_request(request)
+    try:
+        goal = await restore_goal_record(db, goal_id)
+    except GoalDataError as exc:
+        await db.rollback()
+        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.message)
+    await db.commit()
+    # Back to the horizon the goal lives in, where it now shows again.
+    return success_redirect(request, f"/goals?horizon={goal['horizon']}", "Goal restored.")
 
 
 @router.post("/goals/reps/save")

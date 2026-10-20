@@ -1,8 +1,9 @@
 """Canonical validation and writes for goals and their one-off execution reps."""
 
+import json
 import sqlite3
 from calendar import monthrange
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 from app.validation import truncate
 
@@ -10,6 +11,22 @@ GOAL_STATUSES = ("active", "paused", "completed", "abandoned")
 REP_PERIODS = ("day", "week", "month", "quarter", "year")
 REP_STATUSES = ("pending", "completed", "carried", "skipped")
 HORIZONS = ("1yr", "3yr", "10yr")
+# A deleted goal can be restored for this long; then it and its history go.
+GOAL_TRASH_DAYS = 30
+# Changes kept per goal, newest first. Metadata only, so the bound is about
+# relevance, not size.
+GOAL_HISTORY_MAX = 20
+# What an edit can change, in the words the history shows.
+_TRACKED_FIELDS = {
+    "area_id": "area",
+    "horizon": "horizon",
+    "content": "text",
+    "status": "status",
+    "start_date": "start date",
+    "end_date": "end date",
+    "display_order": "order",
+    "parent_goal_id": "parent goal",
+}
 
 
 class GoalDataError(ValueError):
@@ -177,7 +194,48 @@ async def create_goal(
             raise GoalDataError("Idempotency key already belongs to a different goal write", 409) from exc
         raise GoalDataError("Goal write conflicts with existing data", 409) from exc
     rows = await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (cursor.lastrowid,))
+    await record_goal_change(db, cursor.lastrowid, "created", status_to=status)
     return dict(rows[0]), True
+
+
+async def record_goal_change(
+    db,
+    goal_id: int,
+    event: str,
+    fields: tuple[str, ...] = (),
+    status_from: str | None = None,
+    status_to: str | None = None,
+) -> None:
+    """Add one entry to a goal's history and drop the oldest past GOAL_HISTORY_MAX."""
+    await db.execute(
+        "INSERT INTO goal_changes (goal_id, event, fields, status_from, status_to) VALUES (?, ?, ?, ?, ?)",
+        (goal_id, event, ", ".join(fields), status_from, status_to),
+    )
+    await db.execute(
+        "DELETE FROM goal_changes WHERE goal_id = ? AND id NOT IN "
+        "(SELECT id FROM goal_changes WHERE goal_id = ? ORDER BY id DESC LIMIT ?)",
+        (goal_id, goal_id, GOAL_HISTORY_MAX),
+    )
+
+
+async def goal_history(db, goal_ids) -> dict[int, list[dict]]:
+    """Each goal's recorded changes, newest first."""
+    ids = list(goal_ids)
+    if not ids:
+        return {}
+    rows = await db.execute_fetchall(
+        f"SELECT * FROM goal_changes WHERE goal_id IN ({', '.join('?' * len(ids))}) ORDER BY id DESC",  # noqa: S608
+        ids,
+    )
+    history: dict[int, list[dict]] = {}
+    for row in rows:
+        change = dict(row)
+        # Stored in UTC by SQLite; shown in the server's time zone, like every date.
+        change["when"] = (
+            datetime.fromisoformat(change["changed_at"]).replace(tzinfo=UTC).astimezone().strftime("%Y-%m-%d %H:%M")
+        )
+        history.setdefault(row["goal_id"], []).append(change)
+    return history
 
 
 async def update_goal(db, goal_id: int, changes: dict) -> dict:
@@ -276,21 +334,157 @@ async def update_goal(db, goal_id: int, changes: dict) -> dict:
             if pending:
                 raise GoalDataError("Complete, skip, or remove pending reps before closing this goal", 409)
         raise GoalDataError("Goal hierarchy changed concurrently; retry the update", 409)
-    updated = await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (goal_id,))
-    return dict(updated[0])
+    updated = dict((await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (goal_id,)))[0])
+    fields = tuple(label for field, label in _TRACKED_FIELDS.items() if updated[field] != current[field])
+    if fields:
+        await record_goal_change(
+            db,
+            goal_id,
+            "edited",
+            fields,
+            *((current["status"], updated["status"]) if "status" in fields else (None, None)),
+        )
+    if updated["active"] != current["active"]:
+        await record_goal_change(db, goal_id, "focused" if updated["active"] else "unfocused")
+    return updated
 
 
 async def delete_goal_record(db, goal_id: int) -> None:
+    """Delete a goal with no reps, keeping it restorable for GOAL_TRASH_DAYS.
+
+    The row is copied out with the goals and experiments that pointed at it,
+    since deleting it clears those links (ON DELETE SET NULL).
+    """
+    if not await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,)):
+        raise GoalDataError("Goal not found", 404)
+    # Read before the delete clears them. No write lock is held for this: a rep
+    # created meanwhile must still win (the delete below refuses), and a link
+    # made in that instant is at worst not relinked on restore.
+    children = [r["id"] for r in await db.execute_fetchall("SELECT id FROM goals WHERE parent_goal_id = ?", (goal_id,))]
+    experiments = [
+        r["id"] for r in await db.execute_fetchall("SELECT id FROM experiments WHERE goal_id = ?", (goal_id,))
+    ]
+    # The kept copy is exactly the row deleted, whatever an edit did meanwhile.
     cursor = await db.execute(
-        "DELETE FROM goals WHERE id = ? AND NOT EXISTS (SELECT 1 FROM goal_reps WHERE goal_id = ?)",
+        "DELETE FROM goals WHERE id = ? AND NOT EXISTS (SELECT 1 FROM goal_reps WHERE goal_id = ?) RETURNING *",
         (goal_id, goal_id),
     )
-    if cursor.rowcount == 1:
-        return
-    rows = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,))
+    deleted = await cursor.fetchall()
+    if not deleted:
+        if not await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,)):
+            raise GoalDataError("Goal not found", 404)
+        raise GoalDataError("Goals with execution history cannot be deleted; mark the goal abandoned instead", 409)
+    goal = dict(deleted[0])
+    await db.execute(
+        "INSERT OR REPLACE INTO deleted_goals (id, goal_json, child_goal_ids, experiment_ids) VALUES (?, ?, ?, ?)",
+        (goal_id, json.dumps(goal), json.dumps(children), json.dumps(experiments)),
+    )
+    await record_goal_change(db, goal_id, "deleted", status_from=goal["status"])
+    await purge_deleted_goals(db)
+
+
+async def purge_deleted_goals(db) -> None:
+    """Forget deleted goals past GOAL_TRASH_DAYS, with their history."""
+    cutoff = f"-{GOAL_TRASH_DAYS} days"
+    await db.execute(
+        "DELETE FROM goal_changes WHERE goal_id IN "
+        "(SELECT id FROM deleted_goals WHERE deleted_at < datetime('now', ?))",
+        (cutoff,),
+    )
+    await db.execute("DELETE FROM deleted_goals WHERE deleted_at < datetime('now', ?)", (cutoff,))
+
+
+async def list_deleted_goals(db) -> list[dict]:
+    """Restorable goals, newest deletion first, with the fields the page shows."""
+    rows = await db.execute_fetchall(
+        "SELECT id, goal_json, deleted_at FROM deleted_goals WHERE deleted_at >= datetime('now', ?) "
+        "ORDER BY deleted_at DESC, id DESC",
+        (f"-{GOAL_TRASH_DAYS} days",),
+    )
+    goals = []
+    for row in rows:
+        goal = json.loads(row["goal_json"])
+        goals.append(
+            {
+                "id": row["id"],
+                "content": goal["content"],
+                "horizon": goal["horizon"],
+                "deleted_at": row["deleted_at"],
+                # Stored in UTC; the date is the server's, like every other date.
+                "restorable_until": (
+                    datetime.fromisoformat(row["deleted_at"]).replace(tzinfo=UTC) + timedelta(days=GOAL_TRASH_DAYS)
+                )
+                .astimezone()
+                .date()
+                .isoformat(),
+            }
+        )
+    return goals
+
+
+async def restore_goal_record(db, goal_id: int) -> dict:
+    """Put a deleted goal back under its own id, with the links its delete cleared.
+
+    A link is restored only where nothing has replaced it since: a child goal or
+    experiment that was linked elsewhere in the meantime keeps its new link, and
+    no link is restored that would make a goal its own ancestor.
+    """
+    if not db.in_transaction:
+        await db.execute("BEGIN IMMEDIATE")
+    await purge_deleted_goals(db)
+    rows = await db.execute_fetchall("SELECT * FROM deleted_goals WHERE id = ?", (goal_id,))
     if not rows:
-        raise GoalDataError("Goal not found", 404)
-    raise GoalDataError("Goals with execution history cannot be deleted; mark the goal abandoned instead", 409)
+        raise GoalDataError("This goal was already restored or can no longer be", 404)
+    goal = json.loads(rows[0]["goal_json"])
+    # Only the columns the table has now: a snapshot can predate a migration.
+    columns = [row["name"] for row in await db.execute_fetchall("PRAGMA table_info(goals)")]
+    goal = {column: goal[column] for column in columns if column in goal}
+    if not await db.execute_fetchall("SELECT 1 FROM goal_areas WHERE id = ?", (goal.get("area_id"),)):
+        raise GoalDataError("The goal's area no longer exists", 409)
+    parent_id = goal.get("parent_goal_id")
+    goal["parent_goal_id"] = None  # set below, once its children are back under it
+    if goal.get("source_ref") and await db.execute_fetchall(
+        "SELECT 1 FROM goals WHERE source = ? AND source_ref = ?", (goal["source"], goal["source_ref"])
+    ):
+        # Its idempotency key was reused while it was deleted; the newer goal keeps it.
+        goal["source_ref"] = ""
+    try:
+        await db.execute(
+            f"INSERT INTO goals ({', '.join(goal)}) VALUES ({', '.join('?' * len(goal))})",  # noqa: S608
+            list(goal.values()),
+        )
+    except sqlite3.IntegrityError as exc:
+        raise GoalDataError("This goal no longer fits the current data and cannot be restored", 409) from exc
+    for child_id in json.loads(rows[0]["child_goal_ids"]):
+        await db.execute(
+            "UPDATE goals SET parent_goal_id = ? WHERE id = ? AND parent_goal_id IS NULL", (goal_id, child_id)
+        )
+        # A child still deleted comes back under this goal when it is restored.
+        await db.execute(
+            "UPDATE deleted_goals SET goal_json = json_set(goal_json, '$.parent_goal_id', ?) "
+            "WHERE id = ? AND json_extract(goal_json, '$.parent_goal_id') IS NULL",
+            (goal_id, child_id),
+        )
+    if parent_id is not None:
+        await db.execute(
+            """WITH RECURSIVE descendants(id) AS (
+                   SELECT id FROM goals WHERE parent_goal_id = ?
+                   UNION
+                   SELECT g.id FROM goals g JOIN descendants d ON g.parent_goal_id = d.id
+               )
+               UPDATE goals SET parent_goal_id = ?
+               WHERE id = ? AND EXISTS (SELECT 1 FROM goals WHERE id = ?)
+                 AND ? NOT IN (SELECT id FROM descendants)""",
+            (goal_id, parent_id, goal_id, parent_id, parent_id),
+        )
+    for experiment_id in json.loads(rows[0]["experiment_ids"]):
+        await db.execute(
+            "UPDATE experiments SET goal_id = ? WHERE id = ? AND goal_id IS NULL", (goal_id, experiment_id)
+        )
+    await db.execute("DELETE FROM deleted_goals WHERE id = ?", (goal_id,))
+    await record_goal_change(db, goal_id, "restored", status_to=goal.get("status"))
+    restored = await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (goal_id,))
+    return dict(restored[0])
 
 
 async def create_rep(

@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A deleted goal can be restored for 30 days (#53), from `Recently deleted` on
+  the Goals page, with its id, focus and dates, and the sub-goals and
+  experiments it was linked to. Each goal keeps its last 20 changes (what
+  happened and which fields changed, never the text) under its details. The
+  JSON and CSV exports include both. Migration 039 adds the two tables.
 - Accessibility (#51): a `Skip to content` link first in the tab order, focus
   returned to the opener when `Esc` closes the phone `More` menu, a training
   day's dialog or the shortcut overlay (now a modal dialog), a closed `More`

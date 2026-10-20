@@ -201,5 +201,5 @@ def test_an_account_at_037_with_queued_jobs_upgrades_through_038(tmp_path, monke
 
     version, kept = asyncio.run(scenario())
 
-    assert version == 38
+    assert version >= 38, "038 applied (later migrations may follow)"
     assert kept == ["wod_parse:1", "andy_generation:a"]
