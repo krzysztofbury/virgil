@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.services.oura_api import oura_sync_freshness
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, OptionalFormInt, valid_month
 
@@ -133,6 +134,7 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
             "values": values,
             "data": data,
             "oura_connected": oura_connected,
+            "oura_freshness": await oura_sync_freshness(db),
             "current_job": current_job,
             "job_nonce": secrets.token_hex(16),
             "oura_today": oura_today,

@@ -1,0 +1,11 @@
+{# When Oura data last arrived. Older than a day it is stated as stale: today's
+   sleep and readiness may be missing, not merely unremarkable. #}
+{% if oura_freshness %}
+<small class="oura-freshness{{ ' is-stale' if oura_freshness.stale else '' }}"{% if oura_freshness.local %} title="{{ oura_freshness.local }}"{% endif %}>
+    {%- if oura_freshness.age -%}
+    {{ 'Last synced' if oura_freshness.stale else 'Synced' }} {{ oura_freshness.age }}
+    {%- else -%}
+    Not synced yet
+    {%- endif -%}
+</small>
+{% endif %}

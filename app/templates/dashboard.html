@@ -144,7 +144,7 @@
             {% if oura_today.stress_rest %}<small>Recovery: <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
         </div>
         {% endif %}
-        <small>Today</small>
+        <small>Today{% if oura_freshness %} &middot;{% endif %}</small> {% include "partials/oura_freshness.html" %}
         {% elif latest_oura %}
         <div class="stat-grid">
             <div class="stat-card">
@@ -164,9 +164,10 @@
                 <div class="stat-label">Steps</div>
             </div>
         </div>
-        <small>{{ latest_oura.month }}</small>
+        <small>{{ latest_oura.month }}{% if oura_freshness %} &middot;{% endif %}</small> {% include "partials/oura_freshness.html" %}
         {% else %}
         <p class="text-muted">No Oura data</p>
+        {% include "partials/oura_freshness.html" %}
         {% endif %}
     </div>
 </div>

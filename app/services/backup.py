@@ -16,6 +16,7 @@ from pathlib import Path
 
 from app.config import BACKUP_DIR_SETTING, CENTRAL_DB_PATH
 from app.db import get_setting
+from app.formatting import time_ago
 
 logger = logging.getLogger(__name__)
 
@@ -354,15 +355,6 @@ def _latest_backup(stem: str) -> tuple[datetime, str] | None:
     return datetime.fromtimestamp(newest[0], UTC), newest[1]
 
 
-def _ago(then: datetime, now: datetime) -> str:
-    minutes = max(0, int((now - then).total_seconds() // 60))
-    for size, unit in ((1440, "day"), (60, "hour"), (1, "minute")):
-        if minutes >= size:
-            count = minutes // size
-            return f"{count} {unit}{'' if count == 1 else 's'} ago"
-    return "just now"
-
-
 async def backup_status(db, now: datetime | None = None) -> dict:
     """What Settings tells the user about this account's backups.
 
@@ -399,7 +391,7 @@ async def backup_status(db, now: datetime | None = None) -> dict:
     overdue = latest is not None and now - latest[0] > timedelta(hours=BACKUP_OVERDUE_INTERVALS * interval_hours)
 
     status = {
-        "latest_age": _ago(latest[0], now) if latest else None,
+        "latest_age": time_ago(latest[0], now) if latest else None,
         "latest_local": latest[0].astimezone().strftime("%Y-%m-%d %H:%M %Z") if latest else None,
         "failed_age": None,
         "failed_error": None,
@@ -410,7 +402,7 @@ async def backup_status(db, now: datetime | None = None) -> dict:
         status["state"] = "running"
     elif failed:
         status["state"] = "failed"
-        status["failed_age"] = _ago(datetime.fromisoformat(last["finished_at"]).replace(tzinfo=UTC), now)
+        status["failed_age"] = time_ago(datetime.fromisoformat(last["finished_at"]).replace(tzinfo=UTC), now)
         status["failed_error"] = last["last_error"] or None
     elif latest is None:
         status["state"] = "none"

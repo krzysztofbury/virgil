@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- The dashboard's Oura card and the Oura page say when Oura data last synced
+  (#55), and turn amber with "Last synced" once that is over a day ago, when
+  today's sleep and readiness may be missing.
 - Daily > Your trends shows the last 12 weeks of completion (#54), one column
   per week, with each week's average under it. It is a table, so a screen reader
   reads each day as "5 of 7" and a day without a log as not logged.

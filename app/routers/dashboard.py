@@ -11,6 +11,7 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.daily_log import day_progress
 from app.services.experiment_card import experiment_card
+from app.services.oura_api import oura_sync_freshness
 from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
@@ -244,6 +245,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "oura_today": oura_today,
             "yesterday_fallback": yesterday_fallback,
             "latest_oura": latest_oura,
+            "oura_freshness": await oura_sync_freshness(db),
             "scores": scores,
             "areas": AREAS,
             "area_labels": AREA_LABELS,
