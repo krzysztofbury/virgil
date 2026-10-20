@@ -1923,6 +1923,21 @@ details > :not(summary) { margin-top: 1rem; }
   padding: 0;
 }
 .exp-entries-table { font-size: 0.875rem; }
+.exp-entry-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 0.5rem; }
+.exp-entry-edit > summary { font-size: 0.8rem; }
+.exp-entry-edit-form { display: grid; gap: 0.4rem; min-width: 12rem; margin-top: 0.4rem; }
+.exp-entry-edit-form label { display: grid; gap: 0.15rem; margin: 0; font-size: 0.75rem; color: var(--text-secondary); }
+.exp-entry-edit-form input { margin: 0; }
+/* On a phone each entry is a card: the five columns ran off the screen and took
+   the edit and delete controls with them. */
+@media (max-width: 640px) {
+  .exp-entries-table thead { display: none; }
+  .exp-entries-table, .exp-entries-table tbody, .exp-entries-table tr, .exp-entries-table td { display: block; width: 100%; }
+  .exp-entries-table tr { padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: var(--radius-sm); }
+  .exp-entries-table td { padding: 0.1rem 0; border: 0; border-radius: 0; }
+  .exp-entries-table td.exp-entry-actions { display: flex; justify-content: flex-start; margin-top: 0.4rem; }
+  .exp-entry-edit-form { min-width: 0; }
+}
 .exp-delete-btn {
   background: none;
   border: 1px solid var(--border);
