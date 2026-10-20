@@ -12,6 +12,7 @@ from app.main import templates
 from app.services.daily_log import day_progress
 from app.services.experiment_card import experiment_card
 from app.services.oura_api import oura_sync_freshness
+from app.services.ranges import range_context, range_start
 from app.user_db import get_user_db_from_request
 
 logger = logging.getLogger(__name__)
@@ -129,6 +130,23 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
                 "borderColor": border_colors[i] if i < len(border_colors) else "rgb(100,100,100)",
             }
         )
+
+    # Life score history over the chosen window, oldest first for the chart.
+    # Every assessment counts here, complete or not: a missing area is a gap in
+    # its line and a dash in the table, never a 0.
+    life_range = range_context(request, "life-scores")
+    history_rows = await db.execute_fetchall(
+        "SELECT * FROM life_scores WHERE date >= ? ORDER BY date",
+        (range_start(life_range["range_weeks"], today).isoformat(),),
+    )
+    life_history = [dict(r) for r in history_rows]
+    life_history_datasets = [
+        {"label": "Power level", "data": [s["power_level"] for s in life_history], "borderWidth": 3},
+        *(
+            {"label": label, "data": [s[area] for s in life_history], "hidden": True}
+            for area, label in zip(AREAS, AREA_LABELS, strict=True)
+        ),
+    ]
 
     # Year calendar (dot-matrix by month)
     current_year = today.year
@@ -250,6 +268,9 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "areas": AREAS,
             "area_labels": AREA_LABELS,
             "chart_datasets": chart_datasets,
+            "life_history": life_history,
+            "life_history_datasets": life_history_datasets,
+            **life_range,
             "year_months": year_months,
             "current_year": current_year,
             "days_left": days_left,

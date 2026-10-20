@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.oura_api import oura_sync_freshness
+from app.services.ranges import range_context, range_start
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, OptionalFormInt, valid_month
 
@@ -100,21 +101,25 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
             if oura_today.get("steps") is None and yd.get("steps") is not None:
                 yesterday_fallback["steps"] = yd["steps"]
 
-    # Daily data for browsable table (last 30 days)
-    daily_rows = await db.execute_fetchall("SELECT * FROM oura_daily ORDER BY date DESC LIMIT 30")
-    daily_data = [dict(r) for r in daily_rows]
-
-    # daily_data is newest first and includes today; the baseline compares against
-    # the days BEFORE today, so today's row is dropped.
+    # The baseline compares against the days BEFORE today, whatever the window:
+    # the latest scored days of the previous month, as it always has.
+    baseline_rows = await db.execute_fetchall(
+        "SELECT readiness_score FROM oura_daily WHERE date < ? AND date >= ? AND readiness_score IS NOT NULL "
+        "ORDER BY date DESC LIMIT ?",
+        (today_str, (date.today() - timedelta(days=30)).isoformat(), BASELINE_DAYS),
+    )
     baseline = readiness_baseline(
-        [r for r in daily_data if r["date"] != today_str],
+        [dict(r) for r in baseline_rows],
         oura_today.get("readiness_score") if oura_today else None,
     )
 
-    # Daily trends (last 10 days)
-    ten_days_ago = (date.today() - timedelta(days=10)).isoformat()
-    trend_rows = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date >= ? ORDER BY date", (ten_days_ago,))
-    trend_data = [dict(r) for r in trend_rows]
+    # The chosen window drives both the compare chart and the daily history.
+    oura_range = range_context(request, "compare-metrics")
+    since = range_start(oura_range["range_weeks"], date.today()).isoformat()
+    daily_rows = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date >= ? ORDER BY date DESC", (since,))
+    daily_data = [dict(r) for r in daily_rows]
+    has_daily = bool(daily_data) or bool(await db.execute_fetchall("SELECT 1 FROM oura_daily LIMIT 1"))
+    trend_data = daily_data[::-1]
     trend_labels = [r["date"][5:] for r in trend_data]  # MM-DD format
     trend_hrv = [r.get("avg_hrv") for r in trend_data]
     trend_sleep = [r.get("sleep_score") for r in trend_data]
@@ -135,6 +140,8 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
             "data": data,
             "oura_connected": oura_connected,
             "oura_freshness": await oura_sync_freshness(db),
+            **oura_range,
+            "has_daily": has_daily,
             "current_job": current_job,
             "job_nonce": secrets.token_hex(16),
             "oura_today": oura_today,

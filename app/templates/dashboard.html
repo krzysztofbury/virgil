@@ -218,8 +218,11 @@
 </div>
 
 <!-- Life Scores -->
-<div class="section">
-    <div class="section-title">Life Scores</div>
+<div class="section" id="life-scores">
+    <div class="flex-between section-title-row">
+        <div class="section-title">Life Scores</div>
+        {% with range_label = "Life score history window" %}{% include "partials/range_picker.html" %}{% endwith %}
+    </div>
 
     {# Radar beside its power-level history on wide screens, stacked on phones. #}
     <div class="life-scores-layout">
@@ -243,6 +246,20 @@
     </div>
     {% endif %}
     </div>
+
+    {# Over time: power level by default, each area one legend tap away. The
+       table under History is the same data as text. #}
+    {% if life_history | length >= 2 %}
+    <div class="card" style="margin-bottom: 1rem;">
+        <div class="card-header"><h3>Over time</h3></div>
+        <div class="chart-container">
+            <canvas id="lifeHistoryChart" height="200" role="img"
+                    aria-label="Life scores over the last {{ range_weeks }} weeks; the History table below lists the same assessments"></canvas>
+        </div>
+    </div>
+    {% else %}
+    <p class="text-muted">{{ life_history | length }} assessment{{ '' if life_history | length == 1 else 's' }} in the last {{ range_weeks }} weeks: a line needs two.</p>
+    {% endif %}
 
     <details style="margin-bottom: 1rem;">
         <summary>New assessment</summary>
@@ -290,9 +307,9 @@
         </form>
     </details>
 
-    {% if scores %}
+    {% if life_history %}
     <details>
-        <summary>History</summary>
+        <summary>History <small class="text-muted">(last {{ range_weeks }} weeks)</small></summary>
         <div class="card">
             <div class="overflow-x">
                 <table>
@@ -304,7 +321,7 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for s in scores %}
+                        {% for s in life_history | reverse %}
                         <tr>
                             <td>{{ s.date }}</td>
                             {% for area in areas %}
@@ -354,6 +371,13 @@
 <script>
     {% if chart_datasets %}
     createRadarChart('radarChart', {{ area_labels | tojson }}, {{ chart_datasets | tojson }});
+    {% endif %}
+    {% if life_history | length >= 2 %}
+    createLineChart('lifeHistoryChart', {{ life_history | map(attribute='date') | list | tojson }},
+        {{ life_history_datasets | tojson }}, {
+            yScale: { min: 0, max: 10 },
+            chartOptions: { spanGaps: true }
+        });
     {% endif %}
 
 </script>

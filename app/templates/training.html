@@ -59,9 +59,17 @@
     </div>
 </div>
 
-{% if personal_bests %}
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Personal Bests <small class="text-muted" style="font-weight:400;">(12 weeks)</small></h3></div>
+{# Hidden for an account with no loaded Core sets at all, but never once a
+   window was picked: the picker is the way back to the others. #}
+{% if personal_bests or not range_is_default %}
+<div class="card" id="personal-bests" style="margin-bottom: 1rem;">
+    <div class="card-header flex-between">
+        <h3>Personal Bests</h3>
+        {% with range_label = "Personal Bests window" %}{% include "partials/range_picker.html" %}{% endwith %}
+    </div>
+    {% if not personal_bests %}
+    <p class="text-muted">No loaded Core sets in the last {{ range_weeks }} weeks.</p>
+    {% endif %}
     <div class="pb-grid">
         {% for pb in personal_bests %}
         <article class="pb-movement" data-pb-exercise="{{ pb.name }}" data-pb-best="{{ pb.max_weight }}">

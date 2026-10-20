@@ -845,6 +845,10 @@ form[aria-busy="true"] { cursor: progress; }
   margin-bottom: 0.75rem;
 }
 
+/* A section title with a control on its right, such as the range picker. */
+.section-title-row { gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.section-title-row .section-title { margin-bottom: 0; }
+
 /* ── Page Header ── */
 .page-header { margin-bottom: 1.5rem; }
 .page-header h1 { margin-bottom: 0.25rem; }
@@ -877,6 +881,10 @@ form[aria-busy="true"] { cursor: progress; }
   background: var(--accent);
   box-shadow: 0 0 12px var(--accent-glow);
 }
+
+/* The shared 4/12/26-week picker: compact tabs that sit in a card header. */
+.range-picker { margin: 0; gap: 0.15rem; flex-wrap: nowrap; }
+.range-picker a { padding: 0.3rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
 
 /* ── Three-State Toggle ── */
 .toggle-group {

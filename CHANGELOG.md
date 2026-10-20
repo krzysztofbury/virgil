@@ -11,6 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The dashboard's Oura card and the Oura page say when Oura data last synced
   (#55), and turn amber with "Last synced" once that is over a day ago, when
   today's sleep and readiness may be missing.
+- History views share one set of windows (#55): 4, 12 or 26 weeks, 12 by
+  default, picked from tabs on Life Scores, Oura's compare chart and daily
+  history, and Training's Personal Bests. They replace 10 days of Oura trends,
+  30 Oura rows and a fixed 12 weeks of personal bests.
+- Life Scores on the dashboard chart the power level over that window, each area
+  one legend tap away, and History lists every assessment in it. It used to
+  list only the latest two complete ones.
 - Daily > Your trends shows the last 12 weeks of completion (#54), one column
   per week, with each week's average under it. It is a table, so a screen reader
   reads each day as "5 of 7" and a day without a log as not logged.

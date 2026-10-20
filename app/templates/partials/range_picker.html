@@ -1,0 +1,7 @@
+{# The shared 4/12/26-week window. Links, not a form: each window is a URL that
+   can be bookmarked, and the page needs no script to switch. #}
+<nav class="tabs range-picker" aria-label="{{ range_label }}">
+    {% for link in range_links %}
+    <a href="{{ link.href }}"{% if link.active %} class="active" aria-current="true"{% endif %}>{{ link.weeks }} weeks</a>
+    {% endfor %}
+</nav>
