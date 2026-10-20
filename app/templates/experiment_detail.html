@@ -258,7 +258,7 @@
 <!-- Recent Entries: on every experiment, not only a running one, because a
      correction to history should not depend on the experiment's status. -->
 {% if entries %}
-<details class="exp-entries-details" id="entries"{% if request.query_params.get('msg') or request.query_params.get('err') %} open{% endif %}>
+<details class="exp-entries-details" id="entries"{% if request.query_params.get('entries') == 'open' %} open{% endif %}>
     <summary>Recent Entries ({{ entries|length }})</summary>
     <table class="exp-entries-table">
         <thead>
@@ -287,7 +287,10 @@
                         <summary aria-label="Edit the {{ at_match.name if at_match else '' }} entry from {{ e.date }}">Edit</summary>
                         <form action="/experiments/{{ experiment.id }}/entry/{{ e.id }}/edit" method="post" class="exp-entry-edit-form">
                             <label>Date <input type="date" name="date" value="{{ e.date }}" min="{{ experiment.start_date }}" max="{{ end_date }}" required></label>
-                            <label>Value <input type="number" name="value" value="{{ e.value }}" step="1" required></label>
+                            {% set kind = at_match.kind if at_match else '' %}
+                            <label>Value{% if kind == 'boolean' %} (1 yes, 0 no){% elif kind == 'duration' %} (minutes){% elif kind == 'scale' %} (0-10){% endif %}
+                                <input type="number" name="value" value="{{ e.value }}" step="1" required
+                                       min="{{ value_bounds[kind][0] if kind in value_bounds else 0 }}" max="{{ value_bounds[kind][1] if kind in value_bounds else 1440 }}"></label>
                             <label>Notes <input type="text" name="notes" value="{{ e.notes or '' }}" maxlength="500"></label>
                             <button type="submit" class="btn btn-secondary btn-sm">Save</button>
                         </form>
@@ -295,7 +298,7 @@
                     {# Text in a data attribute, never inside the script. An Oura
                        import is brought back by the next sync, so it says so. #}
                     <form action="/experiments/{{ experiment.id }}/delete-entry" method="post" style="margin: 0;"
-                          data-confirm="Delete the {{ at_match.name if at_match else '' }} entry from {{ e.date }}?{% if e.source == 'oura' %} It was imported from Oura and comes back on the next sync; edit it instead to change it.{% endif %}"
+                          data-confirm="Delete the {{ at_match.name if at_match else '' }} entry from {{ e.date }}?{% if e.source == 'oura' and experiment.status == 'active' %} It was imported from Oura and comes back on the next sync; edit it instead to change it.{% endif %}"
                           onsubmit="return confirm(this.dataset.confirm)">
                         <input type="hidden" name="entry_id" value="{{ e.id }}">
                         <button type="submit" class="exp-delete-btn" aria-label="Delete the {{ at_match.name if at_match else '' }} entry from {{ e.date }}">&times;</button>

@@ -63,7 +63,7 @@ def test_a_correction_rewrites_date_value_and_note(auth_client, experiment):
     response = _edit(auth_client, exp_id, entries["walk"], date=day, value="45", notes="  hilly  ")
 
     assert _entry(entries["walk"]) == (day, 45, "hilly")
-    assert response.headers["location"].startswith(f"/experiments/{exp_id}?msg=Entry+corrected")
+    assert response.headers["location"].startswith(f"/experiments/{exp_id}?entries=open&msg=Entry+corrected")
     assert response.headers["location"].endswith("#entries")
 
 
@@ -88,13 +88,43 @@ def test_an_invalid_correction_changes_nothing(auth_client, experiment, entry, f
     assert error in response.headers["location"]
 
 
-def test_an_entry_of_another_experiment_is_not_found(auth_client, experiment):
+def test_an_entry_cannot_be_edited_through_another_experiment(auth_client, experiment):
     exp_id, entries = experiment
-
-    response = _edit(auth_client, exp_id + 1000, entries["walk"], date=START.isoformat(), value="30")
+    conn = sqlite3.connect(user_db_path())
+    other = conn.execute(
+        "INSERT INTO experiments (title, start_date, num_weeks, status) VALUES ('ZZ Other', ?, 4, 'active')",
+        (START.isoformat(),),
+    ).lastrowid
+    conn.commit()
+    try:
+        response = _edit(auth_client, other, entries["walk"], date=START.isoformat(), value="31")
+    finally:
+        conn.execute("DELETE FROM experiments WHERE id = ?", (other,))
+        conn.commit()
+        conn.close()
 
     assert "no+longer+exists" in response.headers["location"]
     assert _entry(entries["walk"])[1] == 30
+
+
+def test_a_yes_no_answer_can_be_rewritten_on_its_own_date(auth_client, experiment):
+    exp_id, entries = experiment
+    day = (START + timedelta(days=1)).isoformat()
+
+    _edit(auth_client, exp_id, entries["yes1"], date=day, value="0", notes="skipped after all")
+
+    assert _entry(entries["yes1"]) == (day, 0, "skipped after all")
+
+
+def test_a_finished_experiment_lists_entries_but_offers_no_logging(auth_client, experiment):
+    exp_id, entries = experiment
+
+    html = auth_client.get(f"/experiments/{exp_id}?entries=open").text
+
+    assert f'action="/experiments/{exp_id}/entry/{entries["walk"]}/edit"' in html
+    assert f'action="/experiments/{exp_id}/entry" method="post"' not in html
+    assert "import-workouts" not in html
+    assert 'id="entries" open' in html
 
 
 def test_each_entry_offers_an_edit_form_and_a_confirmed_delete(auth_client, experiment):

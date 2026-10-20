@@ -10,6 +10,7 @@ from app.services.experiment_weeks import experiment_calendar, experiment_week_n
 from app.user_db import get_user_db_from_request
 from app.validation import (
     METRIC_KINDS,
+    METRIC_VALUE_BOUNDS,
     TARGET_PERIODS,
     OptionalFormInt,
     clamp_metric_value,
@@ -610,6 +611,7 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
             "start_fmt": _fmt_date(start),
             "end_fmt": _fmt_date(end),
             "end_date": end.isoformat(),
+            "value_bounds": METRIC_VALUE_BOUNDS,
             "today": today.isoformat(),
             "oura_connected": oura_connected,
             "summaries": summaries,
@@ -985,7 +987,7 @@ async def edit_entry(
     """
     from datetime import date as calendar_date
 
-    destination = f"/experiments/{experiment_id}#entries"
+    destination = f"/experiments/{experiment_id}?entries=open#entries"
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall(
         "SELECT e.activity_type_id, t.kind, x.start_date, x.num_weeks FROM experiment_entries e "
@@ -1039,8 +1041,8 @@ async def delete_entry(
     )
     await db.commit()
     if cursor.rowcount == 0:
-        return error_redirect(request, f"/experiments/{experiment_id}", "Entry not found.")
-    return success_redirect(request, f"/experiments/{experiment_id}", "Entry deleted.")
+        return error_redirect(request, f"/experiments/{experiment_id}?entries=open#entries", "Entry not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}?entries=open#entries", "Entry deleted.")
 
 
 @router.post("/{experiment_id}/complete")
