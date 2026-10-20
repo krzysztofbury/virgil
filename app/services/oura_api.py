@@ -8,6 +8,7 @@ from urllib.parse import urlencode
 
 import httpx
 
+from app.formatting import time_ago
 from app.services.encryption import decrypt, encrypt
 from app.services.experiment_weeks import experiment_calendar
 
@@ -105,6 +106,33 @@ def _needs_refresh(integration: dict, now: datetime) -> bool:
     if exp_dt.tzinfo is None:
         exp_dt = exp_dt.replace(tzinfo=UTC)
     return now >= exp_dt - timedelta(minutes=5)
+
+
+# Oura publishes a day's sleep and readiness once, in the morning; a sync older
+# than a day can be missing today's.
+OURA_STALE_AFTER = timedelta(hours=24)
+
+
+async def oura_sync_freshness(db, now: datetime | None = None) -> dict | None:
+    """When Oura data last arrived, for an account with Oura connected; None otherwise.
+
+    `age` is None when it never synced, which the page states rather than hides.
+    """
+    integration = await _oura_integration(db)
+    if not integration or integration["status"] != "connected":
+        return None
+    now = now or datetime.now(UTC)
+    try:
+        synced = datetime.fromisoformat(integration["last_sync_at"])
+    except (TypeError, ValueError):
+        return {"age": None, "local": None, "stale": True}
+    if synced.tzinfo is None:
+        synced = synced.replace(tzinfo=UTC)
+    return {
+        "age": time_ago(synced, now),
+        "local": synced.astimezone().strftime("%Y-%m-%d %H:%M %Z"),
+        "stale": now - synced > OURA_STALE_AFTER,
+    }
 
 
 async def ensure_valid_token(db) -> str | None:

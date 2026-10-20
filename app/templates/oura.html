@@ -4,7 +4,10 @@
 {% block content %}
 <div class="page-header">
     <div class="flex-between">
-        <h1>Oura Ring Data</h1>
+        <div>
+            <h1>Oura Ring Data</h1>
+            {% include "partials/oura_freshness.html" %}
+        </div>
         {% if oura_connected %}
         <form method="POST" action="/oura/api-sync" hx-post="/oura/api-sync" hx-swap="none" style="margin:0;">
             <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
@@ -173,18 +176,25 @@
      says what it is. Not collapsed: a Chart.js canvas inside a closed
      details renders at zero size. -->
 <div class="section-title">Compare metrics</div>
-{% if trend_labels %}
-<div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header"><h3>Daily Trends (10 days)</h3></div>
+{% if has_daily %}
+<div class="card" id="compare-metrics" style="margin-bottom: 1.5rem;">
+    <div class="card-header flex-between">
+        <h3>Daily Trends</h3>
+        {% with range_label = "Daily trends and history window" %}{% include "partials/range_picker.html" %}{% endwith %}
+    </div>
+    {% if trend_labels %}
     <div class="chart-container">
         <canvas id="dailyTrendChart" height="200"></canvas>
     </div>
+    {% else %}
+    <p class="text-muted">No Oura days in the last {{ range_weeks }} weeks.</p>
+    {% endif %}
 </div>
 {% endif %}
 
 <!-- History -->
 <details style="margin-bottom: 1.5rem;">
-    <summary>History</summary>
+    <summary>History <small class="text-muted">(daily rows: last {{ range_weeks }} weeks)</small></summary>
     <div class="card" style="margin-top: 0.75rem;">
         <div class="card-header">
             <h3>History</h3>

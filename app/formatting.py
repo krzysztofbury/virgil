@@ -61,3 +61,13 @@ def format_ref_range(low, high) -> str:
     if low is not None:
         return f"> {_plain_number(low)}"
     return ""
+
+
+def time_ago(then, now) -> str:
+    """How long ago `then` was, in the largest whole unit: "3 hours ago"."""
+    minutes = max(0, int((now - then).total_seconds() // 60))
+    for size, unit in ((1440, "day"), (60, "hour"), (1, "minute")):
+        if minutes >= size:
+            count = minutes // size
+            return f"{count} {unit}{'' if count == 1 else 's'} ago"
+    return "just now"

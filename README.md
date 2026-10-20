@@ -249,8 +249,13 @@ habit clean for today in one tap (a slip opens the habit's day form). Then the
 morning briefing (if enabled), **Focus** (the starred goals), the week strip
 (energy per day, with a legend) and active experiments, each card with its own
 one-tap log for today. Everything that describes the past sits under **Insights** - Oura
-vitals, body measurements, the life-score radar - with the year calendar
-dot-matrix collapsed at the end.
+vitals with when they last synced, body measurements, the life-score radar and
+history - with the year calendar dot-matrix collapsed at the end.
+
+History views share one set of windows: 4, 12 or 26 weeks, picked with `?weeks=`
+(12 by default) on Life Scores, Oura's compare chart and daily history, and
+Training's Personal Bests. The Daily heatmap stays at 12 weeks, which is what
+fits a phone.
 
 There is deliberately no interpretation sentence here: the page states the next
 action and the numbers, and leaves the verdict to you.
@@ -274,7 +279,7 @@ reads back what was logged:
 
 - Capture form - date, optional duration, and the note itself
 - This Week KPIs - sessions count, total volume (Core, kg), total reps
-- Personal Bests - compact per-movement groups with records split by rep count or timed duration (12-week window);
+- Personal Bests - compact per-movement groups with records split by rep count or timed duration, over the shared 4, 12 or 26-week window (12 by default);
   a set on other equipment than the movement's usual one (a dumbbell hang snatch) is its own record
 - `Unfinished` - every session whose parse is still waiting, whatever its date
 - Year calendar history - duration heatmap with hover and keyboard summaries;
@@ -376,8 +381,9 @@ Daily and monthly Oura Ring metrics — sleep, readiness, activity, HRV, stress,
 - **Webhook Support**: Real-time data push from Oura with HMAC-SHA256 signature verification
 - **Readiness vs baseline**: the page opens on today's readiness against the mean of the previous 7 days, the signed delta and one word (`above`, `steady`, `below`, at a 3-point tolerance). A rule over stored numbers - no generated advice and no LLM call
 - **Today's Vitals**: grouped into Sleep, Activity and Recovery - sleep score, activity, steps, readiness, HRV, RHR, stress/recovery minutes. Activity and steps fall back to yesterday's values (with label) when today's data isn't yet available from the API
-- **Compare metrics**: the 10-day dual-axis chart (HRV/RHR + sleep/readiness scores), last on the page because it answers a different question from the default trend
-- **Daily History**: Browsable 30-day table
+- **Compare metrics**: the dual-axis chart (HRV/RHR + sleep/readiness scores) over the shared 4, 12 or 26-week window, last on the page because it answers a different question from the default trend
+- **Daily History**: Browsable table over the same window
+- **Freshness**: the page says when Oura data last synced, in amber once that is over a day ago
 - **Monthly Trends**: Aggregated averages with Chart.js trend charts
 - **Manual Entry**: Fallback form for entering monthly averages
 - **Rate Limit Handling**: 429 responses trigger exponential backoff with Retry-After
@@ -391,7 +397,7 @@ A wide screen gets the matrix directly. One Jinja macro renders both, so the two
 views cannot drift apart.
 
 ### Life Scores (`/life-scores`)
-Periodic self-assessment across 8 life areas with power level composite score and radar chart visualization.
+Periodic self-assessment across 8 life areas with power level composite score and radar chart visualization. On the dashboard, `Over time` charts the power level across the shared 4, 12 or 26-week window (each area one legend tap away), and `History` lists every assessment in it, complete or not.
 
 ### Goals (`/goals`)
 Canonical goals and one-off execution reps across 8 life areas with 1yr/3yr/10yr horizons.

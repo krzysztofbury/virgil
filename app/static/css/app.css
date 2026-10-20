@@ -714,6 +714,12 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
   }
 }
 
+/* ── Oura freshness ── */
+.oura-freshness { color: var(--text-secondary); }
+.oura-freshness.is-stale { color: var(--yellow); font-weight: 600; }
+/* The dark theme's yellow is unreadable on white. */
+[data-theme="light"] .oura-freshness.is-stale { color: #92400e; }
+
 /* ── Offline Banner ── */
 /* Fixed under the nav at one line's height; the page moves down by the same
    amount so the banner covers nothing at its top. */
@@ -839,6 +845,10 @@ form[aria-busy="true"] { cursor: progress; }
   margin-bottom: 0.75rem;
 }
 
+/* A section title with a control on its right, such as the range picker. */
+.section-title-row { gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.section-title-row .section-title { margin-bottom: 0; }
+
 /* ── Page Header ── */
 .page-header { margin-bottom: 1.5rem; }
 .page-header h1 { margin-bottom: 0.25rem; }
@@ -871,6 +881,10 @@ form[aria-busy="true"] { cursor: progress; }
   background: var(--accent);
   box-shadow: 0 0 12px var(--accent-glow);
 }
+
+/* The shared 4/12/26-week picker: compact tabs that sit in a card header. */
+.range-picker { margin: 0; gap: 0.15rem; flex-wrap: nowrap; }
+.range-picker a { padding: 0.3rem 0.7rem; font-size: 0.8rem; white-space: nowrap; }
 
 /* ── Three-State Toggle ── */
 .toggle-group {
@@ -2529,6 +2543,8 @@ kbd {
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tabs a { flex-shrink: 0; display: inline-flex; align-items: center; }
+  /* Three short tabs inside a card header: no bleed to the screen edge. */
+  .tabs.range-picker { margin-inline: 0; padding-inline: 0; }
   .goal-horizons .tabs { padding-inline: 0; overflow: visible; }
   .goal-horizons .tabs a { justify-content: center; }
 
