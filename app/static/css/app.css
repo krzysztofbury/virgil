@@ -726,6 +726,19 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 /* The dark theme's yellow is unreadable on white. */
 [data-theme="light"] .oura-freshness.is-stale { color: #92400e; }
 
+/* ── Freedom record corrections ── */
+.freedom-records { margin-bottom: 1rem; }
+.freedom-record-list { display: grid; margin-top: 0.5rem; }
+.freedom-record-list > li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 0.75rem; padding: 0.6rem 0; border-top: 1px solid var(--border); }
+.freedom-record-list form { margin: 0; }
+.freedom-record-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); gap: 0.4rem; align-items: end; margin-top: 0.4rem; }
+.freedom-record-form label { display: grid; gap: 0.15rem; margin: 0; font-size: 0.75rem; color: var(--text-secondary); }
+.freedom-record-form input, .freedom-record-form select { margin: 0; }
+.freedom-record-edit { flex-basis: 100%; }
+.day-delete { margin: 0.75rem 0 0; }
+/* A quiet text action, for a link or a form button that should not read as a primary control. */
+.btn-link { display: inline; width: auto; margin: 0; padding: 0; border: 0; background: none; box-shadow: none; color: var(--accent); font-size: 0.8rem; font-weight: 500; text-decoration: underline; cursor: pointer; }
+
 /* ── Training set corrections ── */
 .training-set-actions { display: flex; align-items: flex-start; justify-content: flex-end; gap: 0.5rem; }
 .training-set-edit > summary { font-size: 0.8rem; }

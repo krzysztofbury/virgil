@@ -155,6 +155,15 @@
         <button type="submit" class="btn btn-primary day-save" :disabled="used === null"
                 x-text="used === null ? 'Pick one above' : 'Save {{ 'today' if form_date == today else form_date }}'">Save</button>
     </form>
+    {# Deleting a logged day: here, where the day is opened, not on every
+       timeline row. The day's own relapse record goes with it. #}
+    {% if form_daily %}
+    <form method="POST" action="/freedom/{{ habit.slug }}/day/{{ form_date }}/delete" class="day-delete"
+          data-confirm="Delete {{ habit.name }} on {{ form_date }}?{% if form_daily.slipped %} Its relapse record goes with it.{% endif %} The day becomes unlogged."
+          onsubmit="return confirm(this.dataset.confirm)">
+        <button type="submit" class="btn-link">Delete this day's entry</button>
+    </form>
+    {% endif %}
 </div>
 
 <!-- Brick: captured the moment an urge is survived -->
@@ -240,6 +249,49 @@
     </div>
     {% endfor %}
 </div>
+{% endif %}
+
+<!-- Relapse records: what the streak is counted from. A slipped day writes
+     its own, which follows the day; any other (older or imported) is corrected
+     here. -->
+{% if relapse_records %}
+<details class="card freedom-records" id="relapse-records"{% if request.query_params.get('records') == 'open' %} open{% endif %}>
+    <summary>Relapse records ({{ relapse_records|length }}{{ '+' if relapse_records_more else '' }})</summary>
+    <ul class="freedom-record-list">
+        {% for r in relapse_records %}
+        <li>
+            <span class="timeline-badge {{ 'used' if r.event_type == 'relapse' else 'clean' }}">{{ r.event_type }}</span>
+            <strong>{{ r.date }}</strong>
+            {% if r.from_day %}
+            <small class="text-muted">from the day log</small>
+            <a href="/freedom?habit={{ habit.slug }}&amp;date={{ r.date }}#day-card" class="btn-link">Correct the day</a>
+            {% else %}
+            {% if r.notes %}<small class="text-muted">{{ r.notes }}</small>{% endif %}
+            <details class="freedom-record-edit">
+                <summary aria-label="Edit the {{ r.event_type }} record from {{ r.date }}">Edit</summary>
+                <form method="POST" action="/freedom/{{ habit.slug }}/relapses/{{ r.id }}/edit" class="freedom-record-form">
+                    <label>Date <input type="date" name="date" value="{{ r.date }}" max="{{ today }}" required></label>
+                    <label>Type
+                        <select name="event_type">
+                            <option value="relapse" {{ 'selected' if r.event_type == 'relapse' else '' }}>Relapse</option>
+                            <option value="reset" {{ 'selected' if r.event_type == 'reset' else '' }}>Reset</option>
+                        </select>
+                    </label>
+                    <label>Note <input type="text" name="notes" value="{{ r.notes or '' }}" maxlength="500"></label>
+                    <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+                </form>
+            </details>
+            <form method="POST" action="/freedom/{{ habit.slug }}/relapses/{{ r.id }}/delete"
+                  data-confirm="Delete the {{ r.event_type }} record from {{ r.date }}? The streak is counted again without it."
+                  onsubmit="return confirm(this.dataset.confirm)">
+                <button type="submit" class="exp-delete-btn" aria-label="Delete the {{ r.event_type }} record from {{ r.date }}">&times;</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+    {% if relapse_records_more %}<p class="text-muted"><small>Showing the newest {{ relapse_records|length }}.</small></p>{% endif %}
+</details>
 {% endif %}
 
 <!-- This habit's own rules, edited where they are used -->
