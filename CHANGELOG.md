@@ -65,7 +65,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   image refuses a newer database.
 - **Existing installs**: Watchtower does not apply compose changes. Create
   `backups/` next to `data/`, writable by uid 1000 (`chown 1000:1000 backups`),
-  copy the new `docker-compose.yml`, then run `docker compose up -d`. Until
+  copy the new `docker-compose.yml`, then run `docker compose up -d` (with
+  Container Station, edit its compose instead and recreate; see the README). Until
   then backups stay in `data/backups/`, and production startup logs a warning.
 - `cloudflared`, Watchtower and autoheal are pinned by version and digest, and
   the CI actions, including those in the job that publishes `latest`, by commit.

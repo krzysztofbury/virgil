@@ -112,9 +112,14 @@ docker compose pull
 docker compose up -d
 ```
 
-> **QNAP Container Station limitation**: the Container Station UI doesn't support
-> `${VAR}` interpolation in docker-compose. Run `docker compose` via SSH; the
-> running containers then show up in Container Station normally.
+> **QNAP Container Station**: its compose editor neither substitutes `${VAR}` nor
+> reads `.env`. Either run `docker compose` over SSH as above (the containers
+> still show up in Container Station), or paste `docker-compose.yml` into the
+> editor with every `${...}` replaced by its literal value and recreate the
+> application there. If the editor rejects the long-syntax backups mount, use
+> the short form `- /path/to/virgil/backups:/backups`, and create the directory
+> first: the short form silently creates a missing one owned by root, which the
+> container cannot write.
 
 **Deploys after that are automatic**: push to `main` → Actions runs locked checks and audits →
 builds and smoke-tests the image (with `GIT_SHA` baked in for PWA cache-busting) → pushes to
@@ -149,7 +154,8 @@ GHCR → the `watchtower` container on the NAS notices the new `:latest` within
 **Applying a `docker-compose.yml` change** (Watchtower only replaces the
 `virgil` image, never the compose file): copy the new file to the NAS, create
 any new host directory it mounts (writable by uid 1000, as above), then run
-`docker compose up -d`.
+`docker compose up -d`. With Container Station, carry the same edits into its
+editor, keeping your literal values, and recreate the application.
 
 **Force an immediate update:**
 
