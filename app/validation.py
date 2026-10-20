@@ -38,7 +38,7 @@ OptionalFormFloat = Annotated[float | None, BeforeValidator(_blank_to_none_decim
 METRIC_KINDS = ("duration", "count", "boolean", "scale")
 TARGET_PERIODS = ("day", "week", "total")
 
-_METRIC_VALUE_BOUNDS = {
+METRIC_VALUE_BOUNDS = {
     "duration": (1, 1440),  # minutes; a day has 1440
     "count": (1, 1000),  # events per single log
     "boolean": (0, 1),
@@ -48,7 +48,7 @@ _METRIC_VALUE_BOUNDS = {
 
 def clamp_metric_value(kind: str, value: int) -> int | None:
     """Validate an entry value against its metric kind's bounds. None = reject."""
-    lo, hi = _METRIC_VALUE_BOUNDS.get(kind, (1, 1440))
+    lo, hi = METRIC_VALUE_BOUNDS.get(kind, (1, 1440))
     if lo <= value <= hi:
         return value
     return None

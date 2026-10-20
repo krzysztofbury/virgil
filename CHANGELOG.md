@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Experiment entries can be corrected (#52): each one in Recent Entries edits its
+  date, value and note, within the experiment's dates and the metric's bounds,
+  and a yes/no metric keeps one answer per day. This works on a completed or
+  abandoned experiment too, whose entries are now listed. Deleting an entry asks
+  first, and says when an Oura import would come back on the next sync. On a
+  phone each entry is a card instead of a table that ran off the screen.
 - Blood results can be corrected or deleted on the page (#52): a marker's chart
   view lists each result with its date, value, text and flag. A correction
   recomputes the flag from the reference range unless a lab flag is chosen, and
