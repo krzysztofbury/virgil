@@ -90,6 +90,12 @@ services:
       # exactly the state a broken image leaves behind, so the fixed image
       # would never get auto-deployed.
       WATCHTOWER_INCLUDE_RESTARTING: "true"
+      # Optional: a shoutrrr URL (see .env.example) that gets one message per
+      # deploy, and one per poll while an update keeps failing. Polls that find
+      # nothing new send nothing.
+      WATCHTOWER_NOTIFICATION_URL: ${WATCHTOWER_NOTIFICATION_URL:-}
+      WATCHTOWER_NOTIFICATIONS_HOSTNAME: virgil
+      WATCHTOWER_NO_STARTUP_MESSAGE: "true"
       TZ: ${TZ:-Europe/Warsaw}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
