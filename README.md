@@ -543,6 +543,17 @@ Press `?` to see the shortcut overlay. Navigation uses a `g` prefix:
 | `?` | Toggle shortcut overlay |
 | `Esc` | Close overlay |
 
+### Accessibility
+- **Keyboard only**: the first Tab on every page offers `Skip to content`, past
+  the navigation. Every control takes focus with a visible ring, nothing hidden
+  can take focus (the phone `More` menu while closed), and `Esc` closes the menu
+  or a day's training dialog and returns focus to what opened it.
+- **Reduced motion**: with the system setting on, nothing animates or
+  transitions, scrolling jumps instead of gliding, and charts draw at once.
+- **Charts**: each canvas is labelled for a screen reader and points to the
+  table with the same numbers (Oura and Life Score history, all blood results);
+  the life-score radar, which has no table, reads out its values.
+
 ### Navigation
 Wide screens get the top navigation bar. On a phone a bottom bar holds what you
 act on daily - Home, Daily, Training, and Freedom (Goals when Freedom is off) -

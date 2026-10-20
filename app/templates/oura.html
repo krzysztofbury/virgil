@@ -136,7 +136,8 @@
         </select>
     </div>
     <div class="chart-container">
-        <canvas id="ouraChart" height="200"></canvas>
+        <canvas id="ouraChart" height="200" role="img"
+                aria-label="Monthly {{ metric_name }}; the History section lists the values by month"></canvas>
     </div>
 </div>
 <script>
@@ -184,7 +185,8 @@
     </div>
     {% if trend_labels %}
     <div class="chart-container">
-        <canvas id="dailyTrendChart" height="200"></canvas>
+        <canvas id="dailyTrendChart" height="200" role="img"
+                aria-label="HRV, resting heart rate, sleep and readiness over the last {{ range_weeks }} weeks; the History section lists each day"></canvas>
     </div>
     {% else %}
     <p class="text-muted">No Oura days in the last {{ range_weeks }} weeks.</p>

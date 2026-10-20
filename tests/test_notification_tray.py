@@ -65,7 +65,7 @@ def test_tray_is_a_fixed_overlay_outside_the_main_flow(auth_client):
 
     assert response.status_code == 200
     tray = response.text.index('id="notification-tray"')
-    main = response.text.index('<main class="container">')
+    main = response.text.index('<main class="container"')
     assert tray < main, "the tray must not sit inside the scrolling content column"
     assert 'id="job-notifications"' in response.text
 

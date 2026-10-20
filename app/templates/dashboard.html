@@ -229,7 +229,12 @@
     {% if chart_datasets %}
     <div class="card life-scores-chart">
         <div class="chart-container" style="max-width: 500px; margin: 0 auto;">
-            <canvas id="radarChart"></canvas>
+            <canvas id="radarChart" role="img" aria-label="
+                {%- for dataset in chart_datasets -%}
+                Life scores on {{ dataset.label }}:
+                {%- for label in area_labels %} {{ label }} {{ dataset.data[loop.index0] }}{{ ',' if not loop.last else '.' }}{% endfor %}
+                {%- if not loop.last %} {% endif %}
+                {%- endfor -%}"></canvas>
         </div>
     </div>
     {% endif %}

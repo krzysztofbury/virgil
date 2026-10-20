@@ -81,6 +81,7 @@ function initCalendarInteractions(root) {
             if (dialog && typeof dialog.showModal === 'function') {
                 e.preventDefault();
                 hideTip();
+                dialog.openedBy = dot;
                 if (!dialog.open) dialog.showModal();
                 return;
             }
@@ -94,6 +95,13 @@ function initCalendarInteractions(root) {
         dialog.dataset.calendarBound = 'true';
         dialog.addEventListener('click', function(e) {
             if (e.target === dialog) dialog.close();
+        });
+        // Back to the day that opened it, or a keyboard user starts over at the top.
+        // A dialog the server rendered open came from that day's calendar link.
+        dialog.addEventListener('close', function() {
+            var opener = dialog.openedBy ||
+                document.querySelector('[data-calendar-dialog="' + dialog.id + '"]');
+            if (opener && opener.isConnected) opener.focus();
         });
         if (dialog.hasAttribute('open') && typeof dialog.showModal === 'function') {
             dialog.removeAttribute('open');

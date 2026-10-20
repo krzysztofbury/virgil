@@ -59,7 +59,8 @@
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header"><h3>{{ chart_marker.name }} ({{ chart_marker.unit }})</h3></div>
     <div class="chart-container">
-        <canvas id="bloodChart" height="200"></canvas>
+        <canvas id="bloodChart" height="200" role="img"
+                aria-label="{{ chart_marker.name }} results over time; the results table below lists every value with its date"></canvas>
     </div>
 </div>
 {% endif %}
