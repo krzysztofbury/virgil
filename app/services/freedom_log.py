@@ -122,6 +122,80 @@ async def delete_day(db, habit: dict, day: str) -> None:
         raise
 
 
+# Relapse records shown for correction. A habit relapsing daily for years would
+# still fit; the page says when there are more.
+RELAPSE_LIST_MAX = 200
+EVENT_TYPES = ("relapse", "reset")
+
+
+async def list_relapse_events(db, habit: dict) -> list[dict]:
+    """This habit's relapse and reset records, newest first.
+
+    `from_day` marks the ones a slipped day wrote: they follow that day, so the
+    page sends them to the day form instead of editing them on their own.
+    """
+    rows = await db.execute_fetchall(
+        "SELECT id, date, event_type, notes FROM pmo_events WHERE habit_id = ? ORDER BY date DESC, id DESC LIMIT ?",
+        (habit["id"], RELAPSE_LIST_MAX + 1),
+    )
+    return [{**dict(row), "from_day": row["notes"] == DAILY_MARKER} for row in rows]
+
+
+async def _own_event(db, habit: dict, event_id: int) -> dict:
+    rows = await db.execute_fetchall(
+        "SELECT id, date, event_type, notes FROM pmo_events WHERE id = ? AND habit_id = ?", (event_id, habit["id"])
+    )
+    if not rows:
+        raise LookupError("That record no longer exists.")
+    event = dict(rows[0])
+    if event["notes"] == DAILY_MARKER:
+        raise FreedomWriteError("This record follows its slipped day: correct or delete the day instead.")
+    return event
+
+
+async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, event_type: str, notes: str) -> dict:
+    """Correct a relapse or reset record that no day log owns (an older or imported one)."""
+    event_date = past_or_today(day)
+    if event_date is None:
+        raise FreedomWriteError("Choose a date of today or earlier.")
+    if event_type not in EVENT_TYPES:
+        raise FreedomWriteError("Choose relapse or reset.")
+    notes = (notes or "").strip()[:NOTE_MAX]
+    if notes == DAILY_MARKER:
+        raise FreedomWriteError("That note is reserved for records a day log writes.")
+    _require_idle(db)
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        await _own_event(db, habit, event_id)
+        if event_type == "relapse" and await db.execute_fetchall(
+            "SELECT 1 FROM pmo_events WHERE habit_id = ? AND date = ? AND event_type = 'relapse' AND id != ?",
+            (habit["id"], event_date, event_id),
+        ):
+            raise FreedomWriteError(f"There is already a relapse on {event_date}.")
+        await db.execute(
+            "UPDATE pmo_events SET date = ?, event_type = ?, notes = ? WHERE id = ?",
+            (event_date, event_type, notes, event_id),
+        )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return {"id": event_id, "date": event_date, "event_type": event_type, "notes": notes}
+
+
+async def delete_relapse_event(db, habit: dict, event_id: int) -> None:
+    """Delete a record that no day log owns; a day's own marker goes with its day."""
+    _require_idle(db)
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        await _own_event(db, habit, event_id)
+        await db.execute("DELETE FROM pmo_events WHERE id = ?", (event_id,))
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+
+
 async def add_brick(db, habit: dict, day: str, *, hook: str, craving: int | None, story: str) -> dict:
     """A brick is one urge survived. The hook is what makes it retrievable, so it is required."""
     hook = (hook or "").strip()

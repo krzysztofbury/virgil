@@ -372,7 +372,11 @@ words. Unticking a habit stops tracking it and keeps its history. The old
   the day back to clean removes only that marker and clears slip-only fields
 - **Weekly clean rate** - a slip lowers the week's rate (target 75%) and never
   resets it to zero
-- **Timeline** - days and their bricks together, newest first
+- **Timeline** - days and their bricks together, newest first. A day's date opens
+  it in the day form, which can also delete a logged day
+- **Relapse records** - what the streak is counted from, listed per habit. A
+  record a slipped day wrote is corrected through that day; any other (older or
+  imported) edits its date, type and note, or is deleted after a confirmation
 
 Migration 034 moves No Porn history - days, bricks, relapse events, start date,
 target and why - onto a Porn habit.

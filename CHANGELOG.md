@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Freedom's relapse records are listed per habit and can be corrected (#52). A
+  record a slipped day wrote follows that day, so it links to the day form,
+  which can now also delete a logged day (its record goes with it). Any other
+  record, older or imported, edits its date, type and note on its own, or is
+  deleted after a confirmation; two relapses on one date are refused.
 - One set of a stored workout can be corrected or deleted (#52) from its day's
   dialog: movement (a library name), set, reps, weight, time in minutes,
   equipment and note, with the bounds a new set has. Personal Bests follow, and

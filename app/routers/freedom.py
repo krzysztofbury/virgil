@@ -16,13 +16,18 @@ from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services import habits as habit_service
 from app.services.freedom_log import (
+    RELAPSE_LIST_MAX,
     FreedomWriteError,
     add_brick,
     delete_brick,
+    delete_day,
+    delete_relapse_event,
     habit_overview,
+    list_relapse_events,
     past_or_today,
     save_day,
     update_brick,
+    update_relapse_event,
 )
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormInt
@@ -119,6 +124,8 @@ async def freedom_page(request: Request):
             "week_days": week_days,
             "weekly_target": habit_service.WEEKLY_TARGET_PCT,
             "timeline": timeline,
+            "relapse_records": (records := await list_relapse_events(db, habit))[:RELAPSE_LIST_MAX],
+            "relapse_records_more": len(records) > RELAPSE_LIST_MAX,
             "form_date": form_date,
             "form_daily": form_daily,
         }
@@ -312,3 +319,56 @@ async def remove_brick(request: Request, brick_id: int):
     except LookupError as exc:
         return error_redirect(request, "/freedom", str(exc))
     return success_redirect(request, _page(removed["habit"], removed["date"]), "Brick removed from your history.")
+
+
+def _records(slug: str) -> str:
+    return f"/freedom?{urlencode({'habit': slug, 'records': 'open'})}#relapse-records"
+
+
+@router.post("/freedom/{slug}/day/{day}/delete")
+async def remove_day(request: Request, slug: str, day: str):
+    """Delete one habit's day entry, and the relapse marker it wrote, from the page."""
+    habit, refusal = await _habit_or_redirect(request, slug)
+    if refusal:
+        return refusal
+    entry_date = past_or_today(day)
+    if entry_date is None:
+        return error_redirect(request, _page(slug), "Choose a valid day.")
+    try:
+        await delete_day(get_user_db_from_request(request), habit, entry_date)
+    except LookupError as exc:
+        return error_redirect(request, _page(slug), str(exc))
+    return success_redirect(request, _page(slug), f"{habit['name']}: day {entry_date} deleted.")
+
+
+@router.post("/freedom/{slug}/relapses/{event_id}/edit")
+async def edit_relapse(
+    request: Request,
+    slug: str,
+    event_id: int,
+    date: str = Form(...),
+    event_type: str = Form("relapse"),
+    notes: str = Form(""),
+):
+    habit, refusal = await _habit_or_redirect(request, slug)
+    if refusal:
+        return refusal
+    try:
+        await update_relapse_event(
+            get_user_db_from_request(request), habit, event_id, day=date, event_type=event_type, notes=notes
+        )
+    except (FreedomWriteError, LookupError) as exc:
+        return error_redirect(request, _records(slug), str(exc))
+    return success_redirect(request, _records(slug), "Record corrected.")
+
+
+@router.post("/freedom/{slug}/relapses/{event_id}/delete")
+async def remove_relapse(request: Request, slug: str, event_id: int):
+    habit, refusal = await _habit_or_redirect(request, slug)
+    if refusal:
+        return refusal
+    try:
+        await delete_relapse_event(get_user_db_from_request(request), habit, event_id)
+    except (FreedomWriteError, LookupError) as exc:
+        return error_redirect(request, _records(slug), str(exc))
+    return success_redirect(request, _records(slug), "Record deleted.")
