@@ -28,7 +28,8 @@
                onkeydown="if (event.key === 'Enter') event.preventDefault()"
                aria-label="Goal">{{ g.content|strip_md }}</textarea>
         <form method="POST" action="/goals/delete" class="goal-icon-form"
-              onsubmit="return confirm('Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead.')">
+              data-confirm="Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead."
+              onsubmit="return confirm(this.dataset.confirm)">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="goal_id" value="{{ g.id }}">
             <input type="hidden" name="horizon" value="{{ horizon }}">

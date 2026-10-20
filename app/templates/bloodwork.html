@@ -83,10 +83,13 @@
                     <option value="L" {{ 'selected' if not r.flag_is_auto and r.flag == 'L' else '' }}>L (lab)</option>
                 </select>
             </label>
-            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+            <button type="submit" class="btn btn-secondary btn-sm" aria-label="Save the result from {{ r.date }}">Save</button>
         </form>
+        {# The text sits in a data attribute, never inside the script: a quote in a
+           marker name would otherwise end the JS string. #}
         <form method="POST" action="/bloodwork/result/{{ r.id }}/delete"
-              onsubmit="return confirm('Delete the {{ chart_marker.name }} result from {{ r.date }}? This cannot be undone.')">
+              data-confirm="Delete the {{ chart_marker.name }} result from {{ r.date }}? This cannot be undone."
+              onsubmit="return confirm(this.dataset.confirm)">
             <input type="hidden" name="category" value="{{ current_category }}">
             <button type="submit" class="btn btn-outline btn-sm" aria-label="Delete the result from {{ r.date }}">Delete</button>
         </form>

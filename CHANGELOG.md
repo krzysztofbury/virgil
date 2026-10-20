@@ -166,6 +166,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- A name with a quote in it can no longer run script or break a delete
+  confirmation (#52). The blood-result, exercise-library, experiment-metric and
+  admin user confirmations, and the Freedom day picker, wrote names and emails
+  into inline JavaScript, where HTML escaping does not hold; they now read them
+  from a data attribute. Marker names can come from imported lab PDFs, so this
+  was more than a self-inflicted case. A test keeps template values out of
+  inline handlers.
+- Adding a blood result refuses infinity and not-a-number, and a text result
+  ("negative") is no longer flagged H or L from the number stored beside it.
 - Logging out now signs out every session of the account, not only the
   browser's cookie: a copied session token used to stay valid for 7 days.
   Turning MFA on or off signs out the other sessions, and disabling an account

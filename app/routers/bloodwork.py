@@ -107,6 +107,7 @@ async def bloodwork_page(request: Request, category: str = "all"):
     chart_values = []
     chart_ref_low = None
     chart_ref_high = None
+    chart_results = []
     if chart_marker_id and chart_marker_id.isdigit():
         mid = int(chart_marker_id)
         m_row = await db.execute_fetchall("SELECT * FROM blood_markers WHERE id = ?", (mid,))
@@ -114,10 +115,16 @@ async def bloodwork_page(request: Request, category: str = "all"):
             chart_marker = dict(m_row[0])
             chart_ref_low = chart_marker.get("ref_low")
             chart_ref_high = chart_marker.get("ref_high")
-            if mid in results:
-                for d in sorted(results[mid].keys()):
-                    chart_labels.append(d)
-                    chart_values.append(results[mid][d]["value"])
+            # Its own query: the marker can sit outside the category tab shown.
+            chart_results = [
+                dict(r)
+                for r in await db.execute_fetchall(
+                    "SELECT * FROM blood_results WHERE marker_id = ? ORDER BY date DESC", (mid,)
+                )
+            ]
+            for r in reversed(chart_results):
+                chart_labels.append(r["date"])
+                chart_values.append(r["value"])
 
     return templates.TemplateResponse(
         request,
@@ -134,11 +141,13 @@ async def bloodwork_page(request: Request, category: str = "all"):
             # that matches the range is offered as "from the range", so a corrected
             # value does not keep a flag its old value earned.
             "chart_results": [
-                {**r, "flag_is_auto": r["flag"] == compute_flag(r["value"], chart_ref_low, chart_ref_high)}
-                for r in sorted(results.get(chart_marker["id"], {}).values(), key=lambda r: r["date"], reverse=True)
-            ]
-            if chart_marker
-            else [],
+                {
+                    **r,
+                    "flag_is_auto": r["flag"]
+                    == ("" if r["value_text"] else compute_flag(r["value"], chart_ref_low, chart_ref_high)),
+                }
+                for r in chart_results
+            ],
             "chart_labels": chart_labels,
             "chart_values": chart_values,
             "chart_ref_low": chart_ref_low,
@@ -170,6 +179,8 @@ async def save_result(
         return error_redirect(request, "/bloodwork", "Choose a valid bloodwork date.")
     if flag and flag not in ("", "H", "L"):
         return error_redirect(request, "/bloodwork", "Choose a valid bloodwork result flag.")
+    if not isfinite(value):
+        return error_redirect(request, "/bloodwork", "Enter the result as a number.")
     value_text = truncate(value_text, 200)
     db = get_user_db_from_request(request)
 
@@ -180,8 +191,11 @@ async def save_result(
         return error_redirect(request, "/bloodwork", "Blood marker was not found.")
 
     # No explicit flag → derive it from the stored reference range, so the
-    # lab-reported value can still override (labs use their own ranges).
-    if not flag:
+    # lab-reported value can still override (labs use their own ranges). Here an
+    # empty flag means "derive it"; the edit form says "auto" for the same thing,
+    # because there an empty flag is a lab saying "normal". A text result
+    # ("negative") is not flagged from the number stored beside it.
+    if not flag and not value_text:
         marker = dict(marker_rows[0])
         flag = compute_flag(value, marker["ref_low"], marker["ref_high"])
 
@@ -267,7 +281,7 @@ async def edit_result(
     if not isfinite(value):
         return error_redirect(request, destination, "Enter the result as a number.")
     if flag == "auto":
-        flag = compute_flag(value, marker["ref_low"], marker["ref_high"])
+        flag = "" if value_text.strip() else compute_flag(value, marker["ref_low"], marker["ref_high"])
     elif flag not in ("", "H", "L"):
         return error_redirect(request, destination, "Choose a valid bloodwork result flag.")
     try:

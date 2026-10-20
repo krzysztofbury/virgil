@@ -77,6 +77,7 @@ def test_a_lab_flag_still_overrides_the_range(auth_client, marker):
         ({"date": "2026-06-10", "value": "50"}, "already has a result on 2026-06-10"),
         ({"date": "not a date", "value": "50"}, "valid bloodwork date"),
         ({"date": "2026-01-10", "value": "nan"}, "as a number"),
+        ({"date": "2026-01-10", "value": "inf"}, "as a number"),
         ({"date": "2026-01-10", "value": "50", "flag": "X"}, "valid bloodwork result flag"),
     ],
 )
@@ -113,3 +114,60 @@ def test_the_marker_view_lists_each_result_for_correction(auth_client, marker):
     # and a corrected value gets its flag recomputed.
     first_form = block[block.index(f"/bloodwork/result/{first}/edit") :]
     assert '<option value="auto" selected>' in first_form[: first_form.index("</select>")]
+
+
+def test_a_marker_name_cannot_break_out_of_the_delete_confirmation(auth_client, marker):
+    marker_id, first, _ = marker
+    conn = sqlite3.connect(user_db_path())
+    conn.execute("UPDATE blood_markers SET name = ? WHERE id = ?", ("ZZ'); alert(1); ('", marker_id))
+    conn.commit()
+    conn.close()
+
+    html = auth_client.get(f"/bloodwork/all?marker={marker_id}").text
+    form = html[html.index(f'action="/bloodwork/result/{first}/delete"') :]
+    form = form[: form.index(">")]
+
+    assert 'onsubmit="return confirm(this.dataset.confirm)"' in form
+    assert 'data-confirm="Delete the ZZ&#39;); alert(1); (&#39; result' in form
+
+
+def test_a_text_result_is_not_flagged_from_its_stand_in_number(auth_client, marker):
+    _, first, _ = marker
+
+    _post(
+        auth_client, f"/bloodwork/result/{first}/edit", date="2026-01-10", value="0", value_text="negative", flag="auto"
+    )
+
+    assert _result(first) == ("2026-01-10", 0.0, "negative", "")
+
+
+def test_editing_a_result_that_is_gone_is_reported(auth_client, marker):
+    response = _post(auth_client, "/bloodwork/result/999999/edit", date="2026-01-10", value="5", flag="auto")
+
+    assert "no+longer+exists" in response.headers["location"]
+
+
+def test_a_marker_outside_the_category_tab_still_lists_its_results(auth_client, marker):
+    marker_id, *_ = marker
+
+    html = auth_client.get(f"/bloodwork/SomeOtherTab?marker={marker_id}").text
+
+    assert "Correct ZZ Ferritin results (2)" in html
+
+
+def test_adding_a_result_refuses_infinity(auth_client, marker):
+    marker_id, *_ = marker
+
+    response = _post(auth_client, "/bloodwork/result", marker_id=marker_id, date="2026-03-01", value="inf")
+
+    assert "err=" in response.headers["location"]
+    conn = sqlite3.connect(user_db_path())
+    try:
+        assert (
+            conn.execute(
+                "SELECT 1 FROM blood_results WHERE marker_id = ? AND date = '2026-03-01'", (marker_id,)
+            ).fetchone()
+            is None
+        )
+    finally:
+        conn.close()
