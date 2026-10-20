@@ -21,6 +21,17 @@ router = APIRouter()
 
 
 AREAS = LIFE_AREAS
+LIFE_HISTORY_COLORS = (
+    "rgb(168, 85, 247)",
+    "rgb(59, 130, 246)",
+    "rgb(234, 179, 8)",
+    "rgb(34, 197, 94)",
+    "rgb(249, 115, 22)",
+    "rgb(236, 72, 153)",
+    "rgb(20, 184, 166)",
+    "rgb(148, 163, 184)",
+    "rgb(239, 68, 68)",
+)
 AREA_LABELS = LIFE_AREA_LABELS
 
 
@@ -135,17 +146,25 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     # Every assessment counts here, complete or not: a missing area is a gap in
     # its line and a dash in the table, never a 0.
     life_range = range_context(request, "life-scores")
+    # A row saved with only weight or waist is a measurement, not an assessment.
+    scored = " OR ".join(f"{column} IS NOT NULL" for column in ("power_level", *AREAS))
     history_rows = await db.execute_fetchall(
-        "SELECT * FROM life_scores WHERE date >= ? ORDER BY date",
+        f"SELECT * FROM life_scores WHERE date >= ? AND ({scored}) ORDER BY date",  # noqa: S608
         (range_start(life_range["range_weeks"], today).isoformat(),),
     )
     life_history = [dict(r) for r in history_rows]
+    # Nine lines: Chart.js repeats its own seven colours, so each gets its own.
     life_history_datasets = [
-        {"label": "Power level", "data": [s["power_level"] for s in life_history], "borderWidth": 3},
-        *(
-            {"label": label, "data": [s[area] for s in life_history], "hidden": True}
-            for area, label in zip(AREAS, AREA_LABELS, strict=True)
-        ),
+        {
+            "label": label,
+            "data": [s[key] for s in life_history],
+            "borderColor": color,
+            "backgroundColor": color,
+            **({"borderWidth": 3} if key == "power_level" else {"hidden": True}),
+        }
+        for key, label, color in zip(
+            ("power_level", *AREAS), ("Power level", *AREA_LABELS), LIFE_HISTORY_COLORS, strict=True
+        )
     ]
 
     # Year calendar (dot-matrix by month)

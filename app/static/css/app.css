@@ -2543,6 +2543,8 @@ kbd {
   }
   .tabs::-webkit-scrollbar { display: none; }
   .tabs a { flex-shrink: 0; display: inline-flex; align-items: center; }
+  /* Three short tabs inside a card header: no bleed to the screen edge. */
+  .tabs.range-picker { margin-inline: 0; padding-inline: 0; }
   .goal-horizons .tabs { padding-inline: 0; overflow: visible; }
   .goal-horizons .tabs a { justify-content: center; }
 

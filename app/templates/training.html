@@ -59,9 +59,9 @@
     </div>
 </div>
 
-{# Hidden for an account with no loaded Core sets at all, but never once a
-   window was picked: the picker is the way back to the others. #}
-{% if personal_bests or not range_is_default %}
+{# Hidden only for an account with no loaded Core sets at all: an empty window
+   keeps the card, because its picker is the way to the others. #}
+{% if has_loaded_sets %}
 <div class="card" id="personal-bests" style="margin-bottom: 1rem;">
     <div class="card-header flex-between">
         <h3>Personal Bests</h3>

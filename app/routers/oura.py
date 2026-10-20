@@ -102,7 +102,7 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
                 yesterday_fallback["steps"] = yd["steps"]
 
     # The baseline compares against the days BEFORE today, whatever the window:
-    # the latest scored days of the previous month, as it always has.
+    # the latest scored days of the previous 30.
     baseline_rows = await db.execute_fetchall(
         "SELECT readiness_score FROM oura_daily WHERE date < ? AND date >= ? AND readiness_score IS NOT NULL "
         "ORDER BY date DESC LIMIT ?",

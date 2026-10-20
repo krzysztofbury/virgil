@@ -327,7 +327,7 @@
                             {% for area in areas %}
                             <td>{{ s[area] if s[area] else '-' }}</td>
                             {% endfor %}
-                            <td><strong>{{ s.power_level or '-' }}</strong></td>
+                            <td><strong>{{ s.power_level if s.power_level is not none else '-' }}</strong></td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -376,7 +376,8 @@
     createLineChart('lifeHistoryChart', {{ life_history | map(attribute='date') | list | tojson }},
         {{ life_history_datasets | tojson }}, {
             yScale: { min: 0, max: 10 },
-            chartOptions: { spanGaps: true }
+            // Nine legend entries take half a phone-width chart: go taller there.
+            chartOptions: { spanGaps: true, aspectRatio: window.innerWidth < 600 ? 0.9 : 2 }
         });
     {% endif %}
 

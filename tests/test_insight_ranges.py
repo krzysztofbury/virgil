@@ -78,6 +78,8 @@ def test_life_score_history_covers_the_window_including_incomplete_assessments(a
             f"INSERT INTO life_scores ({columns}) VALUES ({', '.join('?' * (len(areas) + 2))})",  # noqa: S608
             (day, power, *areas.values()),
         )
+    # Saved with only a weight: a measurement, not an assessment.
+    conn.execute("INSERT INTO life_scores (date, weight) VALUES (?, 80.5)", ((TODAY - timedelta(days=1)).isoformat(),))
     conn.commit()
 
     four = auth_client.get("/?weeks=4").text
@@ -93,28 +95,34 @@ def test_life_score_history_covers_the_window_including_incomplete_assessments(a
     assert '"data": [5.0, 7.0], "label": "Power level"' in twelve, "oldest first on the chart"
 
 
-def test_personal_bests_follow_the_window(auth_client, user_rows):
+@pytest.mark.parametrize(
+    ("logged", "shown_in", "empty_in"),
+    [(IN_TWELVE, (12, 26), (4,)), (IN_TWENTY_SIX, (26,), (4, 12))],
+)
+def test_personal_bests_follow_the_window(auth_client, user_rows, logged, shown_in, empty_in):
     conn = user_rows("training_entries", "training_sessions")
     exercise = conn.execute(
         "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('ZZ window PB', 'Core', 'reps', 1)"
     ).lastrowid
-    session = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (IN_TWELVE,)).lastrowid
+    session = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (logged,)).lastrowid
     conn.execute(
         "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, 1, 5, 60.0)",
         (session, exercise),
     )
     conn.commit()
     try:
-        four = auth_client.get("/training?weeks=4").text
-        twelve = auth_client.get("/training?weeks=12").text
+        pages = {weeks: auth_client.get(f"/training?weeks={weeks}").text for weeks in (4, 12, 26)}
     finally:
         conn.execute("DELETE FROM training_entries WHERE exercise_id = ?", (exercise,))
         conn.execute("DELETE FROM training_exercises WHERE id = ?", (exercise,))
         conn.commit()
 
-    assert 'data-pb-exercise="ZZ window PB"' in twelve
-    assert 'data-pb-exercise="ZZ window PB"' not in four
-    assert "No loaded Core sets in the last 4 weeks." in four, "the card stays, so the picker can go back"
+    for weeks in shown_in:
+        assert 'data-pb-exercise="ZZ window PB"' in pages[weeks]
+    for weeks in empty_in:
+        assert 'data-pb-exercise="ZZ window PB"' not in pages[weeks]
+        # The card stays, so its picker can reach a window that has the record.
+        assert f"No loaded Core sets in the last {weeks} weeks." in pages[weeks]
 
 
 def test_oura_history_follows_the_window_but_the_baseline_does_not(auth_client, user_rows):

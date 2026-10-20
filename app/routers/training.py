@@ -13,7 +13,7 @@ from app.main import templates
 from app.services.job_producers import ActiveWorkloadConflictError
 from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 from app.services.movement_vocab import EQUIPMENT, valid_equipment
-from app.services.ranges import DEFAULT_RANGE_WEEKS, range_context, range_start
+from app.services.ranges import range_context, range_start
 from app.services.training_log import DURATION_MINUTES_MAX, DURATION_SECONDS_MAX, REPS_MAX, WEIGHT_KG_MAX
 from app.services.wod_movements import resolve_movement
 from app.services.wod_parser import canonical_movements
@@ -459,7 +459,7 @@ async def training_page(
         kpi_reps = row["total_reps"] or 0
 
     # --- Personal Bests (the chosen window, Core exercises only) ---
-    pb_range = range_context(request, "personal-bests", drop=("before_id",))
+    pb_range = range_context(request, "personal-bests", drop=("before_id", "after_id"))
     pb_since = range_start(pb_range["range_weeks"], today).isoformat()
     pb_rows = await db.execute_fetchall(
         """SELECT tex.id AS exercise_id, tex.name, tex.metric, tex.display_order,
@@ -524,7 +524,14 @@ async def training_page(
             "kpi_reps": kpi_reps,
             "personal_bests": personal_bests,
             **pb_range,
-            "range_is_default": pb_range["range_weeks"] == DEFAULT_RANGE_WEEKS,
+            # Any loaded Core set at all, in or out of the window: the card and
+            # its picker stay whenever another window could show something.
+            "has_loaded_sets": bool(
+                await db.execute_fetchall(
+                    "SELECT 1 FROM training_entries te JOIN training_exercises tex ON te.exercise_id = tex.id "
+                    "WHERE tex.section = 'Core' AND te.weight > 0 LIMIT 1"
+                )
+            ),
             # One token per rendered page. capture_wod uses it to tell a replay
             # of THIS page's submission from a genuine second capture.
             "capture_token": uuid4().hex,
