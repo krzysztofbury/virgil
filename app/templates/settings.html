@@ -11,7 +11,7 @@
 <nav class="tabs" style="margin-bottom: 1.5rem;">
     {% set tab_labels = {'general': 'General', 'configuration': 'App Config', 'integrations': 'Integrations', 'data': 'Data', 'automation': 'Automation', 'security': 'Security'} %}
     {% for t in tabs %}
-    <a href="/settings?tab={{ t }}"
+    <a href="/settings?tab={{ t }}" id="settings-tab-{{ t }}"
        hx-get="/settings?tab={{ t }}"
        hx-target="#settings-content"
        hx-select="#settings-content"

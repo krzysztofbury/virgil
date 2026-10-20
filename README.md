@@ -546,8 +546,9 @@ Press `?` to see the shortcut overlay. Navigation uses a `g` prefix:
 ### Accessibility
 - **Keyboard only**: the first Tab on every page offers `Skip to content`, past
   the navigation. Every control takes focus with a visible ring, nothing hidden
-  can take focus (the phone `More` menu while closed), and `Esc` closes the menu
-  or a day's training dialog and returns focus to what opened it.
+  can take focus (the phone `More` menu while closed), and `Esc` closes the menu,
+  a day's training dialog or the shortcut overlay and returns focus to what
+  opened it. A control that redraws itself after a tap keeps focus.
 - **Reduced motion**: with the system setting on, nothing animates or
   transitions, scrolling jumps instead of gliding, and charts draw at once.
 - **Charts**: each canvas is labelled for a screen reader and points to the

@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Accessibility (#51): a `Skip to content` link first in the tab order, focus
-  returned to the opener when `Esc` closes the phone `More` menu or a training
-  day's dialog, a closed `More` menu that no longer takes focus, a stronger
-  focus ring on goal text, no animation, smooth scrolling or chart drawing
-  under reduced motion, and a text alternative on every chart.
+  returned to the opener when `Esc` closes the phone `More` menu, a training
+  day's dialog or the shortcut overlay (now a modal dialog), a closed `More`
+  menu that no longer takes focus, a stronger focus ring on goal text, no
+  animation, smooth scrolling or chart drawing under reduced motion, and a text
+  alternative on every chart. Keyboard focus now stays on the dashboard's
+  toggles, Freedom's `Clean`, experiment quick-logs and Settings tabs when they
+  redraw, and the year calendar's days are no longer one tab stop each.
 - The dashboard's Oura card and the Oura page say when Oura data last synced
   (#55), and turn amber with "Last synced" once that is over a day ago, when
   today's sleep and readiness may be missing.

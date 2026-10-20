@@ -28,24 +28,25 @@
             <input type="hidden" name="metric_id" value="{{ m.id }}">
             <input type="hidden" name="view" value="dashboard">
             {% if m.kind == 'boolean' %}
-            <button type="submit" name="value" value="1" aria-pressed="{{ 'true' if m.today == 1 else 'false' }}"
+            {# Ids keep keyboard focus on the button through the card's redraw. #}
+            <button type="submit" name="value" value="1" id="exp-{{ exp.id }}-{{ m.id }}-log" aria-pressed="{{ 'true' if m.today == 1 else 'false' }}"
                     class="btn btn-sm {{ 'btn-primary' if m.today == 1 else 'btn-outline' }}">&#10003; {{ m.name }}</button>
-            <button type="submit" name="value" value="0" aria-pressed="{{ 'true' if m.today == 0 else 'false' }}"
+            <button type="submit" name="value" value="0" id="exp-{{ exp.id }}-{{ m.id }}-no" aria-pressed="{{ 'true' if m.today == 0 else 'false' }}"
                     class="btn btn-sm {{ 'btn-primary' if m.today == 0 else 'btn-secondary' }}"
                     aria-label="{{ m.name }}: not done today" title="Not done today">&#10007;</button>
             {% elif m.kind == 'count' %}
             <input type="hidden" name="value" value="1">
-            <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">+1 {{ m.name }}</button>
+            <button type="submit" id="exp-{{ exp.id }}-{{ m.id }}-log" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">+1 {{ m.name }}</button>
             {% if m.today %}<small class="text-muted">{{ m.today }} today</small>{% endif %}
             {% elif m.kind == 'scale' %}
-            <input type="number" name="value" min="0" max="10" placeholder="0-10" required class="exp-quicklog-scale"
+            <input type="number" name="value" min="0" max="10" placeholder="0-10" required class="exp-quicklog-scale" id="exp-{{ exp.id }}-{{ m.id }}-value"
                    aria-label="{{ m.name }}, 0 to 10">
-            <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
+            <button type="submit" id="exp-{{ exp.id }}-{{ m.id }}-log" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
             {% if m.today is not none %}<small class="text-muted">{{ m.today }} today</small>{% endif %}
             {% else %}
-            <input type="number" name="value" min="1" max="1440" placeholder="min" required class="exp-quicklog-scale"
+            <input type="number" name="value" min="1" max="1440" placeholder="min" required class="exp-quicklog-scale" id="exp-{{ exp.id }}-{{ m.id }}-value"
                    aria-label="{{ m.name }}, minutes">
-            <button type="submit" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
+            <button type="submit" id="exp-{{ exp.id }}-{{ m.id }}-log" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
             {% if m.today %}<small class="text-muted">{{ m.today }}m today</small>{% endif %}
             {% endif %}
         </form>

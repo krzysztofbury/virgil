@@ -2627,6 +2627,8 @@ main.container:focus { outline: none; }
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+  /* A spinner that stops reads as stuck: it keeps turning, slowly. */
+  .spinner { animation-duration: 1.5s !important; animation-iteration-count: infinite !important; }
 }
 
 /* ── Focus Visible (keyboard navigation) ── */

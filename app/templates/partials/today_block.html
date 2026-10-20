@@ -7,7 +7,9 @@
    POST /daily/{day}/cycle. #}
 {% macro status_toggle(field, label, status) %}
 {% set state = 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' %}
-<button type="button"
+{# The id is what lets htmx put keyboard focus back on this button after the
+   block is redrawn; without one focus falls to the top of the page. #}
+<button type="button" id="today-{{ field }}"
         class="toggle-btn active-{{ status if status in ('done', 'skipped') else 'pending' }}"
         hx-post="/daily/{{ today }}/cycle" hx-vals='{"field": "{{ field }}"}'
         hx-target="#today-block" hx-swap="outerHTML" hx-sync="#today-block:drop"

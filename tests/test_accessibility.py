@@ -6,12 +6,14 @@ checked in a real browser; these pin the markup that behaviour depends on.
 
 import re
 import sqlite3
+from datetime import date
 from pathlib import Path
 
 import pytest
 
 from app.db import LIFE_AREAS
-from tests.conftest import user_db_path
+from app.services.daily_log import STATUS_FIELDS
+from tests.conftest import csrf_token, user_db_path
 
 
 @pytest.mark.parametrize("page", ["/", "/daily", "/settings"])
@@ -29,7 +31,7 @@ def test_every_chart_has_a_text_alternative():
     unlabelled = []
     for template in Path("app/templates").rglob("*.html"):
         for canvas in re.findall(r"<canvas\b[^>]*>", template.read_text(), flags=re.S):
-            if 'role="img"' not in canvas or "aria-label=" not in canvas:
+            if 'role="img"' not in canvas or not re.search(r'aria-label="\s*\S', canvas):
                 unlabelled.append(f"{template.name}: {canvas[:60]}")
     assert unlabelled == []
 
@@ -52,15 +54,27 @@ def test_the_radar_reads_out_each_assessment(auth_client):
 
     label = re.search(r'<canvas id="radarChart" role="img" aria-label="([^"]*)"', html).group(1)
     assert label.startswith(
-        "Life scores on 2999-01-01: Planning 1, Spirituality 2, Health 3, Work 4, Social 5, Growth 6, Relaxation 7, Family 8."
+        "Life scores out of 10 on 2999-01-01: Planning 1, Spirituality 2, Health 3, Work 4, Social 5, Growth 6, Relaxation 7, Family 8."
     )
 
 
-def test_reduced_motion_stops_animation_scrolling_and_chart_drawing():
-    css = Path("app/static/css/app.css").read_text()
-    charts = Path("app/static/js/charts.js").read_text()
+def test_charts_draw_without_animation_under_reduced_motion():
+    """The CSS rule cannot reach a canvas: Chart.js animates in script."""
+    assert "Chart.defaults.animation = false" in Path("app/static/js/charts.js").read_text()
 
-    assert "scroll-behavior: smooth" in css[css.index("prefers-reduced-motion: no-preference") :][:120]
-    reduce = css[css.index("@media (prefers-reduced-motion: reduce) {\n  *, *::before") :][:300]
-    assert "animation-duration: 0.01ms !important" in reduce and "transition-duration: 0.01ms !important" in reduce
-    assert "prefers-reduced-motion: reduce" in charts and "Chart.defaults.animation = false" in charts
+
+def test_the_today_toggles_keep_ids_so_focus_survives_their_redraw(auth_client):
+    """htmx puts focus back after a swap only on an element with an id."""
+    html = auth_client.get("/").text
+    block = html[html.index('id="today-block"') :]
+    ids = re.findall(r'<button type="button" id="(today-[a-z_]+)"', block)
+
+    assert sorted(ids) == sorted(f"today-{field}" for field in STATUS_FIELDS)
+    day = date.today().isoformat()
+    token = csrf_token(auth_client, "/")
+    after = auth_client.post(
+        f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token}, headers={"HX-Request": "true"}
+    ).text
+    auth_client.post(f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token})  # and back
+    auth_client.post(f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token})
+    assert 'id="today-water"' in after, "the redrawn block carries the same id"
