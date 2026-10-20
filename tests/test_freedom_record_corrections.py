@@ -142,3 +142,33 @@ def test_the_page_lists_records_and_offers_each_kind_its_own_correction(auth_cli
     assert 'id="relapse-records" open' in html
     assert f'action="/freedom/porn/relapses/{imported}/edit"' in block
     assert 'data-confirm="Delete the relapse record from 2025-02-01? The streak is counted again without it."' in block
+
+
+def test_a_slipped_day_keeps_a_relapse_when_its_only_record_is_removed(auth_client, porn):
+    """The imported record is that day's only relapse; deleting it hands the day its own marker."""
+    habit, imported = porn
+    _post(auth_client, "/freedom/porn/daily", date="2025-02-01", slipped="1", amount="30")
+    assert _rows("SELECT notes FROM pmo_events WHERE habit_id = ? AND date = '2025-02-01'", (habit,)) == [("imported",)]
+
+    _post(auth_client, f"/freedom/porn/relapses/{imported}/delete")
+
+    assert _rows("SELECT notes FROM pmo_events WHERE habit_id = ? AND date = '2025-02-01'", (habit,)) == [
+        ("via daily log",)
+    ]
+
+
+def test_a_relapse_cannot_be_moved_onto_a_day_logged_as_clean(auth_client, porn):
+    _, imported = porn
+    _post(auth_client, "/freedom/porn/daily", date="2025-02-02", slipped="0")
+
+    response = _post(auth_client, f"/freedom/porn/relapses/{imported}/edit", date="2025-02-02", event_type="relapse")
+
+    assert "logged+as+clean" in response.headers["location"]
+    assert _event(imported)[0] == "2025-02-01"
+
+
+@pytest.mark.parametrize("day", ["2999-01-01", "20250301", "yesterday"])
+def test_a_day_delete_refuses_a_future_or_malformed_date(auth_client, porn, day):
+    response = _post(auth_client, f"/freedom/porn/day/{day}/delete")
+
+    assert "err=" in response.headers["location"]

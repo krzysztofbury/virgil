@@ -153,6 +153,33 @@ async def _own_event(db, habit: dict, event_id: int) -> dict:
     return event
 
 
+async def _logged_as(db, habit: dict, day: str, *, slipped: bool) -> bool:
+    rows = await db.execute_fetchall(
+        "SELECT 1 FROM feniks_daily WHERE habit_id = ? AND date = ? AND slipped = ?", (habit["id"], day, int(slipped))
+    )
+    return bool(rows)
+
+
+async def _keep_slip_counted(db, habit: dict, day: str) -> None:
+    """A day logged as slipped keeps one relapse, or the streak and week ignore the slip.
+
+    An older record can be the only relapse on such a day (the day log adds its
+    own only when none exists). Moving or deleting that record puts the day's
+    own marker in its place.
+    """
+    if await _logged_as(db, habit, day, slipped=True):
+        await db.execute(
+            """
+            INSERT INTO pmo_events (habit_id, date, event_type, notes)
+            SELECT ?, ?, 'relapse', ?
+            WHERE NOT EXISTS (
+                SELECT 1 FROM pmo_events WHERE habit_id = ? AND date = ? AND event_type = 'relapse'
+            )
+            """,
+            (habit["id"], day, DAILY_MARKER, habit["id"], day),
+        )
+
+
 async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, event_type: str, notes: str) -> dict:
     """Correct a relapse or reset record that no day log owns (an older or imported one)."""
     event_date = past_or_today(day)
@@ -166,16 +193,20 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
     _require_idle(db)
     await db.execute("BEGIN IMMEDIATE")
     try:
-        await _own_event(db, habit, event_id)
+        event = await _own_event(db, habit, event_id)
         if event_type == "relapse" and await db.execute_fetchall(
             "SELECT 1 FROM pmo_events WHERE habit_id = ? AND date = ? AND event_type = 'relapse' AND id != ?",
             (habit["id"], event_date, event_id),
         ):
             raise FreedomWriteError(f"There is already a relapse on {event_date}.")
+        if event_type == "relapse" and await _logged_as(db, habit, event_date, slipped=False):
+            raise FreedomWriteError(f"{event_date} is logged as clean. Log that day as slipped instead.")
         await db.execute(
             "UPDATE pmo_events SET date = ?, event_type = ?, notes = ? WHERE id = ?",
             (event_date, event_type, notes, event_id),
         )
+        if event["event_type"] == "relapse":
+            await _keep_slip_counted(db, habit, event["date"])
         await db.commit()
     except BaseException:
         await db.rollback()
@@ -188,8 +219,10 @@ async def delete_relapse_event(db, habit: dict, event_id: int) -> None:
     _require_idle(db)
     await db.execute("BEGIN IMMEDIATE")
     try:
-        await _own_event(db, habit, event_id)
+        event = await _own_event(db, habit, event_id)
         await db.execute("DELETE FROM pmo_events WHERE id = ?", (event_id,))
+        if event["event_type"] == "relapse":
+            await _keep_slip_counted(db, habit, event["date"])
         await db.commit()
     except BaseException:
         await db.rollback()
