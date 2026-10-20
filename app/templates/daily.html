@@ -161,7 +161,7 @@
 {% endif %}
 
 <!-- Your trends: reference, not today's work. Safe to collapse - streaks and
-     the heatmap are divs, no canvas. -->
+     the heatmaps are divs and a table, no canvas. -->
 <details class="card" id="daily-trends" style="margin-bottom:1rem;">
     <summary>Your trends</summary>
 <!-- Habit Streaks -->
@@ -219,7 +219,7 @@
                 {% for week in heatmap_weeks %}
                 {% set day = week.days[row] %}
                 {% if day.future %}
-                <td class="heatmap-day heatmap-day--future"><span class="sr-only">Not yet</span></td>
+                <td class="heatmap-day heatmap-day--future"><span class="sr-only">After this day</span></td>
                 {% elif day.done is none %}
                 <td class="heatmap-day" data-calendar-tip="{{ day.date }}: not logged"><span class="sr-only">Not logged</span></td>
                 {% else %}

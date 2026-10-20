@@ -6,6 +6,7 @@ import sqlite3
 from datetime import date
 
 import aiosqlite
+import pytest
 
 from app.migrations.runner import run_migrations
 from app.services.daily_log import STATUS_FIELDS, completion_weeks
@@ -62,15 +63,27 @@ def test_twelve_monday_weeks_end_with_the_week_of_the_last_day(tmp_path):
     assert [week["month"] for week in weeks].count("") == 12 - 3, "one label per month: Aug, Sep, Oct"
 
 
-def test_the_daily_page_renders_the_weeks_as_a_labelled_table(auth_client):
+@pytest.fixture
+def only_one_logged_day():
+    """The session's user database is shared: clear the range, then put back what was there."""
     conn = sqlite3.connect(user_db_path())
+    conn.row_factory = sqlite3.Row
+    span = ("2026-08-03", "2026-10-25")
+    saved = [dict(row) for row in conn.execute("SELECT * FROM daily_logs WHERE date BETWEEN ? AND ?", span)]
+    conn.execute("DELETE FROM daily_logs WHERE date BETWEEN ? AND ?", span)
+    conn.execute(*_insert("2026-10-19", ALL_DONE))
+    conn.commit()
     try:
-        conn.execute("DELETE FROM daily_logs WHERE date BETWEEN '2026-08-03' AND '2026-10-25'")
-        conn.execute(*_insert("2026-10-19", ALL_DONE))
-        conn.commit()
+        yield
     finally:
+        conn.execute("DELETE FROM daily_logs WHERE date BETWEEN ? AND ?", span)
+        for row in saved:
+            conn.execute(*_insert(row.pop("date"), row))
+        conn.commit()
         conn.close()
 
+
+def test_the_daily_page_renders_the_weeks_as_a_labelled_table(auth_client, only_one_logged_day):
     html = auth_client.get(f"/daily/{LAST.isoformat()}").text
     table = html[html.index('class="heatmap-weeks"') : html.index("</table>")]
 
@@ -79,6 +92,13 @@ def test_the_daily_page_renders_the_weeks_as_a_labelled_table(auth_client):
     assert "Week of 2026-10-19" in table
     assert '<span class="sr-only">7 of 7</span>' in table, "a screen reader reads each day as a count"
     assert '<span class="sr-only">Not logged</span>' in table
-    assert table.count('<span class="sr-only">Not yet</span>') == 4, "Thursday to Sunday of the last week"
+    assert table.count('<span class="sr-only">After this day</span>') == 4, "Thursday to Sunday of the last week"
     averages = re.findall(r"<td>(\d+)</td>", table[table.index("<tfoot>") :])
     assert averages == ["0"] * 11 + [str(round(7 / 21 * 100))]
+
+
+def test_the_seven_day_heatmap_reads_from_the_same_weeks(auth_client, only_one_logged_day):
+    html = auth_client.get(f"/daily/{LAST.isoformat()}").text
+
+    week = re.findall(r'class="heatmap-cell heatmap-cell--week" title="([^"]+)"', html)
+    assert week == [f"2026-10-{day}: {pct}%" for day, pct in zip(range(15, 22), [0, 0, 0, 0, 100, 0, 0], strict=True)]

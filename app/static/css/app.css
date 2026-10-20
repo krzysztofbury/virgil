@@ -2220,7 +2220,7 @@ details > :not(summary) { margin-top: 1rem; }
   border-radius: 3px;
   background: rgba(127, 127, 127, 0.12);
 }
-.heatmap-day--future { background: transparent; outline: 1px dashed rgba(127, 127, 127, 0.25); outline-offset: -1px; }
+.heatmap-weeks td.heatmap-day--future { background: transparent; outline: 1px dashed rgba(127, 127, 127, 0.25); outline-offset: -1px; }
 
 /* ── Flatpickr Dark Theme ── */
 .flatpickr-calendar.virgil-datepicker {
