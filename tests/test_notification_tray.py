@@ -203,3 +203,13 @@ def test_a_tray_card_does_not_poll_against_its_own_section(auth_client):
 
     assert f'hx-get="/api/jobs/{job_id}' not in tray, "the section polls, the cards inside it do not"
     assert f'hx-get="/api/jobs/{job_id}' in standalone, "a card on its own still polls"
+
+
+def test_the_offline_banner_is_an_empty_live_region_until_the_connection_drops(auth_client):
+    """app.js fills it while offline; a screen reader only announces a region that already exists."""
+    html = auth_client.get("/daily").text
+
+    banner = html[html.index('id="offline-banner"') :]
+    banner = banner[: banner.index("</div>")]
+    assert 'role="status"' in banner
+    assert banner.endswith(">"), "the banner must render empty, or :empty no longer hides it online"

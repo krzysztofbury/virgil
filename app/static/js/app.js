@@ -456,6 +456,8 @@ document.addEventListener('htmx:responseError', function(event) {
     restorePending(form);
     clearDraftPending(form);
     var message = xhr.getResponseHeader('X-Feedback-Message');
+    // A failed read lost nothing; the offline banner reports an unreachable Virgil.
+    if (event.detail.requestConfig.verb === 'get' && isProxyUnreachable(xhr.status)) return;
     if (message) showFeedback(message, xhr.getResponseHeader('X-Feedback-Kind') || 'error');
     else if (xhr.status === 422) showFeedback('Check the submitted values and try again.', 'error');
     else showFeedback('Server error. Your changes were not confirmed.', 'error');
@@ -470,6 +472,8 @@ document.addEventListener('htmx:sendError', function(event) {
     saveNetworkDraft(form);
     restorePending(form);
     clearDraftPending(form);
+    // A failed read lost nothing; the offline banner reports the connection.
+    if (event.detail.requestConfig && event.detail.requestConfig.verb === 'get') return;
     showFeedback('Network error. Your changes were not confirmed.', 'error');
 });
 
@@ -589,6 +593,135 @@ function toggleTheme() {
         }).catch(function() {});
     }
 }
+
+// ═══════════════════════════════════════════
+// Offline: read-only until the server answers again
+// ═══════════════════════════════════════════
+// There is no offline write queue, so while Virgil is unreachable every
+// control that writes is disabled and a banner says why. Reading stays as it
+// was. Only controls disabled here are re-enabled, never one the page disabled.
+var OFFLINE_PROBE_MS = 10000;
+var OFFLINE_PROBE_TIMEOUT_MS = 5000;
+var WRITE_CONTROL = /^(BUTTON|INPUT|SELECT|TEXTAREA|FIELDSET)$/;
+var OFFLINE_TEXT = 'Offline. Read-only until Virgil is back.';
+var SIGNED_OUT_TEXT = 'Signed out. Reload the page to sign in.';
+var offlineProbe = null;
+var probeRunning = false;
+
+function isWriteForm(form) {
+    return form.method.toUpperCase() === 'POST' ||
+        ['hx-post', 'hx-put', 'hx-patch', 'hx-delete'].some(function(name) { return form.hasAttribute(name); });
+}
+
+function writeControls() {
+    var controls = [];
+    document.querySelectorAll('form').forEach(function(form) {
+        if (isWriteForm(form)) controls.push.apply(controls, form.elements);
+    });
+    document.querySelectorAll('[hx-post],[hx-put],[hx-patch],[hx-delete]').forEach(function(el) {
+        if (el.tagName === 'FORM') return;
+        if (WRITE_CONTROL.test(el.tagName)) controls.push(el);
+        else controls.push.apply(controls, el.querySelectorAll('button,input,select,textarea'));
+    });
+    return controls.filter(function(el) { return WRITE_CONTROL.test(el.tagName); });
+}
+
+function isOffline() {
+    return document.body.classList.contains('is-offline');
+}
+
+function showOfflineText(text) {
+    var banner = document.getElementById('offline-banner');
+    var span = banner.querySelector('span');
+    if (span && span.textContent === text) return;
+    banner.innerHTML = '<i data-lucide="wifi-off" aria-hidden="true"></i><span></span>';
+    banner.querySelector('span').textContent = text;
+    if (typeof lucide !== 'undefined') lucide.createIcons({ nodes: [banner] });
+}
+
+// Also run while already offline: a request that was in flight when the
+// connection dropped re-enables its own button when it ends.
+function disableWriteControls() {
+    writeControls().forEach(function(el) {
+        if (el.disabled) return;
+        el.disabled = true;
+        el.dataset.offlineDisabled = 'true';
+    });
+}
+
+function setOffline(offline) {
+    var banner = document.getElementById('offline-banner');
+    if (!banner || offline === isOffline()) return;
+    document.body.classList.toggle('is-offline', offline);
+    if (offline) {
+        showOfflineText(OFFLINE_TEXT);
+        disableWriteControls();
+        offlineProbe = setInterval(probeConnection, OFFLINE_PROBE_MS);
+        return;
+    }
+    banner.replaceChildren();
+    document.querySelectorAll('[data-offline-disabled]').forEach(function(el) {
+        el.disabled = false;
+        delete el.dataset.offlineDisabled;
+    });
+    clearInterval(offlineProbe);
+    offlineProbe = null;
+    showFeedback('Connection is back.', 'success');
+}
+
+// Only Virgil's own answer means it is back: a proxy in front of it answers
+// with a 5xx while Virgil is down. A redirect is a sign-in page in front of
+// Virgil (the session expired), which a reload fixes and waiting does not.
+function probeConnection() {
+    if (probeRunning) return;
+    probeRunning = true;
+    var options = { cache: 'no-store', redirect: 'manual' };
+    if (window.AbortSignal && AbortSignal.timeout) options.signal = AbortSignal.timeout(OFFLINE_PROBE_TIMEOUT_MS);
+    fetch('/livez', options)
+        .then(function(response) {
+            if (response.ok) setOffline(false);
+            else if (response.type === 'opaqueredirect') showOfflineText(SIGNED_OUT_TEXT);
+        }, function() {})
+        .then(function() { probeRunning = false; });
+}
+
+// What a proxy answers when it cannot reach Virgil: 502, 504, and Cloudflare's
+// 520 to 530 (530 is a tunnel with no connection).
+function isProxyUnreachable(status) {
+    return status === 502 || status === 504 || (status >= 520 && status <= 530);
+}
+
+window.addEventListener('offline', function() { setOffline(true); });
+window.addEventListener('online', probeConnection);
+// The browser can report online while Virgil is unreachable (a dead tunnel or
+// NAS): a request that fails on the network, or that a proxy answers for it,
+// shows that too.
+document.addEventListener('htmx:sendError', function() { setOffline(true); });
+document.addEventListener('htmx:responseError', function(event) {
+    if (isProxyUnreachable(event.detail.xhr.status)) setOffline(true);
+});
+// Any request Virgil answered proves it is reachable again; one that ends
+// while still offline must not leave its controls enabled.
+document.addEventListener('htmx:afterRequest', function(event) {
+    if (!isOffline()) return;
+    if (event.detail.successful) setOffline(false);
+    else disableWriteControls();
+});
+// A write a disabled control did not cover never leaves the page.
+document.addEventListener('htmx:confirm', function(event) {
+    if (!isOffline() || event.detail.verb === 'get') return;
+    event.preventDefault();
+    showFeedback('No connection. Nothing was saved.', 'error');
+});
+document.addEventListener('submit', function(event) {
+    if (!isOffline() || event.target.tagName !== 'FORM' || !isWriteForm(event.target)) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    showFeedback('No connection. Nothing was saved.', 'error');
+}, true);
+document.addEventListener('DOMContentLoaded', function() {
+    if (!navigator.onLine) setOffline(true);
+});
 
 // ═══════════════════════════════════════════
 // Keyboard Shortcuts
