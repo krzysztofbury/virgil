@@ -28,7 +28,7 @@
                onkeydown="if (event.key === 'Enter') event.preventDefault()"
                aria-label="Goal">{{ g.content|strip_md }}</textarea>
         <form method="POST" action="/goals/delete" class="goal-icon-form"
-              onsubmit="return confirm('Delete this goal? Goals with execution history must be marked abandoned instead.')">
+              onsubmit="return confirm('Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead.')">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="goal_id" value="{{ g.id }}">
             <input type="hidden" name="horizon" value="{{ horizon }}">
@@ -83,6 +83,26 @@
                     <button type="submit" class="btn btn-primary btn-sm">Add rep</button>
                 </div>
             </form>
+            {% endif %}
+            {# What happened to this goal and which fields changed; never the old text. #}
+            {% set changes = goal_changes.get(g.id, []) %}
+            {% if changes %}
+            <div class="goal-changes">
+                <h4>Changes</h4>
+                <ol>
+                    {% for c in changes %}
+                    <li><time>{{ c.when }}</time>
+                        {%- if c.event == 'created' %} Created
+                        {%- elif c.event == 'focused' %} Added to focus
+                        {%- elif c.event == 'unfocused' %} Removed from focus
+                        {%- elif c.event == 'deleted' %} Deleted
+                        {%- elif c.event == 'restored' %} Restored
+                        {%- else %} Changed {{ c.fields }}
+                            {%- if c.status_from and c.status_to %} ({{ c.status_from }} to {{ c.status_to }}){% endif %}
+                        {%- endif %}</li>
+                    {% endfor %}
+                </ol>
+            </div>
             {% endif %}
         </div>
     </details>
@@ -232,6 +252,26 @@
     <div class="goal-history-list">
         {% for rep in rep_history %}
         <div><span class="goal-status goal-status-{{ rep.status }}">{{ rep.status|capitalize }}</span><strong>{{ rep.content }}</strong><time>{{ rep.due_date }}</time></div>
+        {% endfor %}
+    </div>
+</details>
+{% endif %}
+
+{% if deleted_goals %}
+<details class="card goal-history" id="recently-deleted">
+    <summary>Recently deleted <span>{{ deleted_goals|length }}, kept {{ trash_days }} days</span></summary>
+    <div class="goal-history-list">
+        {% for d in deleted_goals %}
+        <div>
+            <span class="goal-status">{{ d.horizon }}</span>
+            <strong>{{ d.content }} <small class="text-muted">restorable until {{ d.restorable_until }}</small></strong>
+            <form method="POST" action="/goals/restore">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <input type="hidden" name="goal_id" value="{{ d.id }}">
+                <input type="hidden" name="horizon" value="{{ horizon }}">
+                <button type="submit" class="btn btn-secondary btn-sm" aria-label="Restore {{ d.content|truncate(60) }}">Restore</button>
+            </form>
+        </div>
         {% endfor %}
     </div>
 </details>

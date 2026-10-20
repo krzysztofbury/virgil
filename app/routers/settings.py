@@ -543,6 +543,8 @@ EXPORT_TABLES = [
     "goal_areas",
     "goals",
     "goal_reps",
+    "goal_changes",
+    "deleted_goals",
     "experiments",
     "experiment_activity_types",
     "experiment_weeks",

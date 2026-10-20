@@ -1462,6 +1462,10 @@ details > :not(summary) { margin-top: 1rem; }
 .goal-area-header > div { display: flex; align-items: center; gap: 0.65rem; min-width: 0; }
 .goal-area-icon { width: 2rem; height: 2rem; background: var(--bg-surface); font-size: 1rem; }
 .goal-history { margin-bottom: 1rem; }
+.goal-changes { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
+.goal-changes h4 { margin-bottom: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); }
+.goal-changes ol { display: grid; gap: 0.25rem; font-size: 0.8rem; }
+.goal-changes time { margin-right: 0.5rem; color: var(--text-tertiary); font: 400 0.75rem var(--font-mono); }
 .goal-history > summary { width: 100%; justify-content: flex-start; padding: 0; border: 0; color: var(--text-primary); font-weight: 600; }
 .goal-history > summary span { margin-left: auto; color: var(--text-tertiary); font-size: 0.75rem; font-weight: 500; }
 .goal-history-list { display: grid; margin-top: 0.75rem; }
@@ -1499,6 +1503,7 @@ details > :not(summary) { margin-top: 1rem; }
   .goal-carry > form { right: auto; left: 0; }
   .goal-history-list > div { grid-template-columns: auto minmax(0, 1fr); }
   .goal-history-list time { grid-column: 2; }
+  .goal-history-list form { grid-column: 2; justify-self: start; }
   .goal-empty-areas { align-items: flex-start; flex-direction: column; }
   .goal-empty-areas p { white-space: normal; }
 }

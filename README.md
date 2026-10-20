@@ -418,6 +418,13 @@ Canonical goals and one-off execution reps across 8 life areas with 1yr/3yr/10yr
   one-off calendar commitments remain reps rather than fake experiment counters
 - REST and MCP 2.x provide bounded goal/rep reads plus idempotent create, update,
   delete, complete, carry, and skip writes
+- **Undo a delete**: a deleted goal (one without reps, as before) waits under
+  `Recently deleted` for 30 days with a `Restore` button, from the page, REST or
+  MCP alike. Restoring brings back its id, text, focus and dates, and relinks the
+  sub-goals and experiments the delete unlinked unless they were relinked since
+- **Changes** under a goal's details: created, edited (which fields, and the
+  status move), focus on or off, deleted and restored, newest first and capped
+  at 20 per goal. Field names only, never the old text
 
 ### Experiments (`/experiments`)
 Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
