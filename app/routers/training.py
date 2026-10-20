@@ -1150,7 +1150,7 @@ def _optional_number(raw, cast, field: str):
 
 
 def _seconds(minutes: float | None) -> float | None:
-    return None if minutes is None else round(minutes * 60, 2)
+    return None if minutes is None else float(round(minutes * 60))
 
 
 @router.post("/training/entry/{entry_id}/edit")
@@ -1159,19 +1159,28 @@ async def edit_entry(request: Request, entry_id: int):
     form = await request.form()
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall(
-        "SELECT ts.date FROM training_entries te JOIN training_sessions ts ON ts.id = te.session_id WHERE te.id = ?",
+        "SELECT ts.date, te.duration FROM training_entries te JOIN training_sessions ts ON ts.id = te.session_id "
+        "WHERE te.id = ?",
         (entry_id,),
     )
     if not rows:
         return error_redirect(request, "/training", "That set no longer exists.")
     destination = _training_day(rows[0]["date"])
     try:
+        set_number = _optional_number(form.get("set_number"), int, "set")
+        minutes = _optional_number(form.get("duration_minutes"), float, "time")
+        if minutes is not None and not 0 <= minutes <= DURATION_MINUTES_MAX:
+            raise TrainingWriteError(422, f"time must be between 0 and {int(DURATION_MINUTES_MAX)} minutes")
+        stored = rows[0]["duration"]
+        # The form shows minutes to two decimals. When that is what came back,
+        # keep the stored seconds: converting 0.62 min back would turn 37 s into 37.2 s.
+        unchanged = stored is not None and minutes is not None and round(stored / 60, 2) == minutes
         entry = {
             "movement": str(form.get("movement") or ""),
-            "set_number": _optional_number(form.get("set_number"), int, "set") or 1,
+            "set_number": 1 if set_number is None else set_number,
             "reps": _optional_number(form.get("reps"), int, "reps"),
             "weight": _optional_number(form.get("weight"), float, "weight"),
-            "duration": _seconds(_optional_number(form.get("duration_minutes"), float, "time")),
+            "duration": stored if unchanged else _seconds(minutes),
             "note": str(form.get("note") or "").strip(),
             "equipment": str(form.get("equipment") or "") or None,
         }

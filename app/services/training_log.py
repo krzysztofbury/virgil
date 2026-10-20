@@ -189,13 +189,19 @@ async def update_entry(db, entry_id: int, entry: dict) -> str:
     await _begin(db)
     try:
         rows = await db.execute_fetchall(
-            "SELECT ts.date FROM training_entries te JOIN training_sessions ts ON ts.id = te.session_id "
-            "WHERE te.id = ?",
+            "SELECT ts.date, te.exercise_id, tex.name FROM training_entries te "
+            "JOIN training_sessions ts ON ts.id = te.session_id "
+            "JOIN training_exercises tex ON tex.id = te.exercise_id WHERE te.id = ?",
             (entry_id,),
         )
         if not rows:
             raise TrainingWriteError(404, "That set no longer exists")
-        exercise_id = await resolve_movement(db, movement)
+        # An unchanged movement keeps its row: resolving it again could
+        # reactivate an archived movement as a side effect of fixing a note.
+        if movement.lower() == rows[0]["name"].lower():
+            exercise_id = rows[0]["exercise_id"]
+        else:
+            exercise_id = await resolve_movement(db, movement)
         if exercise_id is None:
             raise TrainingWriteError(
                 422, f"{movement} is not in the exercise library. Add it there, then correct the set.", [movement]

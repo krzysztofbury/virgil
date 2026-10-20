@@ -88,6 +88,8 @@ def test_a_set_is_corrected_and_the_day_dialog_reopens(auth_client, workout):
         ({"movement": "ZZ Goblet squat", "duration_minutes": "inf"}, "time+must+be+a+number"),
         ({"movement": "ZZ Goblet squat", "equipment": "spaceship"}, "equipment+must+be+one+of"),
         ({"movement": "", "reps": "10"}, "movement+is+required"),
+        ({"movement": "ZZ Goblet squat", "set_number": "0"}, "set_number+must+be+between+1+and+100"),
+        ({"movement": "ZZ Goblet squat", "duration_minutes": "-1"}, "time+must+be+between+0+and+1440+minutes"),
     ],
 )
 def test_an_invalid_correction_changes_nothing(auth_client, workout, fields, error):
@@ -119,3 +121,43 @@ def test_the_day_dialog_offers_each_set_for_correction(auth_client, workout):
     assert f'action="/training/entry/{first}/edit"' in dialog and f'action="/training/entry/{second}/delete"' in dialog
     assert '<option value="ZZ Goblet squat">' in dialog, "the movement field suggests library names"
     assert 'data-confirm="Delete ZZ Goblet squat set 2? The rest of the workout stays."' in dialog
+
+
+def test_saving_an_unchanged_time_keeps_its_exact_seconds(auth_client, workout):
+    """37 s shows as 0.62 min; posting that back must not store 37.2 s."""
+    _, (first, _) = workout
+    conn = sqlite3.connect(user_db_path())
+    conn.execute("UPDATE training_entries SET duration = 37 WHERE id = ?", (first,))
+    conn.commit()
+    conn.close()
+
+    html = auth_client.get(f"/training?year=2025&day={DAY}").text
+    shown = html[html.index(f'action="/training/entry/{first}/edit"') :]
+    shown = shown[shown.index('name="duration_minutes" value="') + len('name="duration_minutes" value="') :]
+    shown = shown[: shown.index('"')]
+    _post(
+        auth_client,
+        f"/training/entry/{first}/edit",
+        movement="ZZ Goblet squat",
+        set_number="1",
+        reps="10",
+        weight="16",
+        duration_minutes=shown,
+        note="only the note changed",
+    )
+
+    assert shown == "0.62"
+    assert _set(first)[4] == 37.0 and _set(first)[5] == "only the note changed"
+
+
+def test_deleting_the_last_set_keeps_the_session(auth_client, workout):
+    session, sets = workout
+
+    for entry in sets:
+        _post(auth_client, f"/training/entry/{entry}/delete")
+
+    conn = sqlite3.connect(user_db_path())
+    try:
+        assert conn.execute("SELECT 1 FROM training_sessions WHERE id = ?", (session,)).fetchone() == (1,)
+    finally:
+        conn.close()
