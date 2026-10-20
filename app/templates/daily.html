@@ -193,6 +193,54 @@
     </div>
 </div>
 {% endif %}
+
+{# 12 weeks as a table: columns are weeks, rows weekdays. The colour is a
+   summary; the text equivalent is the table itself, with each day's count in
+   its cell for a screen reader and each week's average visible below. #}
+{% if heatmap_weeks %}
+{% set weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] %}
+<div class="heatmap-weeks-wrap">
+    <div class="card-header"><h3>Last 12 Weeks</h3></div>
+    <table class="heatmap-weeks">
+        <caption class="sr-only">Habits done per day out of {{ habit_total }}, in the 12 weeks up to {{ date }}</caption>
+        <thead>
+            <tr>
+                <td></td>
+                {% for week in heatmap_weeks %}
+                <th scope="col"><span aria-hidden="true">{{ week.month }}</span><span class="sr-only">Week of {{ week.start }}</span></th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for weekday in weekdays %}
+            {% set row = loop.index0 %}
+            <tr>
+                <th scope="row"><span aria-hidden="true">{{ weekday[:1] if row is even else "" }}</span><span class="sr-only">{{ weekday }}</span></th>
+                {% for week in heatmap_weeks %}
+                {% set day = week.days[row] %}
+                {% if day.future %}
+                <td class="heatmap-day heatmap-day--future"><span class="sr-only">Not yet</span></td>
+                {% elif day.done is none %}
+                <td class="heatmap-day" data-calendar-tip="{{ day.date }}: not logged"><span class="sr-only">Not logged</span></td>
+                {% else %}
+                <td class="heatmap-day" data-calendar-tip="{{ day.date }}: {{ day.done }} of {{ habit_total }} done"
+                    style="{% if day.done %}background: hsl({{ (day.done / habit_total * 120) | round }}, 65%, 35%);{% endif %}"><span class="sr-only">{{ day.done }} of {{ habit_total }}</span></td>
+                {% endif %}
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+        <tfoot>
+            <tr>
+                <th scope="row"><span aria-hidden="true">%</span><span class="sr-only">Week average, percent</span></th>
+                {% for week in heatmap_weeks %}
+                <td>{{ week.average }}</td>
+                {% endfor %}
+            </tr>
+        </tfoot>
+    </table>
+</div>
+{% endif %}
 </details>
 
 <!-- Saturday Measurements -->

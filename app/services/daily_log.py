@@ -6,6 +6,8 @@ merge: fields absent from `changes` keep their stored value, and a day that
 does not exist yet starts from the schema defaults.
 """
 
+from datetime import date, timedelta
+
 STATUSES = ("done", "skipped", "pending")
 NEXT_STATUS = {"pending": "done", "done": "skipped", "skipped": "pending"}
 STATUS_FIELDS = (
@@ -112,6 +114,40 @@ def day_progress(log: dict | None) -> dict:
         "routines_done": done(ROUTINE_FIELDS),
         "routines_total": len(ROUTINE_FIELDS),
     }
+
+
+async def completion_weeks(db, last: date, weeks: int) -> list[dict]:
+    """Habits done per day for the `weeks` Monday-to-Sunday weeks ending with the one holding `last`.
+
+    A day without a log has `done` None, so "not logged" stays distinct from
+    "logged, nothing done". Days after `last` are `future` and count toward no
+    average; a week's average is over its days up to `last`, unlogged ones as 0.
+    """
+    first = last - timedelta(days=last.weekday() + 7 * (weeks - 1))
+    rows = await db.execute_fetchall(
+        f"SELECT date, {', '.join(STATUS_FIELDS)} FROM daily_logs WHERE date BETWEEN ? AND ?",  # noqa: S608
+        (first.isoformat(), last.isoformat()),
+    )
+    done_by_day = {row["date"]: sum(1 for field in STATUS_FIELDS if row[field] == "done") for row in rows}
+    result = []
+    for index in range(weeks):
+        start = first + timedelta(weeks=index)
+        days = [start + timedelta(days=offset) for offset in range(7)]
+        elapsed = [day for day in days if day <= last]
+        done_total = sum(done_by_day.get(day.isoformat(), 0) for day in elapsed)
+        result.append(
+            {
+                "start": start.isoformat(),
+                # Label a column only where a month starts, as a calendar does.
+                "month": start.strftime("%b") if index == 0 or start.day <= 7 else "",
+                "days": [
+                    {"date": day.isoformat(), "done": done_by_day.get(day.isoformat()), "future": day > last}
+                    for day in days
+                ],
+                "average": round(done_total / (len(elapsed) * len(STATUS_FIELDS)) * 100),
+            }
+        )
+    return result
 
 
 async def get_daily_log(db, day: str) -> dict | None:
