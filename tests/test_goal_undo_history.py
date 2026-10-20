@@ -207,3 +207,83 @@ def test_the_goals_page_deletes_restores_and_shows_changes(auth_client):
     changes = changes[changes.index('<div class="goal-changes">') : changes.index("</ol>")]
     items = [re.sub(r"\s+", " ", item).strip() for item in re.findall(r"</time>(.*?)</li>", changes, flags=re.S)]
     assert items == ["Restored", "Deleted", "Added to focus", "Created"]
+
+
+def test_a_restore_never_makes_a_goal_its_own_ancestor(tmp_path):
+    """G <- P <- C; delete P; put G under C; restoring P must not close the loop."""
+
+    async def scenario(db, area):
+        top, _ = await create_goal(db, area_id=area, horizon="10yr", content="G")
+        middle, _ = await create_goal(db, area_id=area, horizon="3yr", content="P", parent_goal_id=top["id"])
+        bottom, _ = await create_goal(db, area_id=area, horizon="1yr", content="C", parent_goal_id=middle["id"])
+        await delete_goal_record(db, middle["id"])
+        await update_goal(db, top["id"], {"parent_goal_id": bottom["id"]})
+        await restore_goal_record(db, middle["id"])
+        rows = await db.execute_fetchall("SELECT id, parent_goal_id FROM goals ORDER BY id")
+        return top, middle, bottom, {r["id"]: r["parent_goal_id"] for r in rows}
+
+    top, middle, bottom, parents = _run(tmp_path, scenario)
+
+    assert parents[bottom["id"]] == middle["id"], "its child comes back under it"
+    assert parents[top["id"]] == bottom["id"], "the newer link stays"
+    assert parents[middle["id"]] is None, "the old parent is now its descendant, so that link is dropped"
+
+
+def test_restoring_a_parent_first_brings_a_deleted_child_back_under_it(tmp_path):
+    async def scenario(db, area):
+        parent, _ = await create_goal(db, area_id=area, horizon="3yr", content="Parent")
+        child, _ = await create_goal(db, area_id=area, horizon="1yr", content="Child", parent_goal_id=parent["id"])
+        await delete_goal_record(db, parent["id"])
+        await delete_goal_record(db, child["id"])
+        await restore_goal_record(db, parent["id"])
+        return parent, await restore_goal_record(db, child["id"])
+
+    parent, child = _run(tmp_path, scenario)
+
+    assert child["parent_goal_id"] == parent["id"]
+
+
+def test_a_snapshot_from_an_older_schema_still_restores(tmp_path):
+    async def scenario(db, area):
+        goal, _ = await create_goal(db, area_id=area, horizon="1yr", content="Old snapshot")
+        await delete_goal_record(db, goal["id"])
+        await db.execute(
+            "UPDATE deleted_goals SET goal_json = json_set(goal_json, '$.dropped_column', 'x') WHERE id = ?",
+            (goal["id"],),
+        )
+        return await restore_goal_record(db, goal["id"])
+
+    assert _run(tmp_path, scenario)["content"] == "Old snapshot"
+
+
+def test_a_second_restore_and_a_missing_area_are_refused_cleanly(tmp_path):
+    async def scenario(db, area):
+        goal, _ = await create_goal(db, area_id=area, horizon="1yr", content="Twice")
+        await delete_goal_record(db, goal["id"])
+        await restore_goal_record(db, goal["id"])
+        with pytest.raises(GoalDataError) as twice:
+            await restore_goal_record(db, goal["id"])
+        orphan, _ = await create_goal(db, area_id=area, horizon="1yr", content="Orphan")
+        await delete_goal_record(db, orphan["id"])
+        await db.execute(
+            "UPDATE deleted_goals SET goal_json = json_set(goal_json, '$.area_id', 999999) WHERE id = ?",
+            (orphan["id"],),
+        )
+        with pytest.raises(GoalDataError) as no_area:
+            await restore_goal_record(db, orphan["id"])
+        return twice.value.status_code, no_area.value.status_code
+
+    assert _run(tmp_path, scenario) == (404, 409)
+
+
+def test_an_edit_that_also_changes_focus_records_both(tmp_path):
+    async def scenario(db, area):
+        goal, _ = await create_goal(db, area_id=area, horizon="1yr", content="Mixed")
+        await update_goal(db, goal["id"], {"content": "Mixed, reworded", "active": 1})
+        return (await goal_history(db, [goal["id"]]))[goal["id"]]
+
+    assert [(c["event"], c["fields"]) for c in reversed(_run(tmp_path, scenario))] == [
+        ("created", ""),
+        ("edited", "text"),
+        ("focused", ""),
+    ]

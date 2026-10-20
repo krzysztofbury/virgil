@@ -1463,7 +1463,7 @@ details > :not(summary) { margin-top: 1rem; }
 .goal-area-icon { width: 2rem; height: 2rem; background: var(--bg-surface); font-size: 1rem; }
 .goal-history { margin-bottom: 1rem; }
 .goal-changes { margin-top: 1rem; padding-top: 0.75rem; border-top: 1px solid var(--border); }
-.goal-changes h4 { margin-bottom: 0.4rem; font-size: 0.8rem; color: var(--text-secondary); }
+.goal-changes-title { margin-bottom: 0.4rem; font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); }
 .goal-changes ol { display: grid; gap: 0.25rem; font-size: 0.8rem; }
 .goal-changes time { margin-right: 0.5rem; color: var(--text-tertiary); font: 400 0.75rem var(--font-mono); }
 .goal-history > summary { width: 100%; justify-content: flex-start; padding: 0; border: 0; color: var(--text-primary); font-weight: 600; }

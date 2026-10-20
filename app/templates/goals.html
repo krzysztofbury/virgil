@@ -88,7 +88,7 @@
             {% set changes = goal_changes.get(g.id, []) %}
             {% if changes %}
             <div class="goal-changes">
-                <h4>Changes</h4>
+                <p class="goal-changes-title">Changes</p>
                 <ol>
                     {% for c in changes %}
                     <li><time>{{ c.when }}</time>
@@ -264,12 +264,12 @@
         {% for d in deleted_goals %}
         <div>
             <span class="goal-status">{{ d.horizon }}</span>
-            <strong>{{ d.content }} <small class="text-muted">restorable until {{ d.restorable_until }}</small></strong>
+            <strong>{{ d.content|strip_md }} <small class="text-muted">restorable until {{ d.restorable_until }}</small></strong>
             <form method="POST" action="/goals/restore">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                 <input type="hidden" name="goal_id" value="{{ d.id }}">
                 <input type="hidden" name="horizon" value="{{ horizon }}">
-                <button type="submit" class="btn btn-secondary btn-sm" aria-label="Restore {{ d.content|truncate(60) }}">Restore</button>
+                <button type="submit" class="btn btn-secondary btn-sm" aria-label="Restore {{ d.content|strip_md|truncate(60) }}">Restore</button>
             </form>
         </div>
         {% endfor %}

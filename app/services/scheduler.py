@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from app.central_db import get_active_users
 from app.db import get_setting, set_setting
+from app.services.goal_data import purge_deleted_goals
 from app.services.job_producers import (
     BACKUP_JOB_KIND,
     OURA_SYNC_JOB_KIND,
@@ -152,6 +153,15 @@ def _briefing_due(now: datetime, last_day: str, last_attempt: str) -> bool:
 async def _check_and_run(db, user_id: str) -> None:
     """Run scheduled work that has not migrated to durable jobs yet."""
     now_iso = datetime.now(UTC).isoformat()
+
+    # Deleted goals past their restore window go even if nothing else is
+    # ever deleted, so no copy outlives what the page promises.
+    try:
+        await purge_deleted_goals(db)
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.exception("Failed to purge expired deleted goals")
 
     # Morning briefing — once per local day, after BRIEFING_EARLIEST_HOUR.
     # briefing_last_day is stamped by the handler once the briefing is stored,
