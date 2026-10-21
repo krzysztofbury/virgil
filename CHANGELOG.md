@@ -213,6 +213,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- The Oura webhook no longer stays at "Retrying" with "Oura subscription
+  expiration_time has no timezone". Oura sends that time in UTC without an
+  offset, and Virgil refused it, so no subscription was ever recorded. It is
+  read as UTC now; the hourly retry picks it up, and duplicates left at Oura by
+  the failed attempts are removed by the same pass.
 - A logged error no longer pauses the whole server (#122). The MCP SDK had
   installed Rich's log handler, which rendered every traceback with syntax
   highlighting on the event loop: 0.9 s per failed medical import on a fast
