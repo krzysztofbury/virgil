@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `scripts/load_check.py` measures uploads and background jobs alongside
+  ordinary reads on the deployment hardware (#59). It runs in a throwaway
+  container from the production image with no network and reports latency, a
+  liveness probe for server-wide stalls, job outcomes and peak memory.
+  docs/load-check.md has the command and the results.
 - A browser smoke test (#102) loads the dashboard, Daily, Training and Freedom in
   Chromium at desktop and phone width on a seeded instance. It fails on console
   errors, horizontal overflow or a card clipping its content, saves a Daily
