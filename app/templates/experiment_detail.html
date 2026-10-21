@@ -298,8 +298,7 @@
                     {# Text in a data attribute, never inside the script. An Oura
                        import is brought back by the next sync, so it says so. #}
                     <form action="/experiments/{{ experiment.id }}/delete-entry" method="post" style="margin: 0;"
-                          data-confirm="Delete the {{ at_match.name if at_match else '' }} entry from {{ e.date }}?{% if e.source == 'oura' and experiment.status == 'active' %} It was imported from Oura and comes back on the next sync; edit it instead to change it.{% endif %}"
-                          onsubmit="return confirm(this.dataset.confirm)">
+                          data-confirm="Delete the {{ at_match.name if at_match else '' }} entry from {{ e.date }}?{% if e.source == 'oura' and experiment.status == 'active' %} It was imported from Oura and comes back on the next sync; edit it instead to change it.{% endif %}">
                         <input type="hidden" name="entry_id" value="{{ e.id }}">
                         <button type="submit" class="exp-delete-btn" aria-label="Delete the {{ at_match.name if at_match else '' }} entry from {{ e.date }}">&times;</button>
                     </form>
@@ -317,15 +316,15 @@
 <details class="exp-actions-details">
     <summary>Actions</summary>
 <div class="exp-actions">
-    <form action="/experiments/{{ experiment.id }}/complete" method="post" onsubmit="return confirm('Mark this experiment as completed? You can reopen it later.')">
+    <form action="/experiments/{{ experiment.id }}/complete" method="post" data-confirm="Mark this experiment as completed? You can reopen it later.">
         <input type="hidden" name="new_status" value="completed">
         <button type="submit" class="btn btn-outline">Mark Completed</button>
     </form>
-    <form action="/experiments/{{ experiment.id }}/complete" method="post" onsubmit="return confirm('Abandon this experiment? You can reopen it later.')">
+    <form action="/experiments/{{ experiment.id }}/complete" method="post" data-confirm="Abandon this experiment? You can reopen it later.">
         <input type="hidden" name="new_status" value="abandoned">
         <button type="submit" class="btn btn-secondary">Abandon</button>
     </form>
-    <form action="/experiments/{{ experiment.id }}/delete" method="post" onsubmit="return confirm('Delete this experiment and all its data?')">
+    <form action="/experiments/{{ experiment.id }}/delete" method="post" data-confirm="Delete this experiment and all its data?">
         <button type="submit" class="btn btn-danger">Delete</button>
     </form>
 </div>
@@ -339,7 +338,7 @@
         <input type="hidden" name="new_status" value="active">
         <button type="submit" class="btn btn-outline">Reopen</button>
     </form>
-    <form action="/experiments/{{ experiment.id }}/delete" method="post" onsubmit="return confirm('Delete this experiment and all its data?')">
+    <form action="/experiments/{{ experiment.id }}/delete" method="post" data-confirm="Delete this experiment and all its data?">
         <button type="submit" class="btn btn-danger">Delete</button>
     </form>
 </div>

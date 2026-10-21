@@ -241,8 +241,7 @@
                                     </form>
                                 </details>
                                 <form method="POST" action="/training/entry/{{ e.id }}/delete"
-                                      data-confirm="Delete {{ e.exercise_name }} set {{ e.set_number }}? The rest of the workout stays."
-                                      onsubmit="return confirm(this.dataset.confirm)">
+                                      data-confirm="Delete {{ e.exercise_name }} set {{ e.set_number }}? The rest of the workout stays.">
                                     <button type="submit" class="exp-delete-btn" aria-label="Delete {{ e.exercise_name }} set {{ e.set_number }}">&times;</button>
                                 </form>
                             </td>

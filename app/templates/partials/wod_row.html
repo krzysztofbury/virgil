@@ -44,7 +44,7 @@
 {% endmacro %}
 
 {% macro server_row(r, movements, tags, recent, sections, equipment_options) %}
-          <tr x-data="movementRow()">
+          <tr x-data="movementRow">
             <td>
               {% if r.unmatched_label %}
               <div class="text-muted"><small>not recognised: "{{ r.unmatched_label }}"</small></div>
@@ -65,18 +65,18 @@
 {% endmacro %}
 
 {% macro alpine_row(movements, tags, recent, sections, equipment_options) %}
-          <tr x-data="movementRow()">
+          <tr x-data="movementRow">
             <td>
               {{ search_box() }}
-              <select :name="'entry_' + row.index + '_movement'" x-model="row.movement" x-ref="select" class="movement-select" aria-label="Movement">
+              <select :name="'entry_' + row.index + '_movement'" :value="row.movement" x-ref="select" class="movement-select" aria-label="Movement">
                 {{ options(movements, tags, recent, sections) }}
               </select>
             </td>
-            <td><input type="number" :name="'entry_' + row.index + '_set_number'" x-model="row.setNumber" min="1"></td>
+            <td><input type="number" :name="'entry_' + row.index + '_set_number'" :value="row.setNumber" min="1"></td>
             <td><input type="number" :name="'entry_' + row.index + '_reps'" value="" min="0"></td>
             <td><input type="number" step="0.5" :name="'entry_' + row.index + '_weight'" value="" min="0"></td>
             <td><input type="number" step="1" :name="'entry_' + row.index + '_duration'" value="" min="0"></td>
-            <td><select :name="'entry_' + row.index + '_equipment'" x-model="row.equipment" class="equipment-select" aria-label="Equipment">{{ equipment_options_list(equipment_options) }}</select></td>
+            <td><select :name="'entry_' + row.index + '_equipment'" :value="row.equipment" class="equipment-select" aria-label="Equipment">{{ equipment_options_list(equipment_options) }}</select></td>
             <td><input type="text" :name="'entry_' + row.index + '_note'" value="" maxlength="200"></td>
             <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ add set</button></td>
           </tr>

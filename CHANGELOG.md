@@ -117,6 +117,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Every third-party asset is served from Virgil itself (#60): HTMX, Alpine.js,
+  Chart.js, Lucide, Flatpickr, and the DM Sans and JetBrains Mono fonts, pinned
+  by file name, with their sources and SHA-384 hashes in
+  `app/static/vendor/SOURCES.json` and a test that the files still match. Pages
+  make no request to a CDN or Google Fonts.
+- The Content-Security-Policy no longer allows inline scripts or eval (#60).
+  Scripts load from this origin or carry a nonce made for that response.
+  Alpine.js is its CSP build, its components live in `static/js/components.js`,
+  and every inline event handler became a data attribute that `app.js` acts
+  on. htmx eval is off. The policy also sets `object-src 'none'`,
+  `base-uri 'self'` and `frame-ancestors 'none'`. Styles keep `'unsafe-inline'`
+  for style attributes and what Chart.js sets.
 - Backups and pre-migration snapshots can live off the data volume:
   `VIRGIL_BACKUP_DIR` sets where they are written, and compose mounts
   `VIRGIL_BACKUP_HOST_DIR` (default `./backups`) there. Startup moves backups
@@ -196,6 +208,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Submitting the WOD confirm form no longer throws in the page script: a field
+  named `action` hid the form's address from the logout check.
 - Static files no longer count against the per-address rate limit. A cold cache
   fetches every stylesheet and script on each page, so a few quick page views
   could run a reader into 429 Too Many Requests on the pages themselves.

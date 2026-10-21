@@ -88,8 +88,7 @@
         {# The text sits in a data attribute, never inside the script: a quote in a
            marker name would otherwise end the JS string. #}
         <form method="POST" action="/bloodwork/result/{{ r.id }}/delete"
-              data-confirm="Delete the {{ chart_marker.name }} result from {{ r.date }}? This cannot be undone."
-              onsubmit="return confirm(this.dataset.confirm)">
+              data-confirm="Delete the {{ chart_marker.name }} result from {{ r.date }}? This cannot be undone.">
             <input type="hidden" name="category" value="{{ current_category }}">
             <button type="submit" class="btn btn-outline btn-sm" aria-label="Delete the result from {{ r.date }}">Delete</button>
         </form>
@@ -191,7 +190,7 @@
 {% block scripts %}
 {% if chart_marker %}
 <script src="/static/js/charts.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
     createLineChart('bloodChart',
         {{ chart_labels | tojson }},
         [{

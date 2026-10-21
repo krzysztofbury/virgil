@@ -64,7 +64,7 @@
     {% set form_rows = rows | length %}
     {% if form_rows > 0 %}
     <form method="post" action="/training/wod/confirm" x-data="wodConfirmForm({{ form_rows }}, {{ max_entries }})"
-          @submit="$refs.entryCount.value = base + extraRows.length">
+          @submit="syncCount">
       <!-- Deliberate redundancy, not an oversight: the :value binding below is
            the first `:value` on an input anywhere in this repo (no other
            precedent), and its failure mode is silent - a stale entry_count
@@ -117,8 +117,7 @@
       {# The supported way to end with the note and no entries. formnovalidate so
          a half-filled row cannot block the exit. #}
       <button type="submit" name="action" value="discard" formnovalidate
-              class="btn btn-outline" style="margin-left:0.5rem;"
-              onclick="return confirm('Discard the parsed entries? The note stays in your training history.')">
+              class="btn btn-outline" style="margin-left:0.5rem;" data-confirm="Discard the parsed entries? The note stays in your training history.">
         Discard entries
       </button>
       </div>
@@ -146,104 +145,4 @@
 </div>
 {% endif %}
 </div>
-{% endblock %}
-
-{% block scripts %}
-<script>
-function wodConfirmForm(baseCount, maxRows) {
-    return {
-        base: baseCount,
-        maxRows: maxRows,
-        extraRows: [],
-        // confirm_wod rejects the WHOLE submission when entry_count exceeds its
-        // bound, so growing past it would cost the user every row they had
-        // typed. Stop offering rows at the limit instead.
-        get atLimit() {
-            return this.base + this.extraRows.length >= this.maxRows;
-        },
-        // Appends a new row at the END of the table (never inserted after the
-        // source row) so existing entry_N_* field names never get renumbered.
-        // The new row's index continues from the server-rendered count plus
-        // however many extra rows already exist, so it can never collide with
-        // an existing name.
-        addRow(movement, setNumber, equipment) {
-            if (this.atLimit) return;
-            this.extraRows.push({
-                index: this.base + this.extraRows.length,
-                movement: movement,
-                setNumber: setNumber,
-                equipment: equipment || ''
-            });
-        },
-        // Another set of the movement in the row the button sits in. An
-        // Alpine-added row binds its field names with :name, so the selector
-        // has to match both spellings.
-        addSet(buttonEl) {
-            const tr = buttonEl.closest('tr');
-            const movementSelect = tr.querySelector('select[name$="_movement"], select[x-model="row.movement"]');
-            const setNumberInput = tr.querySelector('input[name$="_set_number"], input[x-model="row.setNumber"]');
-            const equipmentSelect = tr.querySelector('select[name$="_equipment"], select[x-model="row.equipment"]');
-            const movement = movementSelect ? movementSelect.value : '';
-            const currentSetNumber = parseInt(setNumberInput && setNumberInput.value, 10) || 0;
-            // Another set keeps the equipment: the dumbbell does not change mid-movement.
-            this.addRow(movement, currentSetNumber + 1, equipmentSelect ? equipmentSelect.value : '');
-        },
-        // A different movement: blank select, set 1. Cloning and incrementing
-        // (what addSet does) is wrong here -- it would pre-fill someone else's
-        // movement and start the new exercise at set 2.
-        addExercise() {
-            this.addRow('', 1);
-        }
-    };
-}
-
-// One row's picker. Alpine chains nested x-data scopes, so `addSet($el)` inside
-// a row still resolves the form component's own method above. This component
-// deliberately does not define one.
-function movementRow() {
-    return {
-        query: '',
-        ready: false,
-        init() {
-            // Alpine arrived, so the search box is safe to show. Rendering it
-            // unconditionally would give a user whose CDN request failed an
-            // input that filters nothing.
-            this.ready = true;
-            this.promoteRecent();
-        },
-        // Recently logged movements first. Everything else keeps its library
-        // order, so a user who knows where a movement lives still finds it
-        // there.
-        promoteRecent() {
-            const select = this.$refs.select;
-            if (!select) return;
-            const recent = select.querySelectorAll('option[data-recent="1"]');
-            if (!recent.length) return;
-            const group = document.createElement('optgroup');
-            group.label = 'Recently used';
-            recent.forEach(function (opt) {
-                const clone = opt.cloneNode(true);
-                // Otherwise one select carries two selected options: the
-                // original and this copy of it.
-                clone.selected = false;
-                group.appendChild(clone);
-            });
-            select.insertBefore(group, select.firstElementChild.nextSibling);
-        },
-        // Name or tag, substring match. Older Safari ignores `hidden` on an
-        // <option>; there the grouping and the native type-ahead still work, so
-        // the screen degrades rather than breaks.
-        filter() {
-            const select = this.$refs.select;
-            if (!select) return;
-            const needle = this.query.trim().toLowerCase();
-            select.querySelectorAll('option').forEach(function (opt) {
-                if (!opt.value) return;
-                const haystack = (opt.value + ' ' + (opt.dataset.tags || '')).toLowerCase();
-                opt.hidden = needle !== '' && haystack.indexOf(needle) === -1;
-            });
-        }
-    };
-}
-</script>
 {% endblock %}

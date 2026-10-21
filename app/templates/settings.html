@@ -84,29 +84,11 @@
 
     <details>
         <summary style="cursor:pointer;font-weight:500;margin-bottom:0.75rem;">Add provider</summary>
-        <form method="POST" action="/settings/llm/add" x-data="{
-            provider: 'anthropic',
-            models: {
-                'anthropic': 'anthropic/claude-sonnet-4-20250514',
-                'openai': 'openai/gpt-4o-mini',
-                'gemini': 'gemini/gemini-3-flash-preview',
-                'mistral': 'mistral/mistral-small-latest',
-                'groq': 'groq/llama-3.3-70b-versatile',
-                'ollama': 'ollama/llama3.2',
-                'other': ''
-            },
-            model: 'anthropic/claude-sonnet-4-20250514',
-            isOther: false,
-            setProvider(val) {
-                this.provider = val;
-                this.isOther = val === 'other';
-                if (!this.isOther) this.model = this.models[val];
-            }
-        }">
+        <form method="POST" action="/settings/llm/add" x-data="llmProviderForm">
             <div class="grid" style="margin-bottom:0.5rem;">
                 <div>
                     <label>Provider
-                        <select name="provider" required x-model="provider" @change="setProvider($event.target.value)">
+                        <select name="provider" required x-model="provider" @change="setProvider">
                             <option value="anthropic">Anthropic</option>
                             <option value="openai">OpenAI</option>
                             <option value="gemini">Google Gemini</option>
@@ -209,7 +191,7 @@
     {# Search and filter over the rows already on the page: no request, no new
        endpoint. Progressive enhancement - with Alpine absent every row stays
        visible, because nothing starts hidden. #}
-    <div class="library-controls" x-data="libraryFilter()">
+    <div class="library-controls" x-data="libraryFilter">
         <input type="search" placeholder="search name or tag" x-model="query" @input="apply()"
                aria-label="Search the exercise library">
         <select x-model="section" @change="apply()" aria-label="Section">
@@ -308,8 +290,7 @@
                             <button type="submit" class="btn btn-secondary btn-sm">{{ 'Restore' if ex.archived else 'Archive' }}</button>
                         </form>
                         <form action="/settings/library/delete" method="post" style="display: inline; margin: 0;"
-                              data-confirm="Delete {{ ex.name }} from the library?"
-                              onsubmit="return confirm(this.dataset.confirm)">
+                              data-confirm="Delete {{ ex.name }} from the library?">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <button type="submit" class="btn btn-danger btn-sm">&times;</button>
                         </form>
@@ -749,8 +730,7 @@
             </p>
             <a href="/settings/backup" class="btn btn-outline">Download virgil.db</a>
         </div>
-        <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;"
-              onsubmit="return confirm('Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.')">
+        <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;" data-confirm="Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.">
             <button type="submit" class="btn btn-danger">Reset All Data</button>
         </form>
     </details>
@@ -758,37 +738,4 @@
 {% endif %}
 
 </div><!-- #settings-content -->
-{% endblock %}
-
-{% block scripts %}
-<script>
-// Filters the library rows already rendered on the page. It adds no request and
-// owns no state the server needs. A section is opened when it holds a match, or
-// a hit inside a collapsed section would look like no hit at all.
-function libraryFilter() {
-    return {
-        query: '',
-        section: '',
-        apply() {
-            const needle = this.query.trim().toLowerCase();
-            const section = this.section;
-            document.querySelectorAll('[data-library-block]').forEach(function (block) {
-                if (section !== '' && block.dataset.libraryBlock !== section) {
-                    block.hidden = true;
-                    return;
-                }
-                block.hidden = false;
-                let matches = 0;
-                block.querySelectorAll('[data-library-name]').forEach(function (row) {
-                    const haystack = (row.dataset.libraryName + ' ' + (row.dataset.libraryTags || '')).toLowerCase();
-                    const hit = needle === '' || haystack.indexOf(needle) !== -1;
-                    row.hidden = !hit;
-                    if (hit) matches += 1;
-                });
-                if (needle !== '') block.open = matches > 0;
-            });
-        }
-    };
-}
-</script>
 {% endblock %}

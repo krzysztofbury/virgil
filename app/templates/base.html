@@ -4,10 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Virgil{% endblock %}</title>
-    <script>(function(){var t=localStorage.getItem('virgil-theme')||'dark';document.documentElement.setAttribute('data-theme',t);})();</script>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#06080d">
@@ -16,13 +13,19 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
     <link rel="icon" type="image/png" sizes="64x64" href="/static/icons/favicon-64x64.png">
     <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
-    <script src="https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.15.8/dist/cdn.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js"></script>
-    <script src="https://unpkg.com/lucide@0.575.0/dist/umd/lucide.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
+    {# Served from here, pinned by file name; app/static/vendor/SOURCES.json records
+       where each came from and its hash. Alpine is the CSP build: no eval. #}
+    <script src="/static/vendor/htmx-2.0.8.min.js"></script>
+    <script src="/static/js/components.js?v={{ app_version }}"></script>
+    <script defer src="/static/vendor/alpinejs-csp-3.15.8.min.js"></script>
+    <script src="/static/vendor/chart-4.5.1.umd.min.js"></script>
+    <script src="/static/vendor/lucide-0.575.0.min.js"></script>
+    <link rel="stylesheet" href="/static/vendor/flatpickr-4.6.13.min.css">
+    <script src="/static/vendor/flatpickr-4.6.13.min.js"></script>
     <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    {# The CSP forbids eval; telling htmx keeps it from trying (hx-on, js: values
+       and trigger filters are unused for that reason). #}
+    <meta name="htmx-config" content='{"allowEval": false}'>
     {% block head %}{% endblock %}
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ request.state.csrf_token }}"}' data-features='{{ request.state.features | tojson }}'>
@@ -42,10 +45,10 @@
             <a href="/experiments" class="{{ 'active' if '/experiments' in request.url.path else '' }}">Experiments</a>
         </div>
         <div class="nav-end">
-            <button type="button" id="pwa-install-btn" onclick="pwaInstall()" class="nav-logout" title="Install App" style="display:none;">
+            <button type="button" id="pwa-install-btn" class="nav-logout" title="Install App" style="display:none;">
                 <i data-lucide="download" style="width:20px;height:20px;"></i>
             </button>
-            <button type="button" onclick="toggleTheme()" class="nav-logout" title="Toggle theme" id="theme-toggle">
+            <button type="button" class="nav-logout" title="Toggle theme" id="theme-toggle">
                 <i data-lucide="sun" style="width:20px;height:20px;"></i>
             </button>
             {% if request.state.user and request.state.user.role == 'admin' %}
@@ -71,7 +74,7 @@
     </main>
 
     <!-- Bottom Tab Bar (mobile) -->
-    <div class="bottom-bar" x-data="{ openMenu: null }" @click.outside="openMenu = null">
+    <div class="bottom-bar" x-data="bottomBar" @click.outside="openMenu = null">
         <a href="/" class="tab-item {{ 'active' if request.url.path == '/' else '' }}">
             <i data-lucide="home"></i>
             <span>Home</span>
@@ -98,12 +101,11 @@
         </a>
         {% endif %}
         {% set more_paths = ['/oura', '/bloodwork', '/experiments', '/settings'] + (['/goals'] if request.state.features.freedom else []) %}
-        <div class="tab-item-wrap" @keydown.escape="if (openMenu) { openMenu = null; $refs.moreButton.focus() }"
-             @focusout="if ($event.relatedTarget && !$el.contains($event.relatedTarget)) openMenu = null">
+        <div class="tab-item-wrap" @keydown.escape="closeMenu" @focusout="leaveMenu">
             <button type="button" class="tab-item {{ 'active' if more_paths | select('in', request.url.path) | list else '' }}"
                     x-ref="moreButton"
                     @click.stop="openMenu = openMenu === 'more' ? null : 'more'"
-                    :aria-expanded="(openMenu === 'more').toString()" aria-controls="tab-more-menu">
+                    :aria-expanded="moreOpen" aria-controls="tab-more-menu">
                 <i data-lucide="menu"></i>
                 <span>More</span>
             </button>
@@ -117,33 +119,7 @@
         </div>
     </div>
 
-    <script>
-    document.addEventListener('submit', function(e) {
-        var form = e.target;
-        var mutates = form.tagName === 'FORM' && (
-            form.method.toUpperCase() === 'POST' ||
-            form.hasAttribute('hx-post') ||
-            form.hasAttribute('hx-put') ||
-            form.hasAttribute('hx-patch') ||
-            form.hasAttribute('hx-delete')
-        );
-        if (mutates && !form.querySelector('input[name="_csrf_token"]')) {
-            var input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = '_csrf_token';
-            input.value = document.querySelector('meta[name="csrf-token"]').content;
-            form.appendChild(input);
-        }
-    });
-    </script>
     <script src="/static/js/app.js?v={{ app_version }}"></script>
-    <script>
-    if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(function(){});
-    var _deferredInstall=null;
-    window.addEventListener('beforeinstallprompt',function(e){e.preventDefault();_deferredInstall=e;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='inline-flex';});
-    window.addEventListener('appinstalled',function(){_deferredInstall=null;var b=document.getElementById('pwa-install-btn');if(b)b.style.display='none';});
-    function pwaInstall(){if(_deferredInstall){_deferredInstall.prompt();_deferredInstall.userChoice.then(function(){_deferredInstall=null;});}}
-    </script>
     {% block scripts %}{% endblock %}
 </body>
 </html>

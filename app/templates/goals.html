@@ -20,16 +20,15 @@
            still saves rather than adding a line. #}
         <textarea class="goal-input autosize" rows="1"
                hx-post="/goals/update-inline"
-               hx-trigger="blur changed, keydown[key=='Enter'] changed"
+               hx-trigger="blur changed, enter-save changed"
                hx-vals='{"goal_id": "{{ g.id }}"}'
                hx-swap="none"
                hx-indicator="closest .goal-item"
                name="content"
-               onkeydown="if (event.key === 'Enter') event.preventDefault()"
+               data-no-newline
                aria-label="Goal">{{ g.content|strip_md }}</textarea>
         <form method="POST" action="/goals/delete" class="goal-icon-form"
-              data-confirm="Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead."
-              onsubmit="return confirm(this.dataset.confirm)">
+              data-confirm="Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead.">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="goal_id" value="{{ g.id }}">
             <input type="hidden" name="horizon" value="{{ horizon }}">

@@ -441,7 +441,9 @@ document.addEventListener('submit', function(event) {
     if (!form.hasAttribute('hx-post')) {
         window.setTimeout(function() { markPending(form, pendingControl(form)); }, 0);
     }
-    if (form.action && form.action.endsWith('/logout')) {
+    // The attribute, not form.action: a field named "action" (the WOD confirm
+    // buttons) shadows that property.
+    if ((form.getAttribute('action') || '').endsWith('/logout')) {
         try {
             Object.keys(sessionStorage).filter(function(key) {
                 return key.indexOf(DRAFT_PREFIX) === 0 || key.indexOf(DRAFT_CLEAR_PENDING_PREFIX) === 0;
@@ -934,3 +936,113 @@ function closeShortcutOverlay() {
     document.addEventListener('toggle', function (e) { autosizeAll(e.target); }, true);
     window.addEventListener('resize', function () { autosizeAll(); });
 })();
+
+// ═══════════════════════════════════════════
+// Page wiring
+// ═══════════════════════════════════════════
+// The CSP allows no inline event handlers, so templates mark elements with data
+// attributes and these listeners act on them.
+
+// Every mutating form carries the CSRF token, including HTMX forms without
+// method="POST". A form that already has one keeps it.
+document.addEventListener('submit', function(e) {
+    var form = e.target;
+    var mutates = form.tagName === 'FORM' && (
+        form.method.toUpperCase() === 'POST' ||
+        form.hasAttribute('hx-post') ||
+        form.hasAttribute('hx-put') ||
+        form.hasAttribute('hx-patch') ||
+        form.hasAttribute('hx-delete')
+    );
+    if (mutates && !form.querySelector('input[name="_csrf_token"]')) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = '_csrf_token';
+        input.value = document.querySelector('meta[name="csrf-token"]').content;
+        form.appendChild(input);
+    }
+});
+
+// data-confirm on a form or a button asks first. Capture phase, so a refusal
+// stops the event before htmx or the form's own submission sees it.
+function refuseUnconfirmed(event, element) {
+    if (!element || confirm(element.dataset.confirm)) return;
+    event.preventDefault();
+    event.stopPropagation();
+}
+document.addEventListener('submit', function(event) {
+    var submitter = event.submitter;
+    // A confirming button already asked on click.
+    if (submitter && submitter.hasAttribute('data-confirm')) return;
+    refuseUnconfirmed(event, event.target.closest('form[data-confirm]'));
+}, true);
+document.addEventListener('click', function(event) {
+    refuseUnconfirmed(event, event.target.closest('button[data-confirm], input[type="submit"][data-confirm]'));
+}, true);
+
+// data-navigate="/path/{value}" goes to the address with the control's value.
+document.addEventListener('change', function(event) {
+    var control = event.target.closest('[data-navigate]');
+    if (!control) return;
+    window.location.href = control.dataset.navigate.replace('{value}', encodeURIComponent(control.value));
+});
+
+// A select with data-view-switch shows the [data-view-for=its id] block whose
+// data-view is its value, and hides the others.
+document.addEventListener('change', function(event) {
+    var select = event.target.closest('select[data-view-switch]');
+    if (!select) return;
+    document.querySelectorAll('[data-view-for="' + select.id + '"]').forEach(function(view) {
+        view.hidden = view.dataset.view !== select.value;
+    });
+});
+
+// A one-line text area: Enter saves (an htmx trigger named enter-save), never a
+// newline. A trigger filter would do this inline, but htmx evaluates those.
+document.addEventListener('keydown', function(event) {
+    var field = event.target.closest('[data-no-newline]');
+    if (event.key !== 'Enter' || !field) return;
+    event.preventDefault();
+    field.dispatchEvent(new CustomEvent('enter-save', { bubbles: true }));
+});
+
+document.addEventListener('click', function(event) {
+    var toggle = event.target.closest('[data-cycle-status]');
+    if (toggle) cycleStatus(toggle);
+    if (event.target.closest('#theme-toggle')) toggleTheme();
+    if (event.target.closest('#pwa-install-btn')) pwaInstall();
+});
+
+// Daily energy: the slider shows its value, and only a moved slider fills the
+// field that is saved, so an untouched day is not stored as a 5.
+document.addEventListener('input', function(event) {
+    var slider = event.target;
+    if (slider.id !== 'energy-slider') return;
+    slider.style.setProperty('--pct', ((slider.value - 1) / 9 * 100) + '%');
+    document.getElementById('energy-val').textContent = slider.value;
+    document.getElementById('energy-field').value = slider.value;
+});
+
+// ═══════════════════════════════════════════
+// Install as an app
+// ═══════════════════════════════════════════
+if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/service-worker.js', { scope: '/' }).catch(function() {});
+}
+var deferredInstall = null;
+window.addEventListener('beforeinstallprompt', function(e) {
+    e.preventDefault();
+    deferredInstall = e;
+    var button = document.getElementById('pwa-install-btn');
+    if (button) button.style.display = 'inline-flex';
+});
+window.addEventListener('appinstalled', function() {
+    deferredInstall = null;
+    var button = document.getElementById('pwa-install-btn');
+    if (button) button.style.display = 'none';
+});
+function pwaInstall() {
+    if (!deferredInstall) return;
+    deferredInstall.prompt();
+    deferredInstall.userChoice.then(function() { deferredInstall = null; });
+}

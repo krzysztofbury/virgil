@@ -1,24 +1,25 @@
-"""No template value is ever written into inline JavaScript.
+"""No template carries an inline event handler, and values reach scripts as data.
 
-HTML escaping does not protect a JS string inside an event-handler attribute:
-the browser decodes `&#39;` back to a quote before the script runs, so a marker
-or exercise named with an apostrophe broke out of its confirm() string. And
-`|tojson` output carries double quotes, which end the attribute itself. Values go
-into data attributes instead, which the handler reads.
+The Content-Security-Policy refuses inline handlers outright, so one would
+silently do nothing. They were also unsafe: the browser decodes `&#39;` back to
+a quote before a handler runs, so a marker or exercise named with an apostrophe
+broke out of its confirm() string. Values go into data attributes, which the
+listeners in app.js read.
 """
 
 import re
 from pathlib import Path
 
-HANDLER = re.compile(r"""\bon[a-z]+\s*=\s*(["'])(.*?)\1""", re.S)
+HANDLER = re.compile(r"""\son[a-z]+\s*=\s*["']""")
 
 
-def test_no_inline_handler_interpolates_a_template_value():
-    offenders = []
-    for template in Path("app/templates").rglob("*.html"):
-        for match in HANDLER.finditer(template.read_text()):
-            if "{{" in match.group(2) or "{%" in match.group(2):
-                offenders.append(f"{template.name}: {match.group(0)[:80]}")
+def test_no_template_has_an_inline_event_handler():
+    offenders = [
+        f"{template.name}: {line.strip()[:80]}"
+        for template in sorted(Path("app/templates").rglob("*.html"))
+        for line in template.read_text().splitlines()
+        if HANDLER.search(line)
+    ]
     assert offenders == []
 
 

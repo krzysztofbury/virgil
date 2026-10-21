@@ -3,7 +3,8 @@
 Seeds a throwaway instance with scripts/seed_demo.py, serves it on a free port
 and drives Chromium through Playwright: each page loads without console errors
 or horizontal overflow at desktop and phone width, a Daily change saves over
-HTMX and a lost one is reported, and the notification tray behaves.
+HTMX and a lost one is reported, the notification tray behaves, and the pages
+with Alpine components or page scripts run under the Content-Security-Policy.
 
 Needs a Chromium: `uv run --locked --extra dev playwright install chromium`, or
 VIRGIL_TEST_BROWSER=/path/to/chromium. Without one the module is skipped
@@ -27,6 +28,18 @@ from screenshots import _wait_until_up  # noqa: E402
 from seed_demo import DEMO_EMAIL, DEMO_PASSWORD  # noqa: E402
 
 PAGES = {"dashboard": "/", "daily": "/daily", "training": "/training", "freedom": "/freedom"}
+# Every other page with an Alpine component or a page script: under the
+# Content-Security-Policy a refused script or expression shows up only as a
+# console error.
+CSP_PAGES = {
+    "oura": "/oura",
+    "blood": "/bloodwork/all?marker=1",
+    "goals": "/goals",
+    "experiment": "/experiments/1",
+    "new experiment": "/experiments/new",
+    "settings": "/settings",
+    "library": "/settings?tab=configuration",
+}
 WIDTHS = {"desktop": 1280, "phone": 390}
 
 
@@ -198,6 +211,28 @@ def test_the_tray_sits_in_the_top_right_and_success_clears_itself(site, width):
             [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
         )
         assert corner, "an empty tray swallows clicks in the corner"
+        assert problems == []
+    finally:
+        context.close()
+
+
+def test_scripted_pages_run_under_the_content_security_policy(site):
+    context, page, problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        for name, path in CSP_PAGES.items():
+            problems.clear()
+            page.goto(base + path)
+            page.wait_for_load_state("networkidle")
+            assert problems == [], f"{name}: console errors {problems}"
+
+        # An Alpine component reacting to input: the CSP build refuses what the
+        # standard build allowed (x-model on a loop item's field, for one).
+        page.goto(f"{base}/experiments/new")
+        source = page.locator("input[name=source_matches]")
+        assert source.is_visible(), "a minutes metric offers the Oura source field"
+        page.select_option("select[name=metric_kinds]", "count")
+        source.wait_for(state="hidden")
+        page.locator("input[name=metric_targets]").wait_for(state="visible")
         assert problems == []
     finally:
         context.close()

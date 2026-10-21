@@ -375,7 +375,7 @@
 
 {% block scripts %}
 <script src="/static/js/charts.js"></script>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
     {% if chart_datasets %}
     createRadarChart('radarChart', {{ area_labels | tojson }}, {{ chart_datasets | tojson }});
     {% endif %}

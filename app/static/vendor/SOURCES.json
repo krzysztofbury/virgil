@@ -1,0 +1,61 @@
+{
+  "_note": "Third-party files served from /static/vendor. Each was downloaded from the URL below, matched byte for byte against the same path on unpkg.com, and is pinned here by SHA-384 (the Subresource Integrity form). To upgrade: add the new version under a new file name, record it here, and remove the old one.",
+  "files": {
+    "alpinejs-csp-3.15.8.min.js": {
+      "source": "https://cdn.jsdelivr.net/npm/@alpinejs/csp@3.15.8/dist/cdn.min.js",
+      "sha384": "sha384-xnBLNTJyXCEHkKKVePh5Vzi1CyXuyWtN5HjqtWbBBchGrbCslU+ThoGQ/DcdOe9o"
+    },
+    "chart-4.5.1.umd.min.js": {
+      "source": "https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js",
+      "sha384": "sha384-jb8JQMbMoBUzgWatfe6COACi2ljcDdZQ2OxczGA3bGNeWe+6DChMTBJemed7ZnvJ"
+    },
+    "flatpickr-4.6.13.min.css": {
+      "source": "https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css",
+      "sha384": "sha384-RkASv+6KfBMW9eknReJIJ6b3UnjKOKC5bOUaNgIY778NFbQ8MtWq9Lr/khUgqtTt"
+    },
+    "flatpickr-4.6.13.min.js": {
+      "source": "https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js",
+      "sha384": "sha384-5JqMv4L/Xa0hfvtF06qboNdhvuYXUku9ZrhZh3bSk8VXF0A/RuSLHpLsSV9Zqhl6"
+    },
+    "fonts/OFL-DM-Sans.txt": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.8/LICENSE",
+      "sha384": "sha384-3VPURzKuOR7+OWlfb9cuweohHVEPVVSfpvLCSvOCOHd0FlccWopHMciaDRgQvE+O"
+    },
+    "fonts/OFL-JetBrains-Mono.txt": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/jetbrains-mono@5.2.8/LICENSE",
+      "sha384": "sha384-cXrFk7ckdVLFljOAA3CAG9Rl/sbe26UnoLQcQxnPvrh9BEV1+cnRzg+ILMFzfNm6"
+    },
+    "fonts/dm-sans-latin-ext-opsz-italic.woff2": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.8/files/dm-sans-latin-ext-opsz-italic.woff2",
+      "sha384": "sha384-ITsU8aLqEhxG2lClFqnDEyeFuR47IJL73sob6A/FK13pQK+5GtCwns4FjyDdoJJR"
+    },
+    "fonts/dm-sans-latin-ext-opsz-normal.woff2": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.8/files/dm-sans-latin-ext-opsz-normal.woff2",
+      "sha384": "sha384-NC/aMzKWL//tfAkFPOXRx6eU+hDKI//kgtmxcbAqeRZorumogf38Eq5POLM3ar3R"
+    },
+    "fonts/dm-sans-latin-opsz-italic.woff2": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.8/files/dm-sans-latin-opsz-italic.woff2",
+      "sha384": "sha384-tq94fKqeR5avSCRSpIPyXVUa9xhQN8sCxZFQl8aYHKlyflzvxp/U8NvHm/hS101k"
+    },
+    "fonts/dm-sans-latin-opsz-normal.woff2": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/dm-sans@5.2.8/files/dm-sans-latin-opsz-normal.woff2",
+      "sha384": "sha384-H+4W4FHMKbn0A/IxuKmnoB5/G0F1At8yw1MDI3quP1b3xQfJTq6ltYKW/YnMoUj9"
+    },
+    "fonts/jetbrains-mono-latin-ext-wght-normal.woff2": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/jetbrains-mono@5.2.8/files/jetbrains-mono-latin-ext-wght-normal.woff2",
+      "sha384": "sha384-WDNanUkSZwbhAakOqa8fTc8lVMNGaDLQpOSls4xI9FdN1C1vTkOvF7TLkt6IQj+d"
+    },
+    "fonts/jetbrains-mono-latin-wght-normal.woff2": {
+      "source": "https://cdn.jsdelivr.net/npm/@fontsource-variable/jetbrains-mono@5.2.8/files/jetbrains-mono-latin-wght-normal.woff2",
+      "sha384": "sha384-g2p3DONsRgB71ryU0/Vwr5KWy0Mcp8CSPjzC+3EhRMPKkz5MLtwxpE6GK3i2I9E2"
+    },
+    "htmx-2.0.8.min.js": {
+      "source": "https://cdn.jsdelivr.net/npm/htmx.org@2.0.8/dist/htmx.min.js",
+      "sha384": "sha384-/TgkGk7p307TH7EXJDuUlgG3Ce1UVolAOFopFekQkkXihi5u/6OCvVKyz1W+idaz"
+    },
+    "lucide-0.575.0.min.js": {
+      "source": "https://cdn.jsdelivr.net/npm/lucide@0.575.0/dist/umd/lucide.min.js",
+      "sha384": "sha384-GzE8qT1LzDfRNjtvLN/dXDLPlJOB3BBom3Twb9/RwHkXCgNl6OU1pBxM9397HWGU"
+    }
+  }
+}

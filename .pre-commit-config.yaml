@@ -11,8 +11,11 @@ repos:
       - id: check-yaml
       - id: no-commit-to-branch
         args: ['--branch', 'main']
+      # Vendored files stay byte for byte as downloaded: SOURCES.json pins their hashes.
       - id: end-of-file-fixer
+        exclude: ^app/static/vendor/
       - id: trailing-whitespace
+        exclude: ^app/static/vendor/
       - id: check-merge-conflict
       - id: check-symlinks
 

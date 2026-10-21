@@ -133,5 +133,4 @@ def test_each_entry_offers_an_edit_form_and_a_confirmed_delete(auth_client, expe
     html = auth_client.get(f"/experiments/{exp_id}").text
 
     assert f'action="/experiments/{exp_id}/entry/{entries["walk"]}/edit"' in html
-    assert 'onsubmit="return confirm(this.dataset.confirm)"' in html
     assert "Delete the Walk entry from" in html

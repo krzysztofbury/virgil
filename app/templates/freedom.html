@@ -109,8 +109,7 @@
         <div class="day-card-head">
             <h3>How was {{ 'today' if form_date == today else form_date }}?</h3>
             <input type="date" name="date" value="{{ form_date }}" max="{{ today }}" required aria-label="Day to log"
-                   data-habit="{{ habit.slug }}"
-                   onchange="window.location='/freedom?habit='+encodeURIComponent(this.dataset.habit)+'&date='+encodeURIComponent(this.value)">
+                   data-navigate="/freedom?habit={{ habit.slug | urlencode }}&amp;date={value}">
         </div>
         {% if habit.slip_definition %}
         <p class="day-definition"><strong>What counts as a slip:</strong> {{ habit.slip_definition }}</p>
@@ -159,8 +158,7 @@
        timeline row. The day's own relapse record goes with it. #}
     {% if form_daily %}
     <form method="POST" action="/freedom/{{ habit.slug }}/day/{{ form_date }}/delete" class="day-delete"
-          data-confirm="Delete {{ habit.name }} on {{ form_date }}?{% if form_daily.slipped %} Its relapse record goes with it.{% endif %} The day becomes unlogged."
-          onsubmit="return confirm(this.dataset.confirm)">
+          data-confirm="Delete {{ habit.name }} on {{ form_date }}?{% if form_daily.slipped %} Its relapse record goes with it.{% endif %} The day becomes unlogged.">
         <button type="submit" class="btn-link">Delete this day's entry</button>
     </form>
     {% endif %}
@@ -224,8 +222,7 @@
                             <label>Story<textarea name="story" rows="3">{{ b.story or '' }}</textarea></label>
                             <button type="submit" class="btn btn-secondary btn-sm">Save correction</button>
                         </form>
-                        <form method="POST" action="/freedom/bricks/{{ b.id }}/delete"
-                              onsubmit="return confirm('Remove this brick from your history? This only corrects your record.')">
+                        <form method="POST" action="/freedom/bricks/{{ b.id }}/delete" data-confirm="Remove this brick from your history? This only corrects your record.">
                             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                             <button type="submit" class="btn btn-danger btn-sm">Remove record</button>
                         </form>
@@ -282,8 +279,7 @@
                 </form>
             </details>
             <form method="POST" action="/freedom/{{ habit.slug }}/relapses/{{ r.id }}/delete"
-                  data-confirm="Delete the {{ r.event_type }} record from {{ r.date }}? The streak is counted again without it."
-                  onsubmit="return confirm(this.dataset.confirm)">
+                  data-confirm="Delete the {{ r.event_type }} record from {{ r.date }}? The streak is counted again without it.">
                 <button type="submit" class="exp-delete-btn" aria-label="Delete the {{ r.event_type }} record from {{ r.date }}">&times;</button>
             </form>
             {% endif %}
@@ -328,8 +324,7 @@
             <button type="submit" class="btn btn-primary">Save {{ habit.name }}</button>
         </div>
     </form>
-    <form method="POST" action="/freedom/{{ habit.slug }}/untrack" class="freedom-untrack"
-          onsubmit="return confirm('Stop tracking this habit? Its history is kept and comes back if you track it again.')">
+    <form method="POST" action="/freedom/{{ habit.slug }}/untrack" class="freedom-untrack" data-confirm="Stop tracking this habit? Its history is kept and comes back if you track it again.">
         <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <button type="submit" class="btn btn-outline btn-sm">Stop tracking {{ habit.name }}</button>
     </form>

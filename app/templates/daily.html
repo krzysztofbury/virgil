@@ -36,8 +36,7 @@
             <span class="energy-display" id="energy-val">{% if energy_rated %}{{ energy_rated }}{% else %}—{% endif %}</span>
             <input type="hidden" name="energy" id="energy-field" value="{% if energy_rated %}{{ energy_rated }}{% endif %}">
             <input type="range" id="energy-slider" min="1" max="10" value="{{ slider_val }}" aria-label="Energy, 1 to 10"
-                   style="flex: 1; --pct: {{ ((slider_val - 1) / 9 * 100) | round }}%;"
-                   oninput="this.style.setProperty('--pct', ((this.value - 1) / 9 * 100) + '%'); document.getElementById('energy-val').textContent = this.value; document.getElementById('energy-field').value = this.value;">
+                   style="flex: 1; --pct: {{ ((slider_val - 1) / 9 * 100) | round }}%;">
             <span class="text-muted">/10</span>
         </div>
         {# A bare 1-10 scale says nothing about what 4 means. #}
@@ -55,7 +54,7 @@
                     class="toggle-btn {{ 'active-done' if value == 'done' else 'active-skipped' if value == 'skipped' else 'active-pending' }}"
                     aria-pressed="{{ 'true' if value == 'done' else 'false' }}"
                     aria-label="{{ label }}" aria-describedby="{{ name }}-state"
-                    onclick="cycleStatus(this)">
+                    data-cycle-status>
                     {% if value == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                     {% elif value == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                     {% endif %}
@@ -103,7 +102,7 @@
                         class="toggle-btn {{ 'active-done' if status == 'done' else 'active-skipped' if status == 'skipped' else 'active-pending' }}"
                         aria-pressed="{{ 'true' if status == 'done' else 'false' }}"
                         aria-label="{{ label }}" aria-describedby="{{ name }}-state"
-                        onclick="cycleStatus(this)">
+                        data-cycle-status>
                         {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
                         {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                         {% endif %}
