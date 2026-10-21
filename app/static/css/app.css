@@ -73,8 +73,8 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --shadow-dropdown: 0 -5px 20px rgba(0,0,0,0.5);
   --calendar-idle: rgba(255, 255, 255, 0.08);
   --calendar-past: rgba(255, 255, 255, 0.12);
-  --training-level-1: #155f48;
-  --training-level-2: #238765;
+  --training-level-1: #123d31; /* steps far enough apart to tell at a glance */
+  --training-level-2: #1f7a5a;
   --training-level-3: var(--accent);
   --dialog-backdrop: rgba(2, 4, 8, 0.78);
   --bg-overlay: rgba(6, 8, 13, 0.55);
@@ -124,8 +124,8 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --shadow-dropdown: 0 -5px 20px rgba(0,0,0,0.1);
   --calendar-idle: rgba(26, 35, 50, 0.08);
   --calendar-past: rgba(26, 35, 50, 0.14);
-  --training-level-1: #a8dbc8;
-  --training-level-2: #5fbd98;
+  --training-level-1: #cdeee1;
+  --training-level-2: #6cc7a3;
   --training-level-3: var(--accent);
   --dialog-backdrop: rgba(26, 35, 50, 0.45);
   --bg-overlay: rgba(255, 255, 255, 0.55);
@@ -2692,6 +2692,7 @@ kbd {
   .wod-table input, .wod-table select { width: 100%; min-width: 0 !important; }
   .wod-table td:last-child .btn { width: 100%; }
   .history-table .history-when { font-weight: 600; }
+  .history-table tbody td[data-label] { text-align: left; }
   .goal-delete-detail { margin-top: 0.75rem; }
   /* A metric's Delete on its own line at the row's end, not between fields. */
   .exp-edit-metric-row { flex-direction: column; align-items: stretch !important; }
@@ -3176,6 +3177,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 /* An empty card's next step: a link, not more grey text. */
 .empty-next a { color: var(--accent); font-weight: 600; }
+
+/* Hints that only apply with a mouse. */
+@media (hover: none) { .hover-hint { display: none; } }
+
+/* Oura history: numbers line up by their digits. */
+.history-table td[data-label], .history-table th + th { text-align: right; font-variant-numeric: tabular-nums; }
+
+/* Personal Bests: the best as the headline, the other records under it. */
+.pb-best-effort { font-size: 0.8125rem; color: var(--text-secondary); }
 
 /* Training days as seven toggles instead of a typed "mon,wed,fri". */
 .day-chips { border: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }

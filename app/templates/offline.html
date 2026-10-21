@@ -8,14 +8,15 @@
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#06080d">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
     <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
 </head>
 <body>
     <main class="container" style="padding-top:4rem;text-align:center;">
         <div class="card" style="max-width:400px;margin:3rem auto;padding:3rem 2rem;">
-            <div style="font-size:3rem;margin-bottom:1rem;opacity:0.4;">&#x1F4F6;</div>
-            <h2 style="margin-bottom:0.5rem;">You're offline</h2>
-            <p class="text-muted" style="margin-bottom:1.5rem;">Virgil needs an internet connection to load this page. Check your connection and try again.</p>
+            <img src="/static/icons/logo.png" alt="" width="56" height="56" style="margin-bottom:1rem;opacity:0.6;">
+            <h2 style="margin-bottom:0.5rem;">Can't reach your Virgil server</h2>
+            <p class="text-muted" style="margin-bottom:1.5rem;">This page needs the server, which may be on your home network or behind your tunnel. Check that this device can reach it, then try again.</p>
             {# The address this page stands in for: following it tries again. #}
             <a href="" class="btn btn-primary">Retry</a>
         </div>
