@@ -166,7 +166,7 @@
         </div>
         <small>{{ latest_oura.month }}{% if oura_freshness %} &middot;{% endif %}</small> {% include "partials/oura_freshness.html" %}
         {% else %}
-        <p class="text-muted">No Oura data</p>
+        <p class="text-muted empty-next">No Oura data yet. <a href="/settings?tab=integrations">Connect Oura</a> to see sleep, readiness and activity here.</p>
         {% include "partials/oura_freshness.html" %}
         {% endif %}
     </div>
@@ -212,7 +212,7 @@
         </div>
         <small class="text-muted">{{ latest_meas.date }}</small>
         {% else %}
-        <p class="text-muted">No measurements</p>
+        <p class="text-muted empty-next">No measurements yet. <a href="/daily/{{ measurement_day }}#measurements">Add them on Daily</a>, which asks for weight and body measurements on Saturdays.</p>
         {% endif %}
     </div>
 </div>

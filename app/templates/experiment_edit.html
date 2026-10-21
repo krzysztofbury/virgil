@@ -7,7 +7,9 @@
     <p class="text-muted"><a href="/experiments/{{ experiment.id }}">&larr; Back to {{ experiment.title }}</a></p>
 </div>
 
-<form action="/experiments/{{ experiment.id }}/edit" method="post">
+{# One form and one Save for the basics and every metric: a Save per metric row
+   next to "Save Changes" lost whatever was typed in the rows not saved. #}
+<form action="/experiments/{{ experiment.id }}/edit" method="post" id="experiment-edit" data-validate>
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header"><h3>Basics</h3></div>
 
@@ -49,9 +51,7 @@
             </div>
         </div>
 
-        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save Changes</button>
     </div>
-</form>
 
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Metrics</h3>
@@ -59,40 +59,46 @@
     </div>
 
     {% for m in metrics %}
-    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border);">
-        <form action="/experiments/{{ experiment.id }}/metric/{{ m.id }}/update" method="post"
-              style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; flex: 1;">
-            <input type="text" name="name" value="{{ m.name }}" required style="width: 11rem; margin: 0;">
-            <input type="color" name="color" value="{{ m.color }}" style="width: 2.6rem; height: 2.2rem; padding: 0.15rem; margin: 0;">
+    <div class="exp-edit-metric-row" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border);">
+        <div class="exp-edit-metric-fields" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; flex: 1;">
+            <input type="text" name="metric_{{ m.id }}_name" value="{{ m.name }}" required aria-label="Metric name" style="width: 11rem; margin: 0;">
+            <input type="color" name="metric_{{ m.id }}_color" value="{{ m.color }}" style="width: 2.6rem; height: 2.2rem; padding: 0.15rem; margin: 0;">
             <span class="text-muted" style="font-size: var(--text-xs); min-width: 5.5rem;">{{ {'duration': 'Minutes', 'count': 'Count', 'boolean': 'Yes/No', 'scale': 'Rating 0-10'}[m.kind] }}</span>
             {% if m.kind in ('count', 'boolean') %}
-            <input type="number" name="target_value" value="{{ m.target_value }}" min="0" title="Target (0 = none)"
+            <input type="number" name="metric_{{ m.id }}_target_value" value="{{ m.target_value }}" min="0" title="Target (0 = none)"
                    style="width: 4.5rem; margin: 0; font-size: var(--text-xs);">
-            <select name="target_period" style="width: auto; margin: 0; font-size: var(--text-xs);">
+            <select name="metric_{{ m.id }}_target_period" style="width: auto; margin: 0; font-size: var(--text-xs);">
                 <option value="day" {{ 'selected' if m.target_period == 'day' else '' }}>per day</option>
                 <option value="week" {{ 'selected' if m.target_period == 'week' else '' }}>per week</option>
                 <option value="total" {{ 'selected' if m.target_period == 'total' else '' }}>total</option>
             </select>
             {% else %}
-            <input type="hidden" name="target_value" value="0">
-            <input type="hidden" name="target_period" value="week">
+            <input type="hidden" name="metric_{{ m.id }}_target_value" value="0">
+            <input type="hidden" name="metric_{{ m.id }}_target_period" value="week">
             {% endif %}
             {% if m.kind == 'duration' %}
-            <input type="text" name="source_match" value="{{ m.source_match }}" placeholder="Oura names, comma-separated"
+            <input type="text" name="metric_{{ m.id }}_source_match" value="{{ m.source_match }}" placeholder="Oura names, comma-separated"
                    style="width: 13rem; margin: 0; font-size: var(--text-xs);">
             {% else %}
-            <input type="hidden" name="source_match" value="">
+            <input type="hidden" name="metric_{{ m.id }}_source_match" value="">
             {% endif %}
-            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
-        </form>
-        {# name via |tojson: a quote/backslash in the name must not break the JS
-           and silently disable this confirm (the delete cascades entries) #}
-        <form action="/experiments/{{ experiment.id }}/metric/{{ m.id }}/delete" method="post" style="margin: 0;"
-              data-confirm="Delete metric {{ m.name }} and its {{ m.entry_count }} logged entr{{ 'y' if m.entry_count == 1 else 'ies' }}?">
-            <button type="submit" class="btn btn-danger btn-sm">Delete</button>
-        </form>
+        </div>
+        {# Last in the row, and asks first: the delete takes the metric's entries. #}
+        <button type="submit" class="btn btn-danger btn-sm exp-edit-metric-delete"
+                formaction="/experiments/{{ experiment.id }}/metric/{{ m.id }}/delete" formnovalidate
+                data-confirm="Delete metric {{ m.name }} and its {{ m.entry_count }} logged entr{{ 'y' if m.entry_count == 1 else 'ies' }}? Unsaved changes on this page are lost.">Delete</button>
     </div>
     {% endfor %}
+</div>
+
+<div class="form-save-bar">
+    <span class="form-errors" data-form-errors role="alert"></span>
+    <button type="submit" class="btn btn-primary">Save changes</button>
+</div>
+</form>
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Add a metric</h3></div>
 
     <form action="/experiments/{{ experiment.id }}/metric/add" method="post"
           style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem;">

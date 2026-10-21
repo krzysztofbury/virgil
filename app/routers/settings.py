@@ -82,7 +82,13 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
 
     elif tab == "configuration":
         from app.library_validation import LIBRARY_SECTIONS
-        from app.services.training_schedule import DEFAULT_DAYS, DEFAULT_SWIM, SETTING_DAYS, SETTING_SWIM
+        from app.services.training_schedule import (
+            DEFAULT_DAYS,
+            DEFAULT_SWIM,
+            SETTING_DAYS,
+            SETTING_SWIM,
+            normalize_days,
+        )
 
         # Grouped by section (not category, which migration 019 removed).
         # LIBRARY_SECTIONS is the canonical four; training.py used to keep a
@@ -103,6 +109,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["library_by_section"] = library_by_section
         context["section_order"] = list(LIBRARY_SECTIONS)
         context["training_days"] = await get_setting(db, SETTING_DAYS, DEFAULT_DAYS)
+        context["training_day_keys"] = normalize_days(context["training_days"])
         context["training_swim_per_week"] = await get_setting(db, SETTING_SWIM, DEFAULT_SWIM)
         context["library_all_tags"] = sorted({tr["tag"] for tr in tag_rows})
 
@@ -300,7 +307,12 @@ async def save_training_schedule(request: Request):
     # each commit separately (app/db.py), so there is no transaction to roll
     # back — a half-valid submission must be refused before the first write,
     # not repaired after it.
-    raw_days = truncate(str(form.get("training_days", "")), 100)
+    # The page sends one checkbox per day; a comma list in training_days, the
+    # form's earlier shape, is still read the same way.
+    if "training_day_chips" in form:
+        raw_days = ",".join(str(day) for day in form.getlist("training_day"))
+    else:
+        raw_days = truncate(str(form.get("training_days", "")), 100)
     days = normalize_days(raw_days)
     # A submission that parses to nothing is rejected rather than silently
     # stored as "no training days": that would quietly tell the planner the week

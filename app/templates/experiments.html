@@ -20,7 +20,7 @@
             <p class="exp-card-desc">{{ exp.description }}</p>
             {% endif %}
             <div class="exp-card-meta">
-                <span>{{ exp.start_fmt }} &mdash; {{ exp.end_fmt }}</span>
+                <span>{{ exp.start_fmt }} to {{ exp.end_fmt }}</span>
                 <span class="exp-card-dots">
                     {% for at in exp.activity_types %}
                     <span class="exp-legend-dot" style="background: {{ at.color }};" title="{{ at.name }}"></span>

@@ -244,7 +244,7 @@
 
 <!-- Saturday Measurements -->
 {% if is_saturday %}
-<form hx-post="/daily/measurements"
+<form id="measurements" hx-post="/daily/measurements"
       hx-trigger="change"
       hx-swap="none"
       hx-sync="this:replace">

@@ -278,6 +278,9 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "day_names": day_names,
             "week_dates": [d.isoformat() for d in week_dates],
             "latest_meas": latest_meas,
+            # Daily asks for measurements on Saturdays: the empty card links
+            # to the most recent one.
+            "measurement_day": (today - timedelta(days=(today.weekday() - 5) % 7)).isoformat(),
             "prev_meas": prev_meas,
             "oura_today": oura_today,
             "yesterday_fallback": yesterday_fallback,

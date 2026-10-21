@@ -163,10 +163,16 @@
     </div>
     <form action="/settings/training-schedule" method="post"
           style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
-        <label style="margin:0;">Training days
-            <input type="text" name="training_days" value="{{ training_days }}"
-                   placeholder="mon,wed,fri" maxlength="100" style="width: 12rem; margin: 0;">
-        </label>
+        <fieldset class="day-chips">
+            <legend>Training days</legend>
+            <input type="hidden" name="training_day_chips" value="1">
+            {% for key, label in [('mon', 'Mon'), ('tue', 'Tue'), ('wed', 'Wed'), ('thu', 'Thu'), ('fri', 'Fri'), ('sat', 'Sat'), ('sun', 'Sun')] %}
+            <label class="day-chip">
+                <input type="checkbox" name="training_day" value="{{ key }}" {{ 'checked' if key in training_day_keys else '' }}>
+                <span>{{ label }}</span>
+            </label>
+            {% endfor %}
+        </fieldset>
         <label style="margin:0;">Swim sessions / week
             <input type="number" name="training_swim_per_week" value="{{ training_swim_per_week }}"
                    min="0" max="7" style="width: 6rem; margin: 0;">
@@ -174,8 +180,8 @@
         <button type="submit" class="btn btn-primary btn-sm">Save</button>
     </form>
     <p class="text-muted" style="margin-top:0.5rem;"><small>
-        Comma-separated, any of <code>mon tue wed thu fri sat sun</code>. Swim has no fixed day - set 0 to drop it from the plan.
-        Leave the days empty and the planner is told no fixed days are set, rather than assuming a week you never chose.
+        Swim has no fixed day - set 0 to drop it from the plan. With no day chosen, the planner is told no fixed
+        days are set, rather than assuming a week you never chose.
     </small></p>
 </div>
 
