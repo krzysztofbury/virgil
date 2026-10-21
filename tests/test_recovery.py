@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 from cryptography.fernet import Fernet
 
-from scripts.recovery import create, restore, verify
+from app.recovery import create, restore, verify
 
 
 def test_bundle_round_trip_and_integrity_guards(tmp_path, monkeypatch):

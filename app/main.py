@@ -213,8 +213,15 @@ async def _start_application(app: FastAPI):
 
     import app.config as config
     from app.alerts import degraded_start_alert, send_alert
+    from app.services.offsite import OffsiteConfigError, offsite_settings
 
     alert = degraded_start_alert(_version, app.state.central_migration_failure, len(app.state.migration_failures))
+    try:
+        offsite_settings()
+    except OffsiteConfigError as exc:
+        # The scheduler skips it quietly, so this is where a typo gets noticed.
+        _log.error("%s", exc)
+        alert = f"{alert} {exc}." if alert else f"Virgil {_version} started, but: {exc}."
     if alert and config.ALERT_WEBHOOK_URL:
         # In the background: startup must not wait on a chat service.
         app.state.startup_alert = asyncio.create_task(send_alert(config.ALERT_WEBHOOK_URL, alert))

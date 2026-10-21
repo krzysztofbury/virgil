@@ -1,3 +1,4 @@
+import asyncio
 import csv
 import io
 import json
@@ -128,6 +129,12 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["backup_interval_hours"] = await get_setting(db, "backup_interval_hours", "24")
         context["backup_max_copies"] = await get_setting(db, "backup_max_copies", "7")
         context["backup_status"] = await backup_status(db)
+        user = getattr(request.state, "user", None) or {}
+        if user.get("role") == "admin":
+            from app.services.offsite import offsite_status
+
+            # The whole instance's copies: an operator's concern, not each account's.
+            context["offsite"] = await asyncio.to_thread(offsite_status)
         context["oura_sync_enabled"] = await get_setting(db, "oura_sync_enabled", "0") == "1"
         context["oura_sync_interval_hours"] = await get_setting(db, "oura_sync_interval_hours", "6")
         context["briefing_enabled"] = await get_setting(db, "briefing_enabled", "0") == "1"

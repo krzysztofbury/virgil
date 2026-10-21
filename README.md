@@ -177,7 +177,8 @@ image, and publishes only after its smoke test succeeds. Version tags alias an
 already verified main image and never change `latest`. See [RELEASE.md](RELEASE.md).
 
 The [recovery guide](docs/recovery.md) covers complete offline bundles, integrity
-verification, off-machine copies, restore into a new directory, and a restore
+verification, daily encrypted off-site copies to an S3-compatible bucket such as
+Cloudflare R2, restore into a new directory, and a restore
 drill. Per-user database downloads alone do not include the registry or encryption
 key and are not whole-instance recovery artifacts.
 

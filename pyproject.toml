@@ -29,6 +29,8 @@ dependencies = [
     "qrcode[pil]>=8.2",
     "litellm>=1.60.0",
     "mcp>=2.3.0,<3",
+    "pyrage>=1.4.0,<2",
+    "boto3>=1.43.111,<2",
 ]
 
 [project.optional-dependencies]

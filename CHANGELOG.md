@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Off-site copies (#46): with `VIRGIL_OFFSITE_*` set, the whole instance is
+  uploaded once a day to an S3-compatible bucket such as Cloudflare R2, each
+  database, the registry and the encryption key as its own object, compressed
+  and encrypted to an age public key. The month's first run is kept as a monthly
+  copy; the bucket's lifecycle rules set how long either stays (docs/recovery.md).
+  Deleting or resetting an account deletes its copies there too. Failures retry
+  hourly, alert once a day, and show in Settings > Automation for administrators.
+  `scripts/recovery.py unseal` turns a downloaded run back into a bundle.
 - Freedom's relapse records are listed per habit and can be corrected (#52). A
   record a slipped day wrote follows that day, so it links to the day form,
   which can now also delete a logged day (its record goes with it). Any other

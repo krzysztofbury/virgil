@@ -219,6 +219,18 @@ async def _run_scheduled_user(user: dict, semaphore: asyncio.Semaphore) -> None:
                     logger.exception("Scheduler failed to close database for user %s", user["email"])
 
 
+_offsite_task: asyncio.Task | None = None
+
+
+async def _run_offsite() -> None:
+    from app.services.offsite import offsite_tick
+
+    try:
+        await offsite_tick()
+    except Exception:
+        logger.exception("Off-site pass failed")
+
+
 async def scheduler_tick() -> None:
     """Run one bounded scheduler and durable-worker pass."""
     from app.services.backup import maybe_backup_central
@@ -243,6 +255,12 @@ async def scheduler_tick() -> None:
     # Per-user backups never cover the registry. This function self-limits to
     # once per 24 hours.
     await maybe_backup_central()
+
+    # Self-limits to one run a day; account deletions go out every tick. In the
+    # background: an upload on a slow line must not hold up everyone's jobs.
+    global _offsite_task
+    if _offsite_task is None or _offsite_task.done():
+        _offsite_task = asyncio.create_task(_run_offsite())
 
 
 async def scheduler_loop() -> None:
