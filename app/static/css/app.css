@@ -3146,6 +3146,24 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .wod-unrecognised svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: 0.1rem; }
 
+/* A file picker in the theme: the browser's own button is white on dark. */
+.file-input { padding: 0.5rem; }
+.file-input::file-selector-button {
+    margin-right: 0.75rem;
+    padding: 0.45rem 0.9rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    background: transparent;
+    color: var(--text-primary);
+    font: inherit;
+    cursor: pointer;
+}
+.file-input::file-selector-button:hover { border-color: var(--accent); }
+.oura-setup { padding-left: 1.25rem; display: grid; gap: 0.4rem; list-style: decimal; }
+.oura-setup li { display: list-item; }
+.oura-setup a { color: var(--accent); }
+.oura-setup code { overflow-wrap: anywhere; }
+
 /* Inline form error, beside the toast: a toast disappears, this does not. */
 .form-error {
     color: var(--flag-h);

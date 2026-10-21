@@ -24,18 +24,21 @@ async def update_step1(
     height_cm: float | None,
     weight_kg: float | None,
     family: str,
-    habits_good: str,
-    habits_bad: str,
 ) -> None:
-    """Save Step 1 (About You) data."""
+    """Save Step 1 (About You) data.
+
+    Habits are asked in step 4 only. habits_good and habits_bad, which step 1
+    used to ask too, keep whatever an earlier version stored: the onboarding
+    context still reads them.
+    """
     await ensure_profile(db)
     await db.execute(
         """UPDATE user_profiles SET
             sex = ?, age = ?, height_cm = ?, weight_kg = ?,
-            family = ?, habits_good = ?, habits_bad = ?,
+            family = ?,
             onboarding_step = MAX(onboarding_step, 1), updated_at = datetime('now')
         WHERE id = 1""",
-        (sex or None, age, height_cm, weight_kg, family, habits_good, habits_bad),
+        (sex or None, age, height_cm, weight_kg, family),
     )
     await db.commit()
 

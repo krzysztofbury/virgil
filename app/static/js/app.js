@@ -1065,3 +1065,17 @@ document.addEventListener('DOMContentLoaded', function() {
         row.addEventListener('scroll', function() { markTabOverflow(row); }, { passive: true });
     });
 });
+
+// data-copy="#selector" copies that element's text, for values to paste
+// elsewhere, such as Oura's redirect URI.
+document.addEventListener('click', function(event) {
+    var button = event.target.closest('[data-copy]');
+    if (!button) return;
+    var source = document.querySelector(button.dataset.copy);
+    if (!source || !navigator.clipboard) return;
+    navigator.clipboard.writeText(source.textContent.trim()).then(function() {
+        showFeedback('Copied.', 'success');
+    }, function() {
+        showFeedback('Could not copy; select the text instead.', 'error');
+    });
+});

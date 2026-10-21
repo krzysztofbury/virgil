@@ -1,4 +1,19 @@
 {% extends "base.html" %}
+
+{# Setup only: the pages behind the navigation are empty until it is done, and
+   every one of them redirects back here. Log out is the way to leave. #}
+{% block top_nav %}
+    <nav class="top-nav">
+        <span class="nav-logo"><img src="/static/icons/logo.png" alt="Virgil" class="nav-logo-img">Virgil</span>
+        <div class="nav-end" style="margin-left:auto;">
+            <form method="POST" action="/logout" style="margin:0;display:inline;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <button type="submit" class="btn btn-outline btn-sm">Log out</button>
+            </form>
+        </div>
+    </nav>
+{% endblock %}
+{% block bottom_bar %}{% endblock %}
 {% block title %}Virgil - Onboarding{% endblock %}
 
 {% block content %}
@@ -58,22 +73,6 @@
                 <span class="text-muted" title="e.g. married, 2 kids (ages 6, 9)" style="cursor:help;font-size:0.75rem;">&#9432;</span>
             </label>
             <input type="text" name="family" value="{{ profile.family or '' }}" placeholder="e.g. married, 2 kids (ages 6, 9)">
-        </div>
-
-        <div style="margin-bottom:1rem;">
-            <label style="display:flex;align-items:center;gap:0.5rem;">
-                Good habits
-                <span class="text-muted" title="e.g. morning walks, reading before bed, 2L water daily" style="cursor:help;font-size:0.75rem;">&#9432;</span>
-            </label>
-            <textarea name="habits_good" rows="3" placeholder="e.g. morning walks, reading before bed, 2L water daily">{{ profile.habits_good or '' }}</textarea>
-        </div>
-
-        <div style="margin-bottom:1rem;">
-            <label style="display:flex;align-items:center;gap:0.5rem;">
-                Habits you struggle with
-                <span class="text-muted" title="e.g. doom scrolling, late-night snacking, skipping workouts" style="cursor:help;font-size:0.75rem;">&#9432;</span>
-            </label>
-            <textarea name="habits_bad" rows="3" placeholder="e.g. doom scrolling, late-night snacking, skipping workouts">{{ profile.habits_bad or '' }}</textarea>
         </div>
 
         <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
@@ -218,19 +217,19 @@
         Virgil will track your blood markers over time and flag trends. This is completely optional — you can add results later in the Bloodwork section.
     </p>
 
-    <div style="text-align:center;margin-bottom:1.5rem;">
-        <a href="/onboarding?step=6" class="btn btn-outline">Skip this step</a>
-    </div>
-
     {% if not has_internal_llm %}
+    {# Without the key nothing here can run, so nothing here is offered. #}
     <div style="background:rgba(229,169,64,0.1);border:1px solid rgba(229,169,64,0.3);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;">
         <p style="color:var(--yellow);font-size:0.85rem;margin:0;">
-            Medical record import requires an internal LLM key (<code>VIRGIL_INTERNAL_LLM_KEY</code>).
-            You can add blood work results manually later in the Bloodwork section.
+            Importing medical records needs an internal LLM key (<code>VIRGIL_INTERNAL_LLM_KEY</code>), which
+            this server does not have. You can add blood work results by hand in Blood Work later.
         </p>
     </div>
-    {% endif %}
-
+    <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
+        <a href="/onboarding?step=4" class="btn btn-outline">Back</a>
+        <a href="/onboarding?step=6" class="btn btn-primary">Next</a>
+    </div>
+    {% else %}
     <form method="POST" action="/onboarding/step/5" enctype="multipart/form-data">
         <div style="margin-bottom:1rem;" x-data="{ mode: 'file' }">
             <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
@@ -240,7 +239,7 @@
 
             <div x-show="mode === 'file'">
                 <label>Blood test PDF
-                    <input type="file" name="medical_file" accept=".pdf" x-show="mode === 'file'" style="padding:0.5rem;">
+                    <input type="file" name="medical_file" accept=".pdf" x-show="mode === 'file'" class="file-input">
                 </label>
             </div>
 
@@ -252,10 +251,15 @@
 
         <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
             <a href="/onboarding?step=4" class="btn btn-outline">Back</a>
-            <button type="submit" class="btn btn-primary" {% if not has_internal_llm %}disabled{% endif %}>Process & Next</button>
+            <button type="submit" class="btn btn-primary">Process & Next</button>
+        </div>
+        <div style="text-align:center;margin-top:0.75rem;">
+            <a href="/onboarding?step=6" class="text-muted" style="font-size:0.75rem;">Skip this step</a>
         </div>
     </form>
+    {% endif %}
 </div>
+
 
 {% elif step == 6 %}
 <!-- ═══ STEP 6: Summary ═══ -->
