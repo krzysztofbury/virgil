@@ -243,15 +243,56 @@ def _parse_retry_after(header_value: str | None, fallback: int) -> int:
     return max(1, min(RETRY_AFTER_SECONDS_MAX, seconds))
 
 
+# A page cap, so a provider that keeps answering with a next_token cannot keep
+# a sync running forever.
+OURA_PAGES_MAX = 50
+# Heart rate comes as samples every few minutes, and Oura bounds the range one
+# request may cover; a week per request stays well inside it.
+HEARTRATE_WINDOW_DAYS = 7
+
+
+def _local_midnight(day: str) -> str:
+    """The start of a day in the server's time zone, as Oura's date-time parameters take it."""
+    return datetime.combine(date.fromisoformat(day), datetime.min.time()).astimezone().isoformat()
+
+
+def _range_params(endpoint: str, start: str, end: str) -> dict[str, str]:
+    """Query parameters for days start up to, not including, end.
+
+    The daily endpoints take dates; heartrate takes date-times and ignores
+    start_date and end_date, which left it on its default window and resting_hr
+    empty.
+    """
+    if endpoint == "heartrate":
+        return {"start_datetime": _local_midnight(start), "end_datetime": _local_midnight(end)}
+    return {"start_date": start, "end_date": end}
+
+
 async def _fetch_endpoint(
     client: httpx.AsyncClient, endpoint: str, token: str, start: str, end: str, max_retries: int = 3
 ) -> list:
+    """Every item for the range, following next_token across pages."""
+    items: list = []
+    params = _range_params(endpoint, start, end)
+    for _page in range(OURA_PAGES_MAX):
+        payload = await _fetch_page(client, endpoint, token, params, max_retries)
+        items.extend(payload.get("data", []))
+        next_token = payload.get("next_token")
+        if not next_token:
+            return items
+        params = {**_range_params(endpoint, start, end), "next_token": next_token}
+    raise OuraFetchError(f"Oura API {endpoint} returned more than {OURA_PAGES_MAX} pages")
+
+
+async def _fetch_page(
+    client: httpx.AsyncClient, endpoint: str, token: str, params: dict[str, str], max_retries: int
+) -> dict:
     for attempt in range(max_retries + 1):
         try:
             resp = await client.get(
                 f"{OURA_API_BASE}/{endpoint}",
                 headers={"Authorization": f"Bearer {token}"},
-                params={"start_date": start, "end_date": end},
+                params=params,
             )
         except httpx.RequestError as exc:
             raise OuraFetchError(f"Oura API {endpoint} transport failed") from exc
@@ -262,7 +303,7 @@ async def _fetch_endpoint(
                 raise OuraFetchError(f"Oura API {endpoint} returned malformed JSON") from exc
             if not isinstance(payload, dict) or not isinstance(payload.get("data", []), list):
                 raise OuraFetchError(f"Oura API {endpoint} returned an unexpected response")
-            return payload.get("data", [])
+            return payload
         if resp.status_code == 401:
             raise OuraAuthError(f"Oura API {endpoint} returned 401 — token expired or revoked")
         if resp.status_code == 429 and attempt < max_retries:
@@ -290,11 +331,42 @@ async def _fetch_optional(
     return data
 
 
+def _local_day(timestamp: object) -> str:
+    """The server-local day of a sample. Oura stamps heart rate in UTC, so its
+    first ten characters put the hours after local midnight on the day before."""
+    if not isinstance(timestamp, str):
+        return ""
+    try:
+        moment = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return ""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=UTC)
+    return moment.astimezone().date().isoformat()
+
+
+async def _fetch_heartrate(client: httpx.AsyncClient, token: str, start: str, end: str, ok_endpoints: set[str]) -> list:
+    """Heart rate samples for the range, a week per request. All weeks or none:
+    a partial range would write resting_hr from a fraction of some days."""
+    samples: list = []
+    day, last = date.fromisoformat(start), date.fromisoformat(end)
+    try:
+        while day < last:
+            until = min(day + timedelta(days=HEARTRATE_WINDOW_DAYS), last)
+            samples.extend(await _fetch_endpoint(client, "heartrate", token, day.isoformat(), until.isoformat()))
+            day = until
+    except OuraFetchError:
+        return []
+    ok_endpoints.add("heartrate")
+    return samples
+
+
 async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) -> tuple[dict[str, dict], set[str]]:
     """Fetch multiple Oura endpoints and merge into per-day dicts.
 
     Returns (daily_data, ok_endpoints). Endpoints missing from ok_endpoints
-    failed and their columns must not be written over existing data.
+    failed and their columns must not be written over existing data. end_date
+    is exclusive, as Oura treats it.
     """
     daily: dict[str, dict] = defaultdict(dict)
     ok_endpoints: set[str] = set()
@@ -360,15 +432,13 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
             daily[d]["avg_hrv"] = item.get("average_hrv")
 
         # Heartrate for resting HR — use daily average of lowest readings
-        hr_data = await _fetch_optional(client, "heartrate", access_token, start_date, end_date, ok_endpoints)
+        hr_data = await _fetch_heartrate(client, access_token, start_date, end_date, ok_endpoints)
         hr_by_day: dict[str, list] = defaultdict(list)
         for item in hr_data:
-            ts = item.get("timestamp", "")
-            if ts and len(ts) >= 10:
-                d = ts[:10]
-                bpm = item.get("bpm")
-                if bpm:
-                    hr_by_day[d].append(bpm)
+            d = _local_day(item.get("timestamp"))
+            bpm = item.get("bpm")
+            if d and bpm:
+                hr_by_day[d].append(bpm)
         for d, bpms in hr_by_day.items():
             if bpms:
                 # Use the lowest 10% as resting HR estimate
@@ -510,8 +580,10 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
     if not token:
         raise RuntimeError("No valid Oura token available")
 
-    end = date.today()
-    start = end - timedelta(days=days_back)
+    # Oura leaves the end_date day out, so the range ends tomorrow: ending it
+    # today never fetched today's activity and steps.
+    end = date.today() + timedelta(days=1)
+    start = end - timedelta(days=days_back + 1)
     try:
         daily, ok_endpoints = await fetch_oura_daily(token, start.isoformat(), end.isoformat())
     except OuraAuthError:

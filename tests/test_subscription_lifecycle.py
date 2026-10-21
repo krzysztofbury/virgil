@@ -443,16 +443,29 @@ def test_oura_adapter_has_canonical_specs_and_requires_aware_expiry():
     assert OURA_SUBSCRIPTION_ADAPTER.owns_remote(context, alias, set()) is True
     assert OURA_SUBSCRIPTION_ADAPTER.owns_remote(context, foreign, set()) is False
 
-    with pytest.raises(RuntimeError, match="no timezone"):
-        parse_oura_subscription(
-            {
-                "id": "subscription-1",
-                "callback_url": "https://virgil.example/api/oura/webhook/abc",
-                "event_type": "create",
-                "data_type": "sleep",
-                "expiration_time": "2027-09-01T12:00:00",
-            }
-        )
+    # What Oura actually sends: no offset, in UTC. Refusing it left the webhook
+    # retrying forever in production.
+    as_sent = parse_oura_subscription(
+        {
+            "id": "subscription-1",
+            "callback_url": "https://virgil.example/api/oura/webhook/abc",
+            "event_type": "create",
+            "data_type": "sleep",
+            "expiration_time": "2027-09-01T12:00:00.123456",
+        }
+    )
+    assert as_sent.renew_at == datetime(2027, 9, 1, 12, 0, 0, 123456, tzinfo=UTC)
+    for invalid in ("", "next month", None):
+        with pytest.raises(RuntimeError, match="expiration_time"):
+            parse_oura_subscription(
+                {
+                    "id": "subscription-1",
+                    "callback_url": "https://virgil.example/api/oura/webhook/abc",
+                    "event_type": "create",
+                    "data_type": "sleep",
+                    "expiration_time": invalid,
+                }
+            )
 
 
 def test_oura_renewal_uses_documented_endpoint(monkeypatch):

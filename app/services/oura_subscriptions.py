@@ -64,7 +64,10 @@ def _parse_expiration(value: object) -> datetime:
     except ValueError:
         raise RuntimeError("Oura subscription expiration_time is invalid") from None
     if parsed.tzinfo is None:
-        raise RuntimeError("Oura subscription expiration_time has no timezone")
+        # Oura's API answers in UTC and sends this field without an offset, for
+        # example 2026-11-20T10:21:41.123456. Refusing it failed every
+        # subscription Oura created, and the retries could never succeed.
+        return parsed.replace(tzinfo=UTC)
     return parsed.astimezone(UTC)
 
 
