@@ -1,5 +1,6 @@
 """Authentication middleware and session utilities for multi-user Virgil."""
 
+import asyncio
 import hashlib
 import logging
 
@@ -83,6 +84,17 @@ def verify_password(password: str, password_hash: str) -> bool:
         raise ValueError("Invalid bcrypt hash format")
     prehashed = hashlib.sha256(password.encode()).hexdigest()
     return bcrypt.checkpw(prehashed.encode(), password_hash.encode())
+
+
+# bcrypt takes about 0.2 s here and longer on the NAS. It releases the GIL, so in
+# a thread every other request is served meanwhile; on the event loop each
+# sign-in made everyone wait.
+async def hash_password_async(password: str) -> str:
+    return await asyncio.to_thread(hash_password, password)
+
+
+async def verify_password_async(password: str, password_hash: str) -> bool:
+    return await asyncio.to_thread(verify_password, password, password_hash)
 
 
 # A session carries the account's session epoch next to its UUID. Logout and MFA

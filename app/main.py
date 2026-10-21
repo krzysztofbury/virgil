@@ -19,6 +19,13 @@ from app.formatting import format_duration_seconds, format_ref_range, format_tho
 from app.rate_limit import RateLimitMiddleware
 from app.security_headers import SecurityHeadersMiddleware
 
+# Plain log lines, set before anything else configures the root logger. Left
+# unset, the MCP SDK installs Rich's handler when its server is created
+# (app.mcp_endpoint, imported below), and Rich renders every logged traceback
+# with syntax highlighting on the event loop: about a second per error on a
+# fast machine and several on the NAS, with every request waiting meanwhile.
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
+
 BASE_DIR = Path(__file__).parent
 
 

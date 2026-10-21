@@ -34,6 +34,9 @@ It prints a Markdown block to add under "Results" below. Locally:
 - **Drain**: it waits until no backup or import job is queued or running.
 - A **liveness probe** requests `/livez` four times a second throughout. It does
   no work, so a slow probe means the server as a whole stalled, not one page.
+- A **stand-in provider** on loopback receives each import's request, reads it
+  whole and refuses the placeholder key, as the real provider would. Imports
+  therefore fail, but only after building, sending and handling the request.
 
 Each simulated person has an address of its own, as behind Cloudflare, so the
 per-address rate limit applies per person. The report gives latency per request
@@ -42,11 +45,9 @@ finished, and the server process's peak memory.
 
 Limits:
 
-- With no network, a medical import fails at its provider call, so the check
-  covers accepting the upload, staging it and running the job, not the
-  provider call.
-- With network, sending a 10 MB PDF to the provider stalled the server for
-  about 0.7 s on a development machine (below).
+- No real extraction runs: the stand-in refuses every request. The runs
+  recorded below, from before the stand-in existed, stopped at a failed DNS
+  lookup instead, which missed the stall that #122 fixed.
 - The simulated people run in the same container as the server and share its
   CPU.
 
@@ -129,5 +130,21 @@ What this shows:
 - **Memory:** peaks during uploads, at about three times the reads-only figure,
   so the host needs that headroom.
 
-Follow-ups are in the issue tracker: keep the event loop free during a medical
-import's provider call and during sign-in, and bound the upload memory peak.
+Follow-ups were in #122.
+
+### After #122, development machine
+
+#122 found the stall. The provider's refusal was not slow, but logging it was:
+the MCP SDK had installed Rich's log handler, which rendered each traceback with
+syntax highlighting on the event loop. Logging one failed import took 0.9 s.
+With plain log lines it takes 0.02 s.
+
+Against a refusing stand-in provider, 2 accounts, 6 readers, 40 s, 10 MB uploads:
+
+- The liveness probe's worst time while imports failed fell from 860 ms to
+  129 ms.
+- Reads in that phase fell from a p95 of 733 ms to 37 ms.
+- Peak memory fell from 510 MB to 426 MB.
+
+Sign-in now checks the password in a thread, which leaves other requests
+running for those 0.2 s.

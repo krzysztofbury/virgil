@@ -15,9 +15,11 @@ uploads (the one upload endpoint) all at once, then waiting for the job queue to
 drain. It prints latency per request kind, status counts, job outcomes and the
 server's peak memory, as a Markdown block to paste into docs/load-check.md.
 
-Medical imports fail at their provider call (no network, and a placeholder key):
-the check covers accepting the upload, staging it and running the job, not the
-provider. Locally: `uv run --locked python scripts/load_check.py --seconds 20`.
+Medical imports go to a stand-in provider on loopback that reads each request
+and refuses the placeholder key, so they fail as a misconfigured key would: the
+check covers accepting the upload, staging it, building and sending the
+provider request and handling its refusal, not a real extraction. Locally:
+`uv run --locked python scripts/load_check.py --seconds 20`.
 """
 
 import argparse
@@ -49,6 +51,31 @@ READ_PATHS = ["/", "/daily", "/training", "/oura", "/bloodwork", "/goals", "/exp
 JOB_KINDS = ("backup", "medical_import")
 
 
+def _refusing_provider(port: int):
+    """A stand-in for the LLM provider on loopback, so an import's provider call
+    and its failure run here too: it reads the whole request and refuses the key,
+    as the real provider does with the placeholder."""
+    import threading
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+    class Refuse(BaseHTTPRequestHandler):
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("content-length", 0)))
+            body = json.dumps({"error": {"code": 400, "message": "API key not valid.", "status": "INVALID_ARGUMENT"}})
+            self.send_response(400)
+            self.send_header("content-type", "application/json")
+            self.send_header("content-length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body.encode())
+
+        def log_message(self, *args):
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", port), Refuse)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
 def _environment(work: Path, port: int) -> dict:
     return {
         **os.environ,
@@ -61,8 +88,9 @@ def _environment(work: Path, port: int) -> dict:
         # so the per-address rate limit applies per user and not to the check.
         "VIRGIL_TRUST_CLOUDFLARE_HEADERS": "true",
         "VIRGIL_TRUSTED_PROXY_IPS": "127.0.0.1",
-        # A placeholder: the upload is accepted and queued, the provider call fails.
+        # A placeholder key, refused by the stand-in provider below.
         "VIRGIL_INTERNAL_LLM_KEY": "load-check-placeholder",
+        "GEMINI_API_BASE": f"http://127.0.0.1:{port + 1}",
         "VIRGIL_API_KEY": "",
         "VIRGIL_ALERT_WEBHOOK_URL": "",
         "LITELLM_LOCAL_MODEL_COST_MAP": "true",
@@ -376,7 +404,7 @@ def main() -> None:
     work = Path(tempfile.mkdtemp(prefix="virgil-load-"))
     env = _environment(work, args.port)
     os.environ.update(env)
-    server = None
+    server = provider = None
     signal.signal(signal.SIGTERM, lambda *_: (_ for _ in ()).throw(SystemExit(130)))
     try:
         (work / "data" / "users").mkdir(parents=True)
@@ -384,6 +412,7 @@ def main() -> None:
         started = time.monotonic()
         emails = asyncio.run(_seed(args.users))
         seeded = time.monotonic() - started
+        provider = _refusing_provider(args.port + 1)
         server = subprocess.Popen(  # noqa: S603 - this interpreter, fixed arguments
             [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(args.port)],
             cwd=ROOT,
@@ -402,7 +431,7 @@ def main() -> None:
         # The exception lines, not the traceback frames around them.
         problems = sorted(
             {
-                line.strip(" │╰╯─")[:160]
+                re.sub(r"^\d{4}-\d\d-\d\d [\d:,]+ ", "", line.strip(" │╰╯─"))[:160]
                 for line in log.splitlines()
                 if re.search(r"\b\w+(Error|Exception)\b: ", line) or " ERROR " in line
             }
@@ -439,6 +468,8 @@ def main() -> None:
         print("\n".join(lines))
         print("\n" + json.dumps({"peak_rss_mb": result["peak_rss_mb"], "drained_s": drained}), file=sys.stderr)
     finally:
+        if provider is not None:
+            provider.shutdown()
         if server is not None:
             server.terminate()
             try:

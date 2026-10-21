@@ -17,7 +17,7 @@ from app.auth import (
     mfa_pending_user_id,
     session_cookie_header,
     signed_in_user,
-    verify_password,
+    verify_password_async,
 )
 from app.central_db import (
     bump_session_epoch,
@@ -207,7 +207,7 @@ async def login_submit(
 
     # Burn a bcrypt verify even for unknown emails so timing stays uniform.
     password_hash = user["password_hash"] if user else _DUMMY_PASSWORD_HASH
-    password_ok = verify_password(password, password_hash)
+    password_ok = await verify_password_async(password, password_hash)
 
     if not user or not password_ok:
         return templates.TemplateResponse(
@@ -310,7 +310,7 @@ async def mfa_disable(request: Request, password: str = Form(...)):
         return error_redirect(request, "/settings", "MFA could not be disabled.")
 
     # verify_password raises on empty input — treat it as a wrong password.
-    if not password or not verify_password(password, user["password_hash"]):
+    if not password or not await verify_password_async(password, user["password_hash"]):
         return _mfa_setup_response(request, mfa_enabled=True, error="Invalid password.")
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
