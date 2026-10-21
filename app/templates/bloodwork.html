@@ -27,13 +27,13 @@
             {% set r = results.get(m.id, {}).get(d) %}
             <td class="{{ 'flag-h' if r and r.flag == 'H' else 'flag-l' if r and r.flag == 'L' else 'flag-normal' if r else '' }}">
                 {% if r %}
-                    {{ r.value_text if r.value_text else r.value }}
+                    {{ r.display }}
                     {% if r.flag %}<sup>{{ r.flag }}</sup>{% endif %}
                 {% else %}-{% endif %}
             </td>
             {% endfor %}
             <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);" aria-label="Chart for {{ m.name }}">
-                <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
+                <i data-lucide="chart-line" style="width:16px;height:16px;"></i>
             </a></td>
         </tr>
         {% endfor %}
@@ -113,13 +113,20 @@
             <div class="bw-value">
                 {% if m.summary.value %}
                 <span class="{{ 'flag-h' if m.summary.flag == 'H' else 'flag-l' if m.summary.flag == 'L' else 'flag-normal' }}">{{ m.summary.value }}{% if m.summary.flag %}<sup>{{ m.summary.flag }}</sup>{% endif %}</span>
-                <small class="text-muted">{{ m.summary.date }}{% if m.summary.change %} · {{ m.summary.change }}{% endif %}</small>
+                <small class="text-muted">{{ m.summary.date }}</small>
+                {% if m.summary.change %}<small class="text-muted">from {{ m.summary.previous }}
+                    {# Direction by shape, good or bad news by colour and words: rising
+                       is bad news for LDL above its range and good for vitamin D below it. #}
+                    <span class="bw-trend bw-trend-{{ m.summary.trend or 'neutral' }}">
+                        <i data-lucide="{{ 'arrow-up-right' if m.summary.direction == 'up' else 'arrow-down-right' if m.summary.direction == 'down' else 'move-right' }}" aria-hidden="true"></i>{{ m.summary.change }}
+                        {%- if m.summary.trend == 'worse' %}<span class="sr-only">, moving away from the range</span>{% elif m.summary.trend == 'better' %}<span class="sr-only">, moving towards the range</span>{% endif -%}
+                    </span></small>{% endif %}
                 {% else %}
                 <span class="text-muted">-</span>
                 {% endif %}
             </div>
             <a class="bw-chart" href="/bloodwork/{{ current_category }}?marker={{ m.id }}" aria-label="Chart for {{ m.name }}">
-                <i data-lucide="trending-up" style="width:16px;height:16px;"></i>
+                <i data-lucide="chart-line" style="width:16px;height:16px;"></i>
             </a>
         </li>
         {% endfor %}

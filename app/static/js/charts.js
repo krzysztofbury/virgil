@@ -14,6 +14,9 @@ if (typeof Chart !== 'undefined') {
     Chart.defaults.plugins.legend.labels.boxWidth = 8;
     Chart.defaults.plugins.legend.labels.boxHeight = 8;
     Chart.defaults.plugins.legend.labels.padding = 16;
+    // Curves that never overshoot their points: a plain smoothed line bulged
+    // past the data and ran flat along the edge of the chart where it was clipped.
+    Chart.defaults.elements.line.cubicInterpolationMode = 'monotone';
     // Charts draw in at once for anyone who asked the system for less motion.
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
         Chart.defaults.animation = false;

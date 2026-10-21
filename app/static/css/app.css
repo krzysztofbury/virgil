@@ -1707,6 +1707,11 @@ details > :not(summary) { margin-top: 1rem; }
 }
 .exp-status-active { background: rgba(16,185,129,0.15); color: var(--green); }
 .exp-status-completed { background: rgba(59,130,246,0.15); color: var(--blue); }
+.exp-status-ended { background: rgba(229,169,64,0.15); color: var(--yellow); }
+.exp-ended { margin-bottom: 0.75rem; border-left: 3px solid var(--yellow); }
+.exp-ended p { margin-bottom: 0.75rem; }
+.exp-ended-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.exp-ended-actions form { margin: 0; }
 .exp-status-abandoned { background: var(--overlay-3); color: var(--text-secondary); }
 
 .exp-card-link {
@@ -2466,6 +2471,11 @@ input.flatpickr-input:hover {
 .bw-value { text-align: right; }
 .bw-value span { font-family: var(--font-mono); font-weight: 700; }
 .bw-chart { color: var(--accent); display: flex; align-items: center; }
+.bw-trend { display: inline-flex; align-items: center; gap: 0.15rem; white-space: nowrap; }
+.bw-trend svg { width: 13px; height: 13px; }
+.bw-trend-worse { color: var(--red); }
+.bw-trend-better { color: var(--green); }
+.bw-trend-neutral { color: var(--text-secondary); }
 
 /* Oura: the baseline verdict word, and the vitals group headings. */
 .baseline-status { font-weight: 700; margin: 0; }

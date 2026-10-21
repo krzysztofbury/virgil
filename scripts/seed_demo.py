@@ -230,14 +230,14 @@ async def _seed(db) -> None:
     # --- Experiment: active 4-week consistency sprint ---
     cur = await db.execute(
         "INSERT INTO experiments (title, description, start_date, num_weeks, status) VALUES (?,?,?,?,'active')",
-        ("5/7 Consistency Sprint", "Hit the target on at least 5 of 7 days.", d(4), 4),
+        ("5/7 Consistency Sprint", "A 30-minute focus block on at least 5 of 7 days: 150 minutes a week.", d(4), 4),
     )
     exp_id = cur.lastrowid
     for week_number in range(1, 5):
         await db.execute(
             "INSERT INTO experiment_weeks (experiment_id, week_number, label, target_min, target_max) "
             "VALUES (?,?,'',?,?)",
-            (exp_id, week_number, 10, 14),
+            (exp_id, week_number, 150, 210),
         )
     cur = await db.execute(
         "INSERT INTO experiment_activity_types (experiment_id, name, color, kind, display_order) "
@@ -248,7 +248,7 @@ async def _seed(db) -> None:
     await db.executemany(
         "INSERT INTO experiment_entries (experiment_id, date, activity_type_id, value, notes, source) "
         "VALUES (?,?,?,?,?,'manual')",
-        [(exp_id, d(1), at_id, 10, ""), (exp_id, d(0), at_id, 10, "")],
+        [(exp_id, d(1), at_id, 35, ""), (exp_id, d(0), at_id, 30, "")],
     )
 
     # --- Experiment 2: general (non-sport) protocol — boolean + count metrics ---
@@ -320,23 +320,26 @@ async def _seed(db) -> None:
         )
 
     # --- Bloodwork: a few markers + latest results (so the Blood page isn't empty) ---
+    # Two results each, half a year apart, as a lab reports them: one marker
+    # improving into its range, one worsening above it, one steady inside.
     markers = [
-        ("Testosterone", "Hormones", "ng/dL", 300.0, 1000.0, 0),
-        ("Vitamin D", "Vitamins", "ng/mL", 30.0, 100.0, 1),
-        ("Ferritin", "Iron", "ng/mL", 30.0, 400.0, 2),
-        ("HbA1c", "Metabolic", "%", 4.0, 5.6, 3),
-        ("LDL", "Lipids", "mg/dL", 0.0, 100.0, 4),
+        ("Testosterone", "Hormones", "ng/dL", 300.0, 1000.0, 0, 420.0, 585.0),
+        ("Vitamin D", "Vitamins", "ng/mL", 30.0, 100.0, 1, 22.0, 41.0),
+        ("Ferritin", "Iron", "ng/mL", 30.0, 400.0, 2, 96.0, 88.0),
+        ("HbA1c", "Metabolic", "%", 4.0, 5.6, 3, 5.4, 5.0),
+        ("LDL", "Lipids", "mg/dL", 0.0, 100.0, 4, 121.0, 142.0),
     ]
-    for name, cat, unit, lo, hi, order in markers:
+    for name, cat, unit, lo, hi, order, before, after in markers:
         cur = await db.execute(
             "INSERT INTO blood_markers (name, category, unit, ref_low, ref_high, display_order) VALUES (?,?,?,?,?,?)",
             (name, cat, unit, lo, hi, order),
         )
         mid = cur.lastrowid
-        for off, val, flag in ((180, lo * 1.1, ""), (10, hi * 0.9, "")):
+        for off, val in ((180, before), (10, after)):
+            flag = "H" if val > hi else "L" if val < lo else ""
             await db.execute(
                 "INSERT INTO blood_results (marker_id, date, value, flag) VALUES (?,?,?,?)",
-                (mid, d(off), round(val, 1), flag),
+                (mid, d(off), val, flag),
             )
 
     await db.commit()

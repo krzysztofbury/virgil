@@ -13,18 +13,52 @@ from app.validation import OptionalFormFloat, truncate, valid_date
 router = APIRouter()
 
 
-def _as_display(row) -> str:
+# More than any lab reports, and short of float noise (5.0400000001).
+DECIMALS_MAX = 3
+
+
+def _decimals(value) -> int:
+    text = f"{float(value):.{DECIMALS_MAX}f}".rstrip("0")
+    return len(text.split(".")[1]) if "." in text else 0
+
+
+def marker_decimals(marker: dict, marker_results: dict) -> int:
+    """How many decimals this marker is reported in: the most that its reference
+    limits or any of its results carry. HbA1c with a 5.6 limit prints 5.0, not
+    5, which is the difference between in range and on its edge."""
+    values = [marker.get("ref_low"), marker.get("ref_high")]
+    values += [r.get("value") for r in marker_results.values() if not r.get("value_text")]
+    return max((_decimals(v) for v in values if v is not None), default=0)
+
+
+def _as_display(row, decimals: int) -> str:
     """A result as the page prints it: the text form wins over the number."""
     if row.get("value_text"):
         return str(row["value_text"])
     value = row.get("value")
     if value is None:
         return ""
-    # Trim a trailing .0 so 5.0 reads as 5, the way the matrix already does.
-    return f"{value:g}"
+    return f"{value:.{decimals}f}"
 
 
-def marker_summary(marker_results: dict) -> dict:
+def _trend(previous: float, latest: float, low, high) -> str:
+    """Whether a move is good news for this marker, judged by its range.
+
+    Away from the range, or leaving it, is worse; back towards it, or into it,
+    is better. Moving about inside the range, or with no range, says nothing.
+    """
+    if latest == previous:
+        return ""
+    rising = latest > previous
+    if high is not None and latest > high:
+        return "worse" if rising else "better"
+    if low is not None and latest < low:
+        return "better" if rising else "worse"
+    outside_before = (high is not None and previous > high) or (low is not None and previous < low)
+    return "better" if outside_before else ""
+
+
+def marker_summary(marker_results: dict, marker: dict | None = None) -> dict:
     """Latest value, its flag, and the change from the result before it.
 
     The mobile list answers one question - "where is this marker now, and which
@@ -36,20 +70,22 @@ def marker_summary(marker_results: dict) -> dict:
     value_text is what says the number is not the result, and subtracting those
     numbers would report a direction the user never recorded.
     """
-    empty = {"date": "", "value": "", "flag": "", "previous": "", "change": ""}
+    empty = {"date": "", "value": "", "flag": "", "previous": "", "change": "", "direction": "", "trend": ""}
     if not marker_results:
         return empty
+    marker = marker or {}
+    decimals = marker_decimals(marker, marker_results)
 
     dates = sorted(marker_results)
     latest = marker_results[dates[-1]]
     previous = marker_results[dates[-2]] if len(dates) > 1 else None
 
     summary = {
+        **empty,
         "date": dates[-1],
-        "value": _as_display(latest),
+        "value": _as_display(latest, decimals),
         "flag": latest.get("flag") or "",
-        "previous": _as_display(previous) if previous else "",
-        "change": "",
+        "previous": _as_display(previous, decimals) if previous else "",
     }
     numeric = (
         previous is not None
@@ -59,7 +95,10 @@ def marker_summary(marker_results: dict) -> dict:
         and previous.get("value") is not None
     )
     if numeric:
-        summary["change"] = f"{float(latest['value']) - float(previous['value']):+.1f}"
+        before, now = float(previous["value"]), float(latest["value"])
+        summary["change"] = f"{now - before:+.{decimals}f}"
+        summary["direction"] = "up" if now > before else "down" if now < before else "flat"
+        summary["trend"] = _trend(before, now, marker.get("ref_low"), marker.get("ref_high"))
     return summary
 
 
@@ -98,7 +137,11 @@ async def bloodwork_page(request: Request, category: str = "all"):
             results[r["marker_id"]][r["date"]] = dict(r)
 
     for m in markers:
-        m["summary"] = marker_summary(results.get(m["id"], {}))
+        marker_results = results.get(m["id"], {})
+        decimals = marker_decimals(m, marker_results)
+        for r in marker_results.values():
+            r["display"] = _as_display(r, decimals)
+        m["summary"] = marker_summary(marker_results, m)
 
     # Selected marker for chart (first one or from query param)
     chart_marker_id = request.query_params.get("marker")
