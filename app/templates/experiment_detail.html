@@ -8,7 +8,7 @@
     <p class="exp-subtitle">
         {{ experiment.description }}
         {% if experiment.description %} &middot; {% endif %}
-        {{ start_fmt }} &mdash; {{ end_fmt }}
+        {{ start_fmt }} to {{ end_fmt }}
         &middot; <a href="/">Dashboard</a>
         &middot; <a href="/experiments/{{ experiment.id }}/edit">Edit</a>
         {% if experiment.status != 'active' or ended %}
@@ -142,7 +142,7 @@
             {% if week.label %}
             <span class="exp-week-tag">{{ week.label }}</span>
             {% endif %}
-            <small>{{ week.monday_fmt }}&ndash;{{ week.sunday_fmt }}</small>
+            <small>{{ week.monday_fmt }} to {{ week.sunday_fmt }}</small>
         </div>
 
         <!-- Center: Day cells -->

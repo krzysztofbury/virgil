@@ -369,7 +369,34 @@ def test_training_schedule_round_trips(auth_client):
     # Normalised on write, so the planner never reads a half-parsed list.
     assert _setting("training_days") == "mon,wed,fri"
     assert _setting("training_swim_per_week") == "2"
-    assert 'value="mon,wed,fri"' in auth_client.get("/settings?tab=configuration").text
+    page = auth_client.get("/settings?tab=configuration").text
+    checked = [day for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun") if f'value="{day}" checked' in page]
+    assert checked == ["mon", "wed", "fri"], "the stored days show as the toggles that are on"
+
+
+def test_training_day_toggles_store_the_same_list(auth_client):
+    """The page sends one checkbox per day; the planner still reads mon,wed,fri."""
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    resp = auth_client.post(
+        "/settings/training-schedule",
+        data={
+            "training_day_chips": "1",
+            "training_day": ["sat", "tue"],
+            "training_swim_per_week": "0",
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert _setting("training_days") == "tue,sat"
+    token = csrf_token(auth_client, "/settings?tab=configuration")
+    cleared = auth_client.post(
+        "/settings/training-schedule",
+        data={"training_day_chips": "1", "training_swim_per_week": "0", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert cleared.status_code == 303
+    assert _setting("training_days") == "", "no day on means no fixed days, not an error"
 
 
 def _save_schedule(client, days: str, swim: str):

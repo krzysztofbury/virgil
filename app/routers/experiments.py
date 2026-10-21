@@ -21,17 +21,15 @@ from app.validation import (
 router = APIRouter(prefix="/experiments")
 logger = logging.getLogger(__name__)
 
-_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
-
 
 def _fmt_date(d: date) -> str:
-    """Format date as 'Feb 18, 2026'."""
-    return f"{_MONTHS[d.month - 1]} {d.day}, {d.year}"
+    """2026-02-18: ISO, as every other page writes a date."""
+    return d.isoformat()
 
 
 def _fmt_short(d: date) -> str:
-    """Format date as 'Feb 18'."""
-    return f"{_MONTHS[d.month - 1]} {d.day}"
+    """02-18, for week rows where the year is in the range above them."""
+    return d.strftime("%m-%d")
 
 
 def _normalize_metric(name: str, color: str, kind: str, target: str, period: str, source_match: str) -> dict | None:
@@ -697,10 +695,17 @@ async def edit_experiment(
         goal = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,))
         if not goal:
             return error_redirect(request, f"/experiments/{experiment_id}/edit", "Linked goal was not found.")
+    # The page saves its metrics with the basics. All are checked before
+    # anything is written, so one bad row leaves the whole page unsaved.
+    metric_updates, problem = await _metric_updates_from_form(db, experiment_id, await request.form())
+    if problem:
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", problem)
     await db.execute(
         "UPDATE experiments SET goal_id = ?, title = ?, description = ?, start_date = ?, num_weeks = ?, status = ? WHERE id = ?",
         (goal_id, title, truncate(description, 2000), start_date, num_weeks, status, experiment_id),
     )
+    for metric_id, metric in metric_updates:
+        await _write_metric(db, experiment_id, metric_id, metric)
 
     # Resync weeks: drop rows beyond the new horizon, add missing ones.
     # New weeks inherit the last surviving week's targets (a sane template).
@@ -808,6 +813,14 @@ async def update_metric(
             f"/experiments/{experiment_id}/edit",
             "Metric names must be unique within an experiment.",
         )
+    updated = await _write_metric(db, experiment_id, metric_id, metric)
+    await db.commit()
+    if not updated:
+        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric not found.")
+    return success_redirect(request, f"/experiments/{experiment_id}/edit", "Metric updated.")
+
+
+async def _write_metric(db, experiment_id: int, metric_id: int, metric: dict) -> bool:
     cursor = await db.execute(
         "UPDATE experiment_activity_types SET name = ?, color = ?, target_value = ?, target_period = ?, source_match = ? "
         "WHERE id = ? AND experiment_id = ?",
@@ -821,10 +834,37 @@ async def update_metric(
             experiment_id,
         ),
     )
-    await db.commit()
-    if cursor.rowcount == 0:
-        return error_redirect(request, f"/experiments/{experiment_id}/edit", "Metric not found.")
-    return success_redirect(request, f"/experiments/{experiment_id}/edit", "Metric updated.")
+    return cursor.rowcount > 0
+
+
+async def _metric_updates_from_form(db, experiment_id: int, form) -> tuple[list[tuple[int, dict]], str | None]:
+    """Every metric row the edit page posted, checked as one set: a name each,
+    unique within the experiment (also against the rows not posted)."""
+    rows = await db.execute_fetchall(
+        "SELECT id, name, kind FROM experiment_activity_types WHERE experiment_id = ?", (experiment_id,)
+    )
+    updates, names = [], {}
+    for row in rows:
+        prefix = f"metric_{row['id']}_"
+        if f"{prefix}name" not in form:
+            names[row["id"]] = row["name"]
+            continue
+        metric = _normalize_metric(
+            str(form.get(f"{prefix}name", "")),
+            str(form.get(f"{prefix}color", "#3b82f6")),
+            row["kind"],
+            str(form.get(f"{prefix}target_value", "0")),
+            str(form.get(f"{prefix}target_period", "week")),
+            str(form.get(f"{prefix}source_match", "")),
+        )
+        if metric is None:
+            return [], "Every metric needs a name."
+        updates.append((row["id"], metric))
+        names[row["id"]] = metric["name"]
+    folded = [name.casefold() for name in names.values()]
+    if len(folded) != len(set(folded)):
+        return [], "Metric names must be unique within an experiment."
+    return updates, None
 
 
 @router.post("/{experiment_id}/metric/{metric_id}/delete")

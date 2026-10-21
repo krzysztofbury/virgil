@@ -122,6 +122,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- From the design review (#95):
+  - Helper text is brighter on the dark theme and 13px, up from 12px.
+  - Empty Oura and measurement cards on the dashboard link to the next step:
+    connecting Oura, and Daily on the latest Saturday, when it asks for
+    measurements.
+  - The keyboard shortcut overlay has a solid panel over a darker backdrop, and
+    does not open on touch-only screens.
+  - New and edited experiments say what is wrong under each field, with a count
+    beside the button, instead of a browser bubble that showed nothing on a
+    phone.
+  - Editing an experiment saves its basics and every metric with one button.
+    One invalid row saves nothing. A metric's Delete sits at the end of its row
+    and asks first.
+  - Experiments write dates in ISO, like every other page, and week rows as
+    month-day.
+  - Training days in Settings are seven toggles. The planner still stores and
+    reads the same comma list.
+  - Freedom habit settings say what an empty field means under it, save with
+    "Save changes", and Stop tracking is styled as the destructive action it is.
 - Onboarding, from the design review (#95):
   - It hides the app's navigation, which led to pages that only redirect back
     to it, and keeps the logo and Log out.

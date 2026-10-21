@@ -303,14 +303,17 @@
             <textarea name="slip_definition" rows="2" maxlength="600">{{ habit.slip_definition }}</textarea>
         </label>
         <div class="grid">
-            <label>Amount unit <small class="text-muted">empty: no amount asked</small>
+            <label>Amount unit
                 <input type="text" name="amount_unit" value="{{ habit.amount_unit }}" maxlength="20" placeholder="minutes, drinks">
+                <small class="text-muted">Leave empty to skip asking for an amount.</small>
             </label>
-            <label>A slip starts at <small class="text-muted">in that unit</small>
+            <label>A slip starts at
                 <input type="number" name="slip_threshold" value="{{ habit.slip_threshold if habit.slip_threshold is not none else '' }}" min="1" max="1440">
+                <small class="text-muted">In the amount unit.</small>
             </label>
-            <label>Near miss <small class="text-muted">empty: not asked</small>
+            <label>Near miss
                 <input type="text" name="near_miss_label" value="{{ habit.near_miss_label }}" maxlength="30">
+                <small class="text-muted">Leave empty to skip asking about near misses.</small>
             </label>
         </div>
         <div class="grid">
@@ -321,12 +324,12 @@
             <textarea name="big_why" rows="2" maxlength="2000">{{ habit.big_why }}</textarea>
         </label>
         <div class="form-actions freedom-settings-actions">
-            <button type="submit" class="btn btn-primary">Save {{ habit.name }}</button>
+            <button type="submit" class="btn btn-primary">Save changes</button>
         </div>
     </form>
     <form method="POST" action="/freedom/{{ habit.slug }}/untrack" class="freedom-untrack" data-confirm="Stop tracking this habit? Its history is kept and comes back if you track it again.">
         <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-        <button type="submit" class="btn btn-outline btn-sm">Stop tracking {{ habit.name }}</button>
+        <button type="submit" class="btn btn-danger btn-sm">Stop tracking this habit</button>
     </form>
 </details>
 

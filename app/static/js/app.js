@@ -832,6 +832,8 @@ document.addEventListener('DOMContentLoaded', function() {
 var shortcutOverlayOpener = null;
 
 function toggleShortcutOverlay() {
+    // No keyboard to use them with on a touch-only screen.
+    if (window.matchMedia && window.matchMedia('(hover: none)').matches) return;
     if (document.querySelector('.shortcut-overlay')) {
         closeShortcutOverlay();
         return;
@@ -1078,4 +1080,58 @@ document.addEventListener('click', function(event) {
     }, function() {
         showFeedback('Could not copy; select the text instead.', 'error');
     });
+});
+
+// data-validate: the browser's checks, said on the page. Its own bubble shows
+// nothing on a phone but a focus ring, so an invalid form looked like a dead
+// button. Each invalid field gets its message below it, the form a summary
+// beside its submit button, and the first invalid field the focus.
+function clearFieldErrors(form) {
+    form.querySelectorAll('.field-error').forEach(function(note) { note.remove(); });
+    form.querySelectorAll('[aria-invalid="true"]').forEach(function(field) {
+        field.removeAttribute('aria-invalid');
+        field.removeAttribute('aria-describedby');
+    });
+    var summary = form.querySelector('[data-form-errors]');
+    if (summary) summary.textContent = '';
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('form[data-validate]').forEach(function(form) { form.noValidate = true; });
+});
+document.addEventListener('submit', function(event) {
+    var form = event.target;
+    if (!form.matches || !form.matches('form[data-validate]')) return;
+    if (event.submitter && event.submitter.formNoValidate) return;
+    clearFieldErrors(form);
+    var invalid = Array.prototype.filter.call(form.elements, function(field) {
+        return field.willValidate && !field.checkValidity();
+    });
+    if (!invalid.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    invalid.forEach(function(field, index) {
+        var note = document.createElement('small');
+        note.className = 'field-error';
+        note.id = (field.id || field.name || 'field') + '-error-' + index;
+        note.textContent = field.validationMessage;
+        field.setAttribute('aria-invalid', 'true');
+        field.setAttribute('aria-describedby', note.id);
+        field.insertAdjacentElement('afterend', note);
+    });
+    var summary = form.querySelector('[data-form-errors]');
+    if (summary) {
+        summary.textContent = invalid.length === 1
+            ? 'One field needs attention.'
+            : invalid.length + ' fields need attention.';
+    }
+    invalid[0].focus();
+}, true);
+document.addEventListener('input', function(event) {
+    var field = event.target;
+    if (field.getAttribute && field.getAttribute('aria-invalid') === 'true' && field.checkValidity()) {
+        var note = document.getElementById(field.getAttribute('aria-describedby'));
+        if (note) note.remove();
+        field.removeAttribute('aria-invalid');
+        field.removeAttribute('aria-describedby');
+    }
 });

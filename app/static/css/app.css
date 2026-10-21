@@ -23,7 +23,7 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
 
   /* Text Colors */
   --text-primary: #e8ecf4;
-  --text-secondary: #8b95a8;
+  --text-secondary: #a1abbd; /* small helper text read as too faint at #8b95a8 */
   --text-tertiary: #6f7a8e; /* 4.5:1 on --bg-primary */
 
   /* Accents — Warm teal, distinctive from generic indigo */
@@ -169,7 +169,7 @@ h1 { font-size: 2.25rem; font-weight: 800; line-height: 1.1; margin-bottom: 0.5r
 h2 { font-size: 1.5rem; font-weight: 700; line-height: 1.2; margin-bottom: 0.75rem; }
 h3 { font-size: 1.25rem; font-weight: 600; line-height: 1.3; margin-bottom: 0.5rem; }
 h4 { font-size: 1rem; font-weight: 600; line-height: 1.4; }
-small { font-size: 0.75rem; color: var(--text-secondary); }
+small { font-size: 0.8125rem; color: var(--text-secondary); }
 strong { font-weight: 600; color: var(--text-primary); }
 
 /* ── Layout ── */
@@ -2518,7 +2518,7 @@ input.flatpickr-input:hover {
 .shortcut-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.8);
   backdrop-filter: blur(4px);
   z-index: 3000;
   display: flex;
@@ -2526,8 +2526,10 @@ input.flatpickr-input:hover {
   justify-content: center;
   animation: fadeIn 0.2s ease-out;
 }
+@media (hover: none) { .shortcut-overlay { display: none; } }
 .shortcut-card {
-  background: var(--bg-card);
+  /* Solid: a see-through panel let the page's text run through the shortcuts. */
+  background: var(--bg-dropdown);
   backdrop-filter: blur(16px);
   border: var(--glass-border);
   border-radius: var(--radius-lg);
@@ -2687,6 +2689,10 @@ kbd {
   .wod-table td:last-child .btn { width: 100%; }
   .history-table .history-when { font-weight: 600; }
   .goal-delete-detail { margin-top: 0.75rem; }
+  /* A metric's Delete on its own line at the row's end, not between fields. */
+  .exp-edit-metric-row { flex-direction: column; align-items: stretch !important; }
+  .exp-edit-metric-delete { align-self: flex-end; }
+  .day-chip span { min-height: 44px; }
   .tabs a { flex-shrink: 0; display: inline-flex; align-items: center; }
   /* Three short tabs inside a card header: no bleed to the screen edge. */
   .tabs.range-picker { margin-inline: 0; padding-inline: 0; }
@@ -3163,6 +3169,30 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .oura-setup li { display: list-item; }
 .oura-setup a { color: var(--accent); }
 .oura-setup code { overflow-wrap: anywhere; }
+
+/* An empty card's next step: a link, not more grey text. */
+.empty-next a { color: var(--accent); font-weight: 600; }
+
+/* Training days as seven toggles instead of a typed "mon,wed,fri". */
+.day-chips { border: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.day-chips legend { padding: 0; margin-bottom: 0.35rem; font-size: 0.875rem; }
+.day-chip { position: relative; margin: 0; cursor: pointer; }
+.day-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.day-chip span {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 2.75rem; min-height: 2.25rem; padding: 0 0.6rem;
+  border: 1px solid var(--border); border-radius: var(--radius-full);
+  color: var(--text-secondary); font-size: 0.875rem;
+}
+.day-chip input:checked + span { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
+.day-chip input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* data-validate: a field's own message under it, a count beside the submit. */
+.field-error { display: block; margin-top: 0.25rem; color: var(--red); font-size: 0.8125rem; }
+[aria-invalid="true"] { border-color: var(--red) !important; }
+.form-save-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 0.75rem; margin: 1rem 0; }
+.form-errors { color: var(--red); font-size: var(--text-sm, 0.875rem); font-weight: 600; margin-right: auto; }
+.form-errors:empty { display: none; }
 
 /* Inline form error, beside the toast: a toast disappears, this does not. */
 .form-error {
