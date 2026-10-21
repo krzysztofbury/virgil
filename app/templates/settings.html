@@ -414,9 +414,13 @@
     </details>
 
     {% else %}
-    <p class="text-muted" style="margin-bottom:0.75rem;font-size:var(--text-sm);">
-        Register your app at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank">cloud.ouraring.com</a> and enter credentials below.
-    </p>
+    <ol class="text-muted oura-setup" style="margin-bottom:0.75rem;font-size:var(--text-sm);">
+        <li>Create an application at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank" rel="noopener">cloud.ouraring.com/oauth/applications</a>.</li>
+        <li>As its redirect URI, paste
+            <code id="oura-redirect-uri">{{ oura_redirect_uri }}</code>
+            <button type="button" class="btn btn-outline btn-sm" data-copy="#oura-redirect-uri">Copy</button></li>
+        <li>Enter the application's client ID and secret below and save, then choose Connect to Oura.</li>
+    </ol>
     <form method="POST" action="/settings/oura/save">
         <div class="grid">
             <div><label>Client ID <input type="text" name="client_id" placeholder="XXXXXXXX" required></label></div>

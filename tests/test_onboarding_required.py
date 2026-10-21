@@ -34,3 +34,41 @@ def test_onboarding_cannot_be_skipped_but_can_finish_without_ai(auth_client, mon
         assert auth_client.get("/", follow_redirects=False).status_code == 200
     finally:
         _set_onboarded("1")
+
+
+def test_onboarding_shows_only_its_own_way_out(auth_client):
+    """The app's navigation led to pages that only redirect back here (#95)."""
+    page = auth_client.get("/onboarding?step=1").text
+    nav = page[page.index('<nav class="top-nav"') : page.index("</nav>")]
+    assert 'href="/training"' not in nav and 'href="/settings"' not in nav
+    assert 'action="/logout"' in nav
+    assert 'class="bottom-bar"' not in page
+
+
+def test_step_one_no_longer_asks_habits_or_clears_them(auth_client):
+    """Habits are asked in step 4. Saving step 1 must keep what an earlier
+    version stored in its own habit fields: the onboarding context reads them."""
+    with sqlite3.connect(user_db_path()) as conn:
+        conn.execute("INSERT OR IGNORE INTO user_profiles (id) VALUES (1)")
+        conn.execute("UPDATE user_profiles SET habits_good = 'ZZ reading', habits_bad = 'ZZ scrolling' WHERE id = 1")
+    assert 'name="habits_good"' not in auth_client.get("/onboarding?step=1").text
+    token = csrf_token(auth_client, "/onboarding?step=1")
+    saved = auth_client.post(
+        "/onboarding/step/1", data={"_csrf_token": token, "age": "40", "family": ""}, follow_redirects=False
+    )
+    assert saved.status_code == 303
+    with sqlite3.connect(user_db_path()) as conn:
+        kept = conn.execute("SELECT habits_good, habits_bad FROM user_profiles WHERE id = 1").fetchone()
+    assert kept == ("ZZ reading", "ZZ scrolling")
+
+
+def test_medical_step_without_a_key_offers_next_not_an_upload(auth_client, monkeypatch):
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "")
+    page = auth_client.get("/onboarding?step=5").text
+    assert 'type="file"' not in page, "an upload the server would refuse must not be offered"
+    assert 'href="/onboarding?step=6" class="btn btn-primary">Next' in page
+
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "test-key")
+    page = auth_client.get("/onboarding?step=5").text
+    assert 'type="file"' in page
+    assert "Skip this step" in page

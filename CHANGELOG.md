@@ -122,6 +122,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Onboarding, from the design review (#95):
+  - It hides the app's navigation, which led to pages that only redirect back
+    to it, and keeps the logo and Log out.
+  - Habits are asked once, in step 4; step 1 no longer asks them too, and no
+    longer clears what an earlier version stored there.
+  - Step 5 without an internal LLM key says so and offers Next, with no upload
+    form it would refuse. With a key, Skip sits under the form as on every
+    other step, and the file picker matches the theme.
+- Settings > Integrations lists the Oura setup as steps, with the redirect URI
+  to paste into Oura's application form and a Copy button (#95).
 - On a phone, from the design review (#95):
   - The header keeps only the theme and admin icons. Settings and Log out
     live in the More menu, where Log out is the last item, set apart.

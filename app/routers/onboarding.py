@@ -116,8 +116,6 @@ async def save_step1(
     height_cm: str = Form(""),
     weight_kg: str = Form(""),
     family: str = Form(""),
-    habits_good: str = Form(""),
-    habits_bad: str = Form(""),
 ):
     if sex not in {"", "male", "female"}:
         return error_redirect(request, "/onboarding?step=1", "Choose a valid sex option.")
@@ -147,8 +145,6 @@ async def save_step1(
         height_cm=height_value,
         weight_kg=weight_value,
         family=truncate(family, 500),
-        habits_good=truncate(habits_good, 2000),
-        habits_bad=truncate(habits_bad, 2000),
     )
     return success_redirect(request, "/onboarding?step=2", "About-you details saved.")
 

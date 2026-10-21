@@ -31,6 +31,7 @@
 <body hx-headers='{"X-CSRF-Token": "{{ request.state.csrf_token }}"}' data-features='{{ request.state.features | tojson }}'>
     {# First in the tab order: past the eight-link nav straight to the page. #}
     <a href="#main-content" class="skip-link">Skip to content</a>
+    {% block top_nav %}
     <!-- Top Navigation -->
     <nav class="top-nav">
         <a href="/" class="nav-logo"><img src="/static/icons/logo.png" alt="Virgil" class="nav-logo-img">Virgil</a>
@@ -63,6 +64,7 @@
             </form>
         </div>
     </nav>
+    {% endblock %}
 
     {# Filled by app.js while the server is unreachable. The region exists from
        the start so the announcement is read, and :empty hides it. #}
@@ -75,6 +77,7 @@
         {% block content %}{% endblock %}
     </main>
 
+    {% block bottom_bar %}
     <!-- Bottom Tab Bar (mobile) -->
     <div class="bottom-bar" x-data="bottomBar" @click.outside="openMenu = null">
         <a href="/" class="tab-item {{ 'active' if request.url.path == '/' else '' }}">
@@ -124,6 +127,7 @@
             </div>
         </div>
     </div>
+    {% endblock %}
 
     <script src="/static/js/app.js?v={{ app_version }}"></script>
     {% block scripts %}{% endblock %}

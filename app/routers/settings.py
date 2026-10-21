@@ -117,6 +117,8 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["webhook_registration"] = registration
         context["webhook_enabled"] = registration is not None
         context["webhook_url"] = registration["endpoint"] if registration else ""
+        # What Oura's application form asks for; connecting fails without it.
+        context["oura_redirect_uri"] = f"{BASE_URL}/settings/oura/callback"
 
     elif tab == "data":
         pass
