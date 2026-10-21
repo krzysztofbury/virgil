@@ -87,6 +87,47 @@ the provider refused each request):
 - Each sign-in holds the event loop for about 175 ms while bcrypt checks the
   password.
 
-### Deployment hardware
+### Deployment hardware, 2026-10-21
 
-Pending: run the command above on the NAS and record the block it prints here.
+The NAS: x86_64, 4 CPUs, the production image `e651759` with `--network none`.
+3 accounts, 1.8 MB of databases (seeded in 14 s), 12 simulated readers, 90 s,
+10 MB uploads. The simulated people share those 4 CPUs with the server, and
+generating and encoding each 10 MB upload is their work too, so the times are
+somewhat worse than real visitors would see.
+
+| Phase | Request | Count | p50 ms | p95 ms | max ms | Statuses |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Reads | read | 511 | 40 | 317 | 1732 | 200: 511 |
+| Reads | liveness probe | 168 | 7 | 47 | 260 | 200: 168 |
+| Mixed | read | 437 | 71 | 1040 | 2116 | 200: 437 |
+| Mixed | daily save | 21 | 208 | 554 | 984 | 200: 21 |
+| Mixed | backup now | 9 | 198 | 285 | 463 | 303: 9 |
+| Mixed | upload 10 MB | 9 | 820 | 2261 | 2503 | 303: 9 |
+| Mixed | liveness probe | 151 | 8 | 216 | 389 | 200: 151 |
+
+Jobs:
+
+- All 9 backups succeeded, a median of 1.4 s from queued to finished (max 1.7 s).
+- All 9 imports failed at the provider call as expected (no network), after
+  1.9 s (max 2.7 s).
+- The queue was empty when the load stopped.
+
+Server memory peaked at 723 MB during the uploads and was 384 MB afterwards.
+The server log holds only the expected connection errors of the imports.
+
+What this shows:
+
+- **Correctness:** nothing failed. Every request was answered with its
+  expected status, every backup succeeded, and no job was left behind, at 12
+  simultaneous readers, several times what the household produces.
+- **Reads:** a page takes about 40 ms; the slowest 5% take about 0.3 s, and
+  about 1 s while uploads and jobs run.
+- **Stalls:** the liveness probe stayed under 0.4 s throughout. The offline run
+  cannot include the provider call, which stalled the server for about 0.7 s
+  per 10 MB import on the development machine; this NAS is several times
+  slower, so expect seconds.
+- **Memory:** peaks during uploads, at about three times the reads-only figure,
+  so the host needs that headroom.
+
+Follow-ups are in the issue tracker: keep the event loop free during a medical
+import's provider call and during sign-in, and bound the upload memory peak.
