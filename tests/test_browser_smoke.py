@@ -182,6 +182,8 @@ def test_the_tray_sits_in_the_top_right_and_success_clears_itself(site, width):
         tray = page.locator("#notification-tray")
         toast = tray.locator(".feedback-message", has_text="Saved by the smoke test")
         toast.wait_for()
+        # Measured after the slide-in, which moves it by a few pixels.
+        toast.evaluate("el => Promise.all(el.getAnimations().map(a => a.finished))")
         box = toast.bounding_box()
         assert box["x"] + box["width"] <= width and width - (box["x"] + box["width"]) < 40, "not at the right edge"
         assert box["y"] < 200, "not at the top"
