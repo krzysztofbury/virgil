@@ -366,7 +366,7 @@ main.container {
     pointer-events: all;
     transform: translateX(-50%) scale(1);
   }
-  .tab-dropdown a {
+  .tab-dropdown a, .tab-dropdown-form button {
     display: flex;
     align-items: center;
     gap: 0.75rem;
@@ -374,8 +374,10 @@ main.container {
     color: var(--text-secondary);
     border-radius: var(--radius-sm);
   }
-  .tab-dropdown a svg { width: 20px; height: 20px; flex-shrink: 0; }
-  .tab-dropdown a:hover {
+  .tab-dropdown-form { margin: 0; border-top: 1px solid var(--border); padding-top: 0.25rem; }
+  .tab-dropdown-form button { width: 100%; background: none; border: none; font: inherit; cursor: pointer; text-align: left; }
+  .tab-dropdown a svg, .tab-dropdown-form button svg { width: 20px; height: 20px; flex-shrink: 0; }
+  .tab-dropdown a:hover, .tab-dropdown-form button:hover {
     background: var(--bg-surface);
     color: var(--text-primary);
   }
@@ -1542,7 +1544,6 @@ details > :not(summary) { margin-top: 1rem; }
   .goal-form-grid-details, .goal-form-grid-rep, .goal-form-grid-create { grid-template-columns: 1fr; }
   .goal-create-form > .btn, .goal-form-grid-rep > .btn { width: 100%; }
   .goal-item { padding: 0.65rem; }
-  .goal-delete-btn { opacity: 1; }
   .goal-details-panel { margin-left: -2.4rem; }
   .goal-rep-item { grid-template-columns: 1fr; gap: 0.55rem; }
   .goal-rep-date { flex-direction: row; align-items: center; gap: 0.5rem; }
@@ -2612,7 +2613,14 @@ kbd {
   /* Touch targets: 44px is the smallest a thumb hits reliably. */
   .nav-end a, .nav-end button, .btn-icon, .toggle-btn { min-width: 44px; min-height: 44px; justify-content: center; align-items: center; }
   .btn, .tabs a, .level-chip, .metric-select { min-height: 44px; }
-  .btn-sm { min-height: 40px; }
+  /* The design review measured these under 44px on a phone: the goal star,
+     an entry's delete, section toggles, the Settings checkboxes and small
+     pills. Bigger hit areas by padding, not bigger text. */
+  .btn-sm, .habit-chip { min-height: 44px; }
+  .goal-focus-btn, .goal-delete-btn, .exp-delete-btn { min-width: 44px; min-height: 44px; }
+  main summary { min-height: 44px; display: flex; align-items: center; gap: 0.35rem; }
+  main label:has(> input[type="checkbox"]) { min-height: 44px; display: inline-flex; align-items: center; }
+  main input[type="checkbox"] { width: 1.25rem !important; height: 1.25rem; }
   .nav-logo { min-height: 44px; }
   .bw-chart { min-width: 44px; min-height: 44px; justify-content: center; }
 
@@ -2626,6 +2634,59 @@ kbd {
     padding-inline: 1.5rem;
   }
   .tabs::-webkit-scrollbar { display: none; }
+  /* Tabs hidden past an edge fade out there, so the row reads as scrollable. */
+  .tabs.has-more-right { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
+  .tabs.has-more-left { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }
+  .tabs.has-more-left.has-more-right { mask-image: linear-gradient(to right, transparent, #000 2.5rem, #000 calc(100% - 2.5rem), transparent); }
+  .nav-desktop-only { display: none !important; }
+
+  /* The exercise library as cards: its table needs 52rem, and on a phone hid
+     every column past Reps, Save and Archive with them. */
+  .library-table { min-width: 0; }
+  .library-table thead { display: none; }
+  .library-table, .library-table tbody, .library-table tr, .library-table td { display: block; width: 100%; }
+  .library-table tr { box-sizing: border-box; border: 1px solid var(--border); border-radius: 10px; padding: 0.6rem 0.75rem; margin-bottom: 0.5rem; }
+  .library-table td { border: none; padding: 0.15rem 0; white-space: normal !important; }
+  .library-table td:empty { display: none; }
+  .library-table td[data-label]::before { content: attr(data-label) ": "; color: var(--text-secondary); }
+  .library-table .library-name { font-weight: 600; }
+  .library-table .library-actions { padding-top: 0.4rem; }
+  .library-table .library-custom form > input, .library-table .library-custom form > select { flex: 1 1 45%; width: auto !important; }
+  .library-table td form input[name="tags"] { flex: 1; min-width: 0; width: auto !important; }
+
+  .goal-main .goal-icon-form:has(.goal-delete-btn) { display: none; }
+
+  /* WOD confirm and Oura history as cards: their tables showed two or three of
+     eight columns, the fields to fill in among the hidden ones. */
+  .wod-table, .history-table { min-width: 0; }
+  .wod-table thead, .history-table thead { display: none; }
+  .wod-table tbody, .history-table tbody { display: block; }
+  .wod-table tr, .history-table tr {
+    display: grid;
+    gap: 0.5rem 0.75rem;
+    box-sizing: border-box;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0.65rem 0.75rem;
+    margin-bottom: 0.5rem;
+  }
+  .wod-table tr { grid-template-columns: 1fr 1fr; }
+  .history-table tr { grid-template-columns: repeat(4, 1fr); }
+  .wod-table td, .history-table td { display: block; padding: 0; border: none; min-width: 0; }
+  .wod-table td:first-child, .wod-table td:last-child,
+  .wod-table td[data-label="Equipment"], .wod-table td[data-label="Note"],
+  .history-table .history-when { grid-column: 1 / -1; }
+  .wod-table td[data-label]::before, .history-table td[data-label]::before {
+    content: attr(data-label);
+    display: block;
+    font-size: var(--text-xs);
+    color: var(--text-secondary);
+    margin-bottom: 0.15rem;
+  }
+  .wod-table input, .wod-table select { width: 100%; min-width: 0 !important; }
+  .wod-table td:last-child .btn { width: 100%; }
+  .history-table .history-when { font-weight: 600; }
+  .goal-delete-detail { margin-top: 0.75rem; }
   .tabs a { flex-shrink: 0; display: inline-flex; align-items: center; }
   /* Three short tabs inside a card header: no bleed to the screen edge. */
   .tabs.range-picker { margin-inline: 0; padding-inline: 0; }
@@ -2664,10 +2725,6 @@ kbd {
     color: inherit;
     font-size: 0.625rem;
     font-weight: 600;
-  }
-  .goal-delete-btn {
-    color: var(--text-primary);
-    opacity: 1;
   }
   .exp-card-stats { gap: 1rem; }
   .exp-log-form .grid { grid-template-columns: 1fr; }
@@ -3060,9 +3117,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .equipment-select {
     min-width: 7.75rem;
 }
-.wod-table input[type="number"] {
-    min-width: 3rem;
+/* Wide enough for what is typed: a 15 showed as "1" and 43 kg as "4", the
+   inputs' own padding taking most of their width. */
+.wod-table input {
+    padding-inline: 0.6rem;
 }
+/* Eight columns in the content width, + add set included. */
+.wod-table th, .wod-table td {
+    padding-inline: 0.3rem;
+}
+.wod-table input[type="number"] {
+    min-width: 4.5rem;
+}
+.wod-table input[name$="_set_number"] {
+    min-width: 3.25rem;
+}
+.wod-table input[name$="_note"] {
+    min-width: 9rem;
+}
+.wod-unrecognised {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.35rem;
+    margin-bottom: 0.4rem;
+    color: var(--yellow);
+    font-size: var(--text-sm);
+    font-weight: 600;
+}
+.wod-unrecognised svg { width: 1rem; height: 1rem; flex-shrink: 0; margin-top: 0.1rem; }
 
 /* Inline form error, beside the toast: a toast disappears, this does not. */
 .form-error {

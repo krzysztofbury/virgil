@@ -210,7 +210,7 @@
 
         {% if daily_data %}
         <div id="hist-daily" class="overflow-x" data-view-for="history-view" data-view="daily">
-            <table>
+            <table class="history-table">
                 <thead>
                     <tr>
                         <th>Date</th>
@@ -226,14 +226,14 @@
                 <tbody>
                     {% for d in daily_data %}
                     <tr>
-                        <td><small>{{ d.date }}</small></td>
-                        <td>{{ d.sleep_score or '-' }}</td>
-                        <td>{{ d.readiness_score or '-' }}</td>
-                        <td>{{ d.activity_score or '-' }}</td>
-                        <td>{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
-                        <td>{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
-                        <td>{{ '%.1f'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
-                        <td>{{ d.steps|thousands or '-' }}</td>
+                        <td class="history-when"><small>{{ d.date }}</small></td>
+                        <td data-label="Sleep">{{ d.sleep_score or '-' }}</td>
+                        <td data-label="Ready">{{ d.readiness_score or '-' }}</td>
+                        <td data-label="Activity">{{ d.activity_score or '-' }}</td>
+                        <td data-label="HRV">{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
+                        <td data-label="RHR">{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
+                        <td data-label="Hours">{{ '%.1f'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
+                        <td data-label="Steps">{{ d.steps|thousands or '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -242,7 +242,7 @@
         {% endif %}
 
         <div id="hist-monthly" class="overflow-x" data-view-for="history-view" data-view="monthly" hidden>
-            <table>
+            <table class="history-table">
                 <thead>
                     <tr>
                         <th>Month</th>
@@ -258,14 +258,14 @@
                 <tbody>
                     {% for d in data|reverse %}
                     <tr>
-                        <td>{{ d.month }}</td>
-                        <td>{{ d.sleep_score|int if d.sleep_score else '-' }}</td>
-                        <td>{{ d.readiness|int if d.readiness else '-' }}</td>
-                        <td>{{ d.activity|int if d.activity else '-' }}</td>
-                        <td>{{ d.steps|thousands or '-' }}</td>
-                        <td>{{ d.sleep_duration if d.sleep_duration else '-' }}</td>
-                        <td>{{ d.hrv|int if d.hrv else '-' }}</td>
-                        <td>{{ d.rhr|int if d.rhr else '-' }}</td>
+                        <td class="history-when">{{ d.month }}</td>
+                        <td data-label="Sleep">{{ d.sleep_score|int if d.sleep_score else '-' }}</td>
+                        <td data-label="Ready">{{ d.readiness|int if d.readiness else '-' }}</td>
+                        <td data-label="Activity">{{ d.activity|int if d.activity else '-' }}</td>
+                        <td data-label="Steps">{{ d.steps|thousands or '-' }}</td>
+                        <td data-label="Duration">{{ d.sleep_duration if d.sleep_duration else '-' }}</td>
+                        <td data-label="HRV">{{ d.hrv|int if d.hrv else '-' }}</td>
+                        <td data-label="RHR">{{ d.rhr|int if d.rhr else '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>

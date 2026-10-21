@@ -122,6 +122,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- On a phone, from the design review (#95):
+  - The header keeps only the theme and admin icons. Settings and Log out
+    live in the More menu, where Log out is the last item, set apart.
+  - The tab row brings the active tab into view and fades at an edge with
+    more tabs past it. On Settings > Security no visible tab was marked.
+  - The exercise library, the WOD confirm form and Oura history show each row
+    as a card with labelled values. Their tables showed two or three of eight
+    columns, the fields to fill in among the hidden ones.
+  - A goal's delete moves into its "Details and execution". The trash icon sat
+    next to the star in every row.
+  - Section toggles, small buttons, the goal star, an entry's delete and the
+    Settings checkboxes are at least 44px tall to tap.
+- WOD confirm on a wide screen: reps, weight, time and note fit what is typed
+  (15 showed as "1", 43 kg as "4"), and an unrecognised movement is an amber
+  warning that says what to do, in place of small grey text (#95).
 - Every third-party asset is served from Virgil itself (#60): HTMX, Alpine.js,
   Chart.js, Lucide, Flatpickr, and the DM Sans and JetBrains Mono fonts, pinned
   by file name, with their sources and SHA-384 hashes in

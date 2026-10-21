@@ -237,13 +237,13 @@
                     data-library-name="{{ ex.name }}" data-library-tags="{{ ex.tags | join(' ') }}"
                     data-library-section="{{ ex.section }}">
                     {% if ex.builtin %}
-                    <td>{{ ex.name }} <span class="badge" style="opacity: 0.7;">built-in</span></td>
-                    <td>{{ ex.section }}</td>
-                    <td>{{ ex.sets if ex.sets is not none else '' }}</td>
-                    <td>{{ ex.reps }}</td>
-                    <td>{{ ex.metric }}</td>
-                    <td class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
-                    <td>
+                    <td class="library-name">{{ ex.name }} <span class="badge" style="opacity: 0.7;">built-in</span></td>
+                    <td data-label="Section">{{ ex.section }}</td>
+                    <td data-label="Sets">{{ ex.sets if ex.sets is not none else '' }}</td>
+                    <td data-label="Reps">{{ ex.reps }}</td>
+                    <td data-label="Metric">{{ ex.metric }}</td>
+                    <td data-label="Notes" class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
+                    <td class="library-actions">
                         <!-- Tags are user metadata, not part of a builtin row's frozen
                              identity (name/section/metric) — this form only ever posts
                              entry_id + tags, so it never trips the builtin guard. -->
@@ -255,7 +255,7 @@
                             <button type="submit" class="btn btn-secondary btn-sm">Save</button>
                         </form>
                     </td>
-                    <td style="white-space: nowrap;">
+                    <td class="library-actions" style="white-space: nowrap;">
                         <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
@@ -263,7 +263,7 @@
                         </form>
                     </td>
                     {% else %}
-                    <td colspan="7" style="padding: 0.2rem 0;">
+                    <td colspan="7" class="library-custom" style="padding: 0.2rem 0;">
                         <form action="/settings/library/update" method="post"
                               style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
@@ -283,7 +283,7 @@
                             <button type="submit" class="btn btn-secondary btn-sm">Save</button>
                         </form>
                     </td>
-                    <td style="white-space: nowrap;">
+                    <td class="library-actions" style="white-space: nowrap;">
                         <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">

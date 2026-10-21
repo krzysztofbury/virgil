@@ -236,3 +236,32 @@ def test_scripted_pages_run_under_the_content_security_policy(site):
         assert problems == []
     finally:
         context.close()
+
+
+def test_phone_tables_fit_and_the_header_keeps_log_out_away_from_settings(site):
+    """From the design review: on a phone the exercise library and Oura history
+    hid most of their columns, and Log out sat one icon from Settings."""
+    context, page, problems, base = _signed_in(site, WIDTHS["phone"])
+    try:
+        for path in ("/settings?tab=configuration", "/oura"):
+            page.goto(base + path)
+            page.wait_for_load_state("networkidle")
+            sideways = page.evaluate(
+                """() => {
+                    document.querySelectorAll('details').forEach(d => { d.open = true; });
+                    document.querySelectorAll('[data-view-for]').forEach(v => { v.hidden = false; });
+                    return [...document.querySelectorAll('.overflow-x')]
+                        .filter(box => box.querySelector('table') && box.scrollWidth > box.clientWidth + 1)
+                        .map(box => box.querySelector('table').className || 'table');
+                }"""
+            )
+            assert sideways == [], f"{path}: tables still scroll sideways on a phone: {sideways}"
+
+        header = page.locator("nav.top-nav")
+        assert header.get_by_role("link", name="Settings").is_hidden()
+        assert header.get_by_role("button", name="Log out").is_hidden()
+        page.locator("button[aria-controls=tab-more-menu]").click()
+        page.locator("#tab-more-menu").get_by_role("button", name="Log out").wait_for(state="visible")
+        assert problems == []
+    finally:
+        context.close()

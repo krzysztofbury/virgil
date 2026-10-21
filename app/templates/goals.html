@@ -104,6 +104,15 @@
                 </ol>
             </div>
             {% endif %}
+            {# On a phone the row's trash icon sat next to the star, one slip
+               from deleting; there it lives here instead. #}
+            <form method="POST" action="/goals/delete" class="goal-delete-detail on-mobile"
+                  data-confirm="Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead.">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <input type="hidden" name="goal_id" value="{{ g.id }}">
+                <input type="hidden" name="horizon" value="{{ horizon }}">
+                <button type="submit" class="btn btn-outline btn-sm">Delete goal</button>
+            </form>
         </div>
     </details>
     {% endif %}
