@@ -11,11 +11,26 @@
         {{ start_fmt }} &mdash; {{ end_fmt }}
         &middot; <a href="/">Dashboard</a>
         &middot; <a href="/experiments/{{ experiment.id }}/edit">Edit</a>
-        {% if experiment.status != 'active' %}
-        &middot; <span class="exp-status-badge exp-status-{{ experiment.status }}">{{ experiment.status }}</span>
+        {% if experiment.status != 'active' or ended %}
+        {% set shown_status = 'ended' if ended else experiment.status %}
+        &middot; <span class="exp-status-badge exp-status-{{ shown_status }}">{{ shown_status }}</span>
         {% endif %}
     </p>
 </div>
+
+{% if ended %}
+<div class="card exp-ended" role="status">
+    <p><strong>This experiment ended on {{ end_fmt }}.</strong> Review the results below, then mark it
+    completed, or extend it with more weeks if you want to keep going.</p>
+    <div class="exp-ended-actions">
+        <form action="/experiments/{{ experiment.id }}/complete" method="post">
+            <input type="hidden" name="new_status" value="completed">
+            <button type="submit" class="btn btn-primary btn-sm">Mark completed</button>
+        </form>
+        <a href="/experiments/{{ experiment.id }}/edit#num_weeks" class="btn btn-outline btn-sm">Extend</a>
+    </div>
+</div>
+{% endif %}
 
 <!-- Outcome, target, time left. Seven equal stats said nothing about whether
      the experiment is working; the rest moved under All metrics below. -->
@@ -36,7 +51,8 @@
     {% elif stats.has_duration %}
     <div class="exp-stat">
         <span class="exp-stat-value">{{ stats.target_total }}m</span>
-        <span class="exp-stat-label">TARGET</span>
+        {# The weeks' targets added up; each week row shows its own. #}
+        <span class="exp-stat-label">TARGET, ALL {{ experiment.num_weeks }} WEEKS</span>
     </div>
     {% endif %}
     <div class="exp-stat">
@@ -67,13 +83,13 @@
 {% endif %}
 
 {% set quick_metrics = activity_types | rejectattr("kind", "equalto", "duration") | list %}
-{% if experiment.status == 'active' and quick_metrics %}
+{% if experiment.status == 'active' and not ended and quick_metrics %}
 <!-- One-tap logging for today -->
 <div class="exp-quicklog">
     <strong style="font-size: var(--text-sm);">Today</strong>
     {% for m in quick_metrics %}
     <form action="/experiments/{{ experiment.id }}/entry" method="post" class="exp-quicklog-item">
-        <input type="hidden" name="date" value="{{ today }}">
+        <input type="hidden" name="date" value="{{ entry_default_date }}">
         <input type="hidden" name="metric_id" value="{{ m.id }}">
         {% if m.kind == 'boolean' %}
         <button type="submit" name="value" value="1" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">&#10003; {{ m.name }}</button>
@@ -99,10 +115,12 @@
         {{ at.name }}
     </span>
     {% endfor %}
+    {% if not ended %}
     <span class="exp-legend-item">
         <span class="exp-legend-dot exp-legend-today"></span>
         Today
     </span>
+    {% endif %}
 </div>
 
 <!-- Week Grid -->
@@ -228,7 +246,7 @@
         <div class="grid">
             <div>
                 <label for="entry_date">Date</label>
-                <input type="date" id="entry_date" name="date" value="{{ today }}">
+                <input type="date" id="entry_date" name="date" value="{{ entry_default_date }}">
             </div>
             <div>
                 <label for="entry_type">Metric</label>

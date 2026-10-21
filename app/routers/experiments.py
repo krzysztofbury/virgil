@@ -369,6 +369,9 @@ async def experiments_list(request: Request):
         total_days = (end - start).days + 1
         elapsed_days = min(max((today - start).days + 1, 0), total_days)
         exp["progress_pct"] = round(elapsed_days / total_days * 100) if total_days else 0
+        # Past its last day an experiment is over, whatever its status says: it
+        # stays "active" in the database until the user marks it completed.
+        exp["display_status"] = "ended" if exp["status"] == "active" and today > end else exp["status"]
         exp["activity_types"] = types_by_exp.get(exp["id"], [])
         has_duration = any(at["kind"] == "duration" for at in exp["activity_types"])
         if has_duration:
@@ -569,6 +572,9 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
     # as no progress, next to a "Week 1 of 4" label that says the opposite.
     total_days = (end - start).days + 1
     days_left = max(0, (end - max(today, start)).days + (1 if today < start else 0))
+    # Over, but not yet marked completed: no logging for a day outside it, and
+    # the page asks for the decision instead.
+    ended = experiment["status"] == "active" and today > end
 
     stats = {
         "total_minutes": total_minutes,
@@ -613,6 +619,9 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
             "end_date": end.isoformat(),
             "value_bounds": METRIC_VALUE_BOUNDS,
             "today": today.isoformat(),
+            "ended": ended,
+            # The entry form's date: today is outside an ended experiment.
+            "entry_default_date": end.isoformat() if today > end else today.isoformat(),
             "oura_connected": oura_connected,
             "summaries": summaries,
             "llm_available": llm_available,

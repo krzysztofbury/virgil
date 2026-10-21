@@ -213,6 +213,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Blood Work, from the design review (#95):
+  - Each marker is shown at the precision its lab reports, taken from its
+    reference range and results, so HbA1c 5.0 against a 5.6 limit no longer
+    reads "5".
+  - The change from the previous result says what it is from ("from 121, +21").
+    Its arrow is red when the marker moves away from its range or leaves it,
+    green when it moves back towards it or into it, and neutral inside the
+    range or without one.
+  - The chart link uses a chart icon. Its rising-trend icon read as a green
+    "up" on every row.
+- An active experiment past its last day shows as Ended (#95): in the list,
+  with a prompt on its page to mark it completed or extend it, without the
+  quick log for today, and with the entry form starting on its last day.
+- Oura charts no longer overshoot and run flat along the edge (#95). Lines use
+  monotone curves everywhere, Oura scores sit on a 50 to 100 axis instead of
+  one fitted to a five-point spread, and other values get room above and
+  below.
+- An experiment's total target is labelled as covering all its weeks, next to
+  the per-week targets in the week rows (#95).
 - The Oura webhook no longer stays at "Retrying" with "Oura subscription
   expiration_time has no timezone". Oura sends that time in UTC without an
   offset, and Virgil refused it, so no subscription was ever recorded. It is

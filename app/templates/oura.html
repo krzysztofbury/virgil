@@ -162,7 +162,9 @@
                 interaction: { intersect: false, mode: 'index' },
                 scales: {
                     x: { grid: { color: colors.grid }, ticks: { color: colors.text } },
-                    y: { grid: { color: colors.grid }, ticks: { color: colors.text } }
+                    {# Oura's 0-100 scores on a 50-100 axis: fitted to the data, an
+                       80-85 axis made a five-point drift look like a cliff. #}
+                    y: {% if current_metric in ('sleep_score', 'readiness', 'activity') %}{ suggestedMin: 50, suggestedMax: 100,{% else %}{ grace: '10%',{% endif %} grid: { color: colors.grid }, ticks: { color: colors.text } }
                 },
                 plugins: { legend: { display: false } }
             }
@@ -360,8 +362,8 @@
             // A spread replaces createLineChart's whole scales object, so every
             // axis is stated here, in theme colours.
             scales: {
-                y: { position: 'left', grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text }, title: { display: true, text: 'HRV / RHR', color: getChartColors().text } },
-                y1: { position: 'right', grid: { drawOnChartArea: false }, ticks: { color: getChartColors().text }, title: { display: true, text: 'Score', color: getChartColors().text } },
+                y: { position: 'left', grace: '10%', grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text }, title: { display: true, text: 'HRV / RHR', color: getChartColors().text } },
+                y1: { position: 'right', suggestedMin: 50, suggestedMax: 100, grid: { drawOnChartArea: false }, ticks: { color: getChartColors().text }, title: { display: true, text: 'Score', color: getChartColors().text } },
                 x: { grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text } }
             }
         }

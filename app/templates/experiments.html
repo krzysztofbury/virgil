@@ -14,7 +14,7 @@
         <div class="exp-card-top">
             <div class="exp-card-title-row">
                 <h3 class="exp-card-title">{{ exp.title }}</h3>
-                <span class="exp-status-badge exp-status-{{ exp.status }}">{{ exp.status }}</span>
+                <span class="exp-status-badge exp-status-{{ exp.display_status }}">{{ exp.display_status }}</span>
             </div>
             {% if exp.description %}
             <p class="exp-card-desc">{{ exp.description }}</p>
