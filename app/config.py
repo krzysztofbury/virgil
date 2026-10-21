@@ -44,6 +44,14 @@ BACKUP_DIR_SETTING = os.environ.get("VIRGIL_BACKUP_DIR", "")
 # Receives {"text": ...} when a start leaves a database unmigrated: /healthz is
 # then red, and nothing else tells anyone. Empty sends nothing.
 ALERT_WEBHOOK_URL = os.environ.get("VIRGIL_ALERT_WEBHOOK_URL", "")
+# Off-site copies (app/services/offsite.py): an S3-compatible bucket such as
+# Cloudflare R2, and the age public key every copy is encrypted to. All empty
+# turns them off; a partial set is reported at startup and in Settings.
+OFFSITE_ENDPOINT = os.environ.get("VIRGIL_OFFSITE_ENDPOINT", "").strip()
+OFFSITE_BUCKET = os.environ.get("VIRGIL_OFFSITE_BUCKET", "").strip()
+OFFSITE_ACCESS_KEY_ID = os.environ.get("VIRGIL_OFFSITE_ACCESS_KEY_ID", "").strip()
+OFFSITE_SECRET_ACCESS_KEY = os.environ.get("VIRGIL_OFFSITE_SECRET_ACCESS_KEY", "").strip()
+OFFSITE_RECIPIENT = os.environ.get("VIRGIL_OFFSITE_RECIPIENT", "").strip()
 ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS", "").split(",") if e.strip()]
 # Closed by default: the documented deployment is internet-facing (Cloudflare
 # Tunnel), and open registration would let anyone create accounts and burn

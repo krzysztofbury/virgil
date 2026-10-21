@@ -222,6 +222,7 @@ async def _run_scheduled_user(user: dict, semaphore: asyncio.Semaphore) -> None:
 async def scheduler_tick() -> None:
     """Run one bounded scheduler and durable-worker pass."""
     from app.services.backup import maybe_backup_central
+    from app.services.offsite import offsite_tick
     from app.services.subscriptions import reconcile_due_subscriptions
 
     users = await get_active_users()
@@ -243,6 +244,9 @@ async def scheduler_tick() -> None:
     # Per-user backups never cover the registry. This function self-limits to
     # once per 24 hours.
     await maybe_backup_central()
+
+    # Self-limits to one run a day; account deletions go out every tick.
+    await offsite_tick()
 
 
 async def scheduler_loop() -> None:

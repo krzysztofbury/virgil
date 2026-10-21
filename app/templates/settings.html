@@ -590,6 +590,45 @@
         </div>
     </div>
 
+    {% if offsite %}
+    <!-- Off-site copies: administrators only, they cover every account -->
+    <div class="card" style="margin-bottom: 1rem;" id="offsite-status">
+        <div class="card-header"><h3>Off-site Copies</h3></div>
+        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+            Once a day every account's database, the registry and the encryption key are
+            encrypted and uploaded{% if offsite.bucket %} to the <code>{{ offsite.bucket }}</code> bucket{% endif %}.
+            Deleting or resetting an account deletes its copies there too.
+        </p>
+        <p data-offsite-state="{{ offsite.state }}"
+           style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;font-size:var(--text-sm);">
+            {% if offsite.state == 'off' %}
+            <span class="job-status-badge job-status-badge-cancelled">Off</span>
+            <span>Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings.</span>
+            {% elif offsite.state == 'misconfigured' %}
+            <span class="job-status-badge job-status-badge-failed">Not running</span>
+            <span>{{ offsite.problem }}.</span>
+            {% elif offsite.state == 'failed' %}
+            <span class="job-status-badge job-status-badge-failed">Failed</span>
+            <span>The last attempt failed: {{ offsite.problem }}. It retries every hour.</span>
+            {% elif offsite.state == 'overdue' %}
+            <span class="job-status-badge job-status-badge-failed">Overdue</span>
+            <span>No off-site copy in more than two days.</span>
+            {% elif offsite.state == 'none' %}
+            <span class="job-status-badge job-status-badge-cancelled">None yet</span>
+            <span>The first copy is made within a minute or two of starting.</span>
+            {% else %}
+            <span class="job-status-badge job-status-badge-succeeded">OK</span>
+            {% endif %}
+            {% if offsite.latest_age %}
+            <span>Latest copy: {{ offsite.latest_age }}, {{ offsite.latest_files }} files, {{ offsite.latest_megabytes }} MB.</span>
+            {% endif %}
+            {% if offsite.pending_deletions %}
+            <span>{{ offsite.pending_deletions }} account deletion(s) waiting to reach it.</span>
+            {% endif %}
+        </p>
+    </div>
+    {% endif %}
+
     <!-- Oura Auto-Sync -->
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header"><h3>Oura Auto-Sync</h3></div>
@@ -694,7 +733,7 @@
     <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">
         Wipe all data and start fresh. Your account and login are kept; profile, goals, training,
         experiments, health data and settings are deleted, and you'll go through onboarding again.
-        The server's backups of your data are deleted too.
+        The server's backups of your data, off-site copies included, are deleted too.
     </p>
     <details>
         <summary style="color:var(--red);">I understand, show the reset button</summary>

@@ -171,7 +171,8 @@ def _prune_backups(
 
 
 def delete_user_backups(db_filename: str) -> list[str]:
-    """Remove every backup and pre-migration snapshot of one per-user database.
+    """Remove every backup and pre-migration snapshot of one per-user database,
+    and queue the removal of its off-site copies.
 
     Deleting an account or resetting it promises its data is gone, and a reset
     moves the account to a new file name, so nothing would ever prune these.
@@ -199,6 +200,9 @@ def delete_user_backups(db_filename: str) -> list[str]:
                 removed.append(path.name)
     if removed:
         logger.info("Deleted %d backup(s) of %s", len(removed), db_filename)
+    from app.services.offsite import queue_deletion
+
+    queue_deletion(db_filename)
     return removed
 
 

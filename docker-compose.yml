@@ -40,8 +40,16 @@ services:
       VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
       TZ: ${TZ:-Europe/Warsaw}
       VIRGIL_BACKUP_DIR: /backups
-      # Told once per start when a database is left unmigrated.
+      # Told once per start when a database is left unmigrated, and when an
+      # off-site copy fails.
       VIRGIL_ALERT_WEBHOOK_URL: ${ALERT_WEBHOOK_URL:-}
+      # Off-site copies to an S3-compatible bucket (docs/recovery.md). All five
+      # or none.
+      VIRGIL_OFFSITE_ENDPOINT: ${VIRGIL_OFFSITE_ENDPOINT:-}
+      VIRGIL_OFFSITE_BUCKET: ${VIRGIL_OFFSITE_BUCKET:-}
+      VIRGIL_OFFSITE_ACCESS_KEY_ID: ${VIRGIL_OFFSITE_ACCESS_KEY_ID:-}
+      VIRGIL_OFFSITE_SECRET_ACCESS_KEY: ${VIRGIL_OFFSITE_SECRET_ACCESS_KEY:-}
+      VIRGIL_OFFSITE_RECIPIENT: ${VIRGIL_OFFSITE_RECIPIENT:-}
     volumes:
       - ./data:/data
       # Backups on a mount of their own: losing or wiping ./data must not take
