@@ -159,44 +159,6 @@
     {% endif %}
 </section>
 
-<div class="goal-controls">
-    <nav class="goal-horizons" aria-label="Goal horizon">
-        <span>Horizon</span>
-        <div class="tabs">
-            {% for h_key, h_label in horizons %}
-            <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}" {{ 'aria-current="page"' if horizon == h_key else '' }}>{{ h_label }}</a>
-            {% endfor %}
-        </div>
-    </nav>
-    <details class="goal-create">
-        <summary><i data-lucide="plus"></i> Add goal</summary>
-        <form method="POST" action="/goals/save" class="goal-create-form">
-            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-            <label class="goal-field goal-field-content">Goal
-                <input type="text" name="content" placeholder="New goal..." required>
-            </label>
-            <div class="goal-form-grid goal-form-grid-create">
-                <label class="goal-field">Area
-                    <select name="area_id" required>{% for area in areas %}<option value="{{ area.id }}">{{ area.icon }} {{ area.name }}</option>{% endfor %}</select>
-                </label>
-                <label class="goal-field">Horizon
-                    <select name="horizon" required>{% for h_key, h_label in horizons %}<option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_label }}</option>{% endfor %}</select>
-                </label>
-                <label class="goal-field">Status
-                    <select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value|capitalize }}</option>{% endfor %}</select>
-                </label>
-                <label class="goal-field">Starts
-                    <input type="date" name="start_date">
-                </label>
-                <label class="goal-field">Ends
-                    <input type="date" name="end_date">
-                </label>
-            </div>
-            <button type="submit" class="btn btn-primary">Create goal</button>
-        </form>
-    </details>
-</div>
-
 {% if pending_reps %}
 <section class="card goal-reps-card" aria-labelledby="pending-reps-title">
     <div class="goal-section-header">
@@ -238,6 +200,46 @@
     </div>
 </section>
 {% endif %}
+
+{# The horizon tabs filter the area cards only, so they sit right above them,
+   not above the focus panel and the queue, which they never change. #}
+<div class="goal-controls">
+    <nav class="goal-horizons" aria-label="Goal horizon">
+        <span>Horizon</span>
+        <div class="tabs">
+            {% for h_key, h_label in horizons %}
+            <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}" {{ 'aria-current="page"' if horizon == h_key else '' }}>{{ h_label }}</a>
+            {% endfor %}
+        </div>
+    </nav>
+    <details class="goal-create">
+        <summary><i data-lucide="plus"></i> Add goal</summary>
+        <form method="POST" action="/goals/save" class="goal-create-form">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <label class="goal-field goal-field-content">Goal
+                <input type="text" name="content" placeholder="New goal..." required>
+            </label>
+            <div class="goal-form-grid goal-form-grid-create">
+                <label class="goal-field">Area
+                    <select name="area_id" required>{% for area in areas %}<option value="{{ area.id }}">{{ area.icon }} {{ area.name }}</option>{% endfor %}</select>
+                </label>
+                <label class="goal-field">Horizon
+                    <select name="horizon" required>{% for h_key, h_label in horizons %}<option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_label }}</option>{% endfor %}</select>
+                </label>
+                <label class="goal-field">Status
+                    <select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value|capitalize }}</option>{% endfor %}</select>
+                </label>
+                <label class="goal-field">Starts
+                    <input type="date" name="start_date">
+                </label>
+                <label class="goal-field">Ends
+                    <input type="date" name="end_date">
+                </label>
+            </div>
+            <button type="submit" class="btn btn-primary">Create goal</button>
+        </form>
+    </details>
+</div>
 
 <div class="goal-area-grid">
     {% for area in areas_with_goals %}

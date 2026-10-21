@@ -74,12 +74,19 @@
     <div class="pb-grid">
         {% for pb in personal_bests %}
         <article class="pb-movement" data-pb-exercise="{{ pb.name }}" data-pb-best="{{ pb.max_weight }}">
+            {# The best record is the headline; the list holds the others, so
+               no card says the same weight twice. #}
+            {% set best = (pb.records | selectattr('max_weight', 'equalto', pb.max_weight) | list | first) if pb.records else none %}
+            {% set others = pb.records | reject('equalto', best) | list %}
             <div class="pb-movement-head">
                 <h4>{{ pb.name }}</h4>
-                <div class="pb-best-load">{{ pb.max_weight }} <small>kg</small></div>
+                <div class="pb-best-load"{% if best %} data-pb-effort="{{ best.effort or '' }}" data-pb-weight="{{ best.max_weight }}"{% endif %}>{{ pb.max_weight }} <small>kg</small>
+                    {% if best and best.effort %}<span class="pb-best-effort">&times; {% if pb.metric == 'time' %}{{ best.effort | duration }}{% else %}{{ best.effort }} rep{% if best.effort != 1 %}s{% endif %}{% endif %}</span>{% endif %}
+                </div>
             </div>
-            <div class="pb-records" aria-label="Records for {{ pb.name }}">
-                {% for record in pb.records %}
+            {% if others %}
+            <div class="pb-records" aria-label="Other records for {{ pb.name }}">
+                {% for record in others %}
                 <div class="pb-record" data-pb-effort="{{ record.effort or '' }}" data-pb-weight="{{ record.max_weight }}">
                     <strong>{{ record.max_weight }} kg</strong>
                     <span>
@@ -92,6 +99,7 @@
                 </div>
                 {% endfor %}
             </div>
+            {% endif %}
         </article>
         {% endfor %}
     </div>
@@ -125,7 +133,7 @@
     <div class="card-header training-history-head">
         <div>
             <h3>Workout History</h3>
-            <small class="text-muted">Hover for a summary. Select a training day for full details.</small>
+            <small class="text-muted"><span class="hover-hint">Hover for a summary. </span>Select a training day for full details.</small>
         </div>
         <nav class="training-year-nav" aria-label="Training history year">
             {% if previous_year %}<a href="/training?year={{ previous_year }}" aria-label="Show {{ previous_year }}">&larr;</a>{% else %}<span></span>{% endif %}

@@ -232,7 +232,7 @@
                         <td data-label="Activity">{{ d.activity_score or '-' }}</td>
                         <td data-label="HRV">{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
                         <td data-label="RHR">{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
-                        <td data-label="Hours">{{ '%.1f'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
+                        <td data-label="Hours">{{ '%.1f h'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
                         <td data-label="Steps">{{ d.steps|thousands or '-' }}</td>
                     </tr>
                     {% endfor %}
@@ -263,7 +263,7 @@
                         <td data-label="Ready">{{ d.readiness|int if d.readiness else '-' }}</td>
                         <td data-label="Activity">{{ d.activity|int if d.activity else '-' }}</td>
                         <td data-label="Steps">{{ d.steps|thousands or '-' }}</td>
-                        <td data-label="Duration">{{ d.sleep_duration if d.sleep_duration else '-' }}</td>
+                        <td data-label="Duration">{{ '%.1f h'|format(d.sleep_duration) if d.sleep_duration else '-' }}</td>
                         <td data-label="HRV">{{ d.hrv|int if d.hrv else '-' }}</td>
                         <td data-label="RHR">{{ d.rhr|int if d.rhr else '-' }}</td>
                     </tr>

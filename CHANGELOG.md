@@ -122,6 +122,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- The last of the design review (#95):
+  - Oura history shows sleep at one decimal with "h" ("7.3 h", not 7.26 next
+    to 7.1), with numbers right-aligned under right-aligned headings.
+  - The training calendar's three greens are further apart, and "Hover for a
+    summary" is left out on screens without hover.
+  - Personal Bests state the best weight once, with its reps or time beside
+    it, and list only the other records under it.
+  - The Goals horizon tabs and Add goal sit right above the area cards they
+    filter, below the focus panel and the execution queue they never changed.
+  - The offline page uses the app's logo and says "Can't reach your Virgil
+    server", which may be on the home network, not "the internet".
 - Settled from the design review (#95):
   - Life areas are the eight in Goals, the same ones Life Scores rates.
     Onboarding's four end-goal fields each say which Goals area they are saved
