@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- A browser smoke test (#102) loads the dashboard, Daily, Training and Freedom in
+  Chromium at desktop and phone width on a seeded instance. It fails on console
+  errors, horizontal overflow or a card clipping its content, saves a Daily
+  change over HTMX, checks that a lost save is reported and waits to be
+  dismissed, and checks the notification tray's place and self-dismissal. CI
+  installs Chromium for it. It replaces the CSS and JavaScript string assertions
+  it covers.
 - Off-site copies (#46): with `VIRGIL_OFFSITE_*` set, the whole instance is
   uploaded once a day to an S3-compatible bucket such as Cloudflare R2, each
   database, the registry and the encryption key as its own object, compressed
@@ -189,6 +196,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Static files no longer count against the per-address rate limit. A cold cache
+  fetches every stylesheet and script on each page, so a few quick page views
+  could run a reader into 429 Too Many Requests on the pages themselves.
 - A name with a quote in it can no longer run script or break a delete
   confirmation (#52). The blood-result, exercise-library, experiment-metric and
   admin user confirmations, and the Freedom day picker, wrote names and emails

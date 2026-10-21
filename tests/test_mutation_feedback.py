@@ -165,10 +165,9 @@ def test_oura_sync_htmx_queues_with_hx_redirect(auth_client, connected_oura):
 def test_shared_js_distinguishes_transport_and_http_failures(client):
     source = client.get("/static/js/app.js").text
 
-    assert "htmx:sendError" in source
+    # A lost request is driven in tests/test_browser_smoke.py.
     assert "htmx:timeout" in source
     assert "htmx:responseError" in source
-    assert "Network error. Your changes were not confirmed." in source
     assert "Request timed out. Your changes were not confirmed." in source
     assert "Server error. Your changes were not confirmed." in source
     assert "sessionStorage" in source
