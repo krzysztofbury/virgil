@@ -6,6 +6,15 @@ var PRECACHE_URLS = [
     '/static/css/app.css',
     '/static/js/app.js',
     '/static/js/charts.js',
+    '/static/js/components.js',
+    '/static/js/theme.js',
+    '/static/vendor/htmx-2.0.8.min.js',
+    '/static/vendor/alpinejs-csp-3.15.8.min.js',
+    '/static/vendor/chart-4.5.1.umd.min.js',
+    '/static/vendor/lucide-0.575.0.min.js',
+    '/static/vendor/flatpickr-4.6.13.min.css',
+    '/static/vendor/flatpickr-4.6.13.min.js',
+    '/static/vendor/fonts/fonts.css',
     '/static/icons/icon-192x192.png',
     '/static/icons/icon-512x512.png',
     '/static/icons/favicon-32x32.png',
@@ -14,20 +23,11 @@ var PRECACHE_URLS = [
     '/offline'
 ];
 
-var CDN_URLS = [
-    'https://unpkg.com/htmx.org@2.0.8/dist/htmx.min.js',
-    'https://cdn.jsdelivr.net/npm/alpinejs@3.15.8/dist/cdn.min.js',
-    'https://cdn.jsdelivr.net/npm/chart.js@4.5.1/dist/chart.umd.min.js',
-    'https://unpkg.com/lucide@0.575.0/dist/umd/lucide.min.js',
-    'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css',
-    'https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js'
-];
-
-// Install: precache static assets + CDN URLs
+// Install: precache static assets
 self.addEventListener('install', function(event) {
     event.waitUntil(
         caches.open(CACHE_NAME).then(function(cache) {
-            return cache.addAll(PRECACHE_URLS.concat(CDN_URLS));
+            return cache.addAll(PRECACHE_URLS);
         }).then(function() {
             return self.skipWaiting();
         })
@@ -74,24 +74,8 @@ self.addEventListener('fetch', function(event) {
         return;
     }
 
-    // CDN — stale-while-revalidate
-    if (url.origin !== self.location.origin) {
-        event.respondWith(
-            caches.match(event.request).then(function(cached) {
-                var fetchPromise = fetch(event.request).then(function(response) {
-                    var clone = response.clone();
-                    caches.open(CACHE_NAME).then(function(cache) {
-                        cache.put(event.request, clone);
-                    });
-                    return response;
-                }).catch(function() {
-                    return cached;
-                });
-                return cached || fetchPromise;
-            })
-        );
-        return;
-    }
+    // Every asset is served from here; anything from elsewhere goes to the network.
+    if (url.origin !== self.location.origin) return;
 
     // Pages — network-only with offline fallback. Authenticated HTML is NEVER
     // cached: Cache Storage outlives the session cookie, so cached dashboards,

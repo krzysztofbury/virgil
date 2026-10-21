@@ -13,6 +13,7 @@ per-row movement and accepts up to MAX_CONFIRM_ENTRIES. This was a template gap.
 import json
 import re
 import sqlite3
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
@@ -102,7 +103,7 @@ def test_add_exercise_control_is_offered(auth_client, monkeypatch):
     assert "addExercise()" in resp.text
     assert "+ add set" in resp.text, "and adding a set must still exist"
     # addExercise must start a fresh exercise, not clone-and-increment.
-    assert "addRow('', 1)" in resp.text
+    assert "addRow('', 1)" in Path("app/static/js/components.js").read_text()
 
 
 def test_manual_rows_are_written_for_several_different_movements(auth_client, monkeypatch):

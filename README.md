@@ -28,7 +28,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 ## Tech Stack
 
 - **Backend**: Python 3.12, FastAPI, aiosqlite
-- **Frontend**: Jinja2 templates, HTMX, Alpine.js, Chart.js, Lucide icons
+- **Frontend**: Jinja2 templates, HTMX, Alpine.js (CSP build), Chart.js, Lucide icons, all served from `app/static/vendor` (sources and hashes in `SOURCES.json`), with no CDN or Google Fonts request
 - **Styling**: Custom CSS with dark/light theme via CSS custom properties
 - **Database**: SQLite with WAL mode, versioned migration system
 - **Auth**: Multi-user with per-user isolated SQLite databases, email + password + TOTP MFA
@@ -584,8 +584,7 @@ On mobile, swipe left/right on the daily page to navigate between days. Uses `da
 
 ### PWA / Offline
 Virgil is installable as a PWA. The service worker provides:
-- **Cache-first** for `/static/` assets
-- **Stale-while-revalidate** for CDN resources (HTMX, Alpine.js, Chart.js, Lucide, Flatpickr)
+- **Cache-first** for `/static/` assets, which include the vendored HTMX, Alpine.js, Chart.js, Lucide, Flatpickr and fonts
 - **Network-only** for pages — authenticated HTML is never cached (privacy), offline shows the fallback page
 - **Network-only** for POST requests (passthrough) — logging data requires a connection
 
@@ -608,7 +607,7 @@ Virgil (an expired Cloudflare Access session) asks for a reload instead.
 
 ### Middleware Stack
 Request processing order:
-1. **Security Headers** — CSP (including `worker-src 'self'`, `'unsafe-eval'` for Alpine.js), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+1. **Security Headers** - CSP with scripts only from `'self'` or inline with a per-response nonce (no `'unsafe-inline'` or `'unsafe-eval'` for scripts, no inline event handlers), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
 2. **Rate Limiting** — 120 req/min general, 10 req/min for auth endpoints (per-IP sliding window)
 3. **Authentication** — Cookie-based session verification (public paths: login, signup, MFA, offline, healthz, service worker, per-user Oura webhooks)
 4. **Feature Flags** — Loads `feature_*` settings from `app_settings` into `request.state.features` for templates and route guards
@@ -778,7 +777,7 @@ virgil/
 │   ├── auth.py               # AuthMiddleware (cookie session verification)
 │   ├── csrf.py               # CSRF double-submit cookie middleware (with exempt paths)
 │   ├── rate_limit.py         # Per-IP sliding window rate limiter
-│   ├── security_headers.py   # Security response headers middleware (CSP + worker-src)
+│   ├── security_headers.py   # Security response headers middleware (nonce-based CSP)
 │   ├── validation.py         # Shared input validation helpers
 │   ├── mcp_endpoint.py       # Hosted MCP over Streamable HTTP at /mcp
 │   ├── migrations/

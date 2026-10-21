@@ -4,9 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virgil - Verify MFA</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;0,9..40,800;1,9..40,400&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
     <meta name="theme-color" content="#06080d">
@@ -50,7 +48,6 @@
 .auth-subtitle { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:1.5rem; }
 .auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
 </style>
-<script>if('serviceWorker' in navigator)navigator.serviceWorker.register('/service-worker.js',{scope:'/'}).catch(function(){});</script>
 <script src="/static/js/app.js?v={{ app_version }}"></script>
 </body>
 </html>

@@ -271,9 +271,9 @@ def test_native_movement_picker_uses_theme_aware_popup_colors():
 
 
 def test_global_csrf_injector_excludes_navigation_forms():
-    base = (Path(__file__).parents[1] / "app/templates/base.html").read_text()
-    assert "form.method.toUpperCase() === 'POST'" in base
-    assert "if (mutates && !form.querySelector" in base
+    script = (Path(__file__).parents[1] / "app/static/js/app.js").read_text()
+    assert "form.method.toUpperCase() === 'POST'" in script
+    assert "if (mutates && !form.querySelector" in script
     # An hx-post form without method=POST getting its token: tests/test_browser_smoke.py saves one.
 
 

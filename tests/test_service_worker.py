@@ -11,11 +11,11 @@ def test_sw_cache_name_is_versioned(client):
 
 def test_sw_never_caches_html_pages(client):
     """Privacy regression: cached dashboards/journals stayed readable offline
-    after logout. Only /static/ assets and CDN resources may be cache.put —
+    after logout. Only /static/ assets may be cache.put -
     HTML falls back to the precached public /offline page."""
     resp = client.get("/service-worker.js")
     source = resp.text
-    assert source.count("cache.put") == 2, "Only the static and CDN handlers may write to Cache Storage"
+    assert source.count("cache.put") == 1, "Only the static handler may write to Cache Storage"
     assert "caches.match('/offline')" in source
 
 

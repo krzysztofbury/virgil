@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from datetime import date
+from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 from conftest import csrf_token, drain_jobs, plain_stat_value_for_label, stat_value_for_label, user_db_path
@@ -427,8 +428,11 @@ def test_confirm_page_renders_the_add_set_control_and_alpine_wiring(auth_client)
     assert 'x-ref="entryCount"' in html, (
         "the hidden entry_count input must be ref'd so the @submit fallback can reach it"
     )
-    assert '@submit="$refs.entryCount.value = base + extraRows.length"' in html, (
-        "the :value binding must be backed by an explicit @submit assignment — its failure mode is silent "
+    components = Path("app/static/js/components.js").read_text()
+    assert '@submit="syncCount"' in html and "this.$refs.entryCount.value = this.base + this.extraRows.length" in (
+        components
+    ), (
+        "the :value binding must be backed by an explicit @submit assignment - its failure mode is silent "
         "data loss (confirm_wod would drop the rows the user just added), so this belt-and-braces must stay"
     )
 

@@ -1,13 +1,34 @@
+import secrets
+
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.config import BASE_URL
 
-# CDN origins used by the app
-SCRIPT_ORIGINS = (
-    "https://unpkg.com https://cdn.jsdelivr.net https://fonts.googleapis.com https://static.cloudflareinsights.com"
-)
-STYLE_ORIGINS = "https://cdn.jsdelivr.net https://fonts.googleapis.com https://fonts.gstatic.com"
-FONT_ORIGINS = "https://fonts.gstatic.com"
+# Every script, stylesheet and font is served from /static. The one outside
+# origin is Cloudflare's Web Analytics beacon, which the proxy can inject.
+BEACON_ORIGIN = "https://static.cloudflareinsights.com"
+
+
+def content_security_policy(nonce: str) -> str:
+    """Scripts only from this origin or inline with this response's nonce.
+
+    No 'unsafe-inline' and no 'unsafe-eval' for scripts: Alpine is its CSP build,
+    and no template carries an inline event handler. Styles keep 'unsafe-inline'
+    for the many style attributes and for what Chart.js and htmx set.
+    """
+    return (
+        "default-src 'self'; "
+        f"script-src 'self' 'nonce-{nonce}' {BEACON_ORIGIN}; "
+        "style-src 'self' 'unsafe-inline'; "
+        "font-src 'self'; "
+        "img-src 'self' data:; "
+        "connect-src 'self'; "
+        "manifest-src 'self'; "
+        "worker-src 'self'; "
+        "object-src 'none'; "
+        "base-uri 'self'; "
+        "frame-ancestors 'none'"
+    )
 
 
 class SecurityHeadersMiddleware:
@@ -19,6 +40,10 @@ class SecurityHeadersMiddleware:
             await self.app(scope, receive, send)
             return
 
+        # One per response: templates read it as request.state.csp_nonce.
+        nonce = secrets.token_urlsafe(18)
+        scope.setdefault("state", {})["csp_nonce"] = nonce
+
         async def send_with_headers(message: Message):
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
@@ -28,18 +53,7 @@ class SecurityHeadersMiddleware:
                         (b"x-content-type-options", b"nosniff"),
                         (b"referrer-policy", b"strict-origin-when-cross-origin"),
                         (b"permissions-policy", b"camera=(), microphone=(), geolocation=()"),
-                        (
-                            b"content-security-policy",
-                            # Alpine.js requires unsafe-eval for x-data expressions.
-                            f"default-src 'self'; "
-                            f"script-src 'self' 'unsafe-inline' 'unsafe-eval' {SCRIPT_ORIGINS}; "
-                            f"style-src 'self' 'unsafe-inline' {STYLE_ORIGINS}; "
-                            f"font-src 'self' {FONT_ORIGINS}; "
-                            f"img-src 'self' data:; "
-                            f"connect-src 'self' {SCRIPT_ORIGINS} {FONT_ORIGINS}; "
-                            f"manifest-src 'self'; "
-                            f"worker-src 'self'".encode(),
-                        ),
+                        (b"content-security-policy", content_security_policy(nonce).encode()),
                     ]
                 )
                 # HSTS: enforce HTTPS when deployed behind TLS-terminating proxy.

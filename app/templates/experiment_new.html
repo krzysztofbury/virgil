@@ -6,7 +6,7 @@
     <h1>New Experiment</h1>
 </div>
 
-<form action="/experiments/create" method="post" x-data="experimentForm()">
+<form action="/experiments/create" method="post" x-data="experimentForm">
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header"><h3>Basics</h3></div>
 
@@ -51,11 +51,11 @@
                 <div class="grid" style="align-items: end; margin-bottom: 0.25rem;">
                     <div>
                         <label x-show="i === 0">Name</label>
-                        <input type="text" x-model="m.name" name="metric_names" placeholder="Zone 2 / Meditation / Urge logged" required>
+                        <input type="text" :value="m.name" @input="setField(i, 'name', $event)" name="metric_names" placeholder="Zone 2 / Meditation / Urge logged" required>
                     </div>
                     <div>
                         <label x-show="i === 0">Type</label>
-                        <select x-model="m.kind" name="metric_kinds">
+                        <select :value="m.kind" @input="setField(i, 'kind', $event)" name="metric_kinds">
                             <option value="duration">Minutes</option>
                             <option value="count">Count</option>
                             <option value="boolean">Yes / No (daily)</option>
@@ -65,7 +65,7 @@
                     <div>
                         <label x-show="i === 0">Color</label>
                         <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <input type="color" x-model="m.color" name="metric_colors" style="width: 3rem; height: 2.5rem; padding: 0.25rem;">
+                            <input type="color" :value="m.color" @input="setField(i, 'color', $event)" name="metric_colors" style="width: 3rem; height: 2.5rem; padding: 0.25rem;">
                             <button type="button" @click="metrics.splice(i, 1)" class="btn btn-secondary btn-sm"
                                     x-show="metrics.length > 1">-</button>
                         </div>
@@ -74,10 +74,10 @@
 
                 <!-- Always submit target/period/source_match so row indexes stay aligned -->
                 <div x-show="m.kind === 'count' || m.kind === 'boolean'" style="display: flex; gap: 0.5rem; align-items: center;">
-                    <input type="number" x-model="m.target" name="metric_targets" min="0" placeholder="0 = no target"
+                    <input type="number" :value="m.target" @input="setField(i, 'target', $event)" name="metric_targets" min="0" placeholder="0 = no target"
                            style="width: 8rem; margin: 0; font-size: var(--text-xs);">
                     <span class="text-muted" style="font-size: var(--text-xs);">per</span>
-                    <select x-model="m.period" name="metric_periods" style="width: auto; margin: 0; font-size: var(--text-xs);">
+                    <select :value="m.period" @input="setField(i, 'period', $event)" name="metric_periods" style="width: auto; margin: 0; font-size: var(--text-xs);">
                         <option value="day">day</option>
                         <option value="week">week</option>
                         <option value="total">whole experiment</option>
@@ -87,7 +87,7 @@
                 <!-- x-show keeps hidden inputs in the DOM so they still POST;
                      the server zeroes targets/source_match for kinds they don't apply to -->
                 <div x-show="m.kind === 'duration'">
-                    <input type="text" name="source_matches" x-model="m.source_match" placeholder="walking,hiking,running"
+                    <input type="text" name="source_matches" :value="m.source_match" @input="setField(i, 'source_match', $event)" placeholder="walking,hiking,running"
                            style="font-size: var(--text-xs); margin: 0;">
                     <small class="text-muted">Oura activity names to auto-import (comma-separated)</small>
                 </div>
@@ -130,25 +130,4 @@
     </div>
 </form>
 
-{% endblock %}
-
-{% block scripts %}
-<script>
-function experimentForm() {
-    const colors = ['#22c55e', '#ef4444', '#3b82f6', '#eab308', '#a855f7', '#f97316'];
-    let ci = 0;
-    return {
-        metrics: [
-            {name: '', color: '#22c55e', kind: 'duration', target: '', period: 'week', source_match: ''}
-        ],
-        newMetric() {
-            ci = (ci + 1) % colors.length;
-            return {name: '', color: colors[ci], kind: 'count', target: '', period: 'week', source_match: ''};
-        },
-        hasDuration() {
-            return this.metrics.some(m => m.kind === 'duration');
-        }
-    }
-}
-</script>
 {% endblock %}

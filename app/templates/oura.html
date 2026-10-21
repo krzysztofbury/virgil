@@ -129,7 +129,7 @@
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header">
         <h3>Monthly Trends</h3>
-        <select aria-label="Metric" onchange="window.location.href='/oura/' + this.value + '#metric-content'" class="metric-select">
+        <select aria-label="Metric" data-navigate="/oura/{value}#metric-content" class="metric-select">
             {% for key, name, unit in metrics %}
             <option value="{{ key }}" {{ 'selected' if current_metric == key else '' }}>{{ name }}{% if unit %} ({{ unit }}){% endif %}</option>
             {% endfor %}
@@ -140,7 +140,7 @@
                 aria-label="Monthly {{ metric_name }}; History below, set to Monthly, lists the values by month"></canvas>
     </div>
 </div>
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
     (function() {
         var ctx = document.getElementById('ouraChart');
         if (!ctx) return;
@@ -200,15 +200,14 @@
     <div class="card" style="margin-top: 0.75rem;">
         <div class="card-header">
             <h3>History</h3>
-            <select class="metric-select" id="history-view" aria-label="History view"
-                    onchange="document.getElementById('hist-daily').style.display = this.value === 'daily' ? '' : 'none'; document.getElementById('hist-monthly').style.display = this.value === 'monthly' ? '' : 'none';">
+            <select class="metric-select" id="history-view" aria-label="History view" data-view-switch>
                 <option value="daily">Daily</option>
                 <option value="monthly">Monthly</option>
             </select>
         </div>
 
         {% if daily_data %}
-        <div id="hist-daily" class="overflow-x">
+        <div id="hist-daily" class="overflow-x" data-view-for="history-view" data-view="daily">
             <table>
                 <thead>
                     <tr>
@@ -240,7 +239,7 @@
         </div>
         {% endif %}
 
-        <div id="hist-monthly" class="overflow-x" style="display:none;">
+        <div id="hist-monthly" class="overflow-x" data-view-for="history-view" data-view="monthly" hidden>
             <table>
                 <thead>
                     <tr>
@@ -320,7 +319,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
     {% if trend_labels %}
     createLineChart('dailyTrendChart', {{ trend_labels | tojson }}, [
         {

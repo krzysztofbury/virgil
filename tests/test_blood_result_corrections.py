@@ -127,7 +127,6 @@ def test_a_marker_name_cannot_break_out_of_the_delete_confirmation(auth_client, 
     form = html[html.index(f'action="/bloodwork/result/{first}/delete"') :]
     form = form[: form.index(">")]
 
-    assert 'onsubmit="return confirm(this.dataset.confirm)"' in form
     assert 'data-confirm="Delete the ZZ&#39;); alert(1); (&#39; result' in form
 
 
