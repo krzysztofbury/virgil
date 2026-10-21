@@ -52,12 +52,14 @@
                 <i data-lucide="sun" style="width:20px;height:20px;"></i>
             </button>
             {% if request.state.user and request.state.user.role == 'admin' %}
-            <a href="/admin/users" title="Admin Panel"><i data-lucide="shield" style="width:20px;height:20px;"></i></a>
+            <a href="/admin/users" title="Admin: users" aria-label="Admin: users"><i data-lucide="shield" style="width:20px;height:20px;"></i></a>
             {% endif %}
-            <a href="/settings" title="Settings"><i data-lucide="settings" style="width:20px;height:20px;"></i></a>
-            <form method="POST" action="/logout" style="margin:0;display:inline;">
+            {# On a phone both live in the More menu: four bare icons put Log out
+               one slip from Settings. #}
+            <a href="/settings" title="Settings" aria-label="Settings" class="nav-desktop-only"><i data-lucide="settings" style="width:20px;height:20px;"></i></a>
+            <form method="POST" action="/logout" class="nav-desktop-only" style="margin:0;display:inline;">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                <button type="submit" class="nav-logout" title="Logout"><i data-lucide="log-out" style="width:20px;height:20px;"></i></button>
+                <button type="submit" class="nav-logout" title="Log out" aria-label="Log out"><i data-lucide="log-out" style="width:20px;height:20px;"></i></button>
             </form>
         </div>
     </nav>
@@ -115,6 +117,10 @@
                 <a href="/oura"><i data-lucide="moon"></i> Oura</a>
                 <a href="/bloodwork"><i data-lucide="droplets"></i> Blood</a>
                 <a href="/settings"><i data-lucide="settings"></i> Settings</a>
+                <form method="POST" action="/logout" class="tab-dropdown-form">
+                    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                    <button type="submit"><i data-lucide="log-out"></i> Log out</button>
+                </form>
             </div>
         </div>
     </div>

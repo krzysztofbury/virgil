@@ -135,6 +135,6 @@ def test_oura_history_follows_the_window_but_the_baseline_does_not(auth_client, 
     four = auth_client.get("/oura?weeks=4").text
     twelve = auth_client.get("/oura?weeks=12").text
 
-    old_row = f"<td><small>{IN_TWELVE}</small></td>"
+    old_row = f'<td class="history-when"><small>{IN_TWELVE}</small></td>'
     assert old_row in twelve and old_row not in four
     assert "+18 versus baseline" in four and "+18 versus baseline" in twelve

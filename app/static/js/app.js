@@ -1046,3 +1046,22 @@ function pwaInstall() {
     deferredInstall.prompt();
     deferredInstall.userChoice.then(function() { deferredInstall = null; });
 }
+
+// A tab row that scrolls sideways on a phone: the active tab is brought into
+// view (Security sat off-screen, so no visible tab was marked), and an edge
+// with more tabs past it fades out to show the row scrolls.
+function markTabOverflow(row) {
+    var left = row.scrollLeft > 2;
+    var right = row.scrollLeft + row.clientWidth < row.scrollWidth - 2;
+    row.classList.toggle('has-more-left', left);
+    row.classList.toggle('has-more-right', right);
+}
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.tabs').forEach(function(row) {
+        if (row.scrollWidth <= row.clientWidth) return;
+        var active = row.querySelector('a.active');
+        if (active) row.scrollLeft = active.offsetLeft - (row.clientWidth - active.offsetWidth) / 2;
+        markTabOverflow(row);
+        row.addEventListener('scroll', function() { markTabOverflow(row); }, { passive: true });
+    });
+});
