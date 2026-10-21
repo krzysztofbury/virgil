@@ -137,8 +137,36 @@ remove that override so the restored `virgil.key` is used.
 Verify `/healthz`, sign in, inspect representative records from each account, and
 confirm stored credentials decrypt. Start a drill with external network access
 blocked so restored jobs cannot issue provider calls or repeat external effects.
+This matters at once: the scheduler queues an Oura sync within the first minute,
+and with network access it would refresh the Oura token. Oura's refresh tokens
+are single-use, so the production instance could lose its connection.
 Review queued work and provider subscription state before reconnecting a restored
 production instance. Never run two live writers against the same data directory.
+
+### A drill on another machine
+
+With the bundle restored to `./data`, run the production image on it with no
+network, then check it from inside the container:
+
+```bash
+mkdir -m 700 backups
+docker run -d --name virgil-drill --network none -u 1000:1000 \
+  -v "$PWD/data:/data" -v "$PWD/backups:/backups" \
+  -e VIRGIL_ENV=prod -e VIRGIL_CENTRAL_DB_PATH=/data/virgil-central.db \
+  -e VIRGIL_BACKUP_DIR=/backups -e VIRGIL_BASE_URL=http://localhost:8123 \
+  ghcr.io/krzysztofbury/virgil:latest
+docker exec virgil-drill python -c "import urllib.request as u; print(u.urlopen('http://localhost:8123/healthz').read())"
+docker logs virgil-drill | grep "user migrations"
+```
+
+With no network there is also no published port, so pages are checked from
+inside too. A session for a restored account can be signed with the restored
+key (`app.auth.create_session(user_id, session_epoch)`, sent as the
+`virgil_session` cookie): it shows the pages render from the restored data
+without anyone's password. Signing in with the password and MFA needs a
+reachable instance, which means network access, so do it only once queued jobs
+and provider connections are reviewed. Remove the container and the data
+afterwards: `docker rm -f virgil-drill`, then delete the directories.
 
 ## Restore drill record
 
@@ -146,11 +174,33 @@ Record the bundle timestamp, source application version/image digest, verificati
 result, restored user count, login/MFA result, sample record checks, elapsed restore
 time, and operator. Keep real account information outside this public repository.
 
+### 2026-10-21: off-site copy restored on a development machine (#47)
+
+- **Source:** the newest daily run in R2 (`2026-10-21T102141Z`), made by the
+  production instance at `e651759`. It was downloaded with the S3 API, and
+  `unseal`, `verify` and `restore` all passed.
+- **Image:** production `47fc1de`, run with `--network none` on the restored
+  directory.
+- **Result:** `/healthz` 200 and all migrations ok. Every account in the registry
+  was restored, and its record counts were plausible for its history. Every
+  stored credential decrypted with the restored key. Dashboard, Daily,
+  Training, Oura, Blood, Goals, Experiments and Settings rendered for the
+  restored account through a session signed with the restored key.
+- **Time:** about 10 s from the download to a healthy server: the download
+  0.4 s, unseal, verify and restore about 1 s, and startup 6.4 s.
+- **Not exercised:** password and MFA sign-in, which needs a reachable instance
+  (see above).
+- **Gaps found:**
+  - The guide had no drill commands. They are added above.
+  - The urgency of the network block (the Oura sync within a minute) was not
+    stated. It is stated above now.
+
 Automated tests cover a synthetic bundle, decrypted secret recovery, checksum
 rejection, missing user files, and refusal to overwrite an existing destination.
 The container smoke check also creates and restores a bundle, then signs in to
 the restored account using the same image with external networking disabled.
-A production drill on a separate host remains an operator acceptance step.
+Repeat a drill on another machine after any change to the bundle format or the
+restore path, and record it here.
 
 ## Daily and pre-migration snapshots
 

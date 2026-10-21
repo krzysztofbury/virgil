@@ -43,7 +43,18 @@ else:
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
+import app.services.scheduler as scheduler  # noqa: E402
 from app.main import app  # noqa: E402
+
+
+async def _scheduler_idle() -> None:
+    """The background loop, minus its ticks. Its first tick fires 60 s after the
+    shared app starts, mid-suite now that the suite runs longer than that, and
+    queued a scheduled backup into the tests' job counts. Tests that cover the
+    scheduler call scheduler_tick themselves."""
+
+
+scheduler.scheduler_loop = _scheduler_idle
 
 TEST_EMAIL = "test@example.com"
 TEST_PASSWORD = "test-password-123"  # pragma: allowlist secret - synthetic fixture
