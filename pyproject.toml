@@ -41,7 +41,7 @@ dev = [
 ]
 
 [tool.uv]
-exclude-newer = "2026-10-11T00:00:00Z"
+exclude-newer = "2026-10-21T00:00:00Z"
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI idioms: Form()/Query()/Depends() in parameter defaults are the framework's API.
