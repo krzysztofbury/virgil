@@ -162,3 +162,21 @@ def _post_probes(auth_client, token, statuses):
             follow_redirects=False,
         )
         statuses.append(resp.status_code)
+
+
+def test_static_files_do_not_spend_the_page_budget():
+    """A cold cache fetches every stylesheet and script on each page; counted, a
+    few quick page views ran a reader into 429s on the pages themselves."""
+    from app.rate_limit import GENERAL_LIMIT, RateLimitMiddleware
+
+    async def accepted(_request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/static/app.js", accepted), Route("/daily", accepted)])
+    app.add_middleware(RateLimitMiddleware)
+    client = TestClient(app, client=("192.0.2.40", 50000))
+
+    assert all(client.get("/static/app.js").status_code == 200 for _ in range(GENERAL_LIMIT + 5))
+    pages = [client.get("/daily").status_code for _ in range(GENERAL_LIMIT + 1)]
+    assert pages[:GENERAL_LIMIT] == [200] * GENERAL_LIMIT
+    assert pages[GENERAL_LIMIT] == 429, "the pages themselves stay limited"

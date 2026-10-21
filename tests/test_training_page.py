@@ -274,7 +274,7 @@ def test_global_csrf_injector_excludes_navigation_forms():
     base = (Path(__file__).parents[1] / "app/templates/base.html").read_text()
     assert "form.method.toUpperCase() === 'POST'" in base
     assert "if (mutates && !form.querySelector" in base
-    assert "form.hasAttribute('hx-post')" in base, "HTMX mutation forms without method=POST still need a token"
+    # An hx-post form without method=POST getting its token: tests/test_browser_smoke.py saves one.
 
 
 def test_timed_personal_bests_group_by_duration(auth_client):

@@ -3,7 +3,8 @@
 The 2026-08-27 audit found values clipped inside `overflow: hidden` cards. The
 Training KPIs had the mechanism that matters: a page-level inline column count
 outranks the stylesheet's own mobile rule. These tests pin the rules and the
-absence of that override, which is what a browser pass cannot do in CI.
+absence of that override; tests/test_browser_smoke.py checks the pages
+themselves at phone width for overflow and clipped cards.
 """
 
 import re
@@ -53,21 +54,6 @@ def test_no_template_pins_a_fixed_column_count_inline():
         if INLINE_FIXED_COLUMNS.search(path.read_text(encoding="utf-8"))
     ]
     assert offenders == [], f"a fixed inline column count defeats the mobile rules: {offenders}"
-
-
-def test_stat_cards_shrink_on_mobile():
-    block = _mobile_block()
-    assert ".stat-grid { grid-template-columns: repeat(2, 1fr); }" in block, "the two-column mobile rule must stay"
-    assert ".stat-card {" in block, "stat cards must get smaller padding on a phone"
-    assert ".stat-value {" in block, "the 1.75rem mono value does not fit two-up at 320px"
-
-
-def test_stat_cards_may_shrink_below_their_content():
-    """A grid item defaults to min-width:auto, so a long value pushes its track
-    wider than the card and the card clips it."""
-    css = CSS.read_text(encoding="utf-8")
-    stat_card = css[css.index(".stat-card {") : css.index(".stat-card:hover")]
-    assert "min-width: 0" in stat_card
 
 
 def test_card_headers_wrap_helper_copy_on_mobile():

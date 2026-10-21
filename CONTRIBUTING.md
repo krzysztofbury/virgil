@@ -23,6 +23,12 @@ uv lock --check --script mcp_server/virgil_mcp.py
 uv run --locked --extra dev python scripts/check_mcp.py
 ```
 
+`tests/test_browser_smoke.py` drives the dashboard, Daily, Training and Freedom
+in Chromium on a seeded throwaway instance. Install a browser once with
+`uv run --locked --extra dev playwright install chromium`, or point
+`VIRGIL_TEST_BROWSER` at an installed one; without either it is skipped locally.
+CI installs one and sets `VIRGIL_REQUIRE_BROWSER`, so there it cannot skip.
+
 Install Node 22 for tests that execute the real picker JavaScript. Tests use
 isolated databases, synthetic credentials, and bundled LiteLLM capability
 metadata. Date-window fixtures must control the clock. Use the same locked

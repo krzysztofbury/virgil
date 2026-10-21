@@ -11,7 +11,8 @@ from app.config import TRUST_CLOUDFLARE_HEADERS, TRUSTED_PROXY_IPS
 logger = logging.getLogger(__name__)
 
 # Sliding window rate limiter: per-IP, in-memory
-# General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min
+# General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min.
+# Static files are not counted.
 GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
@@ -89,9 +90,15 @@ class RateLimitMiddleware:
             await self.app(scope, receive, send)
             return
 
+        path = scope.get("path", "")
+        # Files from disk cost nothing to serve, and a cold cache fetches a
+        # dozen per page: counting them spent a fast reader's whole budget.
+        if path.startswith("/static/"):
+            await self.app(scope, receive, send)
+            return
+
         request = Request(scope)
         ip = _client_ip(request)
-        path = scope.get("path", "")
         now = time.monotonic()
 
         if path in AUTH_PATHS:

@@ -45,7 +45,12 @@ jobs:
         env:
           SKIP: no-commit-to-branch
         run: uv run --locked --extra dev pre-commit run --all-files
+      - name: Browser for the smoke test
+        run: uv run --locked --extra dev playwright install --with-deps chromium
       - name: Tests
+        env:
+          # tests/test_browser_smoke.py fails instead of skipping without a browser.
+          VIRGIL_REQUIRE_BROWSER: '1'
         run: uv run --locked --extra dev pytest -q
       - name: Locked MCP stdio
         run: |

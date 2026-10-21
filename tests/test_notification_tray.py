@@ -70,19 +70,6 @@ def test_tray_is_a_fixed_overlay_outside_the_main_flow(auth_client):
     assert 'id="job-notifications"' in response.text
 
 
-def test_tray_css_pins_the_top_right_corner_and_keeps_empty_regions_collapsed():
-    css = Path("app/static/css/app.css").read_text()
-    rule = css[css.index(".notification-tray {") :]
-    rule = rule[: rule.index("}")]
-
-    assert "position: fixed" in rule
-    assert "right: 1rem" in rule
-    assert "top: calc(var(--nav-height)" in rule
-    assert "pointer-events: none" in rule, "an empty tray must not swallow clicks in the page corner"
-    assert ".notification-tray > section:empty { display: none; }" in css
-    assert "prefers-reduced-motion" in css[css.index("notification-enter") :]
-
-
 def test_success_feedback_self_dismisses_but_an_error_waits_for_the_user(auth_client):
     success = auth_client.get("/oura?msg=Signed+in")
     failure = auth_client.get("/oura?err=Nope")
@@ -95,10 +82,10 @@ def test_success_feedback_self_dismisses_but_an_error_waits_for_the_user(auth_cl
     assert "data-feedback-dismiss" in error_box
 
 
-def test_shared_js_dismisses_only_success_and_terminal_job_notifications():
+def test_shared_js_dismisses_only_successful_and_named_job_notifications():
+    """Job cards; tests/test_browser_smoke.py covers the feedback toasts."""
     js = Path("app/static/js/app.js").read_text()
 
-    assert "TOAST_DISMISS_MS = 4000" in js
     assert "'#job-notifications [data-job-status=\"succeeded\"]'" in js
     assert 'data-job-status="failed"' not in js, "a failure must stay until it is read"
     assert "refreshAndySuggestions(node)" in js, "A.N.D.Y. completion must refresh its card"
