@@ -248,3 +248,32 @@ def test_off_by_default_queues_nothing(instance, monkeypatch):
     backup.delete_user_backups(TWO)
     assert not (backup.BACKUP_DIR / "offsite").exists()
     assert offsite.offsite_status()["state"] == "off"
+
+
+def test_a_deletion_while_turned_off_waits_for_copies_to_return(instance, monkeypatch):
+    bucket, data = instance["bucket"], instance["data"]
+    asyncio.run(offsite.offsite_tick(DAY))
+    names = ("ENDPOINT", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "RECIPIENT")
+    saved = {name: getattr(config, f"OFFSITE_{name}") for name in names}
+    for name in names:  # turned off entirely
+        monkeypatch.setattr(config, f"OFFSITE_{name}", "")
+    with sqlite3.connect(data / "virgil-central.db") as db:
+        db.execute("DELETE FROM users WHERE db_filename = ?", (TWO,))
+    (data / "users" / TWO).unlink()
+    backup.delete_user_backups(TWO)
+    asyncio.run(offsite.offsite_tick(DAY + timedelta(hours=1)))
+    assert [k for k in bucket.objects if TWO in k]
+
+    for name, value in saved.items():
+        monkeypatch.setattr(config, f"OFFSITE_{name}", value)
+    asyncio.run(offsite.offsite_tick(DAY + timedelta(hours=2)))
+    assert not [k for k in bucket.objects if TWO in k]
+
+
+def test_a_run_clears_plain_copies_a_killed_run_left(instance):
+    leftover = backup.BACKUP_DIR / ".offsite-killed" / "bundle" / "users"
+    leftover.mkdir(parents=True)
+    (leftover / ONE).write_bytes(b"plain database copy")
+    asyncio.run(offsite.offsite_tick(DAY))
+    assert not (backup.BACKUP_DIR / ".offsite-killed").exists()
+    assert list(backup.BACKUP_DIR.glob(".offsite-*")) == []

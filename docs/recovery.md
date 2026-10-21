@@ -103,7 +103,10 @@ uv run --locked python scripts/recovery.py restore ./bundle --destination /recov
 ```
 
 `unseal` refuses a file it does not expect, one that does not decrypt, and a
-result that fails `verify`. One account's database alone is
+result that fails `verify`. Encryption keeps the copies private but does not
+prove who wrote them: anyone holding the bucket's write credentials and the
+public key could upload a run. Restore a run whose time you expect, and replace
+the bucket credentials first if they may have leaked. One account's database alone is
 `age -d -i identity.txt users/<account>.db.gz.age | gunzip > <account>.db`.
 
 ## Copy a bundle off the machine by hand

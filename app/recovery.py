@@ -158,6 +158,8 @@ def restore(bundle: Path, destination: Path) -> None:
 # An off-site copy is a bundle with each file stored separately, compressed and
 # then encrypted, so one account's file can be deleted or restored on its own.
 SEALED_SUFFIX = ".gz.age"
+# Far past any real database here, short of a disk filled by a crafted file.
+UNSEALED_MAX_BYTES = 16 * 1024**3
 
 
 def parse_recipient(text: str) -> x25519.Recipient:
@@ -215,7 +217,12 @@ def unseal(directory: Path, identity_file: Path, destination: Path) -> dict:
             except DecryptError:
                 raise ValueError("A file does not decrypt with this identity, or it is damaged") from None
             with gzip.open(compressed, "rb") as packed, (staging / name).open("wb") as raw:
-                shutil.copyfileobj(packed, raw)
+                written = 0
+                while chunk := packed.read(1024 * 1024):
+                    written += len(chunk)
+                    if written > UNSEALED_MAX_BYTES:
+                        raise ValueError("A file in the off-site copy is larger than any database should be")
+                    raw.write(chunk)
             (staging / name).chmod(0o600)
             compressed.unlink()
         manifest = verify(staging)

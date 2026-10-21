@@ -17,6 +17,7 @@ import asyncio
 import json
 import logging
 import os
+import shutil
 import tempfile
 import uuid
 from dataclasses import dataclass, field
@@ -141,11 +142,13 @@ def queue_deletion(db_filename: str) -> None:
     on, or fail with, the storage provider. The scheduler retries until done.
     """
     try:
-        if offsite_settings() is None:
-            return
+        configured = offsite_settings() is not None
     except OffsiteConfigError:
-        # Half configured now does not mean no copies were made before.
-        pass
+        configured = True
+    # Turned off or half set now does not mean no copies were made before: the
+    # marker waits until copies are configured again.
+    if not configured and not _state_dir().exists():
+        return
     if not USER_FILE.fullmatch(db_filename):
         raise ValueError(f"Invalid db_filename: {db_filename}")
     directory = _pending_dir()
@@ -200,6 +203,10 @@ def _upload_run(settings: OffsiteSettings, now: datetime, monthly: str | None) -
     run = _run_name(now)
     workspace = backup.BACKUP_DIR
     workspace.mkdir(parents=True, exist_ok=True)
+    # Left by a run the container was killed in: plain database copies. Only
+    # this job writes these, and it holds the lock.
+    for stale in workspace.glob(".offsite-*"):
+        shutil.rmtree(stale, ignore_errors=True)
     keys, total = [], 0
     with tempfile.TemporaryDirectory(prefix=".offsite-", dir=workspace) as temporary:
         bundle = Path(temporary) / "bundle"
