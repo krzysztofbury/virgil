@@ -884,13 +884,14 @@ form[aria-busy="true"] { cursor: progress; }
 /* Names a group of sections, one level above .section-title. */
 /* A button in a section title is still a button, not a label. */
 .section-title .btn { text-transform: none; letter-spacing: normal; }
+/* The Insights group: the same small-caps label as every section, set apart
+   by the rule above it rather than a bigger heading. */
 .section-group-title {
-  font-size: 1.125rem;
-  font-weight: 700;
   margin: 2.5rem 0 1rem;
   padding-top: 1.5rem;
   border-top: 1px solid var(--border);
 }
+.stat-delta { margin-top: 0.15rem; font-size: 0.75rem; color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .section-title {
   font-size: 0.75rem;
   font-weight: 600;
@@ -1177,7 +1178,10 @@ input[type="range"]#energy-slider::-moz-range-thumb {
 /* The selected row's own background already separates it from its neighbours. */
 .freedom-today-row.is-selected + .freedom-today-row,
 .freedom-today-row + .freedom-today-row.is-selected { border-top-color: transparent; }
-.freedom-today-row.is-selected { background: var(--overlay-2); }
+/* The habit shown below: an accent edge, not only a faint background. */
+.freedom-today-row.is-selected { background: var(--overlay-2); box-shadow: inset 3px 0 0 var(--accent); }
+.day-card-details > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.35rem 0.6rem; cursor: pointer; font-weight: 600; }
+.day-card-details[open] > summary { margin-bottom: 0.75rem; }
 .freedom-today-name { display: flex; flex-direction: column; min-width: 0; }
 .freedom-today-name small { color: var(--text-secondary); font-size: 0.8125rem; }
 .freedom-today-name:hover strong { color: var(--accent); }

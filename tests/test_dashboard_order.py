@@ -26,7 +26,7 @@ def test_today_block_comes_before_the_analytics(auth_client):
         html,
         'id="today-block"',
         '<div class="section-title">Week</div>',
-        '<h2 class="section-group-title">Insights</h2>',
+        '<h2 class="section-title section-group-title">Insights</h2>',
         '<div class="section-title">Oura</div>',
         'id="year-calendar"',
     )

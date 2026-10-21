@@ -23,7 +23,8 @@
 
 <div class="section" id="today-block">
     <div class="section-title today-head">
-        <span>Today &middot; {{ andy_done }}/{{ andy_total }} done</span>
+        {# A.N.D.Y.'s four daily practices, not the life areas Goals and Life Scores use. #}
+        <span>Today's A.N.D.Y. &middot; {{ andy_done }}/{{ andy_total }} done</span>
         <a href="/daily/{{ today }}" class="btn btn-sm btn-primary">
             {% if today_log %}Edit today's log{% else %}Finish today's check-in{% endif %}
             <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>

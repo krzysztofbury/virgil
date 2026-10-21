@@ -453,3 +453,57 @@ def test_habit_settings_round_trip_and_refuse_invalid_values(auth_client):
         )
         assert "err=" in refused.headers["location"], invalid
         assert _fetchall(stored) == [(3, 45, "euros")], invalid
+
+
+def test_the_dashboard_can_leave_freedom_out(auth_client):
+    """The block names each habit; it can stay on the Freedom page only (#95)."""
+    _enable(auth_client, "porn")
+
+    def save(**extra):
+        token = csrf_token(auth_client, "/settings?tab=general")
+        data = {"_csrf_token": token, "feature_freedom": "on", "freedom_habits_shown": "1", "habits": ["porn"], **extra}
+        assert auth_client.post("/settings/features", data=data, follow_redirects=False).status_code == 303
+
+    try:
+        save(freedom_dashboard_shown="1")  # the box shown and left unchecked
+        assert 'id="freedom-today-block"' not in auth_client.get("/").text
+        assert "Show these habits on the dashboard" in auth_client.get("/settings?tab=general").text
+        save()  # a form without the box changes nothing
+        assert 'id="freedom-today-block"' not in auth_client.get("/").text
+    finally:
+        save(freedom_dashboard_shown="1", freedom_on_dashboard="1")
+    assert 'id="freedom-today-block"' in auth_client.get("/").text
+
+
+def test_the_today_row_is_the_quick_log_and_the_day_card_adds_details(auth_client):
+    """Today could be logged in two places on one screen (#95). With two habits
+    the Today list is the quick log; the day card adds details."""
+    _enable(auth_client, "porn", "alcohol")
+    today = date.today().isoformat()
+    _execute("DELETE FROM feniks_daily WHERE date = ?", (today,))
+
+    page = auth_client.get("/freedom?habit=porn").text
+    assert '<details class="card day-card day-card-details" id="day-card"' in page, "unlogged today: details, closed"
+    assert 'href="/freedom?habit=porn&amp;slip=1#day-card"' in page, "Slipped opens the card with the slip chosen"
+
+    slip = auth_client.get("/freedom?habit=porn&slip=1").text
+    # &#39; is the quote, escaped in the attribute; the browser reads used: '1'.
+    assert '<div class="card day-card" id="day-card" x-data="{ used: &#39;1&#39; }">' in slip
+
+    past = (date.today() - timedelta(days=3)).isoformat()
+    earlier = auth_client.get(f"/freedom?habit=porn&date={past}").text
+    assert '<div class="card day-card" id="day-card"' in earlier, "another day is an edit, open as before"
+
+
+def test_a_single_habit_keeps_its_day_card_open(auth_client):
+    """No Today list with one habit: the card is then the only place to log."""
+    _enable(auth_client, "porn")
+    tracked = [slug for slug, _ in _fetchall("SELECT slug, id FROM habits WHERE tracked = 1")]
+    _execute("UPDATE habits SET tracked = 0 WHERE slug != 'porn'")
+    _execute("DELETE FROM feniks_daily WHERE date = ?", (date.today().isoformat(),))
+    try:
+        page = auth_client.get("/freedom?habit=porn").text
+        assert '<div class="card day-card" id="day-card"' in page
+    finally:
+        for slug in tracked:
+            _execute("UPDATE habits SET tracked = 1 WHERE slug = ?", (slug,))

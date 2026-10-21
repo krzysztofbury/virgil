@@ -87,6 +87,21 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
         for row in rows:
             goals[row["area_name"]] = row["content"]
 
+    # Step 3's four fields, each saved as a 10-year goal in one of Goals' areas:
+    # what each field already holds, and the area name it goes to, read from the
+    # table because areas can be renamed.
+    end_goals, end_goal_areas = {}, {}
+    if step == 3:
+        for row in await db.execute_fetchall(
+            "SELECT source_ref, content FROM goals WHERE source = 'onboarding' AND source_ref LIKE 'end-goal:%'"
+        ):
+            end_goals[row["source_ref"].removeprefix("end-goal:")] = row["content"]
+        area_names = {
+            row["display_order"]: row["name"]
+            for row in await db.execute_fetchall("SELECT name, display_order FROM goal_areas")
+        }
+        end_goal_areas = {category: area_names.get(orders[0], "") for category, orders in GOAL_CATEGORY_MAP.items()}
+
     # Check if internal LLM is available (for step 5 info).
     from app.config import INTERNAL_LLM_KEY
     from app.services.onboarding import enrichment_progress
@@ -101,6 +116,8 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
             "step": step,
             "profile": profile,
             "goals": goals,
+            "end_goals": end_goals,
+            "end_goal_areas": end_goal_areas,
             "has_internal_llm": has_internal_llm,
             "current_job": await _current_job(db, job_id),
             "enrichment": await enrichment_progress(db),

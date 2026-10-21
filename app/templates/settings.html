@@ -141,6 +141,12 @@
                 <input type="text" name="custom_habit" maxlength="40" placeholder="In your words">
             </label>
             <small class="text-muted">Unchecking a habit stops tracking it. Its history is kept and returns if you check it again.</small>
+            <input type="hidden" name="freedom_dashboard_shown" value="1">
+            <label class="module-habit module-dashboard-toggle">
+                <input type="checkbox" name="freedom_on_dashboard" value="1" {% if freedom_on_dashboard %}checked{% endif %}>
+                Show these habits on the dashboard
+            </label>
+            <small class="text-muted">Off keeps their names and streaks on the Freedom page only, away from anyone glancing at the home screen.</small>
         </fieldset>
         <div class="form-actions module-actions">
             <button type="submit" class="btn btn-primary btn-sm">Save modules</button>

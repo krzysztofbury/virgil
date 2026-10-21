@@ -140,8 +140,9 @@
                 <span class="text-muted" title="{{ example }}" style="cursor:help;font-size:0.75rem;font-weight:400;">&#9432;</span>
             </label>
             <input type="text" name="goal_{{ cat }}" placeholder="{{ example }}"
-                   value="{{ goals.get(cat, '') }}">
-            <small class="text-muted">Your dream — Level 3 (10-year vision)</small>
+                   value="{{ end_goals.get(cat, '') }}">
+            {# Goals has one list of life areas; say which one this lands in. #}
+            <small class="text-muted">Your 10-year vision. Saved in Goals as a 10-year goal under {{ end_goal_areas.get(cat) or 'its area' }}.</small>
         </div>
         {% endfor %}
 
