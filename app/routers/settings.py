@@ -77,6 +77,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["llm_providers"] = providers
         context["feature_flags"] = await get_feature_flags(db)
         context["freedom_choices"] = await _freedom_choices(db)
+        context["freedom_on_dashboard"] = await get_setting(db, "freedom_on_dashboard", "1") == "1"
         context["reasoning_efforts"] = list(REASONING_EFFORTS)
         context["reasoning_effort"] = await resolve_reasoning_effort(db)
 
@@ -439,6 +440,10 @@ async def save_features(request: Request):
     # The habit checklist only applies while Freedom is on; switching the module
     # off keeps the selection for when it comes back.
     if form.get("feature_freedom") and form.get("freedom_habits_shown"):
+        # Only from a form that showed the box: an unchecked box sends nothing,
+        # so without the marker any older form would switch the block off.
+        if form.get("freedom_dashboard_shown"):
+            await set_setting(db, "freedom_on_dashboard", "1" if form.get("freedom_on_dashboard") else "0")
         await sync_tracked(db, set(form.getlist("habits")))
         custom = (form.get("custom_habit") or "").strip()
         if custom:

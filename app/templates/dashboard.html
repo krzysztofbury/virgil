@@ -91,7 +91,12 @@
 
 <!-- Insights: everything that describes the past. Below the day's action on
      purpose - the audit found these carrying the same weight as the check-in. -->
-<h2 class="section-group-title">Insights</h2>
+{# A number against its previous seven scored days. #}
+{% macro versus(column) -%}
+{%- set b = oura_versus.get(column) -%}
+{%- if b and b.delta is not none %}<div class="stat-delta">{{ '%+d' % b.delta }} vs {{ b.days }}-day avg</div>{% endif -%}
+{%- endmacro %}
+<h2 class="section-title section-group-title">Insights</h2>
 
 <!-- Oura -->
 <div class="section">
@@ -102,18 +107,22 @@
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
                 <div class="stat-label">Sleep</div>
+                {{ versus('sleep_score') }}
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
                 <div class="stat-label">Readiness</div>
+                {{ versus('readiness_score') }}
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
                 <div class="stat-label">HRV</div>
+                {{ versus('avg_hrv') }}
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
                 <div class="stat-label">RHR</div>
+                {{ versus('resting_hr') }}
             </div>
             {% if oura_today.activity_score is not none or yesterday_fallback.activity_score is defined %}
             <div class="stat-card">

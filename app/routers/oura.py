@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.services.oura_api import oura_sync_freshness
+from app.services.oura_baseline import BASELINE_DAYS, BASELINE_TOLERANCE, readiness_baseline  # noqa: F401 - BASELINE_TOLERANCE re-exported for tests
 from app.services.ranges import range_context, range_start
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, OptionalFormInt, valid_month
@@ -30,38 +31,6 @@ METRICS = [
     ("hrv", "HRV", "ms"),
     ("cardiovascular_age", "Cardio Age", ""),
 ]
-
-
-BASELINE_DAYS = 7
-# Oura's own scores move a few points day to day without meaning anything. Below
-# this the honest word is "steady", which is why a threshold exists rather than a
-# strict comparison.
-BASELINE_TOLERANCE = 3
-
-
-def readiness_baseline(rows: list[dict], today_score: int | None) -> dict:
-    """Today's readiness against the mean of the previous BASELINE_DAYS days.
-
-    A rule, not an interpretation: the page states the two numbers, their
-    difference and one word. Nothing here generates advice and nothing calls an
-    LLM - a page that states a verdict was explicitly not wanted.
-
-    `rows` must exclude today and be newest first. A day with no readiness score
-    is skipped, so a gap shortens the window instead of padding it with zero.
-    """
-    scores = [r["readiness_score"] for r in rows if r.get("readiness_score") is not None][:BASELINE_DAYS]
-    if not scores or today_score is None:
-        return {"today": today_score, "baseline": None, "delta": None, "status": "", "days": len(scores)}
-
-    baseline = round(sum(scores) / len(scores))
-    delta = today_score - baseline
-    if delta >= BASELINE_TOLERANCE:
-        status = "above"
-    elif delta <= -BASELINE_TOLERANCE:
-        status = "below"
-    else:
-        status = "steady"
-    return {"today": today_score, "baseline": baseline, "delta": delta, "status": status, "days": len(scores)}
 
 
 @router.get("/oura", response_class=HTMLResponse)

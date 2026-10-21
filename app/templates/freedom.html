@@ -65,7 +65,7 @@
                         <i data-lucide="check" aria-hidden="true"></i> Clean
                     </button>
                 </form>
-                <a href="/freedom?habit={{ o.habit }}#day-card" class="btn btn-sm btn-outline" aria-label="{{ o.name }}: log a slip">Slipped</a>
+                <a href="/freedom?habit={{ o.habit }}&amp;slip=1#day-card" class="btn btn-sm btn-outline" aria-label="{{ o.name }}: log a slip">Slipped</a>
             </div>
             {% endif %}
         </div>
@@ -102,8 +102,13 @@
 </div>
 
 <!-- The day: one question, one save -->
-<div class="card day-card" id="day-card"
-     x-data="{ used: {{ "'" ~ form_daily.slipped ~ "'" if form_daily else 'null' }} }">
+{% set day_state = "'" ~ form_daily.slipped ~ "'" if form_daily else ("'1'" if preselect_slip else 'null') %}
+{% if day_card_collapsed %}
+<details class="card day-card day-card-details" id="day-card" x-data="{ used: {{ day_state }} }">
+    <summary>Add details or log a slip for today <small class="text-muted">Clean above logs the day in one tap.</small></summary>
+{% else %}
+<div class="card day-card" id="day-card" x-data="{ used: {{ day_state }} }">
+{% endif %}
     <form method="POST" action="/freedom/{{ habit.slug }}/daily" hx-post="/freedom/{{ habit.slug }}/daily" hx-swap="none"
           data-draft-key="freedom-daily:{{ habit.slug }}:{{ form_date }}" data-draft-fields="note">
         <div class="day-card-head">
@@ -162,7 +167,7 @@
         <button type="submit" class="btn-link">Delete this day's entry</button>
     </form>
     {% endif %}
-</div>
+{% if day_card_collapsed %}</details>{% else %}</div>{% endif %}
 
 <!-- Brick: captured the moment an urge is survived -->
 <div class="card brick-card" x-data="{ open: false, craving: null }">

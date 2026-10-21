@@ -122,6 +122,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Settled from the design review (#95):
+  - Life areas are the eight in Goals, the same ones Life Scores rates.
+    Onboarding's four end-goal fields each say which Goals area they are saved
+    under, read from the area list. They now also show what was entered before,
+    which they never did. The dashboard's daily block is titled "Today's
+    A.N.D.Y.", A.N.D.Y.'s four practices rather than another list of areas.
+  - Freedom, with two or more habits, logs today once: the Today list.
+    - For an unlogged today the day card becomes "Add details or log a slip".
+    - Slipped opens the card with the slip already chosen.
+    - Another day, or a logged one, still opens as an edit. A single habit
+      has no Today list, so its card stays the log.
+    - The habit shown below the list is marked with an accent edge.
+  - Settings > Modules can leave Freedom off the dashboard, where every
+    habit's name and streak showed to anyone glancing at the home screen. It
+    is on by default.
+  - The dashboard's Oura sleep, readiness, HRV and resting heart rate each
+    show their change against the previous seven scored days, by the rule the
+    Oura page uses for readiness, now in `app/services/oura_baseline.py`.
+    "Insights" has the same small-caps heading as every other section.
 - From the design review (#95):
   - Helper text is brighter on the dark theme and 13px, up from 12px.
   - Empty Oura and measurement cards on the dashboard link to the next step:

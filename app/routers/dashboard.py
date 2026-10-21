@@ -102,6 +102,13 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     # Oura latest (prefer today's daily data, fallback to monthly)
     oura_daily_row = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date = ?", (today.isoformat(),))
     oura_today = dict(oura_daily_row[0]) if oura_daily_row else None
+    # Each number against its previous days, as the Oura page shows readiness:
+    # a 74 says little until it is "+4 vs 7-day avg".
+    from app.services.oura_baseline import baselines_for
+
+    oura_versus = await baselines_for(
+        db, today, oura_today, ("sleep_score", "readiness_score", "avg_hrv", "resting_hr")
+    )
 
     # Yesterday fallback for Activity/Steps (often missing early in the day)
     yesterday_fallback = {}
@@ -246,7 +253,11 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     current_job = await current_job_view(db, job_id)
 
     freedom_overviews = []
-    if getattr(request.state, "features", {}).get("freedom", False):
+    # The block names each habit; whoever glances at the home screen sees them,
+    # so it can stay on the Freedom page only.
+    if getattr(request.state, "features", {}).get("freedom", False) and (
+        await get_setting(db, "freedom_on_dashboard", "1") == "1"
+    ):
         from app.services.freedom_log import habit_overview
         from app.services.habits import list_habits
 
@@ -278,6 +289,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "day_names": day_names,
             "week_dates": [d.isoformat() for d in week_dates],
             "latest_meas": latest_meas,
+            "oura_versus": oura_versus,
             # Daily asks for measurements on Saturdays: the empty card links
             # to the most recent one.
             "measurement_day": (today - timedelta(days=(today.weekday() - 5) % 7)).isoformat(),

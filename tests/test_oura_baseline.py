@@ -77,3 +77,39 @@ def test_page_orders_the_baseline_above_the_charts(auth_client):
     # 88 today against a 70 baseline is above it, by rule.
     assert "+18 versus baseline" in html
     assert "above" in html
+
+
+def test_the_dashboard_states_each_oura_number_against_its_week(auth_client):
+    """A 75 says little until it is "+5 vs 7-day avg" (#95)."""
+    import sqlite3
+    from datetime import date, timedelta
+
+    from tests.conftest import user_db_path
+
+    today = date.today()
+    days = [(today - timedelta(days=n)).isoformat() for n in range(0, 8)]
+    conn = sqlite3.connect(user_db_path())
+    saved = conn.execute(f"SELECT * FROM oura_daily WHERE date IN ({','.join('?' * len(days))})", days).fetchall()
+    conn.execute(f"DELETE FROM oura_daily WHERE date IN ({','.join('?' * len(days))})", days)
+    conn.execute(
+        "INSERT INTO oura_daily (date, sleep_score, readiness_score, avg_hrv, resting_hr) VALUES (?, 80, 75, 40, 52)",
+        (days[0],),
+    )
+    conn.executemany(
+        "INSERT INTO oura_daily (date, sleep_score, readiness_score, avg_hrv, resting_hr) VALUES (?, 80, 70, 45, 52)",
+        [(day,) for day in days[1:]],
+    )
+    conn.commit()
+    try:
+        page = auth_client.get("/").text
+    finally:
+        conn.execute(f"DELETE FROM oura_daily WHERE date IN ({','.join('?' * len(days))})", days)
+        if saved:
+            columns = len(saved[0])
+            conn.executemany(f"INSERT INTO oura_daily VALUES ({','.join('?' * columns)})", saved)
+        conn.commit()
+        conn.close()
+    oura = page[page.index('<div class="section-title">Oura</div>') :]
+    assert "+5 vs 7-day avg" in oura, "readiness against the previous seven days"
+    assert "-5 vs 7-day avg" in oura, "HRV below its week"
+    assert "+0 vs 7-day avg" in oura, "an unchanged number says so"

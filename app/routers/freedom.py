@@ -128,6 +128,17 @@ async def freedom_page(request: Request):
             "relapse_records_more": len(records) > RELAPSE_LIST_MAX,
             "form_date": form_date,
             "form_daily": form_daily,
+            # With more than one habit the page has a Today list, the quick
+            # log. For an unlogged today the day card then only adds details,
+            # so it starts closed; "Slipped" opens it with the slip already
+            # chosen. A single habit has no Today list, so its card stays the
+            # log; a past or logged day is an edit and stays open too.
+            "preselect_slip": form_daily is None and request.query_params.get("slip") == "1",
+            "day_card_collapsed": len(overviews) > 1
+            and form_date == today.isoformat()
+            and form_daily is None
+            and request.query_params.get("slip") != "1"
+            and not request.query_params.get("err"),
         }
     )
     return templates.TemplateResponse(request, "freedom.html", context)
