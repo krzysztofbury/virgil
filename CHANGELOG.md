@@ -213,6 +213,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- A logged error no longer pauses the whole server (#122). The MCP SDK had
+  installed Rich's log handler, which rendered every traceback with syntax
+  highlighting on the event loop: 0.9 s per failed medical import on a fast
+  machine, with every other request waiting. Logs are plain lines now.
+- Signing in no longer pauses other requests: the password check (bcrypt, about
+  0.2 s) runs in a thread (#122).
+- `scripts/load_check.py` sends imports to a stand-in provider on loopback, so
+  the provider request and its failure are measured too.
 - Submitting the WOD confirm form no longer throws in the page script: a field
   named `action` hid the form's address from the logout check.
 - Static files no longer count against the per-address rate limit. A cold cache

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import aiosqlite
 
-from app.auth import hash_password
+from app.auth import hash_password_async
 from app.config import ADMIN_EMAILS, CENTRAL_DB_PATH
 
 _central_db: aiosqlite.Connection | None = None
@@ -117,7 +117,7 @@ async def create_user(email: str, password: str, display_name: str = "", only_if
     db = await get_central_db()
     user_id = str(uuid.uuid4())
     db_filename = f"{user_id}.db"
-    pw_hash = hash_password(password)
+    pw_hash = await hash_password_async(password)
 
     role = "admin" if email.lower() in ADMIN_EMAILS else "user"
 
