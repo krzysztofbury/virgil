@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import csv
 import io
 import json
@@ -544,69 +545,134 @@ async def download_backup(request: Request):
     )
 
 
-# Every user-owned table — credentials (llm_providers, integrations) stay out.
-EXPORT_TABLES = [
-    "daily_logs",
-    "body_measurements",
-    "daily_briefings",
-    "training_sessions",
-    "training_entries",
-    "training_exercises",
-    "exercise_library",
-    "exercise_library_tags",
-    "habits",
-    "feniks_journal",
-    "feniks_pleasures",
-    "feniks_daily",
-    "feniks_bricks",
-    "pmo_events",
-    "oura_daily",
-    "oura_monthly",
-    "oura_workouts",
-    "blood_markers",
-    "blood_results",
-    "life_scores",
-    "goal_areas",
-    "goals",
-    "goal_reps",
-    "goal_changes",
-    "deleted_goals",
-    "experiments",
-    "experiment_activity_types",
-    "experiment_weeks",
-    "experiment_entries",
-    "experiment_summaries",
-    "user_profiles",
-    "app_settings",
-    "sync_log",
-]
-
-
 @router.get("/settings/export/json")
 async def export_json(request: Request):
-    db = get_user_db_from_request(request)
-    data = {}
-    for table in EXPORT_TABLES:
-        try:
-            rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
-        except Exception:  # table missing in this user's schema — export the rest
-            logger.exception("Export: table %s unreadable, skipping", table)
-            data[table] = []
-            continue
-        data[table] = [dict(r) for r in rows]
-    content = json.dumps(data, indent=2, ensure_ascii=False, default=str)
+    from app.services.data_transfer import export_document
+
+    document = await export_document(get_user_db_from_request(request))
+    content = await asyncio.to_thread(json.dumps, document, indent=1, ensure_ascii=False)
+    filename = f"virgil-export-{document['exported_at'][:10]}.json"
     return Response(
         content=content,
         media_type="application/json",
-        headers={"Content-Disposition": "attachment; filename=virgil-export.json"},
+        headers={"Content-Disposition": f"attachment; filename={filename}", "Cache-Control": "no-store"},
     )
+
+
+def _db_stem(request: Request) -> str:
+    return request.state.user["db_filename"].removesuffix(".db")
+
+
+@router.post("/settings/import")
+async def import_upload(request: Request):
+    """Check an uploaded JSON export without changing anything, then show what it would restore."""
+    from starlette.datastructures import UploadFile
+
+    from app.services.data_transfer import IMPORT_MAX_BYTES, ImportRefused, new_upload, stage_upload
+
+    form = await request.form()
+    upload = form.get("file")
+    if not isinstance(upload, UploadFile) or not upload.filename:
+        return error_redirect(request, "/settings?tab=data", "Choose a Virgil JSON export to restore.")
+    stem = _db_stem(request)
+    token, path = new_upload(stem)
+    size = 0
+    try:
+        with path.open("wb") as handle:
+            while chunk := await upload.read(1024 * 1024):
+                size += len(chunk)
+                if size > IMPORT_MAX_BYTES:
+                    raise ImportRefused(f"The file is larger than {IMPORT_MAX_BYTES // (1024 * 1024)} MB.")
+                await asyncio.to_thread(handle.write, chunk)
+        await stage_upload(stem, token)
+    except ImportRefused as refused:
+        path.unlink(missing_ok=True)
+        return error_redirect(request, "/settings?tab=data", str(refused))
+    except Exception:
+        path.unlink(missing_ok=True)
+        logger.exception("Import check failed")
+        return error_redirect(request, "/settings?tab=data", "The file could not be checked. Nothing was changed.")
+    return success_redirect(request, f"/settings/import/{token}", "File checked. Nothing has changed yet.")
+
+
+@router.get("/settings/import/{token}", response_class=HTMLResponse)
+async def import_review(request: Request, token: str):
+    from app.migrations.runner import latest_version
+    from app.services.data_transfer import DATA_TABLES, ImportRefused, current_counts, staged_report, table_label
+
+    try:
+        report = staged_report(_db_stem(request), token)
+    except ImportRefused:
+        report = None
+    if report is None:
+        return error_redirect(request, "/settings?tab=data", "That import has expired. Upload the file again.")
+    current = await current_counts(get_user_db_from_request(request))
+    rows = [
+        {"label": table_label(table), "current": current.get(table, 0), "incoming": report["counts"].get(table, 0)}
+        for table in DATA_TABLES
+        if current.get(table) or report["counts"].get(table)
+    ]
+    return templates.TemplateResponse(
+        request,
+        "settings_import.html",
+        {"token": token, "report": report, "rows": rows, "latest_schema": latest_version()},
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+@router.post("/settings/import/{token}/apply")
+async def import_apply(request: Request, token: str):
+    from app.central_db import user_lifecycle_operation
+    from app.services.backup import snapshot_before_import
+    from app.services.data_transfer import ImportRefused, apply_staged, staged_report
+
+    stem = _db_stem(request)
+    try:
+        if staged_report(stem, token) is None:
+            raise ImportRefused("That import has expired. Upload the file again.")
+    except ImportRefused as refused:
+        return error_redirect(request, "/settings?tab=data", str(refused))
+    db = get_user_db_from_request(request)
+    async with user_lifecycle_operation(request.state.user["id"], "data-import") as lifecycle_claim:
+        if lifecycle_claim is None:
+            return error_redirect(request, "/settings?tab=data", "Another account operation is already in progress.")
+        try:
+            await snapshot_before_import(db)
+        except Exception:
+            logger.exception("Pre-import snapshot failed")
+            return error_redirect(
+                request, "/settings?tab=data", "No copy of your current data could be saved, so nothing was imported."
+            )
+        try:
+            await apply_staged(db, stem, token)
+        except ImportRefused as refused:
+            return error_redirect(request, "/settings?tab=data", str(refused))
+        except Exception:
+            # Rolled back; the checked file stays, so trying again needs no upload.
+            logger.exception("Import apply failed")
+            return error_redirect(
+                request, f"/settings/import/{token}", "The restore did not finish and nothing was changed. Try again."
+            )
+    logger.info("JSON import applied for user %s", request.state.user["id"])
+    return success_redirect(request, "/settings?tab=data", "Data restored from the export.")
+
+
+@router.post("/settings/import/{token}/cancel")
+async def import_cancel(request: Request, token: str):
+    from app.services.data_transfer import ImportRefused, discard
+
+    with contextlib.suppress(ImportRefused):
+        discard(_db_stem(request), token)
+    return success_redirect(request, "/settings?tab=data", "Import cancelled. Nothing was changed.")
 
 
 @router.get("/settings/export/csv")
 async def export_csv(request: Request):
+    from app.services.data_transfer import DATA_TABLES
+
     db = get_user_db_from_request(request)
     output = io.StringIO()
-    for table in EXPORT_TABLES:
+    for table in DATA_TABLES:
         try:
             rows = await db.execute_fetchall(f"SELECT * FROM {table}")  # noqa: S608
         except Exception:  # table missing in this user's schema — export the rest

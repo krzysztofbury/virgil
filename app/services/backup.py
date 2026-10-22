@@ -192,6 +192,8 @@ def delete_user_backups(db_filename: str) -> list[str]:
             # it holds this account's data as much as a finished one does.
             (root, f".{stem}-*.tmp"),
             (root / "pre-migration", f".{stem}-pre-migration-v*.tmp"),
+            (root / "pre-import", f"{stem}-pre-import-*.db"),
+            (root / "pre-import", f".{stem}-pre-import-*.tmp"),
         ):
             if not directory.exists():
                 continue
@@ -200,8 +202,10 @@ def delete_user_backups(db_filename: str) -> list[str]:
                 removed.append(path.name)
     if removed:
         logger.info("Deleted %d backup(s) of %s", len(removed), db_filename)
+    from app.services.data_transfer import discard_account_imports
     from app.services.offsite import queue_deletion
 
+    discard_account_imports(stem)
     queue_deletion(db_filename)
     return removed
 
@@ -447,6 +451,26 @@ async def snapshot_before_migration(db) -> Path:
     await asyncio.to_thread(_publish_backup, src_path, dst, validator)
     await asyncio.to_thread(_prune_backups, stem, PRE_MIGRATION_MAX_COPIES, directory)
     logger.info("Pre-migration snapshot created: %s", dst.name)
+    return dst
+
+
+PRE_IMPORT_MAX_COPIES = 3
+
+
+async def snapshot_before_import(db) -> Path:
+    """Copy of the account taken right before a JSON import replaces its data.
+
+    Kept apart from the rotating backups, which an hourly schedule would prune
+    within hours, and named to the second so a second import cannot replace it.
+    """
+    src_path = await db_main_path(db)
+    directory = BACKUP_DIR / "pre-import"
+    directory.mkdir(parents=True, exist_ok=True)
+    stem = Path(src_path).stem
+    dst = directory / f"{stem}-pre-import-{datetime.now(UTC).strftime('%Y-%m-%dT%H%M%S')}.db"
+    await asyncio.to_thread(_publish_backup, src_path, dst, lambda _path: None)
+    await asyncio.to_thread(_prune_backups, stem, PRE_IMPORT_MAX_COPIES, directory)
+    logger.info("Pre-import snapshot created: %s", dst.name)
     return dst
 
 

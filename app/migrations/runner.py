@@ -41,6 +41,12 @@ def _discover() -> list[tuple[int, str, str]]:
     return sorted(found)
 
 
+def latest_version() -> int:
+    """The newest migration this code ships."""
+    migrations = _discover()
+    return migrations[-1][0] if migrations else 0
+
+
 def _discover_pending(current: int) -> list[tuple[int, str, str]]:
     """(version, module_name, filename) for every migration above `current`.
 
@@ -61,8 +67,11 @@ async def count_pending_migrations(db: aiosqlite.Connection) -> int:
     return len(_discover_pending(await _current_version(db)))
 
 
-async def run_migrations(db: aiosqlite.Connection) -> None:
+async def run_migrations(db: aiosqlite.Connection, *, up_to: int | None = None) -> None:
     """Run all pending migrations in order, each in its own immediate transaction.
+
+    `up_to` stops after that version: a data import rebuilds the schema its
+    export was made with, loads the rows, then runs the rest.
 
     Without an explicit BEGIN, Python's sqlite3 opens a transaction only at the
     first INSERT/UPDATE/DELETE, so DDL before it committed on its own and a
@@ -71,6 +80,8 @@ async def run_migrations(db: aiosqlite.Connection) -> None:
     if db.in_transaction:
         raise RuntimeError("Migrations require a connection with no active transaction")
     migrations = _discover_pending(await _current_version(db))
+    if up_to is not None:
+        migrations = [migration for migration in migrations if migration[0] <= up_to]
 
     if not migrations:
         logger.debug("No pending migrations")

@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block title %}Virgil - Restore from export{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Restore from export</h1>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Check before restoring</h3></div>
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+        The file passed every check and nothing has changed yet.
+        Restoring replaces all of your data with the export's{% if report.exported_at %} from {{ report.exported_at[:10] }}{% endif %}.
+        Your LLM keys, Oura connection and login stay as they are.
+        A copy of your current data is saved on the server first.
+    </p>
+    {% if report.schema_version < latest_schema %}
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+        The export was made by an older version of Virgil (schema {{ report.schema_version }}); it was upgraded to schema {{ latest_schema }} while checking.
+    </p>
+    {% endif %}
+    <div class="overflow-x">
+        <table class="import-report">
+            <thead><tr><th>Data</th><th>Now</th><th>After restore</th></tr></thead>
+            <tbody>
+                {% for row in rows %}
+                <tr>
+                    <td>{{ row.label }}</td>
+                    <td>{{ row.current }}</td>
+                    <td class="{{ 'is-changed' if row.current != row.incoming }}">{{ row.incoming }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% if report.dropped_orphans %}
+    <p class="text-muted" style="margin-top: 0.75rem; font-size: var(--text-sm);">
+        {{ report.dropped_orphans }} row{{ 's' if report.dropped_orphans != 1 }} belonged to entries that were already deleted
+        and {{ 'are' if report.dropped_orphans != 1 else 'is' }} left out.
+    </p>
+    {% endif %}
+    <p class="text-muted" style="margin-top: 0.75rem; font-size: var(--text-sm);">
+        Settings restored: {{ report.settings | length }}.
+        {% if report.skipped_settings %}
+        Not restored, because they belong to the server that made the export: {{ report.skipped_settings | join(', ') }}.
+        {% endif %}
+        {% if report.invalid_settings %}
+        Not restored, because their values are outside what Settings allows: {{ report.invalid_settings | join(', ') }}.
+        {% endif %}
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem;">
+        <form method="POST" action="/settings/import/{{ token }}/apply"
+              data-confirm="Replace all of your data with this export?">
+            <button type="submit" class="btn btn-danger">Replace my data</button>
+        </form>
+        <form method="POST" action="/settings/import/{{ token }}/cancel">
+            <button type="submit" class="btn btn-outline">Cancel</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

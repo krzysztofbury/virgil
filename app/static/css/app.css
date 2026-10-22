@@ -679,6 +679,15 @@ td {
 td:first-child { border-left: 1px solid var(--border); border-top-left-radius: var(--radius-sm); border-bottom-left-radius: var(--radius-sm); }
 td:last-child { border-right: 1px solid var(--border); border-top-right-radius: var(--radius-sm); border-bottom-right-radius: var(--radius-sm); }
 
+/* Restore check: a short count table that stays a table on a phone. */
+.import-report { border-spacing: 0; }
+.import-report th, .import-report td { padding: 0.45rem 0.75rem; }
+.import-report th:not(:first-child), .import-report td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.import-report tbody tr { background: none; }
+.import-report td { border: 0; border-bottom: 1px solid var(--border); border-radius: 0; }
+.import-report td:first-child, .import-report td:last-child { border-left: 0; border-right: 0; border-radius: 0; }
+.import-report td.is-changed { color: var(--text-primary); font-weight: 600; }
+
 /* ── Utilities ── */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
