@@ -67,4 +67,29 @@
         </table>
     </div>
 </div>
+
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Security events</h3></div>
+    <p class="text-muted" style="font-size:0.85rem;">Sign-ins, sign-outs and account changes from the last 180 days, newest first.</p>
+    {% if events %}
+    <div class="overflow-x">
+        <table>
+            <thead><tr><th>Time (UTC)</th><th>Event</th><th>Account</th><th>IP</th><th>Detail</th></tr></thead>
+            <tbody>
+                {% for e in events %}
+                <tr>
+                    <td><small>{{ e.created_at }}</small></td>
+                    <td>{{ e.event | replace('_', ' ') }}</td>
+                    <td>{{ e.email or (e.user_id[:8] ~ '... (deleted)' if e.user_id else '-') }}</td>
+                    <td><small>{{ e.ip or '-' }}</small></td>
+                    <td><small>{{ e.detail }}</small></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-muted">No events yet.</p>
+    {% endif %}
+</div>
 {% endblock %}

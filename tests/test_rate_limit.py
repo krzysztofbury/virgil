@@ -180,3 +180,26 @@ def test_static_files_do_not_spend_the_page_budget():
     pages = [client.get("/daily").status_code for _ in range(GENERAL_LIMIT + 1)]
     assert pages[:GENERAL_LIMIT] == [200] * GENERAL_LIMIT
     assert pages[GENERAL_LIMIT] == 429, "the pages themselves stay limited"
+
+
+@pytest.mark.parametrize(
+    ("path", "field"),
+    [
+        ("/settings/password", "current_password"),
+        ("/settings/mfa/disable", "password"),
+        ("/settings/factory-reset", "password"),
+    ],
+)
+def test_settings_forms_that_check_a_password_share_the_sign_in_limit(auth_client, path, field):
+    """At the general 120 a minute, a stolen session could guess the password through any of them."""
+    from app.rate_limit import AUTH_LIMIT
+
+    token = csrf_token(auth_client, "/settings?tab=security")
+    statuses = [
+        auth_client.post(
+            path, data={field: "not-the-password", "_csrf_token": token}, follow_redirects=False
+        ).status_code
+        for _ in range(AUTH_LIMIT + 1)
+    ]
+    assert 429 not in statuses[:AUTH_LIMIT]
+    assert statuses[-1] == 429

@@ -17,7 +17,11 @@ GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
 AUTH_WINDOW_SECONDS = 60
-AUTH_PATHS = frozenset({"/login", "/signup", "/mfa/verify"})
+# The settings forms that check a password share the sign-in limit, so a stolen
+# session cannot guess the password fast through any of them.
+AUTH_PATHS = frozenset(
+    {"/login", "/signup", "/mfa/verify", "/settings/password", "/settings/mfa/disable", "/settings/factory-reset"}
+)
 
 # LLM-backed endpoints cost money per call — a far tighter bucket than GENERAL.
 LLM_LIMIT = 10
@@ -66,7 +70,7 @@ def _warn_untrusted_forwarding(peer_ip: str) -> None:
     )
 
 
-def _client_ip(request: Request) -> str:
+def client_ip(request: Request) -> str:
     """Return the configured rate-limit identity for this network request."""
     peer_ip = request.client.host if request.client else "unknown"
     forwarded_ip = request.headers.get("cf-connecting-ip", "")
@@ -98,7 +102,7 @@ class RateLimitMiddleware:
             return
 
         request = Request(scope)
-        ip = _client_ip(request)
+        ip = client_ip(request)
         now = time.monotonic()
 
         if path in AUTH_PATHS:

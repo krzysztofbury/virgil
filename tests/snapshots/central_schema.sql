@@ -1,6 +1,19 @@
+-- index idx_auth_events_created_at
+CREATE INDEX idx_auth_events_created_at ON auth_events(created_at);
+
 -- index provider_subscription_registrations_due
 CREATE INDEX provider_subscription_registrations_due
            ON provider_subscription_registrations(next_reconcile_at, claimed_until);
+
+-- table auth_events
+CREATE TABLE auth_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            user_id TEXT,
+            event TEXT NOT NULL,
+            ip TEXT NOT NULL DEFAULT '',
+            detail TEXT NOT NULL DEFAULT ''
+        );
 
 -- table central_schema_migrations
 CREATE TABLE central_schema_migrations (
@@ -73,7 +86,7 @@ CREATE TABLE users (
     totp_enabled INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     last_login_at TEXT
-, session_epoch INTEGER NOT NULL DEFAULT 0, mfa_failed_attempts INTEGER NOT NULL DEFAULT 0, mfa_locked_until TEXT NOT NULL DEFAULT '');
+, session_epoch INTEGER NOT NULL DEFAULT 0, mfa_failed_attempts INTEGER NOT NULL DEFAULT 0, mfa_locked_until TEXT NOT NULL DEFAULT '', allow_shared_llm INTEGER NOT NULL DEFAULT 1 CHECK(allow_shared_llm IN (0, 1)));
 
 -- table webhook_routes
 CREATE TABLE webhook_routes (

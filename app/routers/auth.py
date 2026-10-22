@@ -14,6 +14,7 @@ from app.auth import (
     create_mfa_pending_session,
     create_session,
     hash_password,  # noqa: F401 — re-exported for use in tests
+    hash_password_async,
     mfa_pending_user_id,
     session_cookie_header,
     signed_in_user,
@@ -27,11 +28,13 @@ from app.central_db import (
     finish_mfa_attempt,
     get_user_by_email,
     get_user_by_id,
+    record_auth_event,
     update_user,
 )
 from app.config import REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
 from app.main import templates
+from app.rate_limit import client_ip
 from app.user_db import create_user_db
 
 logger = logging.getLogger(__name__)
@@ -46,6 +49,12 @@ _DUMMY_PASSWORD_HASH = hash_password("dummy-password-for-timing")
 # alone lets a rotating attacker keep guessing a six-digit code indefinitely.
 MFA_MAX_ATTEMPTS = 5
 MFA_LOCK_SECONDS = 15 * 60
+
+SECURITY = "/settings?tab=security"
+
+
+async def _event(request: Request, event: str, user_id: str | None = None, detail: str = "") -> None:
+    await record_auth_event(event, user_id=user_id, ip=client_ip(request), detail=detail)
 
 
 def _totp_secret_plain(stored: str | None) -> str:
@@ -162,6 +171,7 @@ async def signup_submit(
         await delete_user(user["id"])
         return _render_error("Could not create your account. Please try again.")
 
+    await _event(request, "signup", user["id"])
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg="Account created.")
     response = RedirectResponse(target, status_code=303)
@@ -210,6 +220,9 @@ async def login_submit(
     password_ok = await verify_password_async(password, password_hash)
 
     if not user or not password_ok:
+        await _event(
+            request, "login_fail", user["id"] if user else None, "wrong password" if user else "unknown account"
+        )
         return templates.TemplateResponse(
             request,
             "auth_login.html",
@@ -221,6 +234,7 @@ async def login_submit(
         )
 
     if not user["is_active"]:
+        await _event(request, "login_fail", user["id"], "account disabled")
         return templates.TemplateResponse(
             request,
             "auth_login.html",
@@ -240,6 +254,7 @@ async def login_submit(
 
     # No MFA — create full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
+    await _event(request, "login_ok", user["id"])
     token = create_session(user["id"], user["session_epoch"])
     response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
@@ -256,6 +271,7 @@ async def logout(request: Request):
     user = getattr(request.state, "user", None)
     if user:
         await bump_session_epoch(user["id"])
+        await _event(request, "logout", user["id"])
     response = RedirectResponse(feedback_url("/login", msg="Signed out."), status_code=303)
     response.headers["set-cookie"] = clear_session_cookie()
     return response
@@ -300,7 +316,8 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
 
     # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
     await update_user(user["id"], totp_enabled=1, totp_secret=_totp_secret_stored(secret))
-    return _resign_after_mfa_change(request, user["id"], await bump_session_epoch(user["id"]), "MFA enabled.")
+    await _event(request, "mfa_enable", user["id"])
+    return _resign(request, user["id"], await bump_session_epoch(user["id"]), "MFA enabled.")
 
 
 @router.post("/settings/mfa/disable")
@@ -314,14 +331,42 @@ async def mfa_disable(request: Request, password: str = Form(...)):
         return _mfa_setup_response(request, mfa_enabled=True, error="Invalid password.")
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
-    return _resign_after_mfa_change(request, user["id"], await bump_session_epoch(user["id"]), "MFA disabled.")
+    await _event(request, "mfa_disable", user["id"])
+    return _resign(request, user["id"], await bump_session_epoch(user["id"]), "MFA disabled.")
 
 
-def _resign_after_mfa_change(request: Request, user_id: str, epoch: int, message: str):
+def _resign(request: Request, user_id: str, epoch: int, message: str, target: str = "/settings"):
     """Every other session is signed out by the bumped epoch; this browser keeps going."""
-    response = success_redirect(request, "/settings", message)
+    response = success_redirect(request, target, message)
     response.headers.append("set-cookie", session_cookie_header(create_session(user_id, epoch)))
     return response
+
+
+# --- Password change ---
+
+
+@router.post("/settings/password")
+async def change_password(
+    request: Request,
+    current_password: str = Form(""),
+    new_password: str = Form(""),
+    new_password_confirm: str = Form(""),
+):
+    user = getattr(request.state, "user", None)
+    if not user:
+        return error_redirect(request, "/login", "Sign in again to change your password.")
+    # verify_password raises on empty input, so an empty one is a wrong password.
+    if not current_password or not await verify_password_async(current_password, user["password_hash"]):
+        return error_redirect(request, SECURITY, "Current password is incorrect.")
+    if len(new_password) < 8:
+        return error_redirect(request, SECURITY, "New password must be at least 8 characters.")
+    if new_password != new_password_confirm:
+        return error_redirect(request, SECURITY, "New passwords do not match.")
+
+    await update_user(user["id"], password_hash=await hash_password_async(new_password))
+    epoch = await bump_session_epoch(user["id"])
+    await _event(request, "password_change", user["id"])
+    return _resign(request, user["id"], epoch, "Password changed. Other devices are signed out.", SECURITY)
 
 
 # --- MFA Verify (during login) ---
@@ -346,6 +391,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
 
     now = datetime.now(UTC)
     if not await claim_mfa_attempt(user["id"], now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS):
+        await _event(request, "mfa_lock", user["id"])
         return templates.TemplateResponse(
             request,
             "auth_mfa_verify.html",
@@ -360,6 +406,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     code_ok = totp.verify(totp_code, valid_window=1)
     await finish_mfa_attempt(user["id"], code_ok, now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS)
     if not code_ok:
+        await _event(request, "mfa_fail", user["id"])
         return templates.TemplateResponse(
             request,
             "auth_mfa_verify.html",
@@ -368,6 +415,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
 
     # MFA verified — upgrade to full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
+    await _event(request, "login_ok", user["id"], "with MFA")
     token = create_session(user["id"], user["session_epoch"])
     response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)

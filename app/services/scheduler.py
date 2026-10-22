@@ -4,7 +4,7 @@ import os
 import socket
 from datetime import UTC, datetime
 
-from app.central_db import get_active_users
+from app.central_db import get_active_users, prune_auth_events
 from app.db import get_setting, set_setting
 from app.services.data_transfer import remove_stale_imports
 from app.services.goal_data import purge_deleted_goals
@@ -256,6 +256,12 @@ async def scheduler_tick() -> None:
     # Per-user backups never cover the registry. This function self-limits to
     # once per 24 hours.
     await maybe_backup_central()
+
+    # Security events are kept 180 days, so a public login form cannot fill the disk.
+    try:
+        await prune_auth_events()
+    except Exception:
+        logger.exception("Pruning auth events failed")
 
     # A JSON import nobody confirmed holds a copy of someone's data.
     try:

@@ -2,6 +2,7 @@
 
 import asyncio
 import fcntl
+import logging
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
@@ -12,6 +13,8 @@ import aiosqlite
 
 from app.auth import hash_password_async
 from app.config import ADMIN_EMAILS, CENTRAL_DB_PATH
+
+logger = logging.getLogger(__name__)
 
 _central_db: aiosqlite.Connection | None = None
 CENTRAL_MIGRATION_LOCK_TIMEOUT_SECONDS = 30.0
@@ -106,13 +109,24 @@ async def close_central_db() -> None:
         _central_db = None
 
 
-async def create_user(email: str, password: str, display_name: str = "", only_if_first: bool = False) -> dict | None:
+async def create_user(
+    email: str,
+    password: str,
+    display_name: str = "",
+    only_if_first: bool = False,
+    *,
+    allow_shared_llm: bool = False,
+) -> dict | None:
     """Create a new user. Returns the user dict, or None if only_if_first was
     set and another account already exists.
 
     only_if_first closes the bootstrap TOCTOU: with registration closed, two
     concurrent first signups both pass the count==0 check — the guarded INSERT
     lets exactly one of them win.
+
+    The first account is the operator's and may always spend the server's LLM
+    key; any later one only when `allow_shared_llm` says so. The column is set
+    on every insert: its SQL default of 1 exists for accounts that predate it.
     """
     db = await get_central_db()
     user_id = str(uuid.uuid4())
@@ -123,8 +137,8 @@ async def create_user(email: str, password: str, display_name: str = "", only_if
 
     if only_if_first:
         cursor = await db.execute(
-            """INSERT INTO users (id, email, password_hash, display_name, role, db_filename)
-               SELECT ?, ?, ?, ?, ?, ?
+            """INSERT INTO users (id, email, password_hash, display_name, role, db_filename, allow_shared_llm)
+               SELECT ?, ?, ?, ?, ?, ?, 1
                WHERE (SELECT COUNT(*) FROM users) = 0""",
             (user_id, email.lower(), pw_hash, display_name, role, db_filename),
         )
@@ -133,9 +147,9 @@ async def create_user(email: str, password: str, display_name: str = "", only_if
             return None
     else:
         await db.execute(
-            """INSERT INTO users (id, email, password_hash, display_name, role, db_filename)
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (user_id, email.lower(), pw_hash, display_name, role, db_filename),
+            """INSERT INTO users (id, email, password_hash, display_name, role, db_filename, allow_shared_llm)
+               SELECT ?, ?, ?, ?, ?, ?, CASE WHEN (SELECT COUNT(*) FROM users) = 0 THEN 1 ELSE ? END""",
+            (user_id, email.lower(), pw_hash, display_name, role, db_filename, int(allow_shared_llm)),
         )
         await db.commit()
     return await get_user_by_id(user_id)
@@ -336,6 +350,61 @@ async def delete_user_if_unsubscribed(user_id: str) -> tuple[str, str | None]:
         except BaseException:
             await db.rollback()
             raise
+
+
+AUTH_EVENTS = frozenset(
+    {
+        "signup",
+        "login_ok",
+        "login_fail",
+        "mfa_fail",
+        "mfa_lock",
+        "mfa_enable",
+        "mfa_disable",
+        "logout",
+        "password_change",
+        "factory_reset",
+        "user_disable",
+        "user_enable",
+        "user_delete",
+    }
+)
+AUTH_EVENT_RETENTION_DAYS = 180
+
+
+async def record_auth_event(event: str, *, user_id: str | None = None, ip: str = "", detail: str = "") -> None:
+    """Append one security event. A failed write is logged and never blocks the sign-in it describes."""
+    if event not in AUTH_EVENTS:
+        raise ValueError(f"Unknown auth event: {event}")
+    try:
+        db = await get_central_db()
+        await db.execute(
+            "INSERT INTO auth_events (user_id, event, ip, detail) VALUES (?, ?, ?, ?)",
+            (user_id, event, ip[:64], detail[:200]),
+        )
+        await db.commit()
+    except Exception:
+        logger.exception("Could not record auth event %s", event)
+
+
+async def list_auth_events(limit: int = 50) -> list[dict]:
+    """The newest events first, with the account's current email when it still exists."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        """SELECT e.created_at, e.event, e.ip, e.detail, e.user_id, u.email
+           FROM auth_events e LEFT JOIN users u ON u.id = e.user_id
+           ORDER BY e.id DESC LIMIT ?""",
+        (limit,),
+    )
+    return [dict(row) for row in rows]
+
+
+async def prune_auth_events(days: int = AUTH_EVENT_RETENTION_DAYS) -> int:
+    """Delete events older than `days`; return how many went."""
+    db = await get_central_db()
+    cursor = await db.execute("DELETE FROM auth_events WHERE created_at < datetime('now', ?)", (f"-{int(days)} days",))
+    await db.commit()
+    return cursor.rowcount
 
 
 async def count_users() -> int:
