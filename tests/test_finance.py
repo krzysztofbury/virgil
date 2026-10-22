@@ -108,10 +108,12 @@ def test_a_recorded_month_gives_the_cushion_and_the_score(finance):
     scores = {layer["name"]: layer["score"] for layer in overview["layers"]}
     assert scores["Cash cushion"]["points"] == 40
     assert scores["Independent income"]["points"] == 20
+    # Counting the salary too: 120% of essential cost.
+    assert scores["Independent income"]["points_with_all_income"] == 25
     # Income loss does not apply: 20 of the 30 applicable points, scaled to 35.
     assert scores["Protection"]["points"] == 23
     assert scores["Investments"] is None
-    assert overview["score"] == {"points": 83, "known_points": 83, "max_points": 100}
+    assert overview["score"] == {"points": 83, "points_with_all_income": 88, "known_points": 83, "max_points": 100}
 
 
 def test_a_later_partial_month_carries_balances_and_marks_them_stale(finance):
@@ -234,14 +236,14 @@ def test_the_monthly_update_works_over_mcp(finance, client, monkeypatch):
         assert result["isError"] is False, result
         return json.loads(result["content"][0]["text"])
 
+    call("upsert_finance_account", {"name": "2024", "layer": "Cash cushion"})
     call("upsert_finance_account", {"name": "Savings", "layer": "Cash cushion"})
     call("upsert_finance_account", {"name": "Savings", "rename": "Emergency fund"})
     call("set_finance_assumptions", {"essential_monthly_cost": 5000, "effective_from": "2026-01-01"})
-    recorded = call(
-        "record_balances", {"date": "2026-09-30", "entries": [{"account": "Emergency fund", "amount": 30000}]}
-    )
-    assert recorded["recorded"] == 1
+    entries = [{"account": "Emergency fund", "amount": 30000}, {"account": "2024", "amount": 5}]
+    recorded = call("record_balances", {"date": "2026-09-30", "entries": entries})
+    assert recorded["recorded"] == 2, "a name made of digits is a name, not an id"
     overview = call("get_finance_overview", {"date": "2026-09-30"})
-    assert (overview["cushion"], overview["cushion_months"]) == (30000, 6.0)
+    assert (overview["cushion"], overview["cushion_months"]) == (30005, 6.0)
     scoring = call("get_finance_scoring", {})
     assert [layer["name"] for layer in scoring["layers"]][:1] == ["Cash cushion"]

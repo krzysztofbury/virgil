@@ -510,7 +510,9 @@ balances recorded once a month.
   score from editable per-layer rules. Seeded rules: cushion 12/6/3/1 months for
   40/30/20/10 points, policies 35 (life 10, health 8, property 7, vehicle 5,
   income loss 5; not applicable leaves the total), independent income
-  50/30/20/10% for 25/20/15/10. A missing input makes the score unknown, not zero
+  50/30/20/10% for 25/20/15/10. The score is given twice: with income independent
+  of work only, and with all stable income. A missing input makes the score
+  unknown, not zero
 - MCP/REST, all behind `VIRGIL_API_FINANCE=true`:
   - `get_finance_overview` / `get_finance_history` → `GET /api/finance`,
     `GET /api/finance/history`

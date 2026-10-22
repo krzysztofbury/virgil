@@ -279,7 +279,9 @@ async def overview(db: aiosqlite.Connection, day: str | None = None) -> dict:
     independent_share = independent / cost * 100 if cost and income else None
     stable_share = stable / cost * 100 if cost and income else None
 
-    scored, total_points, max_total, known = [], 0, 0, True
+    # Two readings of the same rules: income that does not depend on current work
+    # only, and all stable income (a partner's salary, say) counted as well.
+    scored, total_points, all_income_points, max_total, known = [], 0, 0, 0, True
     for layer in layers:
         result = None
         if layer["rule"]:
@@ -289,6 +291,11 @@ async def overview(db: aiosqlite.Connection, day: str | None = None) -> dict:
                 known = False
             else:
                 total_points += result["points"]
+                with_all = result["points"]
+                if layer["rule"]["metric"] == "independent_income_share":
+                    with_all = _score_layer(layer["rule"], cushion_months, stable_share, policies)["points"]
+                    result["points_with_all_income"] = with_all
+                all_income_points += with_all
         scored.append(
             {
                 "id": layer["id"],
@@ -320,7 +327,12 @@ async def overview(db: aiosqlite.Connection, day: str | None = None) -> dict:
         "independent_income_share": None if independent_share is None else round(independent_share, 1),
         "stable_income_share": None if stable_share is None else round(stable_share, 1),
         "policies": list(policies.values()),
-        "score": {"points": total_points if known else None, "known_points": total_points, "max_points": max_total},
+        "score": {
+            "points": total_points if known else None,
+            "points_with_all_income": all_income_points if known else None,
+            "known_points": total_points,
+            "max_points": max_total,
+        },
         "stale_accounts": [account["name"] for account in state["accounts"] if account["stale"]],
     }
 
@@ -361,7 +373,8 @@ async def history(db: aiosqlite.Connection, months: int = 12) -> dict:
 async def _find(db: aiosqlite.Connection, table: str, ref: object, what: str) -> dict:
     if isinstance(ref, bool) or ref is None or ref == "":
         raise FinanceError(f"{what} is required")
-    if isinstance(ref, int) or (isinstance(ref, str) and ref.strip().isdigit()):
+    # A JSON number is an id; text is always a name, even "2024".
+    if isinstance(ref, int):
         rows = await db.execute_fetchall(f"SELECT * FROM {table} WHERE id = ?", (int(ref),))  # noqa: S608 - fixed table
     else:
         rows = await db.execute_fetchall(f"SELECT * FROM {table} WHERE name = ?", (str(ref).strip(),))  # noqa: S608

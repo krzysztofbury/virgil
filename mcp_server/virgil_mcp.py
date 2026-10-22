@@ -801,7 +801,8 @@ def get_finance_overview(date: str = "") -> dict:
     """The financial fortress on a date (YYYY-MM-DD, default today): each layer with
     its accounts, latest balances and as-of dates, the cushion and how many months
     of essential cost it covers, the shares of that cost covered by independent and
-    by all stable income, insurance policies, and the score per layer and in total.
+    by all stable income, insurance policies, and the score per layer and in total
+    (points: independent income only; points_with_all_income: all stable income).
     Amounts are in the base currency. Accounts not updated in the latest snapshot
     are listed in stale_accounts. A null score means an input is missing; the layer
     says which."""
@@ -819,7 +820,8 @@ def get_finance_history(months: int = 12) -> dict:
 def record_balances(date: str, entries: list[dict]) -> dict:
     """Record a whole snapshot in one call: the balance of each account on one date
     (YYYY-MM-DD), all or none. Each entry is {"account": name or id, "amount": value
-    in the base currency}, optionally with "native_amount" and "native_currency"
+    in the base currency} (a number is an account id, text is always a name),
+    optionally with "native_amount" and "native_currency"
     for an account held in another currency, and "note". "amount": null removes that
     date's balance. Unknown account names are refused: create them with
     upsert_finance_account first. Returns how many were recorded."""
