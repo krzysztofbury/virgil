@@ -567,7 +567,11 @@ def test_sign_ins_and_account_changes_are_logged_and_old_events_pruned(auth_clie
         token = csrf_token(client, "/login")
         client.post(
             "/login",
-            data={"username": "nobody@example.com", "password": "whatever-123", "_csrf_token": token},
+            data={
+                "username": "nobody@example.com",
+                "password": "whatever-123",  # pragma: allowlist secret - synthetic fixture
+                "_csrf_token": token,
+            },
             follow_redirects=False,
         )
         client.cookies.clear()
