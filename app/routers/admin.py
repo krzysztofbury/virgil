@@ -1,20 +1,25 @@
 """Admin panel — user management."""
 
 import logging
+import re
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.central_db import (
+    INVITE_TTL_DAYS,
+    create_invite,
     delete_user_if_unsubscribed,
     disable_user_if_unsubscribed,
     get_all_users,
     get_user_by_id,
     list_auth_events,
+    list_open_invites,
     record_auth_event,
+    revoke_invite,
     update_user,
 )
-from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
+from app.config import ADMIN_EMAILS, BASE_URL, REGISTRATION_OPEN
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
 from app.rate_limit import client_ip
@@ -32,8 +37,18 @@ def _validate_user_id(user_id: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid user ID")
 
 
-async def _event(request: Request, event: str, user_id: str, admin: dict) -> None:
-    await record_auth_event(event, user_id=user_id, ip=client_ip(request), detail=f"by {admin['email']}")
+async def _event(request: Request, event: str, user_id: str | None, admin: dict, detail: str = "") -> None:
+    by = f"by {admin['email']}"
+    await record_auth_event(event, user_id=user_id, ip=client_ip(request), detail=f"{detail}, {by}" if detail else by)
+
+
+async def _protected(user_id: str) -> str | None:
+    """The email of an account VIRGIL_ADMIN_EMAILS keeps an admin, or None.
+
+    Those are the operator's break-glass accounts: no admin may disable,
+    demote or delete them from the panel."""
+    user = await get_user_by_id(user_id)
+    return user["email"] if user and user["email"] in ADMIN_EMAILS else None
 
 
 def _require_admin(request: Request) -> dict:
@@ -44,11 +59,9 @@ def _require_admin(request: Request) -> dict:
     return user
 
 
-@router.get("/users", response_class=HTMLResponse)
-async def list_users(request: Request):
-    _require_admin(request)
+async def _users_page(request: Request, **extra):
     users = await get_all_users()
-    return templates.TemplateResponse(
+    response = templates.TemplateResponse(
         request,
         "admin_users.html",
         {
@@ -58,8 +71,65 @@ async def list_users(request: Request):
             "registration_open": REGISTRATION_OPEN,
             "admin_emails": ADMIN_EMAILS,
             "events": await list_auth_events(),
+            "invites": await list_open_invites(),
+            "invite_days": INVITE_TTL_DAYS,
+            **extra,
         },
     )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.get("/users", response_class=HTMLResponse)
+async def list_users(request: Request):
+    _require_admin(request)
+    return await _users_page(request)
+
+
+@router.post("/invites", response_class=HTMLResponse)
+async def create_invite_route(
+    request: Request,
+    email: str = Form(""),
+    role: str = Form("user"),
+    allow_shared_llm: str = Form(""),
+):
+    """Shows the link once, on this response. Only its hash is stored, so it cannot be shown again."""
+    admin = _require_admin(request)
+    email = email.strip().lower()
+    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+        return error_redirect(request, "/admin/users", "Enter a valid email address, or leave it empty.")
+    if role not in ("user", "admin"):
+        return error_redirect(request, "/admin/users", "Unknown role.")
+    token = await create_invite(admin["id"], email=email, role=role, allow_shared_llm=bool(allow_shared_llm))
+    await _event(request, "invite_create", None, admin, f"for {email or 'any address'} as {role}")
+    return await _users_page(request, new_invite_link=f"{BASE_URL}/signup?invite={token}", new_invite_email=email)
+
+
+@router.post("/invites/{invite_id}/revoke")
+async def revoke_invite_route(request: Request, invite_id: str):
+    admin = _require_admin(request)
+    _validate_user_id(invite_id)
+    if not await revoke_invite(invite_id):
+        return error_redirect(request, "/admin/users", "That invite was already used, revoked or expired.")
+    await _event(request, "invite_revoke", None, admin)
+    return success_redirect(request, "/admin/users", "Invite revoked.")
+
+
+@router.post("/users/{user_id}/role")
+async def change_role(request: Request, user_id: str, role: str = Form(...)):
+    admin = _require_admin(request)
+    _validate_user_id(user_id)
+    if role not in ("user", "admin"):
+        return error_redirect(request, "/admin/users", "Unknown role.")
+    if user_id == admin["id"]:
+        return error_redirect(request, "/admin/users", "Your own role cannot be changed from the admin panel.")
+    if role == "user" and (email := await _protected(user_id)):
+        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and stays an admin.")
+    if not await get_user_by_id(user_id):
+        return error_redirect(request, "/admin/users", "User account was not found.")
+    await update_user(user_id, role=role)
+    await _event(request, "role_change", user_id, admin, f"to {role}")
+    return success_redirect(request, "/admin/users", "Role changed.")
 
 
 @router.post("/users/{user_id}/disable")
@@ -68,6 +138,8 @@ async def disable_user(request: Request, user_id: str):
     _validate_user_id(user_id)
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", "Your account cannot be disabled from the admin panel.")
+    if email := await _protected(user_id):
+        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and cannot be disabled.")
     result = await disable_user_if_unsubscribed(user_id)
     if result == "not_found":
         return error_redirect(request, "/admin/users", "User account was not found.")
@@ -99,6 +171,8 @@ async def delete_user_route(request: Request, user_id: str):
     # Prevent self-deletion.
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", "Your account cannot be deleted from the admin panel.")
+    if email := await _protected(user_id):
+        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and cannot be deleted.")
     result, db_filename = await delete_user_if_unsubscribed(user_id)
     if result == "busy":
         return error_redirect(request, "/admin/users", "Another account operation is already in progress.")

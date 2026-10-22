@@ -22,7 +22,7 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
-        <p class="auth-subtitle">Create your account.</p>
+        <p class="auth-subtitle">{% if invite %}You were invited. Create your account.{% else %}Create your account.{% endif %}</p>
 
         {% if error %}
         <div class="auth-error" role="alert">{{ error }}</div>
@@ -30,9 +30,11 @@
 
         <form method="POST" action="/signup">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            {% if invite %}<input type="hidden" name="invite" value="{{ invite }}">{% endif %}
             <label>
                 Email
-                <input type="email" name="email" required autocomplete="email" autofocus value="{{ email or '' }}">
+                <input type="email" name="email" required autocomplete="email" value="{{ email or '' }}"
+                       {% if email_locked %}readonly{% else %}autofocus{% endif %}>
             </label>
             <label>
                 Display Name

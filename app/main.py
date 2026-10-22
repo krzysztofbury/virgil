@@ -26,6 +26,24 @@ from app.security_headers import SecurityHeadersMiddleware
 # fast machine and several on the NAS, with every request waiting meanwhile.
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
+
+class RedactLinkSecrets(logging.Filter):
+    """An invite link carries its secret in the query string, and uvicorn's access
+    log writes every request line. Keep the parameter name, drop the value."""
+
+    _SECRET = re.compile(r"\b(invite|token)=[^&\s\"]+")
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple):
+            record.args = tuple(
+                self._SECRET.sub(r"\1=[redacted]", arg) if isinstance(arg, str) else arg for arg in record.args
+            )
+        return True
+
+
+# uvicorn configures this logger before it imports the app; a filter it does not remove.
+logging.getLogger("uvicorn.access").addFilter(RedactLinkSecrets())
+
 BASE_DIR = Path(__file__).parent
 
 

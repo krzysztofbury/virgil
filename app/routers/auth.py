@@ -25,10 +25,13 @@ from app.central_db import (
     claim_mfa_attempt,
     count_users,
     create_user,
+    create_user_from_invite,
     finish_mfa_attempt,
+    get_open_invite,
     get_user_by_email,
     get_user_by_id,
     record_auth_event,
+    reopen_invite_used_by,
     update_user,
 )
 from app.config import REGISTRATION_OPEN
@@ -103,8 +106,34 @@ async def registration_allowed() -> bool:
 # --- Signup ---
 
 
+INVITE_UNUSABLE = "This invite link is invalid, used or expired. Ask for a new one."
+
+
+def _signup_response(request: Request, **context):
+    """The signup page. With an invite, its secret is in the form, so nothing may cache the page."""
+    response = templates.TemplateResponse(request, "auth_signup.html", {"request": request, **context})
+    if context.get("invite"):
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 @router.get("/signup", response_class=HTMLResponse)
-async def signup_page(request: Request):
+async def signup_page(request: Request, invite: str = ""):
+    if invite:
+        if await signed_in_user(request.cookies.get(SESSION_COOKIE, "")):
+            return RedirectResponse("/", status_code=303)
+        open_invite = await get_open_invite(invite)
+        if not open_invite:
+            return templates.TemplateResponse(
+                request,
+                "auth_login.html",
+                {"request": request, "info": INVITE_UNUSABLE, "registration_open": await registration_allowed()},
+                headers=_NO_STORE,
+            )
+        return _signup_response(
+            request, invite=invite, email=open_invite["email"], email_locked=bool(open_invite["email"])
+        )
+
     if not await registration_allowed():
         return templates.TemplateResponse(
             request,
@@ -125,18 +154,28 @@ async def signup_submit(
     display_name: str = Form(""),
     password: str = Form(...),
     password_confirm: str = Form(...),
+    invite: str = Form(""),
 ):
-    if not await registration_allowed():
+    if not invite and not await registration_allowed():
         return error_redirect(request, "/login", "Registration is closed on this server.")
 
     email = email.strip().lower()
     display_name = display_name.strip()
+    invite_email = ""
+    if invite:
+        open_invite = await get_open_invite(invite)
+        if not open_invite:
+            return error_redirect(request, "/login", INVITE_UNUSABLE)
+        invite_email = open_invite["email"]
 
     def _render_error(error: str):
-        return templates.TemplateResponse(
+        return _signup_response(
             request,
-            "auth_signup.html",
-            {"request": request, "error": error, "email": email, "display_name": display_name},
+            error=error,
+            email=invite_email or email,
+            display_name=display_name,
+            invite=invite,
+            email_locked=bool(invite_email),
         )
 
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
@@ -148,16 +187,26 @@ async def signup_submit(
     if password != password_confirm:
         return _render_error("Passwords do not match.")
 
-    existing = await get_user_by_email(email)
-    if existing:
-        return _render_error("An account with that email already exists.")
+    if invite:
+        # The invite is checked and used up in the same transaction as the insert.
+        status, user = await create_user_from_invite(invite, email, password, display_name)
+        if status == "invalid":
+            return error_redirect(request, "/login", INVITE_UNUSABLE)
+        if status == "email_mismatch":
+            return _render_error("This invite is for a different email address.")
+        if status == "email_taken":
+            return _render_error("An account with that email already exists.")
+    else:
+        existing = await get_user_by_email(email)
+        if existing:
+            return _render_error("An account with that email already exists.")
 
-    # With registration closed we're only here via the bootstrap-first-user
-    # rule — make the INSERT itself enforce it so two concurrent first signups
-    # can't both slip through the count check.
-    user = await create_user(email, password, display_name, only_if_first=not REGISTRATION_OPEN)
-    if user is None:
-        return error_redirect(request, "/login", "Registration is closed on this server.")
+        # With registration closed we're only here via the bootstrap-first-user
+        # rule, so the INSERT itself enforces it and two concurrent first signups
+        # can't both slip through the count check.
+        user = await create_user(email, password, display_name, only_if_first=not REGISTRATION_OPEN)
+        if user is None:
+            return error_redirect(request, "/login", "Registration is closed on this server.")
 
     try:
         await create_user_db(user["db_filename"])
@@ -168,10 +217,12 @@ async def signup_submit(
         from app.central_db import delete_user
 
         logger.exception("User DB provisioning failed for %s — rolling back account", email)
+        if invite:
+            await reopen_invite_used_by(user["id"])
         await delete_user(user["id"])
         return _render_error("Could not create your account. Please try again.")
 
-    await _event(request, "signup", user["id"])
+    await _event(request, "invite_consume" if invite else "signup", user["id"])
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg="Account created.")
     response = RedirectResponse(target, status_code=303)
