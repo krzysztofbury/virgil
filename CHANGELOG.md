@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Change your password under Settings > Security (#94). Every other device
+  signed in to the account is signed out; this browser stays in. The form
+  shares the sign-in rate limit, so a stolen session cannot guess fast.
+- A security-event log on the admin page (#94): sign-ins and failed attempts,
+  MFA lockouts, sign-outs, password and MFA changes, factory resets and the
+  admin's account actions, each with the client address. It holds no secrets
+  and no health data, never stores an unknown sign-in address (it may be a
+  password typed in the wrong field), and drops rows older than 180 days.
+
+### Changed
+- Factory reset asks for your password (#94).
+- Central migration 004 adds the event log and a per-account flag for using
+  the server's LLM key, ahead of invites. Existing accounts keep the key; new
+  accounts after the first start without it. Nothing reads the flag yet. The
+  registry is snapshotted before the migration runs.
+
 ## [0.8.0] - 2026-10-22
 
 ### Added

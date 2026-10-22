@@ -758,7 +758,7 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
 
 
 @router.post("/settings/factory-reset")
-async def factory_reset(request: Request):
+async def factory_reset(request: Request, password: str = Form("")):
     """Wipe the current user's data and restart onboarding.
 
     The account (central registry row) and session are kept. The fresh database
@@ -771,13 +771,19 @@ async def factory_reset(request: Request):
     """
     import uuid
 
-    from app.central_db import heartbeat_user_lifecycle, update_user, user_lifecycle_operation
+    from app.auth import verify_password_async
+    from app.central_db import heartbeat_user_lifecycle, record_auth_event, update_user, user_lifecycle_operation
+    from app.rate_limit import client_ip
     from app.services.backup import delete_user_backups
     from app.user_db import create_user_db, delete_user_db
 
     user = getattr(request.state, "user", None)
     if not user or not user.get("db_filename"):
         return error_redirect(request, "/login", "Sign in again before resetting data.")
+    # A session left open on a shared screen must not be enough to wipe everything.
+    # verify_password raises on empty input, so an empty one is a wrong password.
+    if not password or not await verify_password_async(password, user["password_hash"]):
+        return error_redirect(request, "/settings?tab=security", "Password is incorrect. Nothing was reset.")
 
     db = get_user_db_from_request(request)
     async with user_lifecycle_operation(user["id"], "factory-reset") as lifecycle_claim:
@@ -802,6 +808,7 @@ async def factory_reset(request: Request):
         delete_user_backups(old_filename)
 
         logger.info("Factory reset completed for user %s", user["email"])
+        await record_auth_event("factory_reset", user_id=user["id"], ip=client_ip(request))
         return success_redirect(request, "/onboarding", "Factory reset completed. Start onboarding again.")
 
 

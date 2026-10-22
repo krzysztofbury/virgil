@@ -6,7 +6,7 @@ import re
 import sqlite3
 
 import pytest
-from conftest import TEST_EMAIL, csrf_token
+from conftest import TEST_EMAIL, TEST_PASSWORD, csrf_token
 from fastapi import HTTPException
 
 
@@ -474,3 +474,141 @@ def test_login_refuses_without_issuing_a_session(client, email, password, error)
         central.execute("DELETE FROM users WHERE email = 'inactive@example.com'")
         central.commit()
         central.close()
+
+
+def _feedback(response) -> dict:
+    from urllib.parse import parse_qs, urlsplit
+
+    assert response.status_code == 303
+    return {key: values[0] for key, values in parse_qs(urlsplit(response.headers["location"]).query).items()}
+
+
+def _change_password(client, current: str, new: str, confirm: str | None = None):
+    token = csrf_token(client, "/settings?tab=security")
+    return client.post(
+        "/settings/password",
+        data={
+            "current_password": current,
+            "new_password": new,
+            "new_password_confirm": new if confirm is None else confirm,
+            "_csrf_token": token,
+        },
+        follow_redirects=False,
+    )
+
+
+def test_a_password_change_signs_out_other_devices_and_keeps_this_one(auth_client, client):
+    from app.auth import SESSION_COOKIE, hash_password
+
+    new_password = "a-new-password-456"  # pragma: allowlist secret - synthetic fixture
+    central = _central_conn()
+    stored = central.execute("SELECT password_hash FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()[0]
+    other_device = auth_client.cookies[SESSION_COOKIE]
+    try:
+        refused = [
+            _change_password(auth_client, "not-the-password", new_password),
+            _change_password(auth_client, TEST_PASSWORD, "short", "short"),
+            _change_password(auth_client, TEST_PASSWORD, new_password, "a-different-one-789"),
+        ]
+        assert [_feedback(response)["err"] for response in refused] == [
+            "Current password is incorrect.",
+            "New password must be at least 8 characters.",
+            "New passwords do not match.",
+        ]
+        assert central.execute("SELECT password_hash FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()[0] == stored
+        assert not _session_is_refused(client, other_device)
+
+        changed = _change_password(auth_client, TEST_PASSWORD, new_password)
+        assert _feedback(changed)["msg"] == "Password changed. Other devices are signed out."
+        assert _session_is_refused(client, other_device)
+        assert auth_client.get("/settings", follow_redirects=False).status_code == 200, "this browser stays in"
+
+        for password, signed_in in ((TEST_PASSWORD, False), (new_password, True)):
+            client.cookies.clear()
+            token = csrf_token(client, "/login")
+            response = client.post(
+                "/login",
+                data={"username": TEST_EMAIL, "password": password, "_csrf_token": token},
+                follow_redirects=False,
+            )
+            assert (response.status_code == 303) is signed_in, password
+        client.cookies.clear()
+    finally:
+        central.execute(
+            "UPDATE users SET password_hash = ? WHERE email = ?", (hash_password(TEST_PASSWORD), TEST_EMAIL)
+        )
+        central.commit()
+        central.close()
+        _login(auth_client)
+
+
+def test_sign_ins_and_account_changes_are_logged_and_old_events_pruned(auth_client, client):
+    import asyncio
+
+    from app.central_db import prune_auth_events
+
+    central = _central_conn()
+    user_id = central.execute("SELECT id FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()[0]
+    central.execute("DELETE FROM auth_events")
+    central.execute(
+        "INSERT INTO auth_events (created_at, user_id, event) VALUES (datetime('now', '-181 days'), ?, 'login_ok')",
+        (user_id,),
+    )
+    central.commit()
+    try:
+        client.cookies.clear()
+        for password in ("not-the-password", TEST_PASSWORD):
+            token = csrf_token(client, "/login")
+            client.post(
+                "/login",
+                data={"username": TEST_EMAIL, "password": password, "_csrf_token": token},
+                follow_redirects=False,
+            )
+        token = csrf_token(client, "/login")
+        client.post(
+            "/login",
+            data={"username": "nobody@example.com", "password": "whatever-123", "_csrf_token": token},
+            follow_redirects=False,
+        )
+        client.cookies.clear()
+
+        rows = central.execute(
+            "SELECT event, user_id, ip, detail FROM auth_events WHERE created_at > datetime('now', '-1 day') ORDER BY id"
+        ).fetchall()
+        assert [(event, uid, detail) for event, uid, _ip, detail in rows] == [
+            ("login_fail", user_id, "wrong password"),
+            ("login_ok", user_id, ""),
+            ("login_fail", None, "unknown account"),
+        ], "an unknown address is never stored: it may be a password typed in the wrong field"
+        assert all(ip for _event, _uid, ip, _detail in rows)
+
+        page = auth_client.get("/admin/users")
+        assert "Security events" in page.text and "login fail" in page.text
+
+        assert asyncio.run(prune_auth_events()) == 1
+        assert central.execute("SELECT COUNT(*) FROM auth_events").fetchone()[0] == 3
+    finally:
+        central.execute("DELETE FROM auth_events")
+        central.commit()
+        central.close()
+
+
+def test_only_the_first_account_may_use_the_server_llm_key_by_default(tmp_path, monkeypatch):
+    import asyncio
+
+    import app.central_db as central_db
+
+    monkeypatch.setattr(central_db, "CENTRAL_DB_PATH", str(tmp_path / "central.db"))
+    monkeypatch.setattr(central_db, "_central_db", None)
+
+    async def run():
+        try:
+            await central_db.init_central_db()
+            owner = await central_db.create_user("owner@example.com", "owner-password-1")
+            invited = await central_db.create_user("invited@example.com", "invited-password-1")
+            allowed = await central_db.create_user("allowed@example.com", "allowed-password-1", allow_shared_llm=True)
+            return [user["allow_shared_llm"] for user in (owner, invited, allowed)]
+        finally:
+            await central_db.close_central_db()
+
+    assert asyncio.run(run()) == [1, 0, 1]

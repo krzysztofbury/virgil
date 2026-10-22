@@ -10,11 +10,14 @@ from app.central_db import (
     disable_user_if_unsubscribed,
     get_all_users,
     get_user_by_id,
+    list_auth_events,
+    record_auth_event,
     update_user,
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, success_redirect
 from app.main import templates
+from app.rate_limit import client_ip
 from app.services.backup import delete_user_backups
 from app.user_db import delete_user_db
 from app.validation import valid_uuid
@@ -27,6 +30,10 @@ router = APIRouter(prefix="/admin")
 def _validate_user_id(user_id: str) -> None:
     if not valid_uuid(user_id):
         raise HTTPException(status_code=400, detail="Invalid user ID")
+
+
+async def _event(request: Request, event: str, user_id: str, admin: dict) -> None:
+    await record_auth_event(event, user_id=user_id, ip=client_ip(request), detail=f"by {admin['email']}")
 
 
 def _require_admin(request: Request) -> dict:
@@ -50,6 +57,7 @@ async def list_users(request: Request):
             "total": len(users),
             "registration_open": REGISTRATION_OPEN,
             "admin_emails": ADMIN_EMAILS,
+            "events": await list_auth_events(),
         },
     )
 
@@ -69,16 +77,18 @@ async def disable_user(request: Request, user_id: str):
         return error_redirect(
             request, "/admin/users", "Disable the user's remote subscriptions before disabling the account."
         )
+    await _event(request, "user_disable", user_id, admin)
     return success_redirect(request, "/admin/users", "User account disabled.")
 
 
 @router.post("/users/{user_id}/enable")
 async def enable_user(request: Request, user_id: str):
-    _require_admin(request)
+    admin = _require_admin(request)
     _validate_user_id(user_id)
     if not await get_user_by_id(user_id):
         return error_redirect(request, "/admin/users", "User account was not found.")
     await update_user(user_id, is_active=1)
+    await _event(request, "user_enable", user_id, admin)
     return success_redirect(request, "/admin/users", "User account enabled.")
 
 
@@ -100,4 +110,5 @@ async def delete_user_route(request: Request, user_id: str):
         return error_redirect(request, "/admin/users", "User account was not found.")
     delete_user_db(db_filename)
     delete_user_backups(db_filename)
+    await _event(request, "user_delete", user_id, admin)
     return success_redirect(request, "/admin/users", "User account deleted.")

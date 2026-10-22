@@ -710,6 +710,28 @@
 <!-- ═══ SECURITY TAB ═══ -->
 
 <div class="card" style="margin-bottom: 1rem;">
+    <div class="card-header"><h3>Password</h3></div>
+    <details>
+        <summary style="cursor:pointer;">Change password</summary>
+        <form method="POST" action="/settings/password" style="margin-top:0.5rem;">
+            <label>Current password
+                <input type="password" name="current_password" autocomplete="current-password" required>
+            </label>
+            <div class="grid">
+                <div><label>New password
+                    <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+                </label></div>
+                <div><label>Repeat new password
+                    <input type="password" name="new_password_confirm" autocomplete="new-password" minlength="8" required>
+                </label></div>
+            </div>
+            <p class="text-muted" style="font-size:0.85rem;">Every other device signed in to this account is signed out.</p>
+            <button type="submit" class="btn btn-primary btn-sm">Change password</button>
+        </form>
+    </details>
+</div>
+
+<div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Two-Factor Authentication</h3></div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
         <a href="/settings/mfa" class="btn btn-outline">Configure MFA</a>
@@ -770,6 +792,9 @@
             <a href="/settings/backup" class="btn btn-outline">Download virgil.db</a>
         </div>
         <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;" data-confirm="Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.">
+            <label>Your password
+                <input type="password" name="password" autocomplete="current-password" required>
+            </label>
             <button type="submit" class="btn btn-danger">Reset All Data</button>
         </form>
     </details>

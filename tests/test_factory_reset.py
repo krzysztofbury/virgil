@@ -8,7 +8,7 @@ empty un-migrated SQLite file and crashed on missing tables.
 import sqlite3
 from urllib.parse import parse_qs, urlsplit
 
-from conftest import _complete_onboarding, csrf_token, user_db_path
+from conftest import TEST_PASSWORD, _complete_onboarding, csrf_token, user_db_path
 
 
 def _backups_of(stem: str) -> list[str]:
@@ -41,7 +41,7 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
     token = csrf_token(auth_client, "/settings?tab=security")
     resp = auth_client.post(
         "/settings/factory-reset",
-        data={"_csrf_token": token},
+        data={"password": TEST_PASSWORD, "_csrf_token": token},
         follow_redirects=False,
     )
     try:
@@ -77,3 +77,27 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
         # Restore state for the rest of the (session-scoped) suite.
         kept.unlink(missing_ok=True)
         _complete_onboarding()
+
+
+def test_factory_reset_refuses_without_the_password(auth_client):
+    """A session left open on a shared screen must not be enough to wipe an account."""
+    conn = sqlite3.connect(user_db_path())
+    conn.execute("INSERT INTO daily_logs (date, energy) VALUES ('2026-07-02', 6)")
+    conn.commit()
+    try:
+        for password in ("", "not-the-password"):
+            token = csrf_token(auth_client, "/settings?tab=security")
+            resp = auth_client.post(
+                "/settings/factory-reset", data={"password": password, "_csrf_token": token}, follow_redirects=False
+            )
+            assert resp.status_code == 303
+            assert parse_qs(urlsplit(resp.headers["location"]).query) == {
+                "tab": ["security"],
+                "err": ["Password is incorrect. Nothing was reset."],
+            }
+        rows = conn.execute("SELECT energy FROM daily_logs WHERE date = '2026-07-02'").fetchall()
+        assert rows == [(6,)]
+    finally:
+        conn.execute("DELETE FROM daily_logs WHERE date = '2026-07-02'")
+        conn.commit()
+        conn.close()
