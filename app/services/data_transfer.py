@@ -66,6 +66,13 @@ DATA_TABLES = (
     "experiment_weeks",
     "experiment_entries",
     "experiment_summaries",
+    "finance_layers",
+    "finance_score_rules",
+    "finance_accounts",
+    "finance_balances",
+    "finance_assumptions",
+    "finance_income_sources",
+    "finance_policies",
     "sync_log",
 )
 
@@ -101,6 +108,7 @@ PORTABLE_SETTINGS = frozenset(
         "backup_max_copies",
         "oura_sync_enabled",
         "oura_sync_interval_hours",
+        "finance_base_currency",
     }
 )
 
@@ -120,6 +128,8 @@ _LABELS = {
     "oura_workouts": "Oura workouts",
     "experiment_activity_types": "Experiment metrics",
     "sync_log": "Sync log",
+    "finance_score_rules": "Finance score rules",
+    "finance_income_sources": "Finance income sources",
 }
 
 
@@ -178,6 +188,8 @@ def setting_is_valid(key: str, value: object) -> bool:
         return value == ",".join(normalize_days(value))
     if key == "llm_reasoning_effort":
         return value in REASONING_EFFORTS
+    if key == "finance_base_currency":
+        return len(value) == 3 and value.isalpha() and value.isupper()
     return False
 
 

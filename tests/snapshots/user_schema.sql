@@ -10,6 +10,9 @@ CREATE INDEX idx_experiments_goal_id ON experiments(goal_id);
 -- index idx_feniks_bricks_habit_date
 CREATE INDEX idx_feniks_bricks_habit_date ON feniks_bricks(habit_id, date);
 
+-- index idx_finance_balances_date
+CREATE INDEX idx_finance_balances_date ON finance_balances(date);
+
 -- index idx_goal_changes_goal
 CREATE INDEX idx_goal_changes_goal ON goal_changes(goal_id, id);
 
@@ -292,6 +295,77 @@ CREATE TABLE feniks_pleasures (
     pleasure_2 TEXT DEFAULT '',
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+-- table finance_accounts
+CREATE TABLE finance_accounts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE COLLATE NOCASE CHECK(length(trim(name)) BETWEEN 1 AND 80),
+            institution TEXT NOT NULL DEFAULT '',
+            layer_id INTEGER NOT NULL REFERENCES finance_layers(id),
+            kind TEXT NOT NULL DEFAULT 'cash'
+                CHECK(kind IN ('cash', 'bonds', 'retirement', 'brokerage', 'crypto', 'property', 'other')),
+            currency TEXT NOT NULL DEFAULT '' CHECK(currency = '' OR length(currency) = 3),
+            ownership TEXT NOT NULL DEFAULT 'own' CHECK(ownership IN ('own', 'joint', 'excluded')),
+            archived INTEGER NOT NULL DEFAULT 0 CHECK(archived IN (0, 1)),
+            display_order INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+-- table finance_assumptions
+CREATE TABLE finance_assumptions (
+            effective_from TEXT PRIMARY KEY,
+            essential_monthly_cost_minor INTEGER NOT NULL CHECK(essential_monthly_cost_minor > 0),
+            note TEXT NOT NULL DEFAULT ''
+        );
+
+-- table finance_balances
+CREATE TABLE finance_balances (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL REFERENCES finance_accounts(id) ON DELETE CASCADE,
+            date TEXT NOT NULL,
+            amount_minor INTEGER NOT NULL,
+            native_amount_minor INTEGER,
+            native_currency TEXT NOT NULL DEFAULT '' CHECK(native_currency = '' OR length(native_currency) = 3),
+            source TEXT NOT NULL DEFAULT 'web' CHECK(source IN ('web', 'api')),
+            note TEXT NOT NULL DEFAULT '',
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            UNIQUE(account_id, date)
+        );
+
+-- table finance_income_sources
+CREATE TABLE finance_income_sources (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE COLLATE NOCASE CHECK(length(trim(name)) BETWEEN 1 AND 80),
+            monthly_amount_minor INTEGER NOT NULL CHECK(monthly_amount_minor >= 0),
+            independent_of_work INTEGER NOT NULL DEFAULT 0 CHECK(independent_of_work IN (0, 1)),
+            confirmed_on TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT ''
+        );
+
+-- table finance_layers
+CREATE TABLE finance_layers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL UNIQUE COLLATE NOCASE CHECK(length(trim(name)) BETWEEN 1 AND 60),
+            description TEXT NOT NULL DEFAULT '',
+            counts_toward_cushion INTEGER NOT NULL DEFAULT 0 CHECK(counts_toward_cushion IN (0, 1)),
+            display_order INTEGER NOT NULL DEFAULT 0
+        );
+
+-- table finance_policies
+CREATE TABLE finance_policies (
+            type TEXT PRIMARY KEY CHECK(length(type) BETWEEN 1 AND 40),
+            status TEXT NOT NULL CHECK(status IN ('present', 'absent', 'not_applicable')),
+            confirmed_on TEXT NOT NULL DEFAULT '',
+            note TEXT NOT NULL DEFAULT ''
+        );
+
+-- table finance_score_rules
+CREATE TABLE finance_score_rules (
+            layer_id INTEGER PRIMARY KEY REFERENCES finance_layers(id) ON DELETE CASCADE,
+            metric TEXT NOT NULL CHECK(metric IN ('cushion_months', 'independent_income_share', 'policies')),
+            max_points INTEGER NOT NULL CHECK(max_points BETWEEN 0 AND 100),
+            thresholds TEXT NOT NULL
+        );
 
 -- table goal_areas
 CREATE TABLE goal_areas (

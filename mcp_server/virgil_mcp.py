@@ -7,8 +7,9 @@
 # ///
 """Virgil MCP server — thin stdio wrapper over the Virgil REST API.
 
-Exposes Virgil data (daily habits, Oura, streaks, experiments, training)
-and its writes (goals, daily log and A.N.D.Y., Freedom habits, training) to MCP
+Exposes Virgil data (daily habits, Oura, streaks, experiments, training, finance)
+and its writes (goals, daily log and A.N.D.Y., Freedom habits, training,
+finance balances) to MCP
 clients (Claude Code, OpenClaw). No local DB access — everything goes
 through the authenticated REST API, so it works from any machine.
 
@@ -790,6 +791,131 @@ def log_measurements(
 def delete_measurements(date: str) -> dict:
     """Delete the body measurements of one date permanently."""
     return _delete(f"/api/measurements/{date}")
+
+
+# --- Finance (the server must set VIRGIL_API_FINANCE=true) ---
+
+
+@mcp.tool()
+def get_finance_overview(date: str = "") -> dict:
+    """The financial fortress on a date (YYYY-MM-DD, default today): each layer with
+    its accounts, latest balances and as-of dates, the cushion and how many months
+    of essential cost it covers, the shares of that cost covered by independent and
+    by all stable income, insurance policies, and the score per layer and in total
+    (points: independent income only; points_with_all_income: all stable income).
+    Amounts are in the base currency. Accounts not updated in the latest snapshot
+    are listed in stale_accounts. A null score means an input is missing; the layer
+    says which."""
+    return _get("/api/finance", params={"date": date} if date else None)
+
+
+@mcp.tool()
+def get_finance_history(months: int = 12) -> dict:
+    """Totals per layer, the cushion and cushion months at every date balances were
+    recorded in the last `months` months."""
+    return _get("/api/finance/history", params={"months": months})
+
+
+@mcp.tool()
+def record_balances(date: str, entries: list[dict]) -> dict:
+    """Record a whole snapshot in one call: the balance of each account on one date
+    (YYYY-MM-DD), all or none. Each entry is {"account": name or id, "amount": value
+    in the base currency} (a number is an account id, text is always a name),
+    optionally with "native_amount" and "native_currency"
+    for an account held in another currency, and "note". "amount": null removes that
+    date's balance. Unknown account names are refused: create them with
+    upsert_finance_account first. Returns how many were recorded."""
+    return _put(f"/api/finance/balances/{quote(date, safe='')}", {"entries": entries})
+
+
+@mcp.tool()
+def upsert_finance_account(
+    name: str,
+    layer: str = "",
+    institution: str | None = None,
+    kind: str | None = None,
+    currency: str | None = None,
+    ownership: str | None = None,
+    archived: bool | None = None,
+    rename: str = "",
+) -> dict:
+    """Create a finance account or change the one with this name. `layer` is the
+    fortress layer it belongs to (see get_finance_scoring); kind is one of cash,
+    bonds, retirement, brokerage, crypto, property, other; ownership is own, joint
+    or excluded (shown, never counted toward the cushion or totals). Archive an
+    account that was closed; `rename` changes its name."""
+    accounts = _get("/api/finance/accounts")["accounts"]
+    match = next((account for account in accounts if account["name"].lower() == name.strip().lower()), None)
+    payload: dict = {"name": rename or name}
+    if match:
+        payload["id"] = match["id"]
+    if layer:
+        payload["layer"] = layer
+    for key, value in (
+        ("institution", institution),
+        ("kind", kind),
+        ("currency", currency),
+        ("ownership", ownership),
+        ("archived", archived),
+    ):
+        if value is not None:
+            payload[key] = value
+    return _put("/api/finance/accounts", payload)
+
+
+@mcp.tool()
+def set_finance_assumptions(
+    essential_monthly_cost: float | None = None,
+    effective_from: str = "",
+    income_sources: list[dict] | None = None,
+    policies: list[dict] | None = None,
+    base_currency: str = "",
+) -> dict:
+    """Set what the cushion and score are measured against. essential_monthly_cost
+    applies from effective_from (default today), and earlier months keep their own.
+    income_sources replaces the whole list: [{"name", "monthly_amount",
+    "independent_of_work": true for income that does not depend on current work,
+    "confirmed_on"}]. policies sets the types it names: [{"type": "life", "status":
+    "present" | "absent" | "not_applicable", "confirmed_on", "note"}]; status null
+    removes one. Returns everything currently set."""
+    payload: dict = {}
+    if essential_monthly_cost is not None:
+        payload["essential_monthly_cost"] = essential_monthly_cost
+    if effective_from:
+        payload["effective_from"] = effective_from
+    if income_sources is not None:
+        payload["income_sources"] = income_sources
+    if policies is not None:
+        payload["policies"] = policies
+    if base_currency:
+        payload["base_currency"] = base_currency
+    if not payload:
+        return _get("/api/finance/assumptions")
+    return _put("/api/finance/assumptions", payload)
+
+
+@mcp.tool()
+def get_finance_scoring() -> dict:
+    """The fortress definition: every layer (name, description, whether it counts
+    toward the cushion) and its score rule. A rule has a metric (cushion_months,
+    independent_income_share in percent, or policies), max_points, and thresholds:
+    [[minimum, points], ...] for the first two, {policy type: points} for policies."""
+    return _get("/api/finance/scoring")
+
+
+@mcp.tool()
+def set_finance_scoring(layers: list[dict] | None = None, remove: list[str] | None = None) -> dict:
+    """Create or change fortress layers and how they score. Each layer is matched by
+    "name" (or "id") and may set "rename", "description", "counts_toward_cushion",
+    "display_order" and "rule": {"metric", "max_points", "thresholds"} (see
+    get_finance_scoring), or "rule": null to stop scoring it. `remove` deletes
+    layers that no account uses. Returns the whole definition."""
+    payload: dict = {}
+    if layers is not None:
+        payload["layers"] = layers
+    if remove is not None:
+        payload["remove"] = remove
+    return _put("/api/finance/scoring", payload)
 
 
 if __name__ == "__main__":
