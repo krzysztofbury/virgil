@@ -128,7 +128,7 @@ def test_a_later_partial_month_carries_balances_and_marks_them_stale(finance):
 
     overview = finance.get("/api/finance", params={"date": "2026-09-30"}, headers=KEY).json()
     assert overview["cushion"] == 65000
-    assert set(overview["stale_accounts"]) == {"Bonds", "Joint current", "Children's bonds", "Retirement"}
+    assert overview["stale_accounts"] == ["Bonds"], "accounts with no balance yet have nothing to carry"
 
     points = finance.get("/api/finance/history", params={"months": 240}, headers=KEY).json()["points"]
     assert [(p["date"], p["cushion"], p["cushion_months"]) for p in points] == [
