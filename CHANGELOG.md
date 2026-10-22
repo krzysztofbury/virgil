@@ -310,6 +310,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   validate and write the same way.
 
 ### Fixed
+- Finance no longer lists an account with no balance yet on a date as stale
+  (#138). Stale means an older balance was carried into the latest snapshot;
+  an account added later, or a date before its first balance, has nothing to
+  carry and shows "no balance yet" without the warning.
 - Blood Work, from the design review (#95):
   - Each marker is shown at the precision its lab reports, taken from its
     reference range and results, so HbA1c 5.0 against a 5.6 limit no longer
