@@ -342,6 +342,54 @@ async def _seed(db) -> None:
                 (mid, d(off), val, flag),
             )
 
+    # --- Finance: invented accounts and round numbers, six month-end snapshots ---
+    await db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('feature_finance', '1')")
+    layers = {row[1]: row[0] for row in await db.execute_fetchall("SELECT id, name FROM finance_layers")}
+    accounts = [
+        ("Everyday account", "Demo Bank", "Cash cushion", "cash", "joint", 8_000, 300),
+        ("Savings account", "Demo Bank", "Cash cushion", "cash", "own", 42_000, 1_500),
+        ("Treasury bonds", "", "Cash cushion", "bonds", "own", 30_000, 200),
+        ("Retirement account", "Example Broker", "Investments", "retirement", "own", 55_000, 900),
+        ("Index funds", "Example Broker", "Investments", "brokerage", "own", 21_000, 700),
+        ("Children's savings", "Demo Bank", "Investments", "bonds", "excluded", 12_000, 400),
+    ]
+    month_ends = []
+    cursor_day = TODAY.replace(day=1) - timedelta(days=1)
+    for _ in range(6):
+        month_ends.insert(0, cursor_day)
+        cursor_day = cursor_day.replace(day=1) - timedelta(days=1)
+    for name, institution, layer, kind, ownership, start, step in accounts:
+        cur = await db.execute(
+            "INSERT INTO finance_accounts (name, institution, layer_id, kind, ownership) VALUES (?, ?, ?, ?, ?)",
+            (name, institution, layers[layer], kind, ownership),
+        )
+        for index, month_end in enumerate(month_ends):
+            # The last snapshot skips the index funds, so the page shows a stale account.
+            if name == "Index funds" and index == len(month_ends) - 1:
+                continue
+            await db.execute(
+                "INSERT INTO finance_balances (account_id, date, amount_minor, source) VALUES (?, ?, ?, 'web')",
+                (cur.lastrowid, month_end.isoformat(), (start + step * index) * 100),
+            )
+    await db.execute(
+        "INSERT INTO finance_assumptions (effective_from, essential_monthly_cost_minor) VALUES (?, ?)",
+        (month_ends[0].replace(day=1).isoformat(), 9_000 * 100),
+    )
+    await db.executemany(
+        "INSERT INTO finance_income_sources (name, monthly_amount_minor, independent_of_work) VALUES (?, ?, ?)",
+        [("Rental flat", 2_000 * 100, 1), ("Partner's salary", 7_000 * 100, 0)],
+    )
+    await db.executemany(
+        "INSERT INTO finance_policies (type, status) VALUES (?, ?)",
+        [
+            ("life", "absent"),
+            ("health", "present"),
+            ("property", "present"),
+            ("vehicle", "present"),
+            ("income_loss", "not_applicable"),
+        ],
+    )
+
     await db.commit()
 
 

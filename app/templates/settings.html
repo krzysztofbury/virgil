@@ -148,6 +148,13 @@
             </label>
             <small class="text-muted">Off keeps their names and streaks on the Freedom page only, away from anyone glancing at the home screen.</small>
         </fieldset>
+        <label class="module-toggle">
+            <input type="checkbox" name="feature_finance" value="1" {% if feature_flags.finance %}checked{% endif %}>
+            <span>
+                <strong>Finance</strong>
+                <span class="module-desc">Your financial fortress: the layers you define, your accounts and their balances once a month, how many months your cushion covers and a score. No bank connection; you enter the numbers.</span>
+            </span>
+        </label>
         <div class="form-actions module-actions">
             <button type="submit" class="btn btn-primary btn-sm">Save modules</button>
         </div>

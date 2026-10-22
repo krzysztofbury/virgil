@@ -44,6 +44,7 @@
             <a href="/bloodwork" class="{{ 'active' if '/bloodwork' in request.url.path else '' }}">Blood</a>
             <a href="/goals" class="{{ 'active' if '/goals' in request.url.path else '' }}">Goals</a>
             <a href="/experiments" class="{{ 'active' if '/experiments' in request.url.path else '' }}">Experiments</a>
+            {% if request.state.features.finance %}<a href="/finance" class="{{ 'active' if '/finance' in request.url.path else '' }}">Finance</a>{% endif %}
         </div>
         <div class="nav-end">
             <button type="button" id="pwa-install-btn" class="nav-logout" title="Install App" style="display:none;">
@@ -105,7 +106,7 @@
             <span>Goals</span>
         </a>
         {% endif %}
-        {% set more_paths = ['/oura', '/bloodwork', '/experiments', '/settings'] + (['/goals'] if request.state.features.freedom else []) %}
+        {% set more_paths = ['/oura', '/bloodwork', '/experiments', '/settings'] + (['/goals'] if request.state.features.freedom else []) + (['/finance'] if request.state.features.finance else []) %}
         <div class="tab-item-wrap" @keydown.escape="closeMenu" @focusout="leaveMenu">
             <button type="button" class="tab-item {{ 'active' if more_paths | select('in', request.url.path) | list else '' }}"
                     x-ref="moreButton"
@@ -119,6 +120,7 @@
                 <a href="/experiments"><i data-lucide="flask-conical"></i> Experiments</a>
                 <a href="/oura"><i data-lucide="moon"></i> Oura</a>
                 <a href="/bloodwork"><i data-lucide="droplets"></i> Blood</a>
+                {% if request.state.features.finance %}<a href="/finance"><i data-lucide="landmark"></i> Finance</a>{% endif %}
                 <a href="/settings"><i data-lucide="settings"></i> Settings</a>
                 <form method="POST" action="/logout" class="tab-dropdown-form">
                     <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">

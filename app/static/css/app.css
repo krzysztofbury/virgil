@@ -688,6 +688,36 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .import-report td:first-child, .import-report td:last-child { border-left: 0; border-right: 0; border-radius: 0; }
 .import-report td.is-changed { color: var(--text-primary); font-weight: 600; }
 
+/* ── Finance ── */
+.finance-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; flex-wrap: wrap; }
+.finance-header .btn i { width: 16px; height: 16px; }
+.finance-stats { margin-bottom: 1rem; }
+.finance-stats .stat-value small { font-size: 0.6em; color: var(--text-secondary); }
+.finance-chart { position: relative; height: 220px; }
+.finance-notes p { margin: 0.25rem 0; font-size: var(--text-sm); }
+.finance-layers { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 1rem; margin: 1rem 0; }
+.finance-layers .card { margin: 0; }
+.finance-layer-total { font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-primary); }
+.finance-layer-desc, .finance-layer-score { font-size: var(--text-sm); margin: 0 0 0.5rem; }
+.finance-layer-score .badge { margin-left: 0.35rem; }
+.finance-accounts td small { display: block; font-size: 0.75rem; }
+.finance-accounts tr.is-excluded td { opacity: 0.6; }
+.finance-accounts .finance-stale { color: var(--yellow); }
+.finance-excluded { font-size: var(--text-sm); margin-bottom: 1rem; }
+.finance-record > label { max-width: 14rem; }
+.finance-record input[type=text] { text-align: right; font-variant-numeric: tabular-nums; }
+.finance-edit { padding: 0.25rem 0; }
+.finance-edit summary { cursor: pointer; display: flex; gap: 0.5rem; align-items: baseline; flex-wrap: wrap; min-height: 44px; align-items: center; }
+.finance-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.25rem 1rem; margin-top: 0.75rem; }
+.finance-form .form-actions, .finance-form table, .finance-form .finance-inline { grid-column: 1 / -1; }
+.finance-inline { display: flex; flex-wrap: wrap; gap: 0.25rem 1rem; align-items: flex-end; }
+.finance-inline label { flex: 1 1 12rem; }
+.finance-form .checkbox-label { display: flex; align-items: center; gap: 0.5rem; align-self: end; min-height: 44px; }
+.finance-form .checkbox-label input { width: auto; margin: 0; }
+@media (max-width: 480px) {
+  .finance-layers { grid-template-columns: 1fr; }
+}
+
 /* ── Utilities ── */
 .sr-only {
   position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;

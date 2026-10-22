@@ -27,7 +27,14 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from screenshots import _wait_until_up  # noqa: E402
 from seed_demo import DEMO_EMAIL, DEMO_PASSWORD  # noqa: E402
 
-PAGES = {"dashboard": "/", "daily": "/daily", "training": "/training", "freedom": "/freedom"}
+PAGES = {
+    "dashboard": "/",
+    "daily": "/daily",
+    "training": "/training",
+    "freedom": "/freedom",
+    "finance": "/finance",
+    "finance setup": "/finance/setup",
+}
 # Every other page with an Alpine component or a page script: under the
 # Content-Security-Policy a refused script or expression shows up only as a
 # console error.
