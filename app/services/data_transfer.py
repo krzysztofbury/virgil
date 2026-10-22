@@ -18,6 +18,7 @@ import re
 import secrets
 import time
 from datetime import UTC, datetime
+from math import isfinite
 from pathlib import Path
 
 import aiosqlite
@@ -140,6 +141,46 @@ def is_portable_setting(key: str) -> bool:
     return key in PORTABLE_SETTINGS or key.startswith("feature_")
 
 
+def _number(value: str, kind: type, low: float, high: float) -> bool:
+    try:
+        number = kind(value)
+    except (TypeError, ValueError, OverflowError):
+        return False
+    return isfinite(number) and low <= number <= high
+
+
+def setting_is_valid(key: str, value: object) -> bool:
+    """The rules the settings forms apply, for a value arriving in a file.
+
+    A crafted export must not schedule a backup every minute or keep thousands
+    of copies, which the forms refuse.
+    """
+    from app.services.llm import REASONING_EFFORTS
+    from app.services.training_schedule import SWIM_PER_WEEK_MAX, normalize_days
+
+    if not isinstance(value, str) or len(value) > 200:
+        return False
+    if (
+        key.startswith("feature_")
+        or key in {"onboarding_completed", "freedom_on_dashboard"}
+        or key.endswith("_enabled")
+    ):
+        return value in ("0", "1")
+    if key == "theme":
+        return value in ("dark", "light")
+    if key in ("backup_interval_hours", "oura_sync_interval_hours"):
+        return _number(value, float, 1, 168)
+    if key == "backup_max_copies":
+        return _number(value, int, 1, 100)
+    if key == "training_swim_per_week":
+        return _number(value, int, 0, SWIM_PER_WEEK_MAX)
+    if key == "training_days":
+        return value == ",".join(normalize_days(value))
+    if key == "llm_reasoning_effort":
+        return value in REASONING_EFFORTS
+    return False
+
+
 async def _columns(db: aiosqlite.Connection, table: str, schema: str = "main") -> list[str]:
     rows = await db.execute_fetchall(f'PRAGMA "{schema}".table_info("{table}")')
     return [row[1] for row in rows]
@@ -259,19 +300,21 @@ async def _stage(source: Path, staged: Path) -> dict:
                 except aiosqlite.IntegrityError as error:
                     raise ImportRefused(f"A row in {table} breaks a rule of the schema: {error}.") from error
         skipped = sorted(key for key in settings if not is_portable_setting(key))
+        invalid = sorted(
+            key for key in settings if is_portable_setting(key) and not setting_is_valid(key, settings[key])
+        )
         await db.execute("DELETE FROM app_settings")
         for key, value in settings.items():
-            if key in skipped:
-                continue
-            if not isinstance(value, str):
-                raise ImportRefused(f"The setting {key} is not text.")
-            await db.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, value))
+            if key not in skipped and key not in invalid:
+                await db.execute("INSERT INTO app_settings (key, value) VALUES (?, ?)", (key, value))
         await db.commit()
 
         await db.execute("PRAGMA foreign_keys=ON")
+        # Settled at the export's own schema first: the newer migrations run
+        # with foreign keys on, as they do at startup, and may rebuild tables.
+        dropped = await _settle_orphans(db)
         await run_migrations(db)
-        before = await current_counts(db)
-        await _settle_orphans(db)
+        dropped += await _settle_orphans(db)
         integrity = await db.execute_fetchall("PRAGMA integrity_check")
         if [tuple(row) for row in integrity] != [("ok",)]:
             raise ImportRefused("The staged copy failed SQLite's integrity check. Nothing was changed.")
@@ -284,7 +327,8 @@ async def _stage(source: Path, staged: Path) -> dict:
             "counts": counts,
             "settings": sorted(key for (key,) in portable if is_portable_setting(key)),
             "skipped_settings": skipped,
-            "dropped_orphans": sum(before.values()) - sum(counts.values()),
+            "invalid_settings": invalid,
+            "dropped_orphans": dropped,
         }
     except BaseException:
         if db.in_transaction:
@@ -294,20 +338,21 @@ async def _stage(source: Path, staged: Path) -> dict:
         await db.close()
 
 
-async def _settle_orphans(db: aiosqlite.Connection) -> None:
+async def _settle_orphans(db: aiosqlite.Connection) -> int:
     """Do to rows whose parent is gone what SQLite would have done when it went.
 
     A database that once ran without foreign keys can keep children of deleted
     rows, and its owner's export must still restore. A CASCADE child is left
     out and a SET NULL reference is cleared. Any other broken reference refuses
-    the file.
+    the file. Returns how many rows were left out, cascades included.
     """
+    before = sum((await current_counts(db)).values())
     keys: dict[str, dict[int, tuple[str, str]]] = {}
     # A dropped row can orphan its own children, so check again until settled.
     for _ in range(8):
         broken = await db.execute_fetchall("PRAGMA foreign_key_check")
         if not broken:
-            return
+            return before - sum((await current_counts(db)).values())
         fixes = []
         for table, rowid, _parent, key_id in broken:
             if table not in keys:

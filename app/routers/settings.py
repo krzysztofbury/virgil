@@ -647,6 +647,12 @@ async def import_apply(request: Request, token: str):
             await apply_staged(db, stem, token)
         except ImportRefused as refused:
             return error_redirect(request, "/settings?tab=data", str(refused))
+        except Exception:
+            # Rolled back; the checked file stays, so trying again needs no upload.
+            logger.exception("Import apply failed")
+            return error_redirect(
+                request, f"/settings/import/{token}", "The restore did not finish and nothing was changed. Try again."
+            )
     logger.info("JSON import applied for user %s", request.state.user["id"])
     return success_redirect(request, "/settings?tab=data", "Data restored from the export.")
 

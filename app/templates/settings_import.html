@@ -44,6 +44,9 @@
         {% if report.skipped_settings %}
         Not restored, because they belong to the server that made the export: {{ report.skipped_settings | join(', ') }}.
         {% endif %}
+        {% if report.invalid_settings %}
+        Not restored, because their values are outside what Settings allows: {{ report.invalid_settings | join(', ') }}.
+        {% endif %}
     </p>
     <div style="display:flex;flex-wrap:wrap;gap:0.5rem;margin-top:1rem;">
         <form method="POST" action="/settings/import/{{ token }}/apply"

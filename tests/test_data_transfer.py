@@ -217,18 +217,56 @@ def test_an_export_from_an_older_schema_is_upgraded(tmp_path, import_dir):
         target = await _database(tmp_path / "target.db")
         try:
             await source.execute("INSERT INTO daily_logs (date, energy) VALUES ('2026-03-01', 7)")
+            # The older database is also the one likely to hold a leftover of a
+            # row deleted without foreign keys; the newer migrations run on it.
+            await source.commit()
+            await source.execute("PRAGMA foreign_keys=OFF")
+            await source.execute("INSERT INTO feniks_daily (habit_id, date) VALUES (999999, '2026-03-01')")
             await source.commit()
             exported = await export_document(source)
-            await apply_staged(target, STEM, await _stage(exported))
+            token = await _stage(exported)
+            dropped = data_transfer.staged_report(STEM, token)["dropped_orphans"]
+            await apply_staged(target, STEM, token)
             rows = await target.execute_fetchall("SELECT date, energy FROM daily_logs")
-            return exported["schema_version"], [tuple(row) for row in rows]
+            return exported["schema_version"], [tuple(row) for row in rows], dropped
         finally:
             await source.close()
             await target.close()
 
-    version, rows = asyncio.run(run())
+    version, rows, dropped = asyncio.run(run())
     assert version == older
     assert rows == [("2026-03-01", 7)]
+    assert dropped == 1
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("backup_interval_hours", "0.001"),
+        ("backup_max_copies", "100000"),
+        ("oura_sync_interval_hours", "nan"),
+        ("feature_freedom", "yes"),
+        ("llm_reasoning_effort", "maximum"),
+        ("training_days", "every day"),
+        ("theme", 7),
+    ],
+)
+def test_a_setting_outside_what_settings_allows_is_not_restored(tmp_path, import_dir, key, value):
+    async def run():
+        source = await _database(tmp_path / "source.db")
+        try:
+            exported = await export_document(source)
+        finally:
+            await source.close()
+        exported["settings"][key] = value
+        exported["settings"]["backup_enabled"] = "1"
+        report = data_transfer.staged_report(STEM, await _stage(exported))
+        return report
+
+    report = asyncio.run(run())
+    assert report["invalid_settings"] == [key]
+    assert key not in report["settings"]
+    assert "backup_enabled" in report["settings"]
 
 
 def _counts():

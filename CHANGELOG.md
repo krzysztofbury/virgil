@@ -13,7 +13,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The file is checked on a staged copy first, older exports are migrated, and
   the page shows what would change before anything is replaced. A copy of the
   account is saved first. LLM keys, the Oura connection and this server's
-  state are never exported or replaced. docs/recovery.md describes the format.
+  state are never exported or replaced. Settings from the file are checked
+  with the same limits as the Settings forms. docs/recovery.md describes the
+  format.
 - `scripts/load_check.py` measures uploads and background jobs alongside
   ordinary reads on the deployment hardware (#59). It runs in a throwaway
   container from the production image with no network and reports latency, a
@@ -128,6 +130,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- Export CSV covers the same tables as the JSON export: exercise families and
+  aliases are added, and app settings are no longer included.
 - The last of the design review (#95):
   - Oura history shows sleep at one decimal with "h" ("7.3 h", not 7.26 next
     to 7.1), with numbers right-aligned under right-aligned headings.
