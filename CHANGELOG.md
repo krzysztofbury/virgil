@@ -250,6 +250,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   copy the new `docker-compose.yml`, then run `docker compose up -d` (with
   Container Station, edit its compose instead and recreate; see the README). Until
   then backups stay in `data/backups/`, and production startup logs a warning.
+- CI installs the smoke-test browser without apt and caches it, after a slow
+  Ubuntu mirror ran a job past its limit. A test stuck for two minutes dumps
+  every thread's stack, so a hang names its test.
 - `cloudflared`, Watchtower and autoheal are pinned by version and digest, and
   the CI actions, including those in the job that publishes `latest`, by commit.
 - Each per-user migration runs in its own immediate transaction, so a
