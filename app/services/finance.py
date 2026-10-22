@@ -3,8 +3,9 @@
 Amounts are stored as integers in minor units (grosze, cents) of one base
 currency and returned as decimals. A balance holds from its date until the
 account's next one, so a month where one account was not updated still has a
-total, and that account is marked stale. An archived account counts only up
-to its last balance.
+total, and that account is marked stale. An account with no balance yet on
+that date is not stale: it has nothing to carry. An archived account counts
+only up to its last balance.
 
 Unknown is not zero: a score needs an essential monthly cost, at least one
 income source and a status for every scored policy, and says which is missing.
@@ -250,7 +251,7 @@ async def _state(db: aiosqlite.Connection, day: str, layers: list[dict], account
                 "native_amount": from_minor(balance["native_amount_minor"]) if balance else None,
                 "native_currency": balance["native_currency"] if balance else "",
                 "as_of": balance["date"] if balance else None,
-                "stale": balance is None or balance["date"] != snapshot,
+                "stale": balance is not None and balance["date"] != snapshot,
             }
         )
     return {
