@@ -9,8 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Change your password under Settings > Security (#94). Every other device
-  signed in to the account is signed out; this browser stays in. The form
-  shares the sign-in rate limit, so a stolen session cannot guess fast.
+  signed in to the account is signed out; this browser stays in. It, the
+  MFA disable form and factory reset, which all check the password, share the
+  sign-in rate limit, so a stolen session cannot guess it fast.
 - A security-event log on the admin page (#94): sign-ins and failed attempts,
   MFA lockouts, sign-outs, password and MFA changes, factory resets and the
   admin's account actions, each with the client address. It holds no secrets

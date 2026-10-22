@@ -17,8 +17,11 @@ GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
 AUTH_WINDOW_SECONDS = 60
-# /settings/password checks a password too: a stolen session must not get to guess it fast.
-AUTH_PATHS = frozenset({"/login", "/signup", "/mfa/verify", "/settings/password"})
+# The settings forms that check a password share the sign-in limit, so a stolen
+# session cannot guess the password fast through any of them.
+AUTH_PATHS = frozenset(
+    {"/login", "/signup", "/mfa/verify", "/settings/password", "/settings/mfa/disable", "/settings/factory-reset"}
+)
 
 # LLM-backed endpoints cost money per call — a far tighter bucket than GENERAL.
 LLM_LIMIT = 10
