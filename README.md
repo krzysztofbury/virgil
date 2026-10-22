@@ -228,6 +228,7 @@ All configuration via environment variables:
 | `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (empty = API disabled) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | The only account `VIRGIL_API_KEY` may read or write. Required when the key is set. Empty, missing, or deactivated returns 503 for `/api` and `/mcp` and does not fall back to another admin. The web UI keeps working |
 | `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the API key |
+| `VIRGIL_API_FINANCE` | `false` | Expose `/api/finance` (account balances, the cushion, the score and their settings) and the Finance MCP tools over the API key |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 | `VIRGIL_BACKUP_DIR` | `<data>/backups` (`/backups` in compose) | Where backups and pre-migration snapshots are written. Startup moves any left in `<data>/backups` here and logs an error when it is not writable |
 | `VIRGIL_BACKUP_HOST_DIR` | `./backups` | Host directory compose mounts at `/backups` (docker-compose only). Must be writable by uid 1000 |
@@ -491,6 +492,35 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   - `get_measurements`, `log_measurements`, `delete_measurements` →
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
     same bounds the daily form now applies
+
+### Finance (API and MCP; the web page follows)
+A household's financial resilience, without a bank integration. The user
+defines a **fortress**: named layers (seeded as Cash cushion, Protection,
+Independent income and Investments, all renamable), accounts in them, and
+balances recorded once a month.
+
+- Amounts are stored exactly, in minor units of one base currency (default
+  PLN); an account in another currency may also keep its native amount
+- A balance holds until the account's next one, so a month where one account
+  was not updated still has a total and lists that account as stale
+- Accounts can be `own`, `joint` or `excluded` (shown, never counted)
+- Virgil computes the cushion (layers that count toward it), how many months of
+  essential cost it covers (the cost that applied that month), the share of that
+  cost covered by income independent of work and by all stable income, and a
+  score from editable per-layer rules. Seeded rules: cushion 12/6/3/1 months for
+  40/30/20/10 points, policies 35 (life 10, health 8, property 7, vehicle 5,
+  income loss 5; not applicable leaves the total), independent income
+  50/30/20/10% for 25/20/15/10. A missing input makes the score unknown, not zero
+- MCP/REST, all behind `VIRGIL_API_FINANCE=true`:
+  - `get_finance_overview` / `get_finance_history` → `GET /api/finance`,
+    `GET /api/finance/history`
+  - `record_balances` → `PUT /api/finance/balances/{date}`: a whole snapshot in
+    one call, all or none; an unknown account refuses it
+  - `upsert_finance_account` → `PUT /api/finance/accounts`
+  - `set_finance_assumptions` → `GET/PUT /api/finance/assumptions`: essential
+    monthly cost from a date, income sources, insurance policies, base currency
+  - `get_finance_scoring` / `set_finance_scoring` → `GET/PUT
+    /api/finance/scoring`: the layers and their score rules
 
 ### Settings (`/settings`)
 Six-tab settings page:

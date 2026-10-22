@@ -96,3 +96,6 @@ API_USER_EMAIL = os.environ.get("VIRGIL_API_USER_EMAIL", "").strip().lower()
 # /api/noporn returns intimate journal/relapse content — a leaked API key should
 # not expose it by default. Opt in explicitly.
 API_SENSITIVE = os.environ.get("VIRGIL_API_SENSITIVE", "false").lower() == "true"
+# /api/finance returns balances and the safety cushion. Opt in separately, so
+# finances over MCP do not also expose Freedom.
+API_FINANCE = os.environ.get("VIRGIL_API_FINANCE", "false").lower() == "true"

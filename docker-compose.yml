@@ -40,6 +40,8 @@ services:
       VIRGIL_API_USER_EMAIL: ${VIRGIL_API_USER_EMAIL:-}
       # Opt-in: expose /api/noporn (intimate journal content) over the API key.
       VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
+      # Opt-in: expose /api/finance (balances and the cushion) over the API key.
+      VIRGIL_API_FINANCE: ${VIRGIL_API_FINANCE:-false}
       TZ: ${TZ:-Europe/Warsaw}
       VIRGIL_BACKUP_DIR: /backups
       # Told once per start when a database is left unmigrated, and when an

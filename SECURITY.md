@@ -41,6 +41,7 @@ Virgil is a **multi-user, self-hosted** application. The threat model assumes:
 - **Rate limiting**: Per-IP sliding window (120/min general, 10/min auth). Behind a proxy, `VIRGIL_TRUSTED_PROXY_IPS` takes addresses or CIDR ranges
 - **Encryption at rest**: Fernet encryption for OAuth tokens, LLM API keys, and webhook secrets
 - **Sensitive API scope**: `/api/noporn` (intimate journal content) requires explicit `VIRGIL_API_SENSITIVE=true`
+- **Finance API scope**: `/api/finance` (balances and the cushion) requires explicit `VIRGIL_API_FINANCE=true`, separate from the sensitive scope
 - **Security headers**: CSP (scripts from this origin or with a per-response nonce, never inline handlers or eval; every third-party asset is served locally), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, on every response including errors, rate-limit refusals and login redirects
 - **Privacy-safe PWA**: the service worker never caches authenticated HTML — only static assets and the public offline page
 - **Webhook verification**: HMAC-SHA256 signature verification on Oura webhook payloads

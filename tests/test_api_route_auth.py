@@ -79,7 +79,21 @@ def test_freedom_routes_refuse_the_key_without_the_sensitive_scope(auth_client, 
     assert written == 0
 
 
-@pytest.mark.parametrize("path", [p for m, p in ROUTES if m == "GET" and ("GET", p) not in SENSITIVE], ids=lambda p: p)
+# Balances and the cushion: a scope of their own, so finances over MCP do not expose Freedom.
+FINANCE = {(method, path) for method, path in ROUTES if path.startswith("/api/finance")}
+
+
+@pytest.mark.parametrize(("method", "path"), sorted(FINANCE), ids=[f"{m} {p}" for m, p in sorted(FINANCE)])
+def test_finance_routes_refuse_the_key_without_the_finance_scope(auth_client, monkeypatch, method, path):
+    monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    response = auth_client.request(method, _url(path), json={"entries": [], "name": "x"}, headers=KEY)
+    assert response.status_code == 403
+    assert "Finance scope" in response.json()["detail"]
+
+
+@pytest.mark.parametrize(
+    "path", [p for m, p in ROUTES if m == "GET" and ("GET", p) not in SENSITIVE | FINANCE], ids=lambda p: p
+)
 def test_other_reads_do_not_need_the_sensitive_scope(auth_client, path):
     """The other direction: a read missing from the table above answers without the scope."""
     assert auth_client.get(_url(path), headers=KEY).status_code != 403

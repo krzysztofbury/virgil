@@ -1383,3 +1383,140 @@ async def api_delete_measurements(day: str, db: ApiDb):
     if not await delete_measurements(db, _iso_day(day)):
         raise HTTPException(status_code=404, detail="No measurements for that date")
     return {"deleted": True, "date": _iso_day(day)}
+
+
+# --- Finance ---
+
+
+def _require_finance() -> None:
+    from app import config
+
+    if not config.API_FINANCE:
+        raise HTTPException(
+            status_code=403,
+            detail="Finance scope disabled (set VIRGIL_API_FINANCE=true to use finance data)",
+        )
+
+
+async def finance_db(db: ApiDb):
+    """The key first, then the finance scope, both before the body is validated."""
+    _require_finance()
+    return db
+
+
+FinanceDb = Annotated[aiosqlite.Connection, Depends(finance_db)]
+
+
+async def _finance_call(call):
+    from app.services.finance import FinanceError, FinanceNotFound
+
+    try:
+        return await call
+    except FinanceNotFound as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except FinanceError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class ApiFinanceBalances(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    entries: list[dict]
+
+
+class ApiFinanceAccount(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    id: int | None = None
+    name: str | None = None
+    layer: int | str | None = None
+    institution: str | None = None
+    kind: str | None = None
+    currency: str | None = None
+    ownership: str | None = None
+    archived: bool | None = None
+
+
+class ApiFinanceAssumptions(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    essential_monthly_cost: float | str | None = None
+    effective_from: str | None = None
+    income_sources: list[dict] | None = None
+    policies: list[dict] | None = None
+    base_currency: str | None = None
+
+
+class ApiFinanceScoring(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    layers: list[dict] | None = None
+    remove: list[int | str] | None = None
+
+
+@router.get("/finance")
+async def api_finance(db: FinanceDb, day: str | None = Query(None, alias="date")):
+    """The fortress on a date (default today): layers with their accounts and
+    latest balances, the cushion and how many months of essential cost it covers,
+    income shares, policies and the score."""
+    from app.services.finance import overview
+
+    return await _finance_call(overview(db, day))
+
+
+@router.get("/finance/history")
+async def api_finance_history(db: FinanceDb, months: int = Query(12, ge=1, le=240)):
+    from app.services.finance import history
+
+    return await _finance_call(history(db, months))
+
+
+@router.put("/finance/balances/{day}")
+async def api_finance_balances(day: str, payload: ApiFinanceBalances, db: FinanceDb):
+    """Balances of several accounts on one date, all or none. A null amount removes one."""
+    from app.services.finance import record_balances
+
+    return await _finance_call(record_balances(db, day, payload.entries, source="api"))
+
+
+@router.get("/finance/accounts")
+async def api_finance_accounts(db: FinanceDb):
+    from app.services.finance import list_accounts
+
+    return {"accounts": await _finance_call(list_accounts(db))}
+
+
+@router.put("/finance/accounts")
+async def api_finance_account(payload: ApiFinanceAccount, db: FinanceDb):
+    """Create an account, or change the one named by id (or by name)."""
+    from app.services.finance import upsert_account
+
+    return await _finance_call(upsert_account(db, payload.model_dump(exclude_unset=True)))
+
+
+@router.get("/finance/assumptions")
+async def api_finance_assumptions(db: FinanceDb):
+    from app.services.finance import assumptions
+
+    return await _finance_call(assumptions(db))
+
+
+@router.put("/finance/assumptions")
+async def api_finance_set_assumptions(payload: ApiFinanceAssumptions, db: FinanceDb):
+    from app.services.finance import set_assumptions
+
+    return await _finance_call(set_assumptions(db, payload.model_dump(exclude_unset=True)))
+
+
+@router.get("/finance/scoring")
+async def api_finance_scoring(db: FinanceDb):
+    from app.services.finance import scoring
+
+    return await _finance_call(scoring(db))
+
+
+@router.put("/finance/scoring")
+async def api_finance_set_scoring(payload: ApiFinanceScoring, db: FinanceDb):
+    from app.services.finance import set_scoring
+
+    return await _finance_call(set_scoring(db, payload.layers, payload.remove))
