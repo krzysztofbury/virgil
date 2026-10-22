@@ -130,6 +130,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   accept family, default equipment and aliases, also on builtin entries.
 
 ### Changed
+- The Virgil container gets `mem_limit: 1g` in docker-compose.yml (#122). The
+  load check on the NAS, rerun after the event-loop fixes, peaked at 585 MB;
+  docs/load-check.md has the results.
 - Export CSV covers the same tables as the JSON export: exercise families and
   aliases are added, and app settings are no longer included.
 - The last of the design review (#95):

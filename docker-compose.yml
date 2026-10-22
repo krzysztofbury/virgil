@@ -12,6 +12,8 @@ services:
     container_name: virgil
     restart: unless-stopped
     init: true
+    # The load check peaked at 585 MB on the NAS (docs/load-check.md, #122).
+    mem_limit: 1g
     labels:
       # Opt-in marker for Watchtower (WATCHTOWER_LABEL_ENABLE) — only this
       # container is auto-updated.

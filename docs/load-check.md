@@ -148,3 +148,37 @@ Against a refusing stand-in provider, 2 accounts, 6 readers, 40 s, 10 MB uploads
 
 Sign-in now checks the password in a thread, which leaves other requests
 running for those 0.2 s.
+
+### After #122, deployment hardware, 2026-10-22
+
+The same NAS and command as on 2026-10-21, with the image `12722d3`. The
+imports now fail against the load check's refusing stand-in provider, the case
+that stalled the server before #122.
+
+| Phase | Request | Count | p50 ms | p95 ms | max ms | Statuses |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| Reads | read | 518 | 35 | 251 | 2050 | 200: 518 |
+| Reads | liveness probe | 172 | 6 | 23 | 174 | 200: 172 |
+| Mixed | read | 470 | 61 | 671 | 1442 | 200: 470 |
+| Mixed | daily save | 20 | 195 | 861 | 876 | 200: 20 |
+| Mixed | backup now | 9 | 145 | 207 | 224 | 303: 9 |
+| Mixed | upload 10 MB | 10 | 610 | 1812 | 1958 | 303: 10 |
+| Mixed | liveness probe | 160 | 8 | 139 | 343 | 200: 160 |
+
+Jobs: all 9 backups succeeded, a median of 1.0 s from queued to finished (max
+1.5 s). All 10 imports failed at the provider as expected, after 1.6 s (max
+3.3 s). The queue was empty when the load stopped. The server log holds only
+those refusals.
+
+Compared with 2026-10-21:
+
+- **Stalls:** while imports failed, the liveness probe's p95 fell from 216 ms
+  to 139 ms and its worst time from 389 ms to 343 ms, now with the provider
+  call included. Reads in that phase fell from a p95 of 1040 ms to 671 ms.
+- **Memory:** the peak during uploads fell from 723 MB to 570 MB (high-water
+  585 MB) and was 492 MB afterwards.
+
+The container gets `mem_limit: 1g` in docker-compose.yml: about 1.7 times the
+high-water mark, measured at several times the household's load. A server
+that grows past it is restarted rather than taking memory from the rest of
+the NAS.
