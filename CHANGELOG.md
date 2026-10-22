@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-10-22
+
 ### Added
 - Finance over the API and MCP (#135): a fortress of user-defined layers,
   accounts and monthly balances, with the cushion, cushion months, income
