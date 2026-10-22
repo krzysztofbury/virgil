@@ -45,12 +45,20 @@ jobs:
         env:
           SKIP: no-commit-to-branch
         run: uv run --locked --extra dev pre-commit run --all-files
+      # No --with-deps: the runner image already carries Chrome's libraries,
+      # and apt against the Ubuntu mirror was the step that stalled CI.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('uv.lock') }}
       - name: Browser for the smoke test
-        run: uv run --locked --extra dev playwright install --with-deps chromium
+        timeout-minutes: 3
+        run: uv run --locked --extra dev playwright install chromium
       - name: Tests
         env:
           # tests/test_browser_smoke.py fails instead of skipping without a browser.
           VIRGIL_REQUIRE_BROWSER: '1'
+        # A test stuck past faulthandler_timeout dumps every thread's stack.
         run: uv run --locked --extra dev pytest -q
       - name: Locked MCP stdio
         run: |
