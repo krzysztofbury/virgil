@@ -493,7 +493,7 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
     same bounds the daily form now applies
 
-### Finance (API and MCP; the web page follows)
+### Finance (`/finance`)
 A household's financial resilience, without a bank integration. The user
 defines a **fortress**: named layers (seeded as Cash cushion, Protection,
 Independent income and Investments, all renamable), accounts in them, and
@@ -513,6 +513,12 @@ balances recorded once a month.
   50/30/20/10% for 25/20/15/10. The score is given twice: with income independent
   of work only, and with all stable income. A missing input makes the score
   unknown, not zero
+- The page (on under Settings > Modules) shows the cushion, its months, the
+  score and the share covered by independent income, the cushion over time,
+  each layer with its accounts, policies or income, and a "Record balances"
+  form that starts at the latest balances. `/finance/setup` edits the layers
+  and their rules (thresholds written as `12:40, 6:30`), accounts, essential
+  cost, income and insurance
 - MCP/REST, all behind `VIRGIL_API_FINANCE=true`:
   - `get_finance_overview` / `get_finance_history` → `GET /api/finance`,
     `GET /api/finance/history`

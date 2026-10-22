@@ -304,7 +304,9 @@ async def overview(db: aiosqlite.Connection, day: str | None = None) -> dict:
                 "counts_toward_cushion": layer["counts_toward_cushion"],
                 "total": from_minor(state["layer_totals"][layer["id"]]),
                 "accounts": [account for account in state["accounts"] if account["layer_id"] == layer["id"]],
-                "score": None if result is None else {**result, "max_points": layer["rule"]["max_points"]},
+                "score": None
+                if result is None
+                else {**result, "metric": layer["rule"]["metric"], "max_points": layer["rule"]["max_points"]},
             }
         )
     for layer in scored:

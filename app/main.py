@@ -341,6 +341,7 @@ from app.routers import (  # noqa: E402
     daily,
     dashboard,
     experiments,
+    finance,
     freedom,
     goals,
     jobs,
@@ -358,6 +359,7 @@ app.include_router(dashboard.router)
 app.include_router(daily.router)
 app.include_router(training.router)
 app.include_router(freedom.router)
+app.include_router(finance.router)
 app.include_router(oura.router)
 app.include_router(oura_webhook.router)
 app.include_router(bloodwork.router)

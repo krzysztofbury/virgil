@@ -13,7 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   shares, insurance policies and a score from editable rules. Seven MCP tools
   record a month in one call and read it back; every route needs
   `VIRGIL_API_FINANCE=true`. Finance is part of the JSON export and restore.
-  The web page follows.
+- The Finance page (#135), on under Settings > Modules: the cushion, its
+  months, the score, the cushion over time, each layer with its accounts,
+  policies or income, and a form that records a month starting from the
+  latest balances. Finance setup edits layers and their score rules,
+  accounts, essential cost, income and insurance.
 - Restore one account from a JSON export (#48). Export JSON is now a versioned
   document that names its schema version, and Settings > Data can restore one.
   The file is checked on a staged copy first, older exports are migrated, and
