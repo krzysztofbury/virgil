@@ -6,6 +6,7 @@ from datetime import UTC, datetime
 
 from app.central_db import get_active_users
 from app.db import get_setting, set_setting
+from app.services.data_transfer import remove_stale_imports
 from app.services.goal_data import purge_deleted_goals
 from app.services.job_producers import (
     BACKUP_JOB_KIND,
@@ -255,6 +256,12 @@ async def scheduler_tick() -> None:
     # Per-user backups never cover the registry. This function self-limits to
     # once per 24 hours.
     await maybe_backup_central()
+
+    # A JSON import nobody confirmed holds a copy of someone's data.
+    try:
+        await asyncio.to_thread(remove_stale_imports)
+    except Exception:
+        logger.exception("Removing stale imports failed")
 
     # Self-limits to one run a day; account deletions go out every tick. In the
     # background: an upload on a slow line must not hold up everyone's jobs.

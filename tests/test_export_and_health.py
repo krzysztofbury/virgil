@@ -18,13 +18,13 @@ def test_json_export_includes_all_user_tables(auth_client):
         "experiment_summaries",
         "daily_briefings",
         "exercise_library",
-        "app_settings",
         "goal_reps",
     ):
-        assert table in data, f"{table} missing from JSON export"
+        assert table in data["tables"], f"{table} missing from JSON export"
+    assert data["settings"]["onboarding_completed"] == "1"
     # Credentials must never be exported.
-    assert "llm_providers" not in data
-    assert "integrations" not in data
+    assert "llm_providers" not in data["tables"]
+    assert "integrations" not in data["tables"]
 
 
 def test_markdown_export_is_a_download_of_the_chosen_sections(auth_client):

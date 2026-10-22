@@ -265,3 +265,29 @@ def test_phone_tables_fit_and_the_header_keeps_log_out_away_from_settings(site):
         assert problems == []
     finally:
         context.close()
+
+
+def test_a_json_export_restores_through_the_check_page(site, tmp_path):
+    """#48: the upload is multipart, the confirm asks first, and the report fits a phone."""
+    context, page, problems, base = _signed_in(site, WIDTHS["phone"])
+    try:
+        page.goto(f"{base}/settings?tab=data")
+        with page.expect_download() as download:
+            page.get_by_role("link", name="Export JSON").click()
+        export = tmp_path / "export.json"
+        download.value.save_as(export)
+
+        page.set_input_files("input[name=file]", str(export))
+        page.get_by_role("button", name="Check file").click()
+        page.wait_for_url("**/settings/import/*")
+        assert page.get_by_role("cell", name="Daily logs").count() == 1
+        overflow = page.evaluate("document.documentElement.scrollWidth - window.innerWidth")
+        assert overflow <= 0, f"the check page is {overflow}px wider than a phone"
+
+        page.once("dialog", lambda dialog: dialog.accept())
+        page.get_by_role("button", name="Replace my data").click()
+        page.wait_for_url("**/settings?tab=data*")
+        assert "Data restored" in page.content()
+        assert problems == []
+    finally:
+        context.close()

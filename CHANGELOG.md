@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Restore one account from a JSON export (#48). Export JSON is now a versioned
+  document that names its schema version, and Settings > Data can restore one.
+  The file is checked on a staged copy first, older exports are migrated, and
+  the page shows what would change before anything is replaced. A copy of the
+  account is saved first. LLM keys, the Oura connection and this server's
+  state are never exported or replaced. docs/recovery.md describes the format.
 - `scripts/load_check.py` measures uploads and background jobs alongside
   ordinary reads on the deployment hardware (#59). It runs in a throwaway
   container from the production image with no network and reports latency, a

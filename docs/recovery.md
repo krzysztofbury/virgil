@@ -211,3 +211,28 @@ Pre-migration snapshots are under `pre-migration/` inside that directory and ret
 schema version in `*-pre-migration-vNNN.db`. They are not complete bundles and do
 not include the encryption key. Restore a consistent matching set when reversing
 a schema deployment; an older image alone cannot undo a migration.
+
+## One account from a JSON export
+
+Settings > Data > Export JSON downloads one account's data as a versioned
+document: `format` (`virgil-user-data`), `format_version` (1), the account's
+`schema_version`, `exported_at`, the portable `settings` and one list of rows
+per table. LLM keys, the Oura connection, the job queue and this server's own
+state (the Oura webhook id, last-run times) are not in it.
+
+Restore from JSON on the same page uploads such a file and checks it first, on
+a staged copy, without touching the account. The export's schema version is
+rebuilt, the rows are loaded, the newer migrations run, and every reference
+and SQLite's integrity check must pass. A file made by a newer Virgil, or one
+with a missing table, an unknown column or a broken reference, is refused in
+full. The next page shows how many rows of each kind the account has now and
+would have after the restore. Confirming replaces all of the account's data in
+one transaction, with row ids kept; a staged check expires after an hour and
+can be confirmed once.
+
+Right before replacing anything, a copy of the account is saved under
+`pre-import/` inside the backup directory as `*-pre-import-<UTC time>.db`; the
+newest three are kept. To undo an import, stop Virgil, remove the account's
+`data/users/<file>.db-wal` and `-shm`, copy the snapshot over
+`data/users/<file>.db` (the snapshot's name starts with that file's name) and
+start Virgil again.

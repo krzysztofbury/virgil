@@ -522,6 +522,22 @@
     </div>
 </div>
 
+<!-- Restore from a JSON export -->
+<div class="card" style="margin-top: 1rem;">
+    <div class="card-header"><h3>Restore from JSON</h3></div>
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
+        Replace your data with an Export JSON file, from this server or another one.
+        The file is checked first and you see what would change before anything is replaced.
+        LLM keys, the Oura connection and your login are not part of an export and stay as they are.
+    </p>
+    <form method="POST" action="/settings/import" enctype="multipart/form-data">
+        <label>Export file
+            <input type="file" name="file" accept=".json,application/json" required class="file-input">
+        </label>
+        <button type="submit" class="btn btn-outline" style="margin-top: 0.75rem;">Check file</button>
+    </form>
+</div>
+
 {% elif active_tab == 'automation' %}
 <!-- ═══ AUTOMATION TAB ═══ -->
 
