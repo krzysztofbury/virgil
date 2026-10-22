@@ -23,7 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   days; only a hash of its secret is stored, and uvicorn's access log records
   `invite=[redacted]`. The signup it opens checks and uses up the invite in
   the same transaction as the new account; a wrong address or a taken one
-  leaves the link usable. Open invites can be revoked. Each account is
+  leaves the link usable. Open invites can be revoked, and an invite stops
+  working once its issuer is no longer an active admin. Each account is
   separate: its own data, sign-in and keys.
 - Admins can make another account an admin or a user (#94).
 
@@ -32,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Accounts in `VIRGIL_ADMIN_EMAILS` can no longer be disabled, demoted or
   deleted from the admin page; delete was only hidden before, and disable was
   allowed (#94).
+- An address in `VIRGIL_ADMIN_EMAILS` can no longer be claimed by someone else
+  (#94). Nothing verifies email ownership and the list promotes on every
+  restart, so after the first account such an address comes in only through
+  an invite made for exactly that address; open registration refuses it.
 - Central migration 004 adds the event log and a per-account flag for using
   the server's LLM key, ahead of invites. Existing accounts keep the key; new
   accounts after the first start without it. Nothing reads the flag yet. The

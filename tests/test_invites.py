@@ -216,3 +216,65 @@ def test_the_access_log_keeps_no_invite_secret(caplog):
         access.info('%s - "%s %s HTTP/%s" %d', "203.0.113.9", "GET", "/signup?invite=s3cr3t-Value_1&x=1", "1.1", 200)
     assert "s3cr3t" not in caplog.text
     assert "/signup?invite=[redacted]&x=1" in caplog.text
+
+
+def test_a_break_glass_address_needs_an_invite_made_for_it(auth_client, client, monkeypatch):
+    """Nothing verifies email ownership, and VIRGIL_ADMIN_EMAILS promotes on every restart."""
+    import app.central_db as central_db
+    import app.routers.auth as auth
+
+    reserved = [*central_db.ADMIN_EMAILS, "boss@example.com"]
+    monkeypatch.setattr(central_db, "ADMIN_EMAILS", reserved)
+    monkeypatch.setattr(auth, "ADMIN_EMAILS", reserved)
+    open_invite, _ = _create_invite(auth_client, email="")
+    bound_invite, _ = _create_invite(auth_client, email="boss@example.com")
+    try:
+        refused = _signup(client, open_invite, "boss@example.com")
+        assert refused.status_code == 200
+        assert "This address is reserved on this server." in refused.text
+        central = _central()
+        assert central.execute("SELECT 1 FROM users WHERE email = 'boss@example.com'").fetchone() is None
+        central.close()
+
+        assert _signup(client, bound_invite, "boss@example.com").status_code == 303
+        central = _central()
+        assert central.execute("SELECT role FROM users WHERE email = 'boss@example.com'").fetchone() == ("admin",)
+        central.close()
+        assert _signup(client, open_invite, "someone@example.com").status_code == 303, "the open link survived"
+    finally:
+        client.cookies.clear()
+        _remove_account("boss@example.com")
+        _remove_account("someone@example.com")
+
+
+def test_an_invite_dies_with_its_issuers_admin_role(auth_client, client):
+    invite, _ = _create_invite(auth_client, email="")
+    central = _central()
+    try:
+        central.execute("UPDATE users SET role = 'user' WHERE email = 'test@example.com'")
+        central.commit()
+        client.cookies.clear()
+        assert "This invite link is invalid, used or expired." in client.get(f"/signup?invite={invite}").text
+    finally:
+        central.execute("UPDATE users SET role = 'admin' WHERE email = 'test@example.com'")
+        central.commit()
+        central.execute("DELETE FROM invites")
+        central.commit()
+        central.close()
+        client.cookies.clear()
+
+    other = _insert_admin("issuer@example.com")
+    central = _central()
+    central.execute(
+        "INSERT INTO invites (id, token_hash, created_by, expires_at) VALUES ('i-1', 'h-1', ?, '2999-01-01T00:00:00Z')",
+        (other,),
+    )
+    central.commit()
+    try:
+        token = csrf_token(auth_client, "/admin/users")
+        auth_client.post(f"/admin/users/{other}/role", data={"role": "user", "_csrf_token": token})
+        assert central.execute("SELECT COUNT(*) FROM invites WHERE created_by = ?", (other,)).fetchone() == (0,)
+    finally:
+        central.execute("DELETE FROM users WHERE id = ?", (other,))
+        central.commit()
+        central.close()

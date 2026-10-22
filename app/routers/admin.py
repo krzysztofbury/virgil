@@ -17,6 +17,7 @@ from app.central_db import (
     list_open_invites,
     record_auth_event,
     revoke_invite,
+    revoke_invites_created_by,
     update_user,
 )
 from app.config import ADMIN_EMAILS, BASE_URL, REGISTRATION_OPEN
@@ -128,6 +129,8 @@ async def change_role(request: Request, user_id: str, role: str = Form(...)):
     if not await get_user_by_id(user_id):
         return error_redirect(request, "/admin/users", "User account was not found.")
     await update_user(user_id, role=role)
+    if role == "user":
+        await revoke_invites_created_by(user_id)
     await _event(request, "role_change", user_id, admin, f"to {role}")
     return success_redirect(request, "/admin/users", "Role changed.")
 
@@ -149,6 +152,7 @@ async def disable_user(request: Request, user_id: str):
         return error_redirect(
             request, "/admin/users", "Disable the user's remote subscriptions before disabling the account."
         )
+    await revoke_invites_created_by(user_id)
     await _event(request, "user_disable", user_id, admin)
     return success_redirect(request, "/admin/users", "User account disabled.")
 

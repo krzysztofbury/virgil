@@ -445,15 +445,19 @@ async def create_invite(
     return token
 
 
+# An invite counts only while it is unused, unexpired, and its issuer is still an
+# active admin: demoting or disabling an admin withdraws what they vouched for.
+_OPEN_INVITE = """SELECT i.* FROM invites i JOIN users u ON u.id = i.created_by
+                  WHERE i.token_hash = ? AND i.used_at = '' AND i.expires_at > ?
+                    AND u.role = 'admin' AND u.is_active = 1"""
+
+
 async def get_open_invite(token: str) -> dict | None:
-    """The unused, unexpired invite behind a link, or None."""
+    """The usable invite behind a link, or None."""
     if not token:
         return None
     db = await get_central_db()
-    rows = await db.execute_fetchall(
-        "SELECT * FROM invites WHERE token_hash = ? AND used_at = '' AND expires_at > ?",
-        (_token_hash(token), _utc_stamp(datetime.now(UTC))),
-    )
+    rows = await db.execute_fetchall(_OPEN_INVITE, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
     return dict(rows[0]) if rows else None
 
 
@@ -462,11 +466,18 @@ async def list_open_invites() -> list[dict]:
     rows = await db.execute_fetchall(
         """SELECT i.id, i.email, i.role, i.allow_shared_llm, i.created_at, i.expires_at, u.email AS created_by_email
            FROM invites i JOIN users u ON u.id = i.created_by
-           WHERE i.used_at = '' AND i.expires_at > ?
+           WHERE i.used_at = '' AND i.expires_at > ? AND u.role = 'admin' AND u.is_active = 1
            ORDER BY i.created_at DESC""",
         (_utc_stamp(datetime.now(UTC)),),
     )
     return [dict(row) for row in rows]
+
+
+async def revoke_invites_created_by(user_id: str) -> None:
+    """Drop the unused invites of an admin who was demoted or disabled."""
+    db = await get_central_db()
+    await db.execute("DELETE FROM invites WHERE created_by = ? AND used_at = ''", (user_id,))
+    await db.commit()
 
 
 async def revoke_invite(invite_id: str) -> bool:
@@ -481,8 +492,12 @@ async def create_user_from_invite(
 ) -> tuple[str, dict | None]:
     """Create the account an invite allows and use the invite up, in one transaction.
 
-    Returns ("created", user), or ("invalid" | "email_mismatch" | "email_taken", None)
-    with the invite left untouched, so a typo does not burn the link.
+    Returns ("created", user), or ("invalid" | "email_mismatch" | "email_reserved" |
+    "email_taken", None) with the invite left untouched, so a typo does not burn the link.
+
+    The account gets the invite's role. An address in VIRGIL_ADMIN_EMAILS is an
+    admin after every restart and nothing verifies email ownership, so such an
+    address only comes in through an invite made for exactly that address.
     """
     email = email.strip().lower()
     pw_hash = await hash_password_async(password)
@@ -490,15 +505,14 @@ async def create_user_from_invite(
     async with _subscription_connection() as db:
         await db.execute("BEGIN IMMEDIATE")
         try:
-            rows = await db.execute_fetchall(
-                "SELECT * FROM invites WHERE token_hash = ? AND used_at = '' AND expires_at > ?",
-                (_token_hash(token), _utc_stamp(datetime.now(UTC))),
-            )
+            rows = await db.execute_fetchall(_OPEN_INVITE, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
             status = "created"
             if not rows:
                 status = "invalid"
             elif rows[0]["email"] and rows[0]["email"] != email:
                 status = "email_mismatch"
+            elif email in ADMIN_EMAILS and rows[0]["email"] != email:
+                status = "email_reserved"
             elif await db.execute_fetchall("SELECT 1 FROM users WHERE email = ?", (email,)):
                 status = "email_taken"
             if status != "created":

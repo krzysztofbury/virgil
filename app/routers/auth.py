@@ -34,7 +34,7 @@ from app.central_db import (
     reopen_invite_used_by,
     update_user,
 )
-from app.config import REGISTRATION_OPEN
+from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
 from app.main import templates
 from app.rate_limit import client_ip
@@ -107,6 +107,7 @@ async def registration_allowed() -> bool:
 
 
 INVITE_UNUSABLE = "This invite link is invalid, used or expired. Ask for a new one."
+RESERVED_ADDRESS = "This address is reserved on this server. Ask an admin for an invite made for it."
 
 
 def _signup_response(request: Request, **context):
@@ -194,12 +195,18 @@ async def signup_submit(
             return error_redirect(request, "/login", INVITE_UNUSABLE)
         if status == "email_mismatch":
             return _render_error("This invite is for a different email address.")
+        if status == "email_reserved":
+            return _render_error(RESERVED_ADDRESS)
         if status == "email_taken":
             return _render_error("An account with that email already exists.")
     else:
         existing = await get_user_by_email(email)
         if existing:
             return _render_error("An account with that email already exists.")
+        # Open registration verifies no address, and VIRGIL_ADMIN_EMAILS makes one an
+        # admin: only the first account, the operator's, may claim such an address here.
+        if email in ADMIN_EMAILS and await count_users() > 0:
+            return _render_error(RESERVED_ADDRESS)
 
         # With registration closed we're only here via the bootstrap-first-user
         # rule, so the INSERT itself enforces it and two concurrent first signups
