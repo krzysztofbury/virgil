@@ -44,8 +44,17 @@
                     </td>
                     <td><small>{{ u.last_login_at[:16] if u.last_login_at else 'Never' }}</small></td>
                     <td><small>{{ u.created_at[:10] if u.created_at else '-' }}</small></td>
-                    <td style="display:flex;gap:0.25rem;">
-                        {% if u.is_active %}
+                    <td><div class="row-actions">
+                        {% set protected = u.email in admin_emails %}
+                        {% set is_me = u.id == request.state.user.id %}
+                        {% if not is_me and not (protected and u.role == 'admin') %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/role" style="margin:0;">
+                            <input type="hidden" name="role" value="{{ 'user' if u.role == 'admin' else 'admin' }}">
+                            <button type="submit" class="btn btn-sm btn-outline">{{ 'Make user' if u.role == 'admin' else 'Make admin' }}</button>
+                        </form>
+                        {% endif %}
+                        {% if protected or is_me %}
+                        {% elif u.is_active %}
                         <form method="POST" action="/admin/users/{{ u.id }}/disable" style="margin:0;">
                             <button type="submit" class="btn btn-sm btn-outline">Disable</button>
                         </form>
@@ -54,18 +63,75 @@
                             <button type="submit" class="btn btn-sm btn-outline">Enable</button>
                         </form>
                         {% endif %}
-                        {% if u.email not in admin_emails %}
+                        {% if not protected and not is_me %}
                         <form method="POST" action="/admin/users/{{ u.id }}/delete" style="margin:0;"
                               data-confirm="Delete user {{ u.email }}? This removes all their data and its backups.">
                             <button type="submit" class="btn btn-sm btn-outline" style="color:var(--red);">Delete</button>
                         </form>
                         {% endif %}
+                    </div></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card" style="margin-top:1rem;" id="invites">
+    <div class="card-header"><h3>Invites</h3></div>
+    {% if new_invite_link %}
+    <div class="invite-link" role="status">
+        <p><strong>Send this link{% if new_invite_email %} to {{ new_invite_email }}{% endif %}.</strong>
+            It works once, for {{ invite_days }} days, and is not shown again.</p>
+        <input type="text" value="{{ new_invite_link }}" readonly aria-label="Invite link">
+    </div>
+    {% endif %}
+    <p class="text-muted" style="font-size:0.85rem;">
+        Registration is {{ 'open' if registration_open else 'closed' }}; an invite lets one person create an account
+        anyway. Each account is separate: its own data, sign-in and keys.
+    </p>
+    <details {% if not invites and not new_invite_link %}open{% endif %}>
+        <summary style="cursor:pointer;">Create an invite</summary>
+        <form method="POST" action="/admin/invites" class="invite-form">
+            <div class="grid">
+                <div><label>Email <small class="text-muted">(optional: only this address can use it)</small>
+                    <input type="email" name="email" autocomplete="off">
+                </label></div>
+                <div><label>Role
+                    <select name="role">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </label></div>
+            </div>
+            <label class="checkbox-label"><input type="checkbox" name="allow_shared_llm" value="1">
+                May use this server's LLM key when they have none of their own</label>
+            <button type="submit" class="btn btn-primary btn-sm">Create invite link</button>
+        </form>
+    </details>
+    {% if invites %}
+    <div class="overflow-x" style="margin-top:0.75rem;">
+        <table>
+            <thead><tr><th>For</th><th>Role</th><th>Server LLM key</th><th>Expires (UTC)</th><th>Created by</th><th></th></tr></thead>
+            <tbody>
+                {% for i in invites %}
+                <tr>
+                    <td>{{ i.email or 'Any address' }}</td>
+                    <td>{{ i.role | capitalize }}</td>
+                    <td>{{ 'Yes' if i.allow_shared_llm else 'No' }}</td>
+                    <td><small>{{ i.expires_at[:16] | replace('T', ' ') }}</small></td>
+                    <td><small>{{ i.created_by_email }}</small></td>
+                    <td>
+                        <form method="POST" action="/admin/invites/{{ i.id }}/revoke" style="margin:0;">
+                            <button type="submit" class="btn btn-sm btn-outline">Revoke</button>
+                        </form>
                     </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
+    {% endif %}
 </div>
 
 <div class="card" style="margin-top:1rem;">

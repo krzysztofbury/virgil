@@ -2,7 +2,9 @@
 
 import asyncio
 import fcntl
+import hashlib
 import logging
+import secrets
 import uuid
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
@@ -364,6 +366,10 @@ AUTH_EVENTS = frozenset(
         "logout",
         "password_change",
         "factory_reset",
+        "invite_create",
+        "invite_revoke",
+        "invite_consume",
+        "role_change",
         "user_disable",
         "user_enable",
         "user_delete",
@@ -405,6 +411,136 @@ async def prune_auth_events(days: int = AUTH_EVENT_RETENTION_DAYS) -> int:
     cursor = await db.execute("DELETE FROM auth_events WHERE created_at < datetime('now', ?)", (f"-{int(days)} days",))
     await db.commit()
     return cursor.rowcount
+
+
+INVITE_TTL_DAYS = 7
+
+
+def _token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+async def create_invite(
+    created_by: str, *, email: str = "", role: str = "user", allow_shared_llm: bool = False, days: int = INVITE_TTL_DAYS
+) -> str:
+    """Store a single-use invite and return the link's secret. Only its hash is kept."""
+    if role not in ("user", "admin"):
+        raise ValueError(f"Unknown role: {role}")
+    token = secrets.token_urlsafe(32)
+    db = await get_central_db()
+    await db.execute(
+        """INSERT INTO invites (id, token_hash, email, role, allow_shared_llm, created_by, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            str(uuid.uuid4()),
+            _token_hash(token),
+            email.strip().lower(),
+            role,
+            int(allow_shared_llm),
+            created_by,
+            _utc_stamp(datetime.now(UTC) + timedelta(days=days)),
+        ),
+    )
+    await db.commit()
+    return token
+
+
+# An invite counts only while it is unused, unexpired, and its issuer is still an
+# active admin: demoting or disabling an admin withdraws what they vouched for.
+_OPEN_INVITE = """SELECT i.* FROM invites i JOIN users u ON u.id = i.created_by
+                  WHERE i.token_hash = ? AND i.used_at = '' AND i.expires_at > ?
+                    AND u.role = 'admin' AND u.is_active = 1"""
+
+
+async def get_open_invite(token: str) -> dict | None:
+    """The usable invite behind a link, or None."""
+    if not token:
+        return None
+    db = await get_central_db()
+    rows = await db.execute_fetchall(_OPEN_INVITE, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
+    return dict(rows[0]) if rows else None
+
+
+async def list_open_invites() -> list[dict]:
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        """SELECT i.id, i.email, i.role, i.allow_shared_llm, i.created_at, i.expires_at, u.email AS created_by_email
+           FROM invites i JOIN users u ON u.id = i.created_by
+           WHERE i.used_at = '' AND i.expires_at > ? AND u.role = 'admin' AND u.is_active = 1
+           ORDER BY i.created_at DESC""",
+        (_utc_stamp(datetime.now(UTC)),),
+    )
+    return [dict(row) for row in rows]
+
+
+async def revoke_invites_created_by(user_id: str) -> None:
+    """Drop the unused invites of an admin who was demoted or disabled."""
+    db = await get_central_db()
+    await db.execute("DELETE FROM invites WHERE created_by = ? AND used_at = ''", (user_id,))
+    await db.commit()
+
+
+async def revoke_invite(invite_id: str) -> bool:
+    db = await get_central_db()
+    cursor = await db.execute("DELETE FROM invites WHERE id = ? AND used_at = ''", (invite_id,))
+    await db.commit()
+    return cursor.rowcount == 1
+
+
+async def create_user_from_invite(
+    token: str, email: str, password: str, display_name: str = ""
+) -> tuple[str, dict | None]:
+    """Create the account an invite allows and use the invite up, in one transaction.
+
+    Returns ("created", user), or ("invalid" | "email_mismatch" | "email_reserved" |
+    "email_taken", None) with the invite left untouched, so a typo does not burn the link.
+
+    The account gets the invite's role. An address in VIRGIL_ADMIN_EMAILS is an
+    admin after every restart and nothing verifies email ownership, so such an
+    address only comes in through an invite made for exactly that address.
+    """
+    email = email.strip().lower()
+    pw_hash = await hash_password_async(password)
+    user_id = str(uuid.uuid4())
+    async with _subscription_connection() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            rows = await db.execute_fetchall(_OPEN_INVITE, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
+            status = "created"
+            if not rows:
+                status = "invalid"
+            elif rows[0]["email"] and rows[0]["email"] != email:
+                status = "email_mismatch"
+            elif email in ADMIN_EMAILS and rows[0]["email"] != email:
+                status = "email_reserved"
+            elif await db.execute_fetchall("SELECT 1 FROM users WHERE email = ?", (email,)):
+                status = "email_taken"
+            if status != "created":
+                await db.rollback()
+                return status, None
+            invite = rows[0]
+            role = "admin" if invite["role"] == "admin" or email in ADMIN_EMAILS else "user"
+            await db.execute(
+                """INSERT INTO users (id, email, password_hash, display_name, role, db_filename, allow_shared_llm)
+                   VALUES (?, ?, ?, ?, ?, ?, ?)""",
+                (user_id, email, pw_hash, display_name, role, f"{user_id}.db", invite["allow_shared_llm"]),
+            )
+            await db.execute(
+                "UPDATE invites SET used_at = ?, used_by = ? WHERE id = ?",
+                (_utc_stamp(datetime.now(UTC)), user_id, invite["id"]),
+            )
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
+    return "created", await get_user_by_id(user_id)
+
+
+async def reopen_invite_used_by(user_id: str) -> None:
+    """Give an invite back when the account it created could not be provisioned."""
+    db = await get_central_db()
+    await db.execute("UPDATE invites SET used_at = '', used_by = '' WHERE used_by = ?", (user_id,))
+    await db.commit()
 
 
 async def count_users() -> int:

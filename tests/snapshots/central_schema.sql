@@ -22,6 +22,20 @@ CREATE TABLE central_schema_migrations (
                     applied_at TEXT NOT NULL DEFAULT (datetime('now'))
                 );
 
+-- table invites
+CREATE TABLE invites (
+            id TEXT PRIMARY KEY,
+            token_hash TEXT NOT NULL UNIQUE,
+            email TEXT NOT NULL DEFAULT '',
+            role TEXT NOT NULL DEFAULT 'user' CHECK(role IN ('user', 'admin')),
+            allow_shared_llm INTEGER NOT NULL DEFAULT 0 CHECK(allow_shared_llm IN (0, 1)),
+            created_by TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            used_at TEXT NOT NULL DEFAULT '',
+            used_by TEXT NOT NULL DEFAULT ''
+        );
+
 -- table provider_subscription_items
 CREATE TABLE provider_subscription_items (
             user_id TEXT NOT NULL,
