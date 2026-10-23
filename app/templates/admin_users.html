@@ -9,6 +9,14 @@
     </div>
 </div>
 
+{% if reset_link %}
+<div class="card invite-link" role="status" style="margin-bottom:1rem;">
+    <p><strong>Send this link to {{ reset_email }}.</strong> It sets a new password once, works for
+        {{ reset_minutes }} minutes and is not shown again. Their other sessions end when it is used.</p>
+    <input type="text" value="{{ reset_link }}" readonly aria-label="Password reset link">
+</div>
+{% endif %}
+
 <div class="card">
     <div class="overflow-x">
         <table>
@@ -51,6 +59,11 @@
                         <form method="POST" action="/admin/users/{{ u.id }}/role" style="margin:0;">
                             <input type="hidden" name="role" value="{{ 'user' if u.role == 'admin' else 'admin' }}">
                             <button type="submit" class="btn btn-sm btn-outline">{{ 'Make user' if u.role == 'admin' else 'Make admin' }}</button>
+                        </form>
+                        {% endif %}
+                        {% if not is_me and not protected and u.is_active %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/reset-link">
+                            <button type="submit" class="btn btn-sm btn-outline">Reset link</button>
                         </form>
                         {% endif %}
                         {% if protected or is_me %}

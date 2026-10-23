@@ -8,7 +8,9 @@ from fastapi.responses import HTMLResponse
 
 from app.central_db import (
     INVITE_TTL_DAYS,
+    RESET_TTL_MINUTES,
     create_invite,
+    create_password_reset,
     delete_user_if_unsubscribed,
     disable_user_if_unsubscribed,
     get_all_users,
@@ -74,6 +76,7 @@ async def _users_page(request: Request, **extra):
             "events": await list_auth_events(),
             "invites": await list_open_invites(),
             "invite_days": INVITE_TTL_DAYS,
+            "reset_minutes": RESET_TTL_MINUTES,
             **extra,
         },
     )
@@ -114,6 +117,28 @@ async def revoke_invite_route(request: Request, invite_id: str):
         return error_redirect(request, "/admin/users", "That invite was already used, revoked or expired.")
     await _event(request, "invite_revoke", None, admin)
     return success_redirect(request, "/admin/users", "Invite revoked.")
+
+
+@router.post("/users/{user_id}/reset-link", response_class=HTMLResponse)
+async def create_reset_link(request: Request, user_id: str):
+    """Shows the link once, on this response. Only its hash is stored."""
+    admin = _require_admin(request)
+    _validate_user_id(user_id)
+    if user_id == admin["id"]:
+        return error_redirect(request, "/admin/users", "Change your own password under Settings > Security.")
+    if email := await _protected(user_id):
+        # Otherwise any admin could take over the operator's break-glass account.
+        return error_redirect(
+            request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS; only its owner sets its password."
+        )
+    user = await get_user_by_id(user_id)
+    if not user:
+        return error_redirect(request, "/admin/users", "User account was not found.")
+    if not user["is_active"]:
+        return error_redirect(request, "/admin/users", "Enable the account before resetting its password.")
+    token = await create_password_reset(user_id, admin["id"])
+    await _event(request, "reset_link_create", user_id, admin)
+    return await _users_page(request, reset_link=f"{BASE_URL}/reset?token={token}", reset_email=user["email"])
 
 
 @router.post("/users/{user_id}/role")

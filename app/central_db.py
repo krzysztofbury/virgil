@@ -370,6 +370,8 @@ AUTH_EVENTS = frozenset(
         "invite_revoke",
         "invite_consume",
         "role_change",
+        "reset_link_create",
+        "password_reset",
         "user_disable",
         "user_enable",
         "user_delete",
@@ -541,6 +543,70 @@ async def reopen_invite_used_by(user_id: str) -> None:
     db = await get_central_db()
     await db.execute("UPDATE invites SET used_at = '', used_by = '' WHERE used_by = ?", (user_id,))
     await db.commit()
+
+
+RESET_TTL_MINUTES = 15
+
+_OPEN_RESET = """SELECT r.*, u.email FROM password_resets r JOIN users u ON u.id = r.user_id
+                 WHERE r.token_hash = ? AND r.used_at = '' AND r.expires_at > ? AND u.is_active = 1"""
+
+
+async def create_password_reset(user_id: str, created_by: str, minutes: int = RESET_TTL_MINUTES) -> str:
+    """Store a single-use reset link for an account and return its secret.
+
+    Any earlier unused link for the account stops working: only the newest one
+    an admin handed over should open the form."""
+    token = secrets.token_urlsafe(32)
+    db = await get_central_db()
+    await db.execute("DELETE FROM password_resets WHERE user_id = ? AND used_at = ''", (user_id,))
+    await db.execute(
+        "INSERT INTO password_resets (id, user_id, token_hash, created_by, expires_at) VALUES (?, ?, ?, ?, ?)",
+        (
+            str(uuid.uuid4()),
+            user_id,
+            _token_hash(token),
+            created_by,
+            _utc_stamp(datetime.now(UTC) + timedelta(minutes=minutes)),
+        ),
+    )
+    await db.commit()
+    return token
+
+
+async def get_open_reset(token: str) -> dict | None:
+    """The usable reset behind a link, with the account's email, or None."""
+    if not token:
+        return None
+    db = await get_central_db()
+    rows = await db.execute_fetchall(_OPEN_RESET, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
+    return dict(rows[0]) if rows else None
+
+
+async def complete_password_reset(token: str, password: str) -> str | None:
+    """Set the new password, sign out every session and use the link up, in one
+    transaction. Returns the account id, or None when the link is not usable."""
+    pw_hash = await hash_password_async(password)
+    async with _subscription_connection() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            rows = await db.execute_fetchall(_OPEN_RESET, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
+            if not rows:
+                await db.rollback()
+                return None
+            user_id = rows[0]["user_id"]
+            # MFA stays as it was: a reset link replaces the password, not the second factor.
+            await db.execute(
+                "UPDATE users SET password_hash = ?, session_epoch = session_epoch + 1 WHERE id = ?",
+                (pw_hash, user_id),
+            )
+            await db.execute(
+                "UPDATE password_resets SET used_at = ? WHERE id = ?", (_utc_stamp(datetime.now(UTC)), rows[0]["id"])
+            )
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
+    return user_id
 
 
 async def count_users() -> int:

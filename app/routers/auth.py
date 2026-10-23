@@ -23,11 +23,13 @@ from app.auth import (
 from app.central_db import (
     bump_session_epoch,
     claim_mfa_attempt,
+    complete_password_reset,
     count_users,
     create_user,
     create_user_from_invite,
     finish_mfa_attempt,
     get_open_invite,
+    get_open_reset,
     get_user_by_email,
     get_user_by_id,
     record_auth_event,
@@ -108,6 +110,7 @@ async def registration_allowed() -> bool:
 
 INVITE_UNUSABLE = "This invite link is invalid, used or expired. Ask for a new one."
 RESERVED_ADDRESS = "This address is reserved on this server. Ask an admin for an invite made for it."
+RESET_UNUSABLE = "This reset link is invalid, used or expired. Ask an admin for a new one."
 
 
 def _signup_response(request: Request, **context):
@@ -235,6 +238,50 @@ async def signup_submit(
     response = RedirectResponse(target, status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
+
+
+# --- Password reset (an admin hands over the link; there is no mailer) ---
+
+
+def _reset_response(request: Request, **context):
+    """The reset form carries the link's secret, so nothing may cache it."""
+    return templates.TemplateResponse(request, "auth_reset.html", {"request": request, **context}, headers=_NO_STORE)
+
+
+@router.get("/reset", response_class=HTMLResponse)
+async def reset_page(request: Request, token: str = ""):
+    reset = await get_open_reset(token)
+    if not reset:
+        return templates.TemplateResponse(
+            request,
+            "auth_login.html",
+            {"request": request, "info": RESET_UNUSABLE, "registration_open": await registration_allowed()},
+            headers=_NO_STORE,
+        )
+    return _reset_response(request, token=token, email=reset["email"])
+
+
+@router.post("/reset")
+async def reset_submit(
+    request: Request,
+    token: str = Form(""),
+    password: str = Form(""),
+    password_confirm: str = Form(""),
+):
+    reset = await get_open_reset(token)
+    if not reset:
+        return error_redirect(request, "/login", RESET_UNUSABLE)
+    if len(password) < 8:
+        return _reset_response(
+            request, token=token, email=reset["email"], error="Password must be at least 8 characters."
+        )
+    if password != password_confirm:
+        return _reset_response(request, token=token, email=reset["email"], error="Passwords do not match.")
+    user_id = await complete_password_reset(token, password)
+    if not user_id:
+        return error_redirect(request, "/login", RESET_UNUSABLE)
+    await _event(request, "password_reset", user_id)
+    return success_redirect(request, "/login", "Password set. Sign in with the new one.")
 
 
 # --- Login ---

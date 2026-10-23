@@ -27,6 +27,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working once its issuer is no longer an active admin. Each account is
   separate: its own data, sign-in and keys.
 - Admins can make another account an admin or a user (#94).
+- Password reset links (#94). There is no mailer, so an admin creates the link
+  on the admin page and hands it over. It sets a new password once, lasts 15
+  minutes, replaces any earlier link for the account, and signs out every
+  session when used; MFA stays as it was. Only a hash is stored. No link for
+  your own account, a disabled one, or one in `VIRGIL_ADMIN_EMAILS`, which
+  any admin could otherwise take over.
 
 ### Changed
 - Factory reset asks for your password (#94).
