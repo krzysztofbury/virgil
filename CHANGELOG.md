@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-10-23
+
 ### Added
 - Change your password under Settings > Security (#94). Every other device
   signed in to the account is signed out; this browser stays in. It, the
