@@ -3264,3 +3264,6 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .invite-form button { justify-self: start; }
 .row-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; align-items: center; }
 .row-actions form { margin: 0; }
+.token-scopes { border: 0; padding: 0; margin: 0; display: grid; gap: 0.35rem; }
+.token-scopes legend { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 0.25rem; }
+.token-snippet { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; background: var(--bg-elevated, rgba(255,255,255,0.04)); padding: 0.6rem 0.75rem; border-radius: 6px; margin: 0 0 0.75rem; }

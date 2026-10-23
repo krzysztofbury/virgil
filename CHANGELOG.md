@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   disabled account, gets 401. The server's `VIRGIL_API_KEY` works as before,
   for `VIRGIL_API_USER_EMAIL`, and `VIRGIL_API_SENSITIVE` and
   `VIRGIL_API_FINANCE` now govern that key only.
+- API tokens in Settings > Security (#94): create one with a name, scopes and
+  an expiry (30, 90 or 365 days, or never), see it once with ready-to-paste
+  commands for Claude Code, the MCP wrapper and curl, list your tokens with
+  their last use, and revoke one at once.
 - Password reset links (#94). There is no mailer, so an admin creates the link
   on the admin page and hands it over. It sets a new password once, lasts 15
   minutes, replaces any earlier link for the account, and signs out every

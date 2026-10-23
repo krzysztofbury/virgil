@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Virgil - API token{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>Your new API token</h1>
+</div>
+
+<div class="card invite-link" role="status">
+    <p><strong>Copy it now.</strong> It is shown once and cannot be shown again; only a fingerprint of it is stored.
+        If you lose it, revoke it and create another.</p>
+    <input type="text" value="{{ secret }}" readonly aria-label="API token">
+    <p class="text-muted" style="margin-top:0.5rem;">{{ name }} · {{ scopes | join(', ') }}</p>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+    <div class="card-header"><h3>Using it</h3></div>
+    <p class="text-muted" style="font-size:0.85rem;">Send it as <code>Authorization: Bearer</code> or <code>X-API-Key</code>.
+        If this server sits behind Cloudflare Access, the client also needs its service-token headers.</p>
+    <p style="font-size:0.85rem;margin-bottom:0.25rem;"><strong>Claude Code, over the hosted MCP endpoint</strong></p>
+    <pre class="token-snippet">claude mcp add --transport http --scope user virgil {{ base_url }}/mcp \
+  --header "Authorization: Bearer {{ secret }}"</pre>
+    <p style="font-size:0.85rem;margin-bottom:0.25rem;"><strong>The local MCP wrapper</strong></p>
+    <pre class="token-snippet">VIRGIL_API_URL={{ base_url }} VIRGIL_API_KEY={{ secret }}</pre>
+    <p style="font-size:0.85rem;margin-bottom:0.25rem;"><strong>A script</strong></p>
+    <pre class="token-snippet">curl -H "Authorization: Bearer {{ secret }}" {{ base_url }}/api/summary</pre>
+</div>
+
+<p style="margin-top:1rem;"><a href="/settings?tab=security#tokens" class="btn btn-outline">Back to Security</a></p>
+{% endblock %}

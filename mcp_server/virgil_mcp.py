@@ -14,10 +14,10 @@ clients (Claude Code, OpenClaw). No local DB access — everything goes
 through the authenticated REST API, so it works from any machine.
 
 Config (env):
-    VIRGIL_API_URL          — base URL, e.g. https://virgil.example.com (required)
-    VIRGIL_API_KEY          — API key matching the server's VIRGIL_API_KEY (required)
-    CF_ACCESS_CLIENT_ID     — Cloudflare Access service token id (if host sits behind CF Access)
-    CF_ACCESS_CLIENT_SECRET — Cloudflare Access service token secret
+    VIRGIL_API_URL          - base URL, e.g. https://virgil.example.com (required)
+    VIRGIL_API_KEY          - a personal API token from Settings > Security, or the server's VIRGIL_API_KEY (required)
+    CF_ACCESS_CLIENT_ID     - Cloudflare Access service token id (if host sits behind CF Access)
+    CF_ACCESS_CLIENT_SECRET - Cloudflare Access service token secret
 
 Run:
     uv run --locked --script mcp_server/virgil_mcp.py
@@ -142,10 +142,10 @@ def get_oura_stats() -> dict:
 def get_streaks() -> dict:
     """Freedom status of the first tracked habit (Porn, for an account that started with
     the No Porn module): days since its last slip and that date. get_habits covers every
-    habit being tracked. Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    habit being tracked. Requires the sensitive scope."""
     status = _get("/api/summary")["feniks"]
     if status is None:
-        raise ToolError("Freedom data needs the server's sensitive scope (VIRGIL_API_SENSITIVE=true)")
+        raise ToolError("Freedom data needs the sensitive scope (a token with it, or VIRGIL_API_SENSITIVE=true)")
     return status
 
 
@@ -155,7 +155,7 @@ def get_habits() -> dict:
     where it stands today: streak, this week's clean rate, today's entry, urges survived
     (bricks), its own definition of a slip (button label, amount unit and threshold, near-miss
     label) and its settings. `habit` in each item is the slug the other Freedom tools take.
-    Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    Requires the sensitive scope."""
     return _get("/api/freedom")
 
 
@@ -580,7 +580,7 @@ def log_freedom_day(
     habit has a threshold (porn: at least 5 minutes; less is slipped=false with the detail in
     `note`). `near_miss` is the habit's near miss (edging for porn), when it has one.
     A slip also marks a relapse for that habit's streak; correcting it to clean removes only
-    that marker. Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    that marker. Requires the sensitive scope."""
     return _put(
         f"/api/freedom/{_habit_slug(habit)}/days/{date}",
         {"slipped": slipped, "amount": amount, "near_miss": near_miss, "note": note},
@@ -601,7 +601,7 @@ def add_brick(date: str, hook: str, craving: int | None = None, story: str = "",
     """Add a Freedom brick: one urge survived for one habit (`habit` slug from get_habits;
     empty means the first tracked habit). `hook` is the short memorable name (required),
     `craving` 0-10, `story` what happened. Date YYYY-MM-DD, today or earlier.
-    Requires the server's sensitive scope (VIRGIL_API_SENSITIVE=true)."""
+    Requires the sensitive scope."""
     return _post(
         f"/api/freedom/{_habit_slug(habit)}/bricks", {"date": date, "hook": hook, "craving": craving, "story": story}
     )
@@ -674,7 +674,7 @@ def delete_daily(date: str) -> dict:
 @mcp.tool()
 def delete_freedom_day(habit: str, date: str) -> dict:
     """Delete one Freedom habit's day entry (`habit` slug from get_habits) and the relapse
-    marker it created; relapses recorded another way stay. Requires the server's sensitive
+    marker it created; relapses recorded another way stay. Requires the sensitive
     scope."""
     return _delete(f"/api/freedom/{_habit_slug(habit)}/days/{date}")
 
@@ -694,7 +694,7 @@ def update_brick(
     story: str | None = None,
 ) -> dict:
     """Edit a Freedom brick (ids from get_habits or get_noporn). Only the supplied fields
-    change; the hook cannot become blank. Requires the server's sensitive scope."""
+    change; the hook cannot become blank. Requires the sensitive scope."""
     fields = {"date": date, "hook": hook, "craving": craving, "story": story}
     payload = {key: value for key, value in fields.items() if value is not None}
     if not payload:
@@ -704,7 +704,7 @@ def update_brick(
 
 @mcp.tool()
 def delete_brick(brick_id: int) -> dict:
-    """Delete a Freedom brick permanently. Requires the server's sensitive scope."""
+    """Delete a Freedom brick permanently. Requires the sensitive scope."""
     return _delete(f"/api/freedom/bricks/{brick_id}")
 
 
@@ -726,7 +726,7 @@ def update_habit(
     `slip_definition`, `amount_unit` and `slip_threshold` (the least amount that counts as a
     slip), `near_miss_label`; and `start_date` (YYYY-MM-DD, today or earlier), `target_days`
     (1-3650), `big_why`. The slug stays the same when the habit is renamed. Requires the
-    server's sensitive scope."""
+    sensitive scope."""
     fields = {
         "name": name,
         "slip_label": slip_label,
@@ -793,7 +793,7 @@ def delete_measurements(date: str) -> dict:
     return _delete(f"/api/measurements/{date}")
 
 
-# --- Finance (the server must set VIRGIL_API_FINANCE=true) ---
+# --- Finance (the finance scope: a token with it, or VIRGIL_API_FINANCE=true for the server key) ---
 
 
 @mcp.tool()

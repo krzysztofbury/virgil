@@ -737,6 +737,62 @@
     </details>
 </div>
 
+<div class="card" style="margin-bottom: 1rem;" id="tokens">
+    <div class="card-header"><h3>API tokens</h3></div>
+    <p class="text-muted" style="font-size:0.85rem;">
+        A token lets a tool such as an AI agent or a script read or change your data through the API and MCP.
+        It acts only for your account, and only within the scopes you give it.
+    </p>
+    {% if api_tokens %}
+    <div class="overflow-x">
+        <table>
+            <thead><tr><th>Name</th><th>Token</th><th>Scopes</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+            <tbody>
+                {% for t in api_tokens %}
+                <tr>
+                    <td>{{ t.name }}</td>
+                    <td><code>{{ t.token_prefix }}...</code></td>
+                    <td><small>{{ t.scopes }}</small></td>
+                    <td><small>{{ t.last_used_at[:16] | replace('T', ' ') if t.last_used_at else 'Never' }}</small></td>
+                    <td><small>{% if t.expired %}Expired{% elif t.expires_at %}{{ t.expires_at[:10] }}{% else %}Never{% endif %}</small></td>
+                    <td>
+                        <form method="POST" action="/settings/tokens/{{ t.id }}/revoke" style="margin:0;"
+                              data-confirm="Revoke {{ t.name }}? Tools using it stop working at once.">
+                            <button type="submit" class="btn btn-sm btn-outline">Revoke</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    <details {% if not api_tokens %}open{% endif %}>
+        <summary style="cursor:pointer;">Create a token</summary>
+        <form method="POST" action="/settings/tokens" class="invite-form">
+            <div class="grid">
+                <div><label>Name <input type="text" name="name" maxlength="60" placeholder="e.g. Claude Code" required></label></div>
+                <div><label>Expires
+                    <select name="expires">
+                        <option value="30">In 30 days</option>
+                        <option value="90" selected>In 90 days</option>
+                        <option value="365">In a year</option>
+                        <option value="never">Never</option>
+                    </select>
+                </label></div>
+            </div>
+            <fieldset class="token-scopes">
+                <legend>Scopes</legend>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="read" checked> Read: see your data (Freedom and finance also need their own scope)</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="write" checked> Write: log days, training, goals and the rest</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="sensitive"> Freedom: habits, slips and journal entries</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="finance"> Finance: balances, the fortress and its settings</label>
+            </fieldset>
+            <button type="submit" class="btn btn-primary btn-sm">Create token</button>
+        </form>
+    </details>
+</div>
+
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>Two-Factor Authentication</h3></div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
