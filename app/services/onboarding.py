@@ -6,7 +6,6 @@ from datetime import date
 
 import litellm
 
-from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
 from app.services.goal_data import create_goal
 
 logger = logging.getLogger(__name__)
@@ -101,8 +100,8 @@ async def enrichment_units(db, profile: dict) -> list[dict]:
         return {"experiment_id": await create_suggested_experiment(db, exp, commit=False)}
 
     builders = {
-        "profile_summary": (lambda: _generate_profile_summary(profile), summary_publish),
-        "realistic_day": (lambda: _generate_realistic_day(profile, profile.get("llm_summary")), day_publish),
+        "profile_summary": (lambda: _generate_profile_summary(db, profile), summary_publish),
+        "realistic_day": (lambda: _generate_realistic_day(db, profile, profile.get("llm_summary")), day_publish),
         "goal_expansion": (lambda: _expand_goals(db, profile.get("llm_summary")), goals_publish),
         "habit_experiment": (lambda: _analyze_habits(db, profile, profile.get("llm_summary")), experiment_publish),
     }
@@ -114,15 +113,18 @@ async def enrichment_units(db, profile: dict) -> list[dict]:
     return units
 
 
-async def _llm_call(system_prompt: str, user_prompt: str, max_tokens: int = 2048) -> str:
-    """Internal LLM call using env-var provider."""
+async def _llm_call(db, system_prompt: str, user_prompt: str, max_tokens: int = 2048) -> str:
+    """One enrichment call, on the account's own key or, when it may, the server's."""
+    from app.services.llm import resolve_provider
+
+    model, api_key = await resolve_provider(db)
     response = await litellm.acompletion(
-        model=INTERNAL_LLM_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
         ],
-        api_key=INTERNAL_LLM_KEY,
+        api_key=api_key,
         max_tokens=max_tokens,
         timeout=90.0,
     )
@@ -145,7 +147,7 @@ def _strip_fences(text: str) -> str:
     return "\n".join(lines)
 
 
-async def _generate_profile_summary(profile: dict) -> str:
+async def _generate_profile_summary(db, profile: dict) -> str:
     """Generate a concise profile paragraph for use as LLM context."""
     parts = []
     if profile.get("sex"):
@@ -164,6 +166,7 @@ async def _generate_profile_summary(profile: dict) -> str:
         parts.append(f"Struggles with: {profile['habits_bad']}")
 
     return await _llm_call(
+        db,
         "You are a personal development assistant. Write a concise profile summary (2-3 sentences) "
         "that captures the key facts about this person. This will be used as context for future AI interactions. "
         "Write in the same language the user used in their input.",
@@ -172,7 +175,7 @@ async def _generate_profile_summary(profile: dict) -> str:
     )
 
 
-async def _generate_realistic_day(profile: dict, llm_summary: str | None) -> str:
+async def _generate_realistic_day(db, profile: dict, llm_summary: str | None) -> str:
     """Generate a realistic daily schedule based on the user's ideal day and profile."""
     context_parts = []
     if llm_summary:
@@ -183,6 +186,7 @@ async def _generate_realistic_day(profile: dict, llm_summary: str | None) -> str
         context_parts.append(f"Training: {profile['training_routine']}")
 
     return await _llm_call(
+        db,
         "You are a personal development assistant creating a realistic daily schedule. "
         "The user has provided their ideal day. Create a realistic version that accounts for "
         "their real obligations (family, work, energy levels). "
@@ -213,6 +217,7 @@ async def _expand_goals(db, llm_summary: str | None) -> list:
     context = f"User profile: {llm_summary}\n\n" if llm_summary else ""
 
     raw = await _llm_call(
+        db,
         "You are a goal-setting assistant. For each end goal (Level 3, 10-year vision), "
         "create two milestone levels:\n"
         "- Level 2 (3-year, ~35% of the end goal): A meaningful intermediate milestone.\n"
@@ -281,6 +286,7 @@ async def _analyze_habits(db, profile: dict, llm_summary: str | None) -> dict | 
     context = f"User profile: {llm_summary}\n\n" if llm_summary else ""
 
     raw = await _llm_call(
+        db,
         "You are a habit coach. Pick the ONE most impactful bad habit from the list and suggest "
         "a replacement experiment. Return ONLY valid JSON:\n"
         '{"title": "...", "description": "...", "num_weeks": 4-8, '

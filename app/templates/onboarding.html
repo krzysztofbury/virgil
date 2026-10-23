@@ -218,12 +218,12 @@
         Virgil will track your blood markers over time and flag trends. This is completely optional — you can add results later in the Bloodwork section.
     </p>
 
-    {% if not has_internal_llm %}
-    {# Without the key nothing here can run, so nothing here is offered. #}
+    {% if not has_llm %}
+    {# Without an LLM nothing here can run, so nothing here is offered. #}
     <div style="background:rgba(229,169,64,0.1);border:1px solid rgba(229,169,64,0.3);border-radius:var(--radius-sm);padding:1rem;margin-bottom:1rem;">
         <p style="color:var(--yellow);font-size:0.85rem;margin:0;">
-            Importing medical records needs an internal LLM key (<code>VIRGIL_INTERNAL_LLM_KEY</code>), which
-            this server does not have. You can add blood work results by hand in Blood Work later.
+            Importing medical records needs an LLM. Add your own API key under Settings, or add blood work
+            results by hand in Blood Work later.
         </p>
     </div>
     <div style="display:flex;justify-content:space-between;margin-top:1.5rem;">
@@ -326,7 +326,7 @@
     {% endif %}
 </div>
 
-{% if has_internal_llm and enrichment %}
+{% if has_llm and enrichment %}
 <div class="card onboarding-enrichment" style="margin-bottom:1rem;">
     <h3 style="margin-bottom:0.35rem;">AI extras</h3>
     <p class="text-muted" style="font-size:0.85rem;margin-bottom:0.75rem;">

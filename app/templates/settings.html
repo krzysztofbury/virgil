@@ -61,8 +61,14 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted" style="margin-bottom: 0.75rem;">No providers configured.</p>
+    <p class="text-muted" style="margin-bottom: 0.75rem;">
+        No providers configured.
+        {% if server_llm %}This server's own key is used until you add one.{% else %}Add one to use the AI features.{% endif %}
+    </p>
     {% endif %}
+    <p class="text-muted" style="margin-bottom: 0.75rem;font-size:0.85rem;">
+        Keys are stored encrypted with this server's key, so whoever runs the server can read them.
+    </p>
 
     {# An ordered scale, so it reads as one: pick a level and it saves. A select
        plus a Save button made three unrelated controls out of one decision.

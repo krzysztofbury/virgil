@@ -26,6 +26,7 @@
                     <th>Name</th>
                     <th>Role</th>
                     <th>Status</th>
+                    <th>Server LLM key</th>
                     <th>Last Login</th>
                     <th>Created</th>
                     <th>Actions</th>
@@ -49,6 +50,13 @@
                         {% else %}
                         <span style="color:var(--red);">Disabled</span>
                         {% endif %}
+                    </td>
+                    <td>
+                        <form method="POST" action="/admin/users/{{ u.id }}/shared-llm" class="row-actions">
+                            <input type="hidden" name="allow" value="{{ '0' if u.allow_shared_llm else '1' }}">
+                            <span>{{ 'Yes' if u.allow_shared_llm else 'No' }}</span>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ 'Withdraw' if u.allow_shared_llm else 'Allow' }}</button>
+                        </form>
                     </td>
                     <td><small>{{ u.last_login_at[:16] if u.last_login_at else 'Never' }}</small></td>
                     <td><small>{{ u.created_at[:10] if u.created_at else '-' }}</small></td>

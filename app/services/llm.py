@@ -55,10 +55,35 @@ async def get_active_provider(db) -> dict | None:
     return dict(rows[0]) if rows else None
 
 
-async def _resolve_provider(db) -> tuple[str, str]:
-    """Return (model_string, api_key). User provider first, internal fallback.
+async def may_use_server_key(db) -> bool:
+    """Whether the server's VIRGIL_INTERNAL_LLM_* key is configured and this account may spend it."""
+    from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
 
-    Raises ValueError if no provider is available.
+    if not (INTERNAL_LLM_KEY and INTERNAL_LLM_MODEL):
+        return False
+    return await _account_may_use_server_key(db)
+
+
+async def _account_may_use_server_key(db) -> bool:
+    from pathlib import Path
+
+    from app.central_db import shared_llm_allowed
+    from app.services.backup import db_main_path
+
+    try:
+        filename = Path(await db_main_path(db)).name
+    except RuntimeError:
+        return False
+    return await shared_llm_allowed(filename)
+
+
+async def resolve_provider(db) -> tuple[str, str]:
+    """Return (model_string, api_key). The user's own provider first; the
+    server's VIRGIL_INTERNAL_LLM_* only for an account allowed to spend it.
+
+    Every paid call goes through here, scheduled ones included, so an invited
+    account without the flag never bills the operator. Raises ValueError if
+    no provider is available.
     """
     # 1. Try user-configured provider from DB.
     provider = await get_active_provider(db)
@@ -71,10 +96,10 @@ async def _resolve_provider(db) -> tuple[str, str]:
     # 2. Fall back to internal provider from env vars.
     from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
 
-    if INTERNAL_LLM_KEY and INTERNAL_LLM_MODEL:
+    if INTERNAL_LLM_KEY and INTERNAL_LLM_MODEL and await _account_may_use_server_key(db):
         return INTERNAL_LLM_MODEL, INTERNAL_LLM_KEY
 
-    raise ValueError("No LLM provider available — configure one in Settings or set VIRGIL_INTERNAL_LLM_KEY")
+    raise ValueError("No LLM provider available: add your own API key in Settings")
 
 
 async def llm_available(db) -> bool:
@@ -83,7 +108,7 @@ async def llm_available(db) -> bool:
     not get_active_provider(), or internal-key-only deployments lose features.
     """
     try:
-        await _resolve_provider(db)
+        await resolve_provider(db)
         return True
     except ValueError:
         return False
@@ -118,7 +143,7 @@ async def call_llm(
         f"reasoning_effort must be one of {REASONING_EFFORTS}: {reasoning_effort!r}"
     )
     effort = reasoning_effort or await resolve_reasoning_effort(db)
-    model, api_key = await _resolve_provider(db)
+    model, api_key = await resolve_provider(db)
 
     kwargs: dict = {"drop_params": True, "reasoning_effort": _portable_effort(effort, model)}
     if json_mode:

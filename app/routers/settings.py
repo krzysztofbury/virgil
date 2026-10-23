@@ -76,6 +76,9 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
 
         context["db_path"] = await db_main_path(db)
         context["llm_providers"] = providers
+        from app.services.llm import may_use_server_key
+
+        context["server_llm"] = await may_use_server_key(db)
         context["feature_flags"] = await get_feature_flags(db)
         context["freedom_choices"] = await _freedom_choices(db)
         context["freedom_on_dashboard"] = await get_setting(db, "freedom_on_dashboard", "1") == "1"

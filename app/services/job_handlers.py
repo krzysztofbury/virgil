@@ -256,7 +256,7 @@ async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any
             context,
             "medical_import",
             paid_llm_job_key("medical_import", token, "extract"),
-            lambda: extract_pdf_markers(read_staged(context.user_id, token)),
+            lambda: extract_pdf_markers(context.db, read_staged(context.user_id, token)),
             publish_extract,
         )
 
@@ -267,7 +267,7 @@ async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any
             text = read_staged(context.user_id, token).decode("utf-8", errors="replace")[:MEDICAL_TEXT_MAX_CHARS]
         if not text.strip():
             raise ValueError("The medical upload held nothing to import")
-        markers = await parse_medical_text(text)
+        markers = await parse_medical_text(context.db, text)
         if not markers:
             # A produce-side failure: the charge happened, nothing is worth
             # storing, and the message names what the user should check.

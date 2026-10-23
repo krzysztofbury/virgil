@@ -141,6 +141,23 @@ async def create_reset_link(request: Request, user_id: str):
     return await _users_page(request, reset_link=f"{BASE_URL}/reset?token={token}", reset_email=user["email"])
 
 
+@router.post("/users/{user_id}/shared-llm")
+async def change_shared_llm(request: Request, user_id: str, allow: str = Form("")):
+    """Whether the account may spend the server's LLM key when it has none of its own."""
+    admin = _require_admin(request)
+    _validate_user_id(user_id)
+    if not await get_user_by_id(user_id):
+        return error_redirect(request, "/admin/users", "User account was not found.")
+    allowed = allow == "1"
+    await update_user(user_id, allow_shared_llm=int(allowed))
+    await _event(request, "llm_access_change", user_id, admin, "allowed" if allowed else "withdrawn")
+    return success_redirect(
+        request,
+        "/admin/users",
+        "The account may use the server's LLM key." if allowed else "The account no longer uses the server's LLM key.",
+    )
+
+
 @router.post("/users/{user_id}/role")
 async def change_role(request: Request, user_id: str, role: str = Form(...)):
     admin = _require_admin(request)
