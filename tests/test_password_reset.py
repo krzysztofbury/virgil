@@ -1,5 +1,6 @@
 """Admin-issued password reset links (#94): there is no mailer, so an admin hands the link over."""
 
+import asyncio
 import re
 import sqlite3
 import uuid
@@ -81,9 +82,12 @@ def _signs_in(client, password: str) -> bool:
 def test_a_reset_link_sets_the_password_once_and_signs_out_every_session(auth_client, client, member):
     import app.rate_limit as rate_limit
     from app.auth import SESSION_COOKIE, create_session
+    from app.central_db import create_api_token
 
     user_id, central = member
     old_session = create_session(user_id, 0)
+    # (member has no database, so the token's use is shown by the registry, not a 200.)
+    api_token = asyncio.run(create_api_token(user_id, "laptop", ["read"], None))
     token = _reset_link(auth_client, user_id)
     try:
         assert all(token not in row[0] for row in central.execute("SELECT token_hash FROM password_resets"))
@@ -103,6 +107,9 @@ def test_a_reset_link_sets_the_password_once_and_signs_out_every_session(auth_cl
         client.cookies.set(SESSION_COOKIE, old_session)
         assert client.get("/", follow_redirects=False).headers["location"] == "/login", "old sessions end"
         client.cookies.clear()
+        bearer = {"Authorization": f"Bearer {api_token}"}
+        assert client.get("/api/summary", headers=bearer).status_code == 401, "and so do its API tokens"
+        assert central.execute("SELECT revoked_at FROM api_tokens WHERE user_id = ?", (user_id,)).fetchone()[0]
 
         # Ten sign-in requests a minute per client: this test alone has made that many.
         rate_limit._buckets.clear()

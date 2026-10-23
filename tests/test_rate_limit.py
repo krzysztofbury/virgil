@@ -186,6 +186,7 @@ def test_static_files_do_not_spend_the_page_budget():
     ("path", "field"),
     [
         ("/settings/password", "current_password"),
+        ("/settings/tokens", "password"),
         ("/settings/mfa/disable", "password"),
         ("/settings/factory-reset", "password"),
     ],
