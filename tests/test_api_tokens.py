@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 
 import pytest
-from conftest import _TMP, TEST_EMAIL
+from conftest import _TMP, TEST_EMAIL, TEST_PASSWORD
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -199,7 +199,9 @@ def test_settings_creates_a_token_once_lists_it_and_revokes_it(auth_client, othe
     import re
 
     created = _settings_post(
-        auth_client, "/settings/tokens", {"name": "Claude Code", "expires": "30", "scope": ["read", "finance"]}
+        auth_client,
+        "/settings/tokens",
+        {"name": "Claude Code", "expires": "30", "scope": ["read", "finance"], "password": TEST_PASSWORD},
     )
     assert created.status_code == 200 and created.headers["cache-control"] == "no-store"
     secret = re.search(r'value="(vrg_[^"]+)"', created.text).group(1)
@@ -231,11 +233,19 @@ def test_settings_creates_a_token_once_lists_it_and_revokes_it(auth_client, othe
 @pytest.mark.parametrize(
     ("data", "error"),
     [
-        ({"name": "", "expires": "90", "scope": ["read"]}, "Give the token a name"),
-        ({"name": "x", "expires": "90"}, "Choose at least one scope"),
-        ({"name": "x", "expires": "forever", "scope": ["read"]}, "Choose when the token expires"),
+        ({"name": "x", "expires": "90", "scope": ["read"]}, "Password is incorrect"),
+        (
+            {"name": "x", "expires": "90", "scope": ["read"], "password": "not-it"},  # pragma: allowlist secret
+            "Password is incorrect",
+        ),
+        ({"name": "", "expires": "90", "scope": ["read"], "password": TEST_PASSWORD}, "Give the token a name"),
+        ({"name": "x", "expires": "90", "password": TEST_PASSWORD}, "Choose at least one scope"),
+        (
+            {"name": "x", "expires": "forever", "scope": ["read"], "password": TEST_PASSWORD},
+            "Choose when the token expires",
+        ),
     ],
-    ids=["no-name", "no-scope", "bad-expiry"],
+    ids=["no-password", "wrong-password", "no-name", "no-scope", "bad-expiry"],
 )
 def test_settings_refuses_an_incomplete_token(auth_client, data, error):
     from urllib.parse import parse_qs, urlsplit

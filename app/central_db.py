@@ -603,6 +603,12 @@ async def complete_password_reset(token: str, password: str) -> str | None:
                 "UPDATE users SET password_hash = ?, session_epoch = session_epoch + 1 WHERE id = ?",
                 (pw_hash, user_id),
             )
+            # A reset is account recovery: whatever got the account lost may have left
+            # tokens behind, so they go with the sessions.
+            await db.execute(
+                "UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at = ''",
+                (_utc_stamp(datetime.now(UTC)), user_id),
+            )
             await db.execute(
                 "UPDATE password_resets SET used_at = ? WHERE id = ?", (_utc_stamp(datetime.now(UTC)), rows[0]["id"])
             )

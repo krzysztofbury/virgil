@@ -184,12 +184,20 @@ async def create_token(
     name: str = Form(""),
     expires: str = Form("90"),
     scope: list[str] = Form([]),
+    password: str = Form(""),
 ):
-    """Shows the secret once, on this response; only its hash is stored."""
+    """Shows the secret once, on this response; only its hash is stored.
+
+    A token outlives the session and a later password change, so a session
+    alone, say on a laptop left open, must not be enough to mint one."""
+    from app.auth import verify_password_async
     from app.central_db import API_SCOPES, create_api_token, record_auth_event
     from app.rate_limit import client_ip
 
     user = request.state.user
+    # verify_password raises on empty input, so an empty one is a wrong password.
+    if not password or not await verify_password_async(password, user["password_hash"]):
+        return error_redirect(request, "/settings?tab=security#tokens", "Password is incorrect. No token was created.")
     name = name.strip()
     if not name:
         return error_redirect(

@@ -12,7 +12,7 @@
 {% if reset_link %}
 <div class="card invite-link" role="status" style="margin-bottom:1rem;">
     <p><strong>Send this link to {{ reset_email }}.</strong> It sets a new password once, works for
-        {{ reset_minutes }} minutes and is not shown again. Their other sessions end when it is used.</p>
+        {{ reset_minutes }} minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked.</p>
     <input type="text" value="{{ reset_link }}" readonly aria-label="Password reset link">
 </div>
 {% endif %}

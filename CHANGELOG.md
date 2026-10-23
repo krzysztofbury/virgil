@@ -40,11 +40,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - API tokens in Settings > Security (#94): create one with a name, scopes and
   an expiry (30, 90 or 365 days, or never), see it once with ready-to-paste
   commands for Claude Code, the MCP wrapper and curl, list your tokens with
-  their last use, and revoke one at once.
+  their last use, and revoke one at once. Creating one asks for your
+  password and shares the sign-in rate limit: a token outlives the session
+  and a later password change, so an open session alone must not mint one.
 - Password reset links (#94). There is no mailer, so an admin creates the link
   on the admin page and hands it over. It sets a new password once, lasts 15
   minutes, replaces any earlier link for the account, and signs out every
-  session when used; MFA stays as it was. Only a hash is stored. No link for
+  session and revokes every API token when used; MFA stays as it was. Only a hash is stored. No link for
   your own account, a disabled one, or one in `VIRGIL_ADMIN_EMAILS`, which
   any admin could otherwise take over.
 
