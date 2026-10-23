@@ -182,27 +182,36 @@ Cloudflare R2, restore into a new directory, and a restore
 drill. Per-user database downloads alone do not include the registry or encryption
 key and are not whole-instance recovery artifacts.
 
+The REST API and MCP take a credential in `X-API-Key` or
+`Authorization: Bearer`. Each account creates its own **API tokens** under
+Settings > Security: a token acts only for that account, with the scopes it was
+given (`read`, `write`, `sensitive` for Freedom, `finance`), and can expire or
+be revoked at once. The server's `VIRGIL_API_KEY` still works for the one
+account named by `VIRGIL_API_USER_EMAIL`. To move off it, create a token with
+the same scopes, put it where the key was, then remove both variables.
+
 The MCP wrapper has its own committed dependency lock:
 
 ```bash
-VIRGIL_API_URL=https://virgil.example.com VIRGIL_API_KEY=your-key \
+VIRGIL_API_URL=https://virgil.example.com VIRGIL_API_KEY=your-token \
   uv run --locked --script mcp_server/virgil_mcp.py
 ```
 
 The app also serves the same tools over Streamable HTTP at `/mcp`, so a client
-needs no checkout, `uv` or launcher. It takes the same `X-API-Key` as the REST
-API (`VIRGIL_API_KEY`); add the Cloudflare Access service-token headers when the
-host sits behind Access:
+needs no checkout, `uv` or launcher. It takes the same credential as the REST
+API; add the Cloudflare Access service-token headers when the host sits behind
+Access:
 
 ```bash
 claude mcp add --transport http --scope user virgil https://virgil.example.com/mcp \
-  --header "X-API-Key: your-key" \
+  --header "Authorization: Bearer your-token" \
   --header "CF-Access-Client-Id: your-id" \
   --header "CF-Access-Client-Secret: your-secret"
 ```
 
 The endpoint runs in stateless JSON mode; every tool still calls the REST API
-(over loopback), so `/mcp` and `/api` share one auth path and one user mapping.
+(over loopback) with the caller's own credential, so `/mcp` and `/api` share
+one auth path, one account mapping and one set of scopes.
 
 Tests and Docker use bundled LiteLLM capability metadata for reproducibility.
 Updating that metadata is part of a reviewed dependency update.
@@ -225,10 +234,10 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
 | `VIRGIL_WORKER_WAKE` | `true` | Start a queued job at once instead of waiting for the next scheduler tick |
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
-| `VIRGIL_API_KEY` | (empty) | REST API key: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (empty = API disabled) |
+| `VIRGIL_API_KEY` | (empty) | Server API key for one account, beside each account's own API tokens: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (the API is off while neither exists) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | The only account `VIRGIL_API_KEY` may read or write. Required when the key is set. Empty, missing, or deactivated returns 503 for `/api` and `/mcp` and does not fall back to another admin. The web UI keeps working |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the API key |
-| `VIRGIL_API_FINANCE` | `false` | Expose `/api/finance` (account balances, the cushion, the score and their settings) and the Finance MCP tools over the API key |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the server API key. Tokens carry their own `sensitive` scope |
+| `VIRGIL_API_FINANCE` | `false` | Expose `/api/finance` (account balances, the cushion, the score and their settings) and the Finance MCP tools over the server API key. Tokens carry their own `finance` scope |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 | `VIRGIL_BACKUP_DIR` | `<data>/backups` (`/backups` in compose) | Where backups and pre-migration snapshots are written. Startup moves any left in `<data>/backups` here and logs an error when it is not writable |
 | `VIRGIL_BACKUP_HOST_DIR` | `./backups` | Host directory compose mounts at `/backups` (docker-compose only). Must be writable by uid 1000 |
@@ -471,7 +480,7 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   - `log_freedom_day` → `PUT /api/freedom/{habit}/days/{date}` and `add_brick` →
     `POST /api/freedom/{habit}/bricks` keep the Freedom form's contract (the
     relapse marker follows the outcome; for Porn, a slip is at least 5 minutes)
-  - Every Freedom call requires `VIRGIL_API_SENSITIVE=true`
+  - Every Freedom call requires the `sensitive` scope (`VIRGIL_API_SENSITIVE=true` for the server key)
   - `log_training` → `POST /api/training/sessions` writes a session and all its
     sets in one transaction; an unknown movement refuses the write and lists the
     names. `update_training` / `delete_training` → `PATCH/DELETE
@@ -519,7 +528,7 @@ balances recorded once a month.
   form that starts at the latest balances. `/finance/setup` edits the layers
   and their rules (thresholds written as `12:40, 6:30`), accounts, essential
   cost, income and insurance
-- MCP/REST, all behind `VIRGIL_API_FINANCE=true`:
+- MCP/REST, all behind the `finance` scope (`VIRGIL_API_FINANCE=true` for the server key):
   - `get_finance_overview` / `get_finance_history` → `GET /api/finance`,
     `GET /api/finance/history`
   - `record_balances` → `PUT /api/finance/balances/{date}`: a whole snapshot in

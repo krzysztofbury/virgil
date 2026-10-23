@@ -165,8 +165,64 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["backup_status"] = await backup_status(db)
         logs = await db.execute_fetchall("SELECT * FROM sync_log ORDER BY created_at DESC LIMIT 50")
         context["sync_logs"] = [dict(row) for row in logs]
+        from app.central_db import API_SCOPES, list_api_tokens
+
+        context["api_tokens"] = await list_api_tokens(user["id"])
+        context["api_scopes"] = API_SCOPES
 
     return templates.TemplateResponse(request, "settings.html", context)
+
+
+# --- Personal API tokens ---
+
+_TOKEN_EXPIRY_DAYS = {"30": 30, "90": 90, "365": 365, "never": None}
+
+
+@router.post("/settings/tokens", response_class=HTMLResponse)
+async def create_token(
+    request: Request,
+    name: str = Form(""),
+    expires: str = Form("90"),
+    scope: list[str] = Form([]),
+):
+    """Shows the secret once, on this response; only its hash is stored."""
+    from app.central_db import API_SCOPES, create_api_token, record_auth_event
+    from app.rate_limit import client_ip
+
+    user = request.state.user
+    name = name.strip()
+    if not name:
+        return error_redirect(
+            request, "/settings?tab=security#tokens", "Give the token a name, such as the tool it is for."
+        )
+    if expires not in _TOKEN_EXPIRY_DAYS:
+        return error_redirect(request, "/settings?tab=security#tokens", "Choose when the token expires.")
+    scopes = [s for s in API_SCOPES if s in scope]
+    if not scopes:
+        return error_redirect(request, "/settings?tab=security#tokens", "Choose at least one scope.")
+    secret = await create_api_token(user["id"], name, scopes, _TOKEN_EXPIRY_DAYS[expires])
+    await record_auth_event(
+        "token_create", user_id=user["id"], ip=client_ip(request), detail=f"{name[:60]}: {' '.join(scopes)}"
+    )
+    response = templates.TemplateResponse(
+        request,
+        "settings_token_created.html",
+        {"request": request, "secret": secret, "name": name, "scopes": scopes, "base_url": BASE_URL},
+    )
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.post("/settings/tokens/{token_id}/revoke")
+async def revoke_token(request: Request, token_id: str):
+    from app.central_db import record_auth_event, revoke_api_token
+    from app.rate_limit import client_ip
+
+    user = request.state.user
+    if not await revoke_api_token(user["id"], token_id):
+        return error_redirect(request, "/settings?tab=security#tokens", "That token was already revoked.")
+    await record_auth_event("token_revoke", user_id=user["id"], ip=client_ip(request))
+    return success_redirect(request, "/settings?tab=security#tokens", "Token revoked. It stops working now.")
 
 
 # --- App Configuration: dictionary tables ---

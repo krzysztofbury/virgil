@@ -186,3 +186,62 @@ def test_hosted_mcp_tools_act_as_the_token_with_its_scopes(auth_client, client, 
     write = _rpc(client, theirs, "tools/call", {"name": "log_measurements", "arguments": {"date": DAY, "weight": 70}})
     assert write.json()["result"]["isError"] is True
     assert "lacks the write scope" in write.text
+
+
+def _settings_post(client, path: str, data: dict):
+    from conftest import csrf_token
+
+    token = csrf_token(client, "/settings?tab=security")
+    return client.post(path, data={**data, "_csrf_token": token}, follow_redirects=False)
+
+
+def test_settings_creates_a_token_once_lists_it_and_revokes_it(auth_client, other_account):
+    import re
+
+    created = _settings_post(
+        auth_client, "/settings/tokens", {"name": "Claude Code", "expires": "30", "scope": ["read", "finance"]}
+    )
+    assert created.status_code == 200 and created.headers["cache-control"] == "no-store"
+    secret = re.search(r'value="(vrg_[^"]+)"', created.text).group(1)
+    assert auth_client.get("/api/finance", headers=_bearer(secret)).status_code == 200
+    assert auth_client.get("/api/freedom", headers=_bearer(secret)).status_code == 403
+
+    page = auth_client.get("/settings?tab=security")
+    assert "Claude Code" in page.text and secret[:12] in page.text
+    assert secret not in page.text, "the secret is shown once, on the response that created it"
+
+    central = _central()
+    token_id, expires = central.execute("SELECT id, expires_at FROM api_tokens").fetchone()
+    other_id = central.execute("SELECT id FROM users WHERE email = ?", (other_account,)).fetchone()[0]
+    central.close()
+    assert expires, "30 days, not never"
+    theirs = _token(other_account, ["read"])
+
+    central = _central()
+    their_id = central.execute("SELECT id FROM api_tokens WHERE user_id = ?", (other_id,)).fetchone()[0]
+    central.close()
+    refused = _settings_post(auth_client, f"/settings/tokens/{their_id}/revoke", {})
+    assert "already revoked" in refused.headers["location"].replace("+", " ")
+    assert auth_client.get(f"/api/daily/{DAY}", headers=_bearer(theirs)).status_code == 200, "not yours to revoke"
+
+    assert _settings_post(auth_client, f"/settings/tokens/{token_id}/revoke", {}).status_code == 303
+    assert auth_client.get("/api/finance", headers=_bearer(secret)).status_code == 401
+
+
+@pytest.mark.parametrize(
+    ("data", "error"),
+    [
+        ({"name": "", "expires": "90", "scope": ["read"]}, "Give the token a name"),
+        ({"name": "x", "expires": "90"}, "Choose at least one scope"),
+        ({"name": "x", "expires": "forever", "scope": ["read"]}, "Choose when the token expires"),
+    ],
+    ids=["no-name", "no-scope", "bad-expiry"],
+)
+def test_settings_refuses_an_incomplete_token(auth_client, data, error):
+    from urllib.parse import parse_qs, urlsplit
+
+    response = _settings_post(auth_client, "/settings/tokens", data)
+    assert parse_qs(urlsplit(response.headers["location"]).query)["err"][0].startswith(error)
+    central = _central()
+    assert central.execute("SELECT COUNT(*) FROM api_tokens").fetchone() == (0,)
+    central.close()
