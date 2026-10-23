@@ -3262,5 +3262,5 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .invite-form .checkbox-label { display: flex; align-items: center; gap: 0.5rem; }
 .invite-form .checkbox-label input { width: auto; margin: 0; }
 .invite-form button { justify-self: start; }
-.row-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; }
+.row-actions { display: flex; gap: 0.25rem; flex-wrap: wrap; align-items: center; }
 .row-actions form { margin: 0; }

@@ -197,6 +197,7 @@ _UPDATABLE_COLUMNS = frozenset(
         "last_login_at",
         # Factory reset repoints the account at a freshly created database.
         "db_filename",
+        "allow_shared_llm",
     }
 )
 
@@ -372,6 +373,7 @@ AUTH_EVENTS = frozenset(
         "role_change",
         "reset_link_create",
         "password_reset",
+        "llm_access_change",
         "user_disable",
         "user_enable",
         "user_delete",
@@ -607,6 +609,17 @@ async def complete_password_reset(token: str, password: str) -> str | None:
             await db.rollback()
             raise
     return user_id
+
+
+async def shared_llm_allowed(db_filename: str) -> bool:
+    """Whether the active account that owns this database may spend the server's LLM key.
+
+    A database no account owns may not: the key is the operator's money."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        "SELECT allow_shared_llm FROM users WHERE db_filename = ? AND is_active = 1", (db_filename,)
+    )
+    return bool(rows and rows[0]["allow_shared_llm"])
 
 
 async def count_users() -> int:

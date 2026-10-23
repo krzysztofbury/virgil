@@ -43,10 +43,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#94). Nothing verifies email ownership and the list promotes on every
   restart, so after the first account such an address comes in only through
   an invite made for exactly that address; open registration refuses it.
-- Central migration 004 adds the event log and a per-account flag for using
-  the server's LLM key, ahead of invites. Existing accounts keep the key; new
-  accounts after the first start without it. Nothing reads the flag yet. The
-  registry is snapshotted before the migration runs.
+- The server's LLM key (`VIRGIL_INTERNAL_LLM_*`) serves only accounts allowed
+  to spend it (#94). An account's own key always comes first. Existing
+  accounts and the first one keep the server key; invited accounts get what
+  the invite said, and the admin page shows and switches it per account.
+  Every paid call follows the same rule, scheduled ones included, and
+  onboarding enrichment and medical import no longer read the server key
+  directly, so they also run on an account's own key. Settings says when the
+  server's key is in use, and that whoever runs the server can read stored
+  keys. Central migrations 004 to 006 snapshot the registry before running.
 
 ## [0.8.0] - 2026-10-22
 

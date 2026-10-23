@@ -278,3 +278,23 @@ def test_an_invite_dies_with_its_issuers_admin_role(auth_client, client):
         central.execute("DELETE FROM users WHERE id = ?", (other,))
         central.commit()
         central.close()
+
+
+def test_an_admin_switches_an_accounts_use_of_the_server_llm_key(auth_client):
+    member = _insert_admin("llm-member@example.com")
+    central = _central()
+    try:
+        for allow, expected in (("0", 0), ("1", 1)):
+            token = csrf_token(auth_client, "/admin/users")
+            auth_client.post(f"/admin/users/{member}/shared-llm", data={"allow": allow, "_csrf_token": token})
+            assert central.execute("SELECT allow_shared_llm FROM users WHERE id = ?", (member,)).fetchone() == (
+                expected,
+            )
+        events = central.execute(
+            "SELECT detail FROM auth_events WHERE event = 'llm_access_change' AND user_id = ? ORDER BY id", (member,)
+        ).fetchall()
+        assert [detail.split(",")[0] for (detail,) in events] == ["withdrawn", "allowed"]
+    finally:
+        central.execute("DELETE FROM users WHERE id = ?", (member,))
+        central.commit()
+        central.close()

@@ -102,11 +102,11 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
         }
         end_goal_areas = {category: area_names.get(orders[0], "") for category, orders in GOAL_CATEGORY_MAP.items()}
 
-    # Check if internal LLM is available (for step 5 info).
-    from app.config import INTERNAL_LLM_KEY
+    # Whether this account has an LLM at all: its own key, or the server's when allowed.
+    from app.services.llm import llm_available
     from app.services.onboarding import enrichment_progress
 
-    has_internal_llm = bool(INTERNAL_LLM_KEY)
+    has_llm = await llm_available(db)
 
     return templates.TemplateResponse(
         request,
@@ -118,7 +118,7 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
             "goals": goals,
             "end_goals": end_goals,
             "end_goal_areas": end_goal_areas,
-            "has_internal_llm": has_internal_llm,
+            "has_llm": has_llm,
             "current_job": await _current_job(db, job_id),
             "enrichment": await enrichment_progress(db),
         },
@@ -258,8 +258,8 @@ async def save_step5(
     carries only an opaque token: a blood panel has no business in the jobs
     table, the status UI or the logs.
     """
-    from app.config import INTERNAL_LLM_KEY
     from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm import llm_available
     from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
     from app.services.medical_import import (
         MEDICAL_UPLOAD_MAX_BYTES,
@@ -277,11 +277,11 @@ async def save_step5(
             "/onboarding?step=5",
             "Upload a medical PDF or paste lab results, or skip this step.",
         )
-    if not INTERNAL_LLM_KEY:
+    if not await llm_available(db):
         return error_redirect(
             request,
             "/onboarding?step=5",
-            "Medical record import requires an internal LLM key.",
+            "Medical record import needs an LLM: add your own API key in Settings.",
         )
 
     if has_file:
@@ -350,8 +350,8 @@ async def confirm_onboarding(request: Request, without_ai: str = Form("")):
     without buying them. Onboarding cannot be skipped: every account goes
     through it once.
     """
-    from app.config import INTERNAL_LLM_KEY
     from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm import llm_available
     from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
     from app.services.onboarding import apply_feniks_trigger_words
 
@@ -370,8 +370,8 @@ async def confirm_onboarding(request: Request, without_ai: str = Form("")):
 
     if without_ai:
         return success_redirect(request, "/", "Onboarding complete.")
-    if not INTERNAL_LLM_KEY:
-        logger.warning("No VIRGIL_INTERNAL_LLM_KEY set - skipping LLM enrichment")
+    if not await llm_available(db):
+        logger.info("No LLM for this account - skipping onboarding enrichment")
         return success_redirect(request, "/", "Onboarding complete.")
 
     try:
@@ -400,13 +400,13 @@ async def confirm_onboarding(request: Request, without_ai: str = Form("")):
 @router.post("/onboarding/enrichment/retry")
 async def retry_enrichment(request: Request):
     """Buy the enrichment steps that are still missing, and only those."""
-    from app.config import INTERNAL_LLM_KEY
     from app.services.job_producers import ActiveWorkloadConflictError
+    from app.services.llm import llm_available
     from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
 
-    if not INTERNAL_LLM_KEY:
-        return error_redirect(request, "/onboarding?step=6", "AI extras need an internal LLM key.")
     db = get_user_db_from_request(request)
+    if not await llm_available(db):
+        return error_redirect(request, "/onboarding?step=6", "AI extras need an LLM: add your own API key in Settings.")
     nonce = secrets.token_hex(16)
     try:
         result = await enqueue_paid_llm_job(

@@ -108,7 +108,7 @@ def test_call_llm_always_sends_a_level_so_the_model_never_picks_its_own(monkeypa
     async def fake_provider(_db):
         return "gemini/gemini-3-pro-preview", "secret"
 
-    monkeypatch.setattr("app.services.llm._resolve_provider", fake_provider)
+    monkeypatch.setattr("app.services.llm.resolve_provider", fake_provider)
     monkeypatch.setattr(litellm, "acompletion", fake_acompletion)
 
     with pytest.raises(ValueError):

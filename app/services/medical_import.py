@@ -14,7 +14,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.config import CENTRAL_DB_PATH, INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
+from app.config import CENTRAL_DB_PATH
 
 logger = logging.getLogger(__name__)
 
@@ -115,18 +115,20 @@ def prune_staged(user_id: str, *, max_age_seconds: int = STAGED_MAX_AGE_SECONDS)
     return removed
 
 
-async def extract_pdf_markers(pdf_bytes: bytes) -> str:
-    """Turn a blood-panel PDF into markdown. One paid multimodal call."""
+async def extract_pdf_markers(db, pdf_bytes: bytes) -> str:
+    """Turn a blood-panel PDF into markdown. One paid multimodal call, on the
+    account's own key or, when it may, the server's."""
     import base64
 
     import litellm
 
-    if not INTERNAL_LLM_KEY:
-        raise ValueError("Medical record import requires an internal LLM key")
+    from app.services.llm import resolve_provider
+
+    model, api_key = await resolve_provider(db)
     encoded = base64.b64encode(pdf_bytes).decode()
     try:
         response = await litellm.acompletion(
-            model=INTERNAL_LLM_MODEL,
+            model=model,
             messages=[
                 {
                     "role": "user",
@@ -136,7 +138,7 @@ async def extract_pdf_markers(pdf_bytes: bytes) -> str:
                     ],
                 }
             ],
-            api_key=INTERNAL_LLM_KEY,
+            api_key=api_key,
             max_tokens=4096,
             timeout=120.0,
         )
@@ -151,20 +153,21 @@ async def extract_pdf_markers(pdf_bytes: bytes) -> str:
     return response.choices[0].message.content
 
 
-async def parse_medical_text(text: str) -> list[dict[str, Any]]:
+async def parse_medical_text(db, text: str) -> list[dict[str, Any]]:
     """Turn free text into marker records. One paid call, no database writes."""
     import litellm
 
-    if not INTERNAL_LLM_KEY:
-        raise ValueError("Medical record import requires an internal LLM key")
+    from app.services.llm import resolve_provider
+
+    model, api_key = await resolve_provider(db)
     try:
         response = await litellm.acompletion(
-            model=INTERNAL_LLM_MODEL,
+            model=model,
             messages=[
                 {"role": "system", "content": _MARKER_PROMPT},
                 {"role": "user", "content": text},
             ],
-            api_key=INTERNAL_LLM_KEY,
+            api_key=api_key,
             max_tokens=4096,
             timeout=90.0,
         )

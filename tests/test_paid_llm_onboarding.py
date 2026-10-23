@@ -117,7 +117,7 @@ def test_a_partial_failure_keeps_what_it_bought_and_retries_only_the_rest(monkey
     _seed_profile(sex="m", age=40, ideal_day="wake, train, work", habits_break="")
     calls: list[str] = []
 
-    async def flaky(system_prompt, user_prompt, max_tokens=2048):
+    async def flaky(_db, system_prompt, user_prompt, max_tokens=2048):
         step = _step_of(system_prompt)
         calls.append(step)
         if step == "profile_summary":
@@ -155,7 +155,7 @@ def test_a_partial_failure_keeps_what_it_bought_and_retries_only_the_rest(monkey
     _settle_jobs()
     calls.clear()
 
-    async def working(system_prompt, user_prompt, max_tokens=2048):
+    async def working(_db, system_prompt, user_prompt, max_tokens=2048):
         calls.append(_step_of(system_prompt))
         return "a realistic day" if _step_of(system_prompt) == "realistic_day" else "[]"
 
@@ -172,7 +172,7 @@ def test_a_partial_failure_keeps_what_it_bought_and_retries_only_the_rest(monkey
 def test_an_uncertain_step_asks_for_review(monkeypatch):
     _seed_profile(sex="m", age=40, ideal_day="", habits_break="")
 
-    async def uncertain(system_prompt, user_prompt, max_tokens=2048):
+    async def uncertain(_db, system_prompt, user_prompt, max_tokens=2048):
         raise LLMCallAmbiguousError("timed out")
 
     monkeypatch.setattr(onboarding_service, "_llm_call", uncertain)
@@ -246,7 +246,7 @@ def test_the_import_stores_markers_then_deletes_the_staged_bytes(monkeypatch, tm
 
     monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
 
-    async def fake_parse(text):
+    async def fake_parse(_db, text):
         assert "HGB" in text
         return [{"marker": "HGB", "unit": "g/dl", "results": [{"date": "2026-08-01", "value": 15.8, "flag": ""}]}]
 
@@ -275,7 +275,7 @@ def test_a_failed_import_keeps_the_bytes_for_an_explicit_retry(monkeypatch, tmp_
 
     monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
 
-    async def nothing(text):
+    async def nothing(_db, text):
         return []
 
     monkeypatch.setattr(medical_import, "parse_medical_text", nothing)
@@ -306,12 +306,12 @@ def test_pdf_extraction_stays_in_the_ledger_when_marker_parsing_fails(monkeypatc
     monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
     calls: list[str] = []
 
-    async def extract(pdf_bytes):
+    async def extract(_db, pdf_bytes):
         calls.append("extract")
         assert pdf_bytes.startswith(b"%PDF")
         return "### HGB\n* 2026-08-01: 15.8 g/dl"
 
-    async def parse(text):
+    async def parse(_db, text):
         calls.append("parse")
         assert "HGB" in text
         if calls.count("parse") == 1:
@@ -360,7 +360,7 @@ def test_rerunning_a_finished_pdf_import_buys_no_extraction(monkeypatch, tmp_pat
 
     monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
 
-    async def extract(pdf_bytes):
+    async def extract(_db, pdf_bytes):
         raise AssertionError("a finished import must not be extracted again")
 
     monkeypatch.setattr(medical_import, "extract_pdf_markers", extract)

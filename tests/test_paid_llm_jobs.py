@@ -38,7 +38,7 @@ def test_provider_uncertainty_has_a_distinct_error(tmp_path, monkeypatch, error)
     async def scenario():
         db = await _db(tmp_path / "uncertain.db")
         try:
-            monkeypatch.setattr("app.services.llm._resolve_provider", lambda db: _provider())
+            monkeypatch.setattr("app.services.llm.resolve_provider", lambda db: _provider())
             monkeypatch.setattr(litellm, "acompletion", fail)
             with pytest.raises(LLMCallAmbiguousError):
                 await call_llm(db, "system", "user")
