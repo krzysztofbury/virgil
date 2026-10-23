@@ -27,6 +27,7 @@ PUBLIC_PATHS = frozenset(
         "/login",
         "/signup",
         "/mfa/verify",
+        "/reset",
         "/offline",
         "/healthz",
         "/livez",

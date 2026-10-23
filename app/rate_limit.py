@@ -20,7 +20,15 @@ AUTH_WINDOW_SECONDS = 60
 # The settings forms that check a password share the sign-in limit, so a stolen
 # session cannot guess the password fast through any of them.
 AUTH_PATHS = frozenset(
-    {"/login", "/signup", "/mfa/verify", "/settings/password", "/settings/mfa/disable", "/settings/factory-reset"}
+    {
+        "/login",
+        "/signup",
+        "/mfa/verify",
+        "/reset",
+        "/settings/password",
+        "/settings/mfa/disable",
+        "/settings/factory-reset",
+    }
 )
 
 # LLM-backed endpoints cost money per call — a far tighter bucket than GENERAL.
