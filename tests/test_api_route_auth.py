@@ -135,3 +135,58 @@ def test_no_session_route_falls_inside_an_api_key_pattern():
         if is_api_key_path(path):
             leaks.append(route.path)
     assert leaks == []
+
+
+# Personal tokens carry their own scopes. The server key's checks above read the env flags;
+# these read the token, and every refusal names the scope that is missing.
+@pytest.fixture(scope="module")
+def token_for(auth_client):
+    import asyncio
+
+    from conftest import TEST_EMAIL
+
+    from app.central_db import create_api_token, get_central_db
+
+    async def make(scopes):
+        db = await get_central_db()
+        rows = await db.execute_fetchall("SELECT id FROM users WHERE email = ?", (TEST_EMAIL,))
+        return await create_api_token(rows[0]["id"], "route-auth", scopes, 1)
+
+    made = {}
+
+    def token(*scopes: str) -> dict:
+        if scopes not in made:
+            made[scopes] = asyncio.run(make(list(scopes)))
+        return {"Authorization": f"Bearer {made[scopes]}"}
+
+    yield token
+    conn = sqlite3.connect(user_db_path().parent.parent / "central.db")
+    conn.execute("DELETE FROM api_tokens WHERE name = 'route-auth'")
+    conn.commit()
+    conn.close()
+
+
+WRITES = [(m, p) for m, p in ROUTES if m != "GET"]
+
+
+@pytest.mark.parametrize(("method", "path"), WRITES, ids=[f"{m} {p}" for m, p in WRITES])
+def test_a_read_token_cannot_write(auth_client, token_for, method, path):
+    response = auth_client.request(method, _url(path), json={}, headers=token_for("read"))
+    assert response.status_code == 403
+    assert response.json()["detail"] == "This token lacks the write scope"
+
+
+@pytest.mark.parametrize(("method", "path"), sorted(SENSITIVE), ids=[f"{m} {p}" for m, p in sorted(SENSITIVE)])
+def test_freedom_routes_refuse_a_token_without_the_sensitive_scope(auth_client, token_for, method, path):
+    body = _SETTINGS_BODY if path in ("/api/freedom/{habit}", "/api/feniks/config") else _BODIES.get(method)
+    response = auth_client.request(method, _url(path), json=body, headers=token_for("read", "write", "finance"))
+    assert response.status_code == 403
+    assert response.json()["detail"] == "This token lacks the sensitive scope"
+
+
+@pytest.mark.parametrize(("method", "path"), sorted(FINANCE), ids=[f"{m} {p}" for m, p in sorted(FINANCE)])
+def test_finance_routes_refuse_a_token_without_the_finance_scope(auth_client, token_for, method, path):
+    headers = token_for("read", "write", "sensitive")
+    response = auth_client.request(method, _url(path), json={"entries": [], "name": "x"}, headers=headers)
+    assert response.status_code == 403
+    assert response.json()["detail"] == "This token lacks the finance scope"

@@ -374,6 +374,8 @@ AUTH_EVENTS = frozenset(
         "reset_link_create",
         "password_reset",
         "llm_access_change",
+        "token_create",
+        "token_revoke",
         "user_disable",
         "user_enable",
         "user_delete",
@@ -620,6 +622,94 @@ async def shared_llm_allowed(db_filename: str) -> bool:
         "SELECT allow_shared_llm FROM users WHERE db_filename = ? AND is_active = 1", (db_filename,)
     )
     return bool(rows and rows[0]["allow_shared_llm"])
+
+
+API_SCOPES = ("read", "write", "sensitive", "finance")
+API_TOKEN_PREFIX = "vrg_"
+
+
+async def create_api_token(user_id: str, name: str, scopes: list[str], expires_in_days: int | None) -> str:
+    """Store a personal API token and return its secret, which is never stored or shown again."""
+    unknown = set(scopes) - set(API_SCOPES)
+    if unknown or not scopes:
+        raise ValueError(f"Scopes must be some of {', '.join(API_SCOPES)}")
+    secret = API_TOKEN_PREFIX + secrets.token_urlsafe(32)
+    expires = _utc_stamp(datetime.now(UTC) + timedelta(days=expires_in_days)) if expires_in_days else ""
+    db = await get_central_db()
+    await db.execute(
+        """INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, scopes, expires_at)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (
+            str(uuid.uuid4()),
+            user_id,
+            name.strip()[:60],
+            _token_hash(secret),
+            secret[:12],
+            " ".join(scope for scope in API_SCOPES if scope in scopes),
+            expires,
+        ),
+    )
+    await db.commit()
+    return secret
+
+
+_LIVE_TOKEN = "t.revoked_at = '' AND (t.expires_at = '' OR t.expires_at > ?)"
+
+
+async def find_api_token(secret: str) -> dict | None:
+    """The live token behind a secret, with its account, or None.
+
+    Not cached: a revoke has to stop the very next request."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        f"""SELECT t.id, t.user_id, t.scopes, t.last_used_at, u.db_filename
+            FROM api_tokens t JOIN users u ON u.id = t.user_id
+            WHERE t.token_hash = ? AND {_LIVE_TOKEN} AND u.is_active = 1""",  # noqa: S608
+        (_token_hash(secret), _utc_stamp(datetime.now(UTC))),
+    )
+    return dict(rows[0]) if rows else None
+
+
+async def touch_api_token(token_id: str, now: datetime) -> None:
+    """Record use at most once a minute, so reads do not turn into registry writes."""
+    db = await get_central_db()
+    await db.execute(
+        "UPDATE api_tokens SET last_used_at = ? WHERE id = ? AND last_used_at < ?",
+        (_utc_stamp(now), token_id, _utc_stamp(now - timedelta(minutes=1))),
+    )
+    await db.commit()
+
+
+async def any_live_api_token() -> bool:
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        f"SELECT 1 FROM api_tokens t WHERE {_LIVE_TOKEN} LIMIT 1",  # noqa: S608
+        (_utc_stamp(datetime.now(UTC)),),
+    )
+    return bool(rows)
+
+
+async def list_api_tokens(user_id: str) -> list[dict]:
+    """An account's tokens that are not revoked, newest first; expired ones are marked."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        """SELECT id, name, token_prefix, scopes, expires_at, last_used_at, created_at,
+                  expires_at != '' AND expires_at <= ? AS expired
+           FROM api_tokens WHERE user_id = ? AND revoked_at = '' ORDER BY created_at DESC""",
+        (_utc_stamp(datetime.now(UTC)), user_id),
+    )
+    return [dict(row) for row in rows]
+
+
+async def revoke_api_token(user_id: str, token_id: str) -> bool:
+    """Revoke one of this account's own tokens."""
+    db = await get_central_db()
+    cursor = await db.execute(
+        "UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND user_id = ? AND revoked_at = ''",
+        (_utc_stamp(datetime.now(UTC)), token_id, user_id),
+    )
+    await db.commit()
+    return cursor.rowcount == 1
 
 
 async def count_users() -> int:

@@ -27,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   working once its issuer is no longer an active admin. Each account is
   separate: its own data, sign-in and keys.
 - Admins can make another account an admin or a user (#94).
+- Personal API tokens (#94 phase 2). A token serves its own account on the
+  REST API and `/mcp`, with the scopes it was created with: `read`, `write`,
+  `sensitive` (Freedom) and `finance`. GET routes need `read`, every other
+  method `write`, and a refusal names the missing scope. Tokens are sent in
+  `X-API-Key` or `Authorization: Bearer`; two different credentials in one
+  request are refused. Only a hash is stored (central migration 007), use is
+  recorded at most once a minute, and a revoked or expired token, or one of a
+  disabled account, gets 401. The server's `VIRGIL_API_KEY` works as before,
+  for `VIRGIL_API_USER_EMAIL`, and `VIRGIL_API_SENSITIVE` and
+  `VIRGIL_API_FINANCE` now govern that key only.
 - Password reset links (#94). There is no mailer, so an admin creates the link
   on the admin page and hands it over. It sets a new password once, lasts 15
   minutes, replaces any earlier link for the account, and signs out every
@@ -36,6 +46,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Factory reset asks for your password (#94).
+- Hosted `/mcp` tool calls carry the caller's own credential to the REST API
+  (#94). They used to carry the server key, which would have let any other
+  credential act on the server key's account through a tool.
 - Accounts in `VIRGIL_ADMIN_EMAILS` can no longer be disabled, demoted or
   deleted from the admin page; delete was only hidden before, and disable was
   allowed (#94).

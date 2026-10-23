@@ -1,16 +1,19 @@
 """Hosted MCP endpoint: the stdio wrapper's tools served over Streamable HTTP at /mcp.
 
-Clients connect to https://<host>/mcp with the same X-API-Key header as the REST API
-(plus the Cloudflare Access service-token headers when the host sits behind Access),
-so no local checkout, uv or launcher script is needed.
+Clients connect to https://<host>/mcp with the same credential as the REST API, a
+personal token or the server key in X-API-Key or Authorization: Bearer (plus the
+Cloudflare Access service-token headers when the host sits behind Access), so no
+local checkout, uv or launcher script is needed.
 
 The tools are the ones in mcp_server/virgil_mcp.py, unchanged: each still calls the
-REST API, here at the configured bind with the server's own key, so /mcp and /api
-share one auth path, one user mapping and one set of validation rules.
+REST API at the configured bind, carrying the caller's own credential, so /mcp and
+/api share one auth path, one account mapping, one set of scopes and one set of
+validation rules.
 """
 
 import ipaddress
 from contextlib import asynccontextmanager
+from contextvars import ContextVar
 
 import httpx
 from fastapi import HTTPException
@@ -20,8 +23,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.types import Receive, Scope, Send
 
-from app.config import API_KEY, HOST, PORT
-from app.routers.api import require_api_key
+from app.config import HOST, PORT
+from app.routers.api import authenticate, presented_secret
 from mcp_server import virgil_mcp
 
 MCP_PATH = "/mcp"
@@ -48,18 +51,37 @@ def loopback_base_url(host: str, port: int) -> str:
     return f"http://{literal}:{port}"
 
 
+# The secret the current /mcp request presented. Tool calls made while serving it
+# carry it to the REST API, which then acts for that caller's account with that
+# caller's scopes. Stamping the server key here instead would let any token holder
+# reach the server key's account through a tool.
+_caller_secret: ContextVar[str] = ContextVar("mcp_caller_secret", default="")
+
+
+def _forward_caller_secret(request: httpx.Request) -> None:
+    secret = _caller_secret.get()
+    if not secret:
+        raise RuntimeError("An MCP tool called the REST API outside an authenticated /mcp request")
+    request.headers["X-API-Key"] = secret
+
+
 # Process-wide: every tool call made inside the app goes to its own REST API.
 virgil_mcp.use_client(
-    httpx.Client(base_url=loopback_base_url(HOST, PORT), headers={"X-API-Key": API_KEY}, timeout=30.0)
+    httpx.Client(
+        base_url=loopback_base_url(HOST, PORT),
+        event_hooks={"request": [_forward_caller_secret]},
+        timeout=30.0,
+    )
 )
 
 
 class MCPEndpoint:
-    """ASGI endpoint: refuse a missing or wrong X-API-Key, hand the rest to the MCP SDK."""
+    """ASGI endpoint: refuse a missing or wrong credential, hand the rest to the MCP SDK."""
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         try:
-            require_api_key(Request(scope).headers.get("x-api-key", ""))
+            secret = presented_secret(Request(scope).headers)
+            await authenticate(secret)
         except HTTPException as exc:
             await JSONResponse({"detail": exc.detail}, status_code=exc.status_code)(scope, receive, send)
             return
@@ -67,7 +89,11 @@ class MCPEndpoint:
         if manager is None:
             await JSONResponse({"detail": "MCP endpoint not running"}, status_code=503)(scope, receive, send)
             return
-        await manager.handle_request(scope, receive, send)
+        reset = _caller_secret.set(secret)
+        try:
+            await manager.handle_request(scope, receive, send)
+        finally:
+            _caller_secret.reset(reset)
 
 
 @asynccontextmanager
