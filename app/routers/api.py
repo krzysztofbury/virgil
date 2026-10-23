@@ -1,10 +1,11 @@
 """REST API for machine-to-machine access (OpenClaw, AI agents, scripts).
 
-Auth: `X-API-Key` header, compared in constant time against VIRGIL_API_KEY.
-The key maps to exactly one account, named by VIRGIL_API_USER_EMAIL. There is
-no fallback: an empty email, or a missing or deactivated account, returns 503
-instead of serving someone else. API is disabled when VIRGIL_API_KEY is empty.
-`/mcp` uses this same mapping. Writes cover canonical goals/reps, experiment logging,
+Auth: a secret in `X-API-Key` or `Authorization: Bearer`. It is either the
+server's VIRGIL_API_KEY, which serves exactly one account named by
+VIRGIL_API_USER_EMAIL (an empty email, or a missing or deactivated account,
+returns 503 instead of serving someone else), or an account's personal token,
+which serves that account with the scopes it was created with. The API is
+disabled while neither exists. `/mcp` uses this same resolution. Writes cover canonical goals/reps, experiment logging,
 exercise-library CRUD,
 the daily log (habits and A.N.D.Y.), Freedom (/api/freedom: habits, their days, bricks and
 settings; the /api/feniks paths are deprecated aliases), training
@@ -13,7 +14,8 @@ sessions and body measurements.
 
 import hmac
 import logging
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import UTC, date, datetime, timedelta
 from typing import Annotated
 from uuid import uuid4
 
@@ -76,12 +78,79 @@ HABIT_FIELDS = (
 )
 
 
-def require_api_key(provided: str) -> None:
-    """Refuse unless `provided` matches VIRGIL_API_KEY; shared by the REST routes and /mcp."""
-    if not API_KEY:
-        raise HTTPException(status_code=403, detail="API disabled (VIRGIL_API_KEY not set)")
-    if not hmac.compare_digest(provided.encode(), API_KEY.encode()):
-        raise HTTPException(status_code=401, detail="Invalid API key")
+@dataclass(frozen=True)
+class ApiCredential:
+    """Who a request acts for, and what it may do."""
+
+    user_id: str
+    db_filename: str
+    scopes: frozenset[str]
+    # The server's VIRGIL_API_KEY rather than a personal token: its scopes come
+    # from VIRGIL_API_SENSITIVE and VIRGIL_API_FINANCE, so refusals name those.
+    server_key: bool
+
+
+def presented_secret(headers) -> str:
+    """The secret in X-API-Key, else in Authorization: Bearer. Two different ones are refused."""
+    key = headers.get("x-api-key", "")
+    authorization = headers.get("authorization", "")
+    bearer = authorization[7:].strip() if authorization[:7].lower() == "bearer " else ""
+    if key and bearer and not hmac.compare_digest(key.encode(), bearer.encode()):
+        raise HTTPException(status_code=401, detail="X-API-Key and Authorization carry different credentials")
+    return key or bearer
+
+
+async def authenticate(secret: str) -> ApiCredential:
+    """Resolve a secret to the one account it serves; shared by the REST routes and /mcp.
+
+    The server key and the token store are both consulted every time, so the
+    response time does not say which one a secret belongs to."""
+    from app import config
+    from app.central_db import any_live_api_token, find_api_token, touch_api_token
+
+    server_key = bool(API_KEY) and hmac.compare_digest(secret.encode(), API_KEY.encode())
+    token = await find_api_token(secret) if secret else None
+    if server_key:
+        if not API_USER_EMAIL:
+            raise HTTPException(
+                status_code=503,
+                detail="API user not configured (set VIRGIL_API_USER_EMAIL to the account this key should serve)",
+            )
+        central = await get_central_db()
+        rows = await central.execute_fetchall(
+            "SELECT id, db_filename FROM users WHERE email = ? AND is_active = 1",
+            (API_USER_EMAIL.lower(),),
+        )
+        if not rows:
+            raise HTTPException(status_code=503, detail="API user not found")
+        scopes = {"read", "write"}
+        scopes |= {"sensitive"} if config.API_SENSITIVE else set()
+        scopes |= {"finance"} if config.API_FINANCE else set()
+        return ApiCredential(rows[0]["id"], rows[0]["db_filename"], frozenset(scopes), server_key=True)
+    if token:
+        await touch_api_token(token["id"], datetime.now(UTC))
+        return ApiCredential(
+            token["user_id"], token["db_filename"], frozenset(token["scopes"].split()), server_key=False
+        )
+    if not API_KEY and not await any_live_api_token():
+        raise HTTPException(status_code=403, detail="API disabled (no VIRGIL_API_KEY and no personal tokens)")
+    raise HTTPException(status_code=401, detail="Invalid API key")
+
+
+# What the server key needs for each scope it may lack.
+_SERVER_KEY_SCOPE = {
+    "sensitive": "Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to use Freedom data)",
+    "finance": "Finance scope disabled (set VIRGIL_API_FINANCE=true to use finance data)",
+}
+
+
+def require_scope(request: Request, scope: str) -> None:
+    credential: ApiCredential = request.state.api_credential
+    if scope in credential.scopes:
+        return
+    if credential.server_key and scope in _SERVER_KEY_SCOPE:
+        raise HTTPException(status_code=403, detail=_SERVER_KEY_SCOPE[scope])
+    raise HTTPException(status_code=403, detail=f"This token lacks the {scope} scope")
 
 
 def warn_if_api_user_unconfigured() -> None:
@@ -100,23 +169,12 @@ def warn_if_api_user_unconfigured() -> None:
 
 
 async def api_db(request: Request):
-    """Authenticate via X-API-Key and yield the one configured user's DB connection."""
-    require_api_key(request.headers.get("x-api-key", ""))
-    if not API_USER_EMAIL:
-        raise HTTPException(
-            status_code=503,
-            detail="API user not configured (set VIRGIL_API_USER_EMAIL to the account this key should serve)",
-        )
+    """Authenticate, check read or write by method, and yield that account's DB connection."""
+    credential = await authenticate(presented_secret(request.headers))
+    request.state.api_credential = credential
+    require_scope(request, "read" if request.method in ("GET", "HEAD") else "write")
 
-    central = await get_central_db()
-    rows = await central.execute_fetchall(
-        "SELECT db_filename FROM users WHERE email = ? AND is_active = 1",
-        (API_USER_EMAIL.lower(),),
-    )
-    if not rows:
-        raise HTTPException(status_code=503, detail="API user not found")
-
-    db = await open_user_db(rows[0]["db_filename"])
+    db = await open_user_db(credential.db_filename)
     try:
         yield db
     finally:
@@ -126,12 +184,20 @@ async def api_db(request: Request):
 ApiDb = Annotated[aiosqlite.Connection, Depends(api_db)]
 
 
+async def sensitive_db(request: Request, db: ApiDb):
+    """Freedom data: the sensitive scope, checked before the body is validated."""
+    require_scope(request, "sensitive")
+    return db
+
+
+SensitiveDb = Annotated[aiosqlite.Connection, Depends(sensitive_db)]
+
+
 @router.get("/summary")
-async def api_summary(db: ApiDb):
+async def api_summary(request: Request, db: ApiDb):
     """Today's snapshot: daily habits, the first Freedom habit's streak (key "feniks", kept for
     older readers; null unless the sensitive scope is on, since the habit can be any
     addiction), latest Oura, training this week, latest measurements."""
-    from app import config
 
     today = date.today()
     today_iso = today.isoformat()
@@ -147,7 +213,7 @@ async def api_summary(db: ApiDb):
         }
 
     freedom = None
-    if config.API_SENSITIVE:
+    if "sensitive" in request.state.api_credential.scopes:
         try:
             first_habit = await resolve_habit(db)
             streak_days, last_relapse = await get_streak(db, first_habit["id"])
@@ -750,22 +816,15 @@ async def api_training_detail(
 
 @router.get("/noporn")
 async def api_noporn(
-    db: ApiDb,
+    db: SensitiveDb,
     days: int = Query(30, ge=1, le=365, alias="range"),
 ):
     """Freedom's Porn habit in detail: config, streak, current-week clean rate (Gola), plus the
     relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and logged
     pleasures from the last N days (?range=30). This is the WHY behind the streak.
 
-    Gated behind VIRGIL_API_SENSITIVE — this is intimate journal content, and a
-    leaked API key must not expose it by default."""
-    from app import config
-
-    if not config.API_SENSITIVE:
-        raise HTTPException(
-            status_code=403,
-            detail="Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to expose /api/noporn)",
-        )
+    Needs the sensitive scope: this is intimate journal content, and a leaked
+    API key must not expose it by default."""
     today = date.today()
     since = (today - timedelta(days=days - 1)).isoformat()
 
@@ -979,16 +1038,6 @@ def _iso_day(value: str) -> str:
         raise HTTPException(status_code=422, detail="date must be an ISO date (YYYY-MM-DD)") from exc
 
 
-def _require_sensitive() -> None:
-    from app import config
-
-    if not config.API_SENSITIVE:
-        raise HTTPException(
-            status_code=403,
-            detail="Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to use Freedom data)",
-        )
-
-
 async def _habit(db, slug: str | None) -> dict:
     """The habit a Freedom call is about: ?habit=<slug>, else the first one tracked."""
     try:
@@ -1001,10 +1050,9 @@ HabitParam = Annotated[str | None, Query(description="Habit slug; defaults to th
 
 
 @router.get("/freedom")
-async def api_freedom(db: ApiDb):
+async def api_freedom(db: SensitiveDb):
     """Freedom: every tracked habit with where it stands today (streak, this week,
     today's entry, urges survived) and its own definition of a slip."""
-    _require_sensitive()
     habits = []
     for habit in await list_habits(db):
         definition = {
@@ -1100,31 +1148,27 @@ async def _add_brick(db, target: dict, payload: ApiBrick) -> dict:
 
 
 @router.put("/freedom/{habit}/days/{day}")
-async def api_put_freedom_day(habit: str, day: str, payload: ApiFreedomDay, db: ApiDb):
+async def api_put_freedom_day(habit: str, day: str, payload: ApiFreedomDay, db: SensitiveDb):
     """Record one habit's day, replacing that day's entry. A slip marks a relapse for the
     habit's streak; correcting it to clean removes only that marker."""
-    _require_sensitive()
     return await _put_day(db, await _habit(db, habit), day, payload)
 
 
 @router.post("/freedom/{habit}/bricks", status_code=201)
-async def api_add_freedom_brick(habit: str, payload: ApiBrick, db: ApiDb):
+async def api_add_freedom_brick(habit: str, payload: ApiBrick, db: SensitiveDb):
     """One urge survived for one habit."""
-    _require_sensitive()
     return await _add_brick(db, await _habit(db, habit), payload)
 
 
 @router.put("/feniks/daily/{day}", deprecated=True)
-async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: ApiDb, habit: HabitParam = None):
+async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: SensitiveDb, habit: HabitParam = None):
     """Deprecated: PUT /api/freedom/{habit}/days/{day}."""
-    _require_sensitive()
     return await _put_day(db, await _habit(db, habit), day, payload)
 
 
 @router.post("/feniks/bricks", status_code=201, deprecated=True)
-async def api_add_brick(payload: ApiBrick, db: ApiDb, habit: HabitParam = None):
+async def api_add_brick(payload: ApiBrick, db: SensitiveDb, habit: HabitParam = None):
     """Deprecated: POST /api/freedom/{habit}/bricks."""
-    _require_sensitive()
     return await _add_brick(db, await _habit(db, habit), payload)
 
 
@@ -1238,16 +1282,14 @@ async def _delete_day(db, target: dict, day: str) -> dict:
 
 
 @router.delete("/freedom/{habit}/days/{day}")
-async def api_delete_freedom_day(habit: str, day: str, db: ApiDb):
+async def api_delete_freedom_day(habit: str, day: str, db: SensitiveDb):
     """Delete one habit's day entry and the relapse marker it created."""
-    _require_sensitive()
     return await _delete_day(db, await _habit(db, habit), day)
 
 
 @router.delete("/feniks/daily/{day}", deprecated=True)
-async def api_delete_feniks_day(day: str, db: ApiDb, habit: HabitParam = None):
+async def api_delete_feniks_day(day: str, db: SensitiveDb, habit: HabitParam = None):
     """Deprecated: DELETE /api/freedom/{habit}/days/{day}."""
-    _require_sensitive()
     return await _delete_day(db, await _habit(db, habit), day)
 
 
@@ -1262,9 +1304,8 @@ class ApiBrickPatch(BaseModel):
 
 @router.patch("/freedom/bricks/{brick_id}")
 @router.patch("/feniks/bricks/{brick_id}", deprecated=True)
-async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: ApiDb):
+async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: SensitiveDb):
     """Edit a brick; /api/feniks/bricks/{brick_id} is the deprecated path."""
-    _require_sensitive()
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Provide at least one brick field")
@@ -1278,9 +1319,8 @@ async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: ApiDb):
 
 @router.delete("/freedom/bricks/{brick_id}")
 @router.delete("/feniks/bricks/{brick_id}", deprecated=True)
-async def api_delete_brick(brick_id: int, db: ApiDb):
+async def api_delete_brick(brick_id: int, db: SensitiveDb):
     """Delete a brick; /api/feniks/bricks/{brick_id} is the deprecated path."""
-    _require_sensitive()
     try:
         await delete_brick(db, brick_id)
     except LookupError as exc:
@@ -1313,9 +1353,8 @@ class ApiHabitPatch(BaseModel):
 
 
 @router.patch("/freedom/{habit}")
-async def api_update_habit(habit: str, payload: ApiHabitPatch, db: ApiDb):
+async def api_update_habit(habit: str, payload: ApiHabitPatch, db: SensitiveDb):
     """One habit's settings: its name, its definition of a slip, start date, target and why."""
-    _require_sensitive()
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Provide at least one habit field")
@@ -1327,9 +1366,8 @@ async def api_update_habit(habit: str, payload: ApiHabitPatch, db: ApiDb):
 
 
 @router.patch("/feniks/config", deprecated=True)
-async def api_update_feniks_config(payload: ApiFeniksConfig, db: ApiDb, habit: HabitParam = None):
+async def api_update_feniks_config(payload: ApiFeniksConfig, db: SensitiveDb, habit: HabitParam = None):
     """Deprecated: PATCH /api/freedom/{habit}. One habit's start date, target and "why"."""
-    _require_sensitive()
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Provide at least one config field")
@@ -1388,19 +1426,9 @@ async def api_delete_measurements(day: str, db: ApiDb):
 # --- Finance ---
 
 
-def _require_finance() -> None:
-    from app import config
-
-    if not config.API_FINANCE:
-        raise HTTPException(
-            status_code=403,
-            detail="Finance scope disabled (set VIRGIL_API_FINANCE=true to use finance data)",
-        )
-
-
-async def finance_db(db: ApiDb):
+async def finance_db(request: Request, db: ApiDb):
     """The key first, then the finance scope, both before the body is validated."""
-    _require_finance()
+    require_scope(request, "finance")
     return db
 
 

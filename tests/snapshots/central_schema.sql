@@ -1,9 +1,26 @@
+-- index idx_api_tokens_user
+CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
+
 -- index idx_auth_events_created_at
 CREATE INDEX idx_auth_events_created_at ON auth_events(created_at);
 
 -- index provider_subscription_registrations_due
 CREATE INDEX provider_subscription_registrations_due
            ON provider_subscription_registrations(next_reconcile_at, claimed_until);
+
+-- table api_tokens
+CREATE TABLE api_tokens (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            token_prefix TEXT NOT NULL,
+            scopes TEXT NOT NULL,
+            expires_at TEXT NOT NULL DEFAULT '',
+            last_used_at TEXT NOT NULL DEFAULT '',
+            revoked_at TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
 
 -- table auth_events
 CREATE TABLE auth_events (
