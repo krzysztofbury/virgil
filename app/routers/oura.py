@@ -6,6 +6,7 @@ from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import N_, _
 from app.main import templates
 from app.services.oura_api import oura_sync_freshness
 from app.services.oura_baseline import BASELINE_DAYS, BASELINE_TOLERANCE, readiness_baseline  # noqa: F401 - BASELINE_TOLERANCE re-exported for tests
@@ -19,17 +20,17 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 METRICS = [
-    ("sleep_score", "Sleep Score", ""),
-    ("readiness", "Readiness", ""),
-    ("activity", "Activity", ""),
-    ("steps", "Steps", ""),
-    ("sleep_duration", "Sleep Duration", "h"),
-    ("deep_sleep", "Deep Sleep", "h"),
-    ("rem_sleep", "REM Sleep", "h"),
-    ("rhr", "Resting HR", "bpm"),
-    ("lowest_hr", "Lowest HR", "bpm"),
+    ("sleep_score", N_("Sleep Score"), ""),
+    ("readiness", N_("Readiness"), ""),
+    ("activity", N_("Activity"), ""),
+    ("steps", N_("Steps"), ""),
+    ("sleep_duration", N_("Sleep Duration"), "h"),
+    ("deep_sleep", N_("Deep Sleep"), "h"),
+    ("rem_sleep", N_("REM Sleep"), "h"),
+    ("rhr", N_("Resting HR"), "bpm"),
+    ("lowest_hr", N_("Lowest HR"), "bpm"),
     ("hrv", "HRV", "ms"),
-    ("cardiovascular_age", "Cardio Age", ""),
+    ("cardiovascular_age", N_("Cardio Age"), ""),
 ]
 
 
@@ -102,7 +103,7 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
             "request": request,
             "metrics": METRICS,
             "current_metric": metric,
-            "metric_name": metric_info[1],
+            "metric_name": _(metric_info[1]),
             "metric_unit": metric_info[2],
             "labels": labels,
             "values": values,
@@ -147,7 +148,7 @@ async def save_oura(
     notes: str = Form(""),
 ):
     if not valid_month(month):
-        return error_redirect(request, "/oura", "Invalid Oura month.")
+        return error_redirect(request, "/oura", _("Invalid Oura month."))
     db = get_user_db_from_request(request)
     await db.execute(
         """
@@ -184,20 +185,20 @@ async def save_oura(
         ),
     )
     await db.commit()
-    return success_redirect(request, "/oura", "Oura month saved.")
+    return success_redirect(request, "/oura", _("Oura month saved."))
 
 
 @router.post("/oura/delete")
 async def delete_oura(request: Request, month: str = Form(...)):
     if not valid_month(month):
-        return error_redirect(request, "/oura", "Invalid Oura month.")
+        return error_redirect(request, "/oura", _("Invalid Oura month."))
     db = get_user_db_from_request(request)
     cursor = await db.execute("DELETE FROM oura_monthly WHERE month = ?", (month,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/oura", "Oura month not found.")
+        return error_redirect(request, "/oura", _("Oura month not found."))
     await db.commit()
-    return success_redirect(request, "/oura", "Oura month deleted.")
+    return success_redirect(request, "/oura", _("Oura month deleted."))
 
 
 @router.post("/oura/api-sync")
@@ -207,7 +208,7 @@ async def oura_api_sync(request: Request, job_nonce: str = Form(...)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     if not rows or rows[0]["status"] != "connected":
-        return error_redirect(request, "/oura", "Oura is not connected.")
+        return error_redirect(request, "/oura", _("Oura is not connected."))
     try:
         result = await enqueue_oura_sync_job(
             db,
@@ -217,7 +218,7 @@ async def oura_api_sync(request: Request, job_nonce: str = Form(...)):
         )
     except Exception:
         logger.exception("Oura API sync enqueue failed")
-        return error_redirect(request, "/oura", "Oura sync could not be queued. Try again.")
+        return error_redirect(request, "/oura", _("Oura sync could not be queued. Try again."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
@@ -225,5 +226,5 @@ async def oura_api_sync(request: Request, job_nonce: str = Form(...)):
     return success_redirect(
         request,
         f"/oura?job_id={result.job_id}",
-        "Oura sync queued.",
+        _("Oura sync queued."),
     )

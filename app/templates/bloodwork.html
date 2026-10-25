@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Blood Work{% endblock %}
+{% block title %}{{ _("Virgil - Blood Work") }}{% endblock %}
 
 {# The full date matrix, defined once and called twice: a phone gets it inside a
    disclosure, a wide screen gets it directly. Two copies of this table would
@@ -8,13 +8,13 @@
 <table>
     <thead>
         <tr>
-            <th>Marker</th>
-            <th>Unit</th>
-            <th>Ref.</th>
+            <th>{{ _("Marker") }}</th>
+            <th>{{ _("Unit") }}</th>
+            <th>{{ _("Ref.") }}</th>
             {% for d in test_dates %}
             <th>{{ d }}</th>
             {% endfor %}
-            <th>Chart</th>
+            <th>{{ _("Chart") }}</th>
         </tr>
     </thead>
     <tbody>
@@ -32,7 +32,7 @@
                 {% else %}-{% endif %}
             </td>
             {% endfor %}
-            <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);" aria-label="Chart for {{ m.name }}">
+            <td><a href="/bloodwork/{{ current_category }}?marker={{ m.id }}" style="color: var(--accent);" aria-label="{% trans name=m.name %}Chart for {{ name }}{% endtrans %}">
                 <i data-lucide="chart-line" style="width:16px;height:16px;"></i>
             </a></td>
         </tr>
@@ -43,12 +43,12 @@
 
 {% block content %}
 <div class="page-header">
-    <h1>Blood Work</h1>
+    <h1>{{ _("Blood Work") }}</h1>
 </div>
 
 <!-- Category Tabs -->
 <div class="tabs">
-    <a href="/bloodwork" class="{{ 'active' if current_category == 'all' else '' }}">All</a>
+    <a href="/bloodwork" class="{{ 'active' if current_category == 'all' else '' }}">{{ _("All") }}</a>
     {% for cat in categories %}
     <a href="/bloodwork/{{ cat }}" class="{{ 'active' if current_category == cat else '' }}">{{ cat }}</a>
     {% endfor %}
@@ -60,37 +60,37 @@
     <div class="card-header"><h3>{{ chart_marker.name }} ({{ chart_marker.unit }})</h3></div>
     <div class="chart-container">
         <canvas id="bloodChart" height="200" role="img"
-                aria-label="{{ chart_marker.name }} results over time; the results table below lists every value with its date"></canvas>
+                aria-label="{% trans name=chart_marker.name %}{{ name }} results over time; the results table below lists every value with its date{% endtrans %}"></canvas>
     </div>
 </div>
 
 {# One marker's results, each correctable or deletable without SQL. #}
 <details class="card" id="marker-results" style="margin-bottom: 1.5rem;"{% if request.query_params.get('msg') or request.query_params.get('err') %} open{% endif %}>
-    <summary>Correct {{ chart_marker.name }} results ({{ chart_results|length }})</summary>
-    {% if not chart_results %}<p class="text-muted">No results for this marker yet.</p>{% endif %}
+    <summary>{% trans name=chart_marker.name, count=chart_results|length %}Correct {{ name }} results ({{ count }}){% endtrans %}</summary>
+    {% if not chart_results %}<p class="text-muted">{{ _("No results for this marker yet.") }}</p>{% endif %}
     {% for r in chart_results %}
     <div class="bw-edit-row">
         <form method="POST" action="/bloodwork/result/{{ r.id }}/edit" class="bw-edit-form">
             <input type="hidden" name="category" value="{{ current_category }}">
-            <label class="bw-edit-wide">Date <input type="date" name="date" value="{{ r.date }}" required></label>
-            <label>Value <input type="number" name="value" step="any" value="{{ r.value }}" required></label>
-            <label>Text <input type="text" name="value_text" value="{{ r.value_text or '' }}" maxlength="200"></label>
-            <label class="bw-edit-wide">Flag
+            <label class="bw-edit-wide">{{ _("Date") }} <input type="date" name="date" value="{{ r.date }}" required></label>
+            <label>{{ _("Value") }} <input type="number" name="value" step="any" value="{{ r.value }}" required></label>
+            <label>{{ _("Text") }} <input type="text" name="value_text" value="{{ r.value_text or '' }}" maxlength="200"></label>
+            <label class="bw-edit-wide">{{ _("Flag") }}
                 <select name="flag">
-                    <option value="auto" {{ 'selected' if r.flag_is_auto else '' }}>From the range</option>
-                    <option value="" {{ 'selected' if not r.flag_is_auto and not r.flag else '' }}>Normal (lab)</option>
-                    <option value="H" {{ 'selected' if not r.flag_is_auto and r.flag == 'H' else '' }}>H (lab)</option>
-                    <option value="L" {{ 'selected' if not r.flag_is_auto and r.flag == 'L' else '' }}>L (lab)</option>
+                    <option value="auto" {{ 'selected' if r.flag_is_auto else '' }}>{{ _("From the range") }}</option>
+                    <option value="" {{ 'selected' if not r.flag_is_auto and not r.flag else '' }}>{{ _("Normal (lab)") }}</option>
+                    <option value="H" {{ 'selected' if not r.flag_is_auto and r.flag == 'H' else '' }}>{{ _("H (lab)") }}</option>
+                    <option value="L" {{ 'selected' if not r.flag_is_auto and r.flag == 'L' else '' }}>{{ _("L (lab)") }}</option>
                 </select>
             </label>
-            <button type="submit" class="btn btn-secondary btn-sm" aria-label="Save the result from {{ r.date }}">Save</button>
+            <button type="submit" class="btn btn-secondary btn-sm" aria-label="{% trans date=r.date %}Save the result from {{ date }}{% endtrans %}">{{ _("Save") }}</button>
         </form>
         {# The text sits in a data attribute, never inside the script: a quote in a
            marker name would otherwise end the JS string. #}
         <form method="POST" action="/bloodwork/result/{{ r.id }}/delete"
-              data-confirm="Delete the {{ chart_marker.name }} result from {{ r.date }}? This cannot be undone.">
+              data-confirm="{% trans name=chart_marker.name, date=r.date %}Delete the {{ name }} result from {{ date }}? This cannot be undone.{% endtrans %}">
             <input type="hidden" name="category" value="{{ current_category }}">
-            <button type="submit" class="btn btn-outline btn-sm" aria-label="Delete the result from {{ r.date }}">Delete</button>
+            <button type="submit" class="btn btn-outline btn-sm" aria-label="{% trans date=r.date %}Delete the result from {{ date }}{% endtrans %}">{{ _("Delete") }}</button>
         </form>
     </div>
     {% endfor %}
@@ -101,31 +101,31 @@
      full date matrix. The matrix stays reachable on a phone under "All
      results" - it is the only view that shows history at a glance. -->
 <div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header"><h3>Results</h3></div>
+    <div class="card-header"><h3>{{ _("Results") }}</h3></div>
 
     <ul class="bw-list on-mobile">
         {% for m in markers %}
         <li class="bw-row">
             <div class="bw-marker">
                 <strong>{{ m.name }}</strong>
-                <small class="text-muted">{{ m.unit }}{% if m.ref_low is not none or m.ref_high is not none %} · ref {{ ref_range(m.ref_low, m.ref_high) }}{% endif %}</small>
+                <small class="text-muted">{{ m.unit }}{% if m.ref_low is not none or m.ref_high is not none %} · {% trans range=ref_range(m.ref_low, m.ref_high) %}ref {{ range }}{% endtrans %}{% endif %}</small>
             </div>
             <div class="bw-value">
                 {% if m.summary.value %}
                 <span class="{{ 'flag-h' if m.summary.flag == 'H' else 'flag-l' if m.summary.flag == 'L' else 'flag-normal' }}">{{ m.summary.value }}{% if m.summary.flag %}<sup>{{ m.summary.flag }}</sup>{% endif %}</span>
                 <small class="text-muted">{{ m.summary.date }}</small>
-                {% if m.summary.change %}<small class="text-muted">from {{ m.summary.previous }}
+                {% if m.summary.change %}<small class="text-muted">{% trans previous=m.summary.previous %}from {{ previous }}{% endtrans %}
                     {# Direction by shape, good or bad news by colour and words: rising
                        is bad news for LDL above its range and good for vitamin D below it. #}
                     <span class="bw-trend bw-trend-{{ m.summary.trend or 'neutral' }}">
                         <i data-lucide="{{ 'arrow-up-right' if m.summary.direction == 'up' else 'arrow-down-right' if m.summary.direction == 'down' else 'move-right' }}" aria-hidden="true"></i>{{ m.summary.change }}
-                        {%- if m.summary.trend == 'worse' %}<span class="sr-only">, moving away from the range</span>{% elif m.summary.trend == 'better' %}<span class="sr-only">, moving towards the range</span>{% endif -%}
+                        {%- if m.summary.trend == 'worse' %}<span class="sr-only">{{ _(", moving away from the range") }}</span>{% elif m.summary.trend == 'better' %}<span class="sr-only">{{ _(", moving towards the range") }}</span>{% endif -%}
                     </span></small>{% endif %}
                 {% else %}
                 <span class="text-muted">-</span>
                 {% endif %}
             </div>
-            <a class="bw-chart" href="/bloodwork/{{ current_category }}?marker={{ m.id }}" aria-label="Chart for {{ m.name }}">
+            <a class="bw-chart" href="/bloodwork/{{ current_category }}?marker={{ m.id }}" aria-label="{% trans name=m.name %}Chart for {{ name }}{% endtrans %}">
                 <i data-lucide="chart-line" style="width:16px;height:16px;"></i>
             </a>
         </li>
@@ -133,7 +133,7 @@
     </ul>
 
     <details class="on-mobile" style="margin-top:0.75rem;">
-        <summary>All results</summary>
+        <summary>{{ _("All results") }}</summary>
         <div class="overflow-x">{{ results_matrix(markers, test_dates, results, current_category) }}</div>
     </details>
 
@@ -142,11 +142,11 @@
 
 <!-- Add Result -->
 <details style="margin-bottom: 1rem;">
-    <summary>Add result</summary>
+    <summary>{{ _("Add result") }}</summary>
     <form method="POST" action="/bloodwork/result">
         <div class="grid">
             <div>
-                <label>Marker
+                <label>{{ _("Marker") }}
                     <select name="marker_id" required>
                         {% for m in markers %}
                         <option value="{{ m.id }}">{{ m.name }}</option>
@@ -155,41 +155,41 @@
                 </label>
             </div>
             <div>
-                <label>Date <input type="date" name="date" required></label>
+                <label>{{ _("Date") }} <input type="date" name="date" required></label>
             </div>
         </div>
         <div class="grid" style="margin-top: 0.75rem;">
-            <div><label>Value <input type="number" name="value" step="0.01" required></label></div>
-            <div><label>Text (opt.) <input type="text" name="value_text"></label></div>
+            <div><label>{{ _("Value") }} <input type="number" name="value" step="0.01" required></label></div>
+            <div><label>{{ _("Text (opt.)") }} <input type="text" name="value_text"></label></div>
             <div>
-                <label>Flag
+                <label>{{ _("Flag") }}
                     <select name="flag">
-                        <option value="">Normal</option>
-                        <option value="H">H (High)</option>
-                        <option value="L">L (Low)</option>
+                        <option value="">{{ _("Normal") }}</option>
+                        <option value="H">{{ _("H (High)") }}</option>
+                        <option value="L">{{ _("L (Low)") }}</option>
                     </select>
                 </label>
             </div>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">{{ _("Save") }}</button>
     </form>
 </details>
 
 <!-- Add Marker -->
 <details>
-    <summary>Add marker</summary>
+    <summary>{{ _("Add marker") }}</summary>
     <form method="POST" action="/bloodwork/marker">
         <div class="grid">
-            <div><label>Name <input type="text" name="name" required></label></div>
-            <div><label>Category <input type="text" name="category" required></label></div>
-            <div><label>Unit <input type="text" name="unit" required></label></div>
+            <div><label>{{ _("Name") }} <input type="text" name="name" required></label></div>
+            <div><label>{{ _("Category") }} <input type="text" name="category" required></label></div>
+            <div><label>{{ _("Unit") }} <input type="text" name="unit" required></label></div>
         </div>
         <div class="grid" style="margin-top: 0.75rem;">
-            <div><label>Ref. Min <input type="number" name="ref_low" step="0.01"></label></div>
-            <div><label>Ref. Max <input type="number" name="ref_high" step="0.01"></label></div>
-            <div><label>Order <input type="number" name="display_order" value="0"></label></div>
+            <div><label>{{ _("Ref. Min") }} <input type="number" name="ref_low" step="0.01"></label></div>
+            <div><label>{{ _("Ref. Max") }} <input type="number" name="ref_high" step="0.01"></label></div>
+            <div><label>{{ _("Order") }} <input type="number" name="display_order" value="0"></label></div>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save marker</button>
+        <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">{{ _("Save marker") }}</button>
     </form>
 </details>
 {% endblock %}

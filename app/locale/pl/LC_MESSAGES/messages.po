@@ -104,10 +104,6 @@ msgid "Day"
 msgstr "Dzień"
 
 #: app/i18n.py
-msgid "Month"
-msgstr "Miesiąc"
-
-#: app/i18n.py
 msgid "Quarter"
 msgstr "Kwartał"
 
@@ -272,6 +268,10 @@ msgstr "Niedz"
 #: app/i18n.py app/templates/dashboard.html app/templates/experiments.html
 msgid "Week"
 msgstr "Tydzień"
+
+#: app/i18n.py app/templates/oura.html
+msgid "Month"
+msgstr "Miesiąc"
 
 #: app/library_validation.py
 #, python-brace-format
@@ -449,6 +449,55 @@ msgstr[2] "Zbyt wiele błędnych kodów. Spróbuj ponownie za {num} minut."
 #: app/routers/auth.py
 msgid "Language changed."
 msgstr "Zmieniono język."
+
+#: app/routers/bloodwork.py
+msgid "Choose a valid bloodwork date."
+msgstr "Wybierz prawidłową datę badania."
+
+#: app/routers/bloodwork.py
+msgid "Choose a valid bloodwork result flag."
+msgstr "Wybierz prawidłowe oznaczenie wyniku."
+
+#: app/routers/bloodwork.py
+msgid "Enter the result as a number."
+msgstr "Wpisz wynik jako liczbę."
+
+#: app/routers/bloodwork.py
+msgid "Blood marker was not found."
+msgstr "Nie znaleziono wskaźnika krwi."
+
+#: app/routers/bloodwork.py
+msgid "Blood result saved."
+msgstr "Wynik badania zapisany."
+
+#: app/routers/bloodwork.py
+msgid "Name, category, and unit are required."
+msgstr "Nazwa, kategoria i jednostka są wymagane."
+
+#: app/routers/bloodwork.py
+msgid "Reference minimum cannot exceed the maximum."
+msgstr "Minimum referencyjne nie może przekraczać maksimum."
+
+#: app/routers/bloodwork.py
+msgid "Blood marker saved."
+msgstr "Wskaźnik krwi zapisany."
+
+#: app/routers/bloodwork.py
+msgid "That blood result no longer exists."
+msgstr "Ten wynik badania już nie istnieje."
+
+#: app/routers/bloodwork.py
+#, python-brace-format
+msgid "This marker already has a result on {date}. Edit or delete that one instead."
+msgstr "Ten wskaźnik ma już wynik z {date}. Zamiast tego edytuj go albo usuń."
+
+#: app/routers/bloodwork.py
+msgid "Blood result corrected."
+msgstr "Wynik badania poprawiony."
+
+#: app/routers/bloodwork.py
+msgid "Blood result deleted."
+msgstr "Wynik badania usunięty."
 
 #: app/routers/daily.py
 msgid "Invalid daily-log date."
@@ -863,6 +912,74 @@ msgstr "Wybierz prawidłową datę oceny."
 msgid "Life scores saved."
 msgstr "Oceny życia zapisane."
 
+#: app/routers/oura.py
+msgid "Sleep Duration"
+msgstr "Długość snu"
+
+#: app/routers/oura.py
+msgid "Deep Sleep"
+msgstr "Sen głęboki"
+
+#: app/routers/oura.py
+msgid "REM Sleep"
+msgstr "Sen REM"
+
+#: app/routers/oura.py
+msgid "Resting HR"
+msgstr "Tętno spoczynkowe"
+
+#: app/routers/oura.py
+msgid "Lowest HR"
+msgstr "Najniższe tętno"
+
+#: app/routers/oura.py
+msgid "Invalid Oura month."
+msgstr "Nieprawidłowy miesiąc Oura."
+
+#: app/routers/oura.py
+msgid "Oura month saved."
+msgstr "Miesiąc Oura zapisany."
+
+#: app/routers/oura.py
+msgid "Oura month not found."
+msgstr "Nie znaleziono miesiąca Oura."
+
+#: app/routers/oura.py
+msgid "Oura month deleted."
+msgstr "Miesiąc Oura usunięty."
+
+#: app/routers/oura.py
+msgid "Oura is not connected."
+msgstr "Oura nie jest połączona."
+
+#: app/routers/oura.py
+msgid "Oura sync could not be queued. Try again."
+msgstr "Nie udało się dodać synchronizacji Oura do kolejki. Spróbuj ponownie."
+
+#: app/routers/oura.py
+msgid "Oura sync queued."
+msgstr "Synchronizacja Oura dodana do kolejki."
+
+#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
+msgid "Readiness"
+msgstr "Gotowość"
+
+#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
+msgid "Activity"
+msgstr "Aktywność"
+
+#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
+msgid "Steps"
+msgstr "Kroki"
+
+#: app/routers/oura.py app/templates/oura.html
+msgid "Sleep Score"
+msgstr "Wynik snu"
+
+#: app/routers/oura.py app/templates/oura.html
+msgid "Cardio Age"
+msgstr "Wiek sercowo-naczyniowy"
+
 #: app/routers/training.py
 #, python-brace-format
 msgid "row {row}: {field} \"{raw}\" is not a whole number"
@@ -1020,16 +1137,16 @@ msgstr "Waga"
 msgid "Set number"
 msgstr "Numer serii"
 
+#: app/routers/training.py app/services/training_log.py app/templates/oura.html
+#: app/templates/training.html
+msgid "Duration"
+msgstr "Czas trwania"
+
 #: app/routers/training.py app/services/training_log.py
 #: app/templates/partials/wod_row.html app/templates/training.html
 #: app/templates/wod_confirm.html
 msgid "Reps"
 msgstr "Powtórzenia"
-
-#: app/routers/training.py app/services/training_log.py
-#: app/templates/training.html
-msgid "Duration"
-msgstr "Czas trwania"
 
 #: app/services/daily_log.py
 #, python-brace-format
@@ -1723,10 +1840,6 @@ msgstr[1] "{num} pola wymagają uwagi."
 msgstr[2] "{num} pól wymaga uwagi."
 
 #: app/static/js/app.js app/templates/base.html
-msgid "Daily"
-msgstr "Dziennik"
-
-#: app/static/js/app.js app/templates/base.html
 msgid "Goals"
 msgstr "Cele"
 
@@ -1747,6 +1860,10 @@ msgstr "Eksperymenty"
 #: app/templates/partials/freedom_today.html
 msgid "Freedom"
 msgstr "Freedom"
+
+#: app/static/js/app.js app/templates/base.html app/templates/oura.html
+msgid "Daily"
+msgstr "Dziennik"
 
 #: app/static/js/app.js app/templates/base.html app/templates/training.html
 msgid "Training"
@@ -1967,6 +2084,189 @@ msgstr "Więcej"
 msgid "Finance"
 msgstr "Finanse"
 
+#: app/templates/bloodwork.html
+msgid "Virgil - Blood Work"
+msgstr "Virgil - Badania krwi"
+
+#: app/templates/bloodwork.html
+msgid "Marker"
+msgstr "Wskaźnik"
+
+#: app/templates/bloodwork.html
+msgid "Unit"
+msgstr "Jednostka"
+
+#: app/templates/bloodwork.html
+msgid "Ref."
+msgstr "Norma"
+
+#: app/templates/bloodwork.html
+msgid "Chart"
+msgstr "Wykres"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "Chart for %(name)s"
+msgstr "Wykres: %(name)s"
+
+#: app/templates/bloodwork.html
+msgid "Blood Work"
+msgstr "Badania krwi"
+
+#: app/templates/bloodwork.html
+msgid "All"
+msgstr "Wszystkie"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "%(name)s results over time; the results table below lists every value with its date"
+msgstr "Wyniki %(name)s w czasie; tabela wyników poniżej pokazuje każdą wartość z datą"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "Correct %(name)s results (%(count)s)"
+msgstr "Popraw wyniki %(name)s (%(count)s)"
+
+#: app/templates/bloodwork.html
+msgid "No results for this marker yet."
+msgstr "Brak wyników dla tego wskaźnika."
+
+#: app/templates/bloodwork.html
+msgid "Text"
+msgstr "Tekst"
+
+#: app/templates/bloodwork.html
+msgid "Flag"
+msgstr "Oznaczenie"
+
+#: app/templates/bloodwork.html
+msgid "From the range"
+msgstr "Z zakresu"
+
+#: app/templates/bloodwork.html
+msgid "Normal (lab)"
+msgstr "W normie (laboratorium)"
+
+#: app/templates/bloodwork.html
+msgid "H (lab)"
+msgstr "H (laboratorium)"
+
+#: app/templates/bloodwork.html
+msgid "L (lab)"
+msgstr "L (laboratorium)"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "Save the result from %(date)s"
+msgstr "Zapisz wynik z %(date)s"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "Delete the %(name)s result from %(date)s? This cannot be undone."
+msgstr "Usunąć wynik %(name)s z %(date)s? Tego nie da się cofnąć."
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "Delete the result from %(date)s"
+msgstr "Usuń wynik z %(date)s"
+
+#: app/templates/bloodwork.html
+msgid "Results"
+msgstr "Wyniki"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "ref %(range)s"
+msgstr "norma %(range)s"
+
+#: app/templates/bloodwork.html
+#, python-format
+msgid "from %(previous)s"
+msgstr "z %(previous)s"
+
+#: app/templates/bloodwork.html
+msgid ", moving away from the range"
+msgstr ", oddala się od normy"
+
+#: app/templates/bloodwork.html
+msgid ", moving towards the range"
+msgstr ", zbliża się do normy"
+
+#: app/templates/bloodwork.html
+msgid "All results"
+msgstr "Wszystkie wyniki"
+
+#: app/templates/bloodwork.html
+msgid "Add result"
+msgstr "Dodaj wynik"
+
+#: app/templates/bloodwork.html
+msgid "Text (opt.)"
+msgstr "Tekst (opc.)"
+
+#: app/templates/bloodwork.html
+msgid "Normal"
+msgstr "W normie"
+
+#: app/templates/bloodwork.html
+msgid "H (High)"
+msgstr "H (wysoki)"
+
+#: app/templates/bloodwork.html
+msgid "L (Low)"
+msgstr "L (niski)"
+
+#: app/templates/bloodwork.html
+msgid "Add marker"
+msgstr "Dodaj wskaźnik"
+
+#: app/templates/bloodwork.html
+msgid "Category"
+msgstr "Kategoria"
+
+#: app/templates/bloodwork.html
+msgid "Ref. Min"
+msgstr "Norma min"
+
+#: app/templates/bloodwork.html
+msgid "Ref. Max"
+msgstr "Norma maks"
+
+#: app/templates/bloodwork.html
+msgid "Order"
+msgstr "Kolejność"
+
+#: app/templates/bloodwork.html
+msgid "Save marker"
+msgstr "Zapisz wskaźnik"
+
+#: app/templates/bloodwork.html app/templates/daily.html
+#: app/templates/dashboard.html app/templates/experiment_detail.html
+#: app/templates/freedom.html app/templates/oura.html
+msgid "Save"
+msgstr "Zapisz"
+
+#: app/templates/bloodwork.html app/templates/dashboard.html
+#: app/templates/experiment_detail.html app/templates/finance.html
+#: app/templates/freedom.html app/templates/oura.html
+#: app/templates/training.html
+msgid "Date"
+msgstr "Data"
+
+#: app/templates/bloodwork.html app/templates/experiment_detail.html
+msgid "Value"
+msgstr "Wartość"
+
+#: app/templates/bloodwork.html app/templates/experiment_detail.html
+#: app/templates/experiment_edit.html
+msgid "Delete"
+msgstr "Usuń"
+
+#: app/templates/bloodwork.html app/templates/experiment_new.html
+#: app/templates/finance_setup.html app/templates/freedom.html
+msgid "Name"
+msgstr "Nazwa"
+
 #: app/templates/daily.html
 msgid "Virgil - Daily Log"
 msgstr "Virgil - Dziennik"
@@ -2089,24 +2389,20 @@ msgid "Thighs (cm)"
 msgstr "Uda (cm)"
 
 #: app/templates/daily.html app/templates/dashboard.html
-#: app/templates/experiment_detail.html app/templates/freedom.html
-msgid "Save"
-msgstr "Zapisz"
-
-#: app/templates/daily.html app/templates/dashboard.html
 #: app/templates/partials/wod_row.html app/templates/training.html
 #: app/templates/wod_confirm.html
 msgid "Weight (kg)"
 msgstr "Waga (kg)"
 
 #: app/templates/daily.html app/templates/experiment_detail.html
-msgid "Notes"
-msgstr "Notatki"
-
-#: app/templates/daily.html app/templates/experiment_detail.html
 #: app/templates/freedom.html app/templates/training.html
 msgid "Edit"
 msgstr "Edytuj"
+
+#: app/templates/daily.html app/templates/experiment_detail.html
+#: app/templates/oura.html
+msgid "Notes"
+msgstr "Notatki"
 
 #: app/templates/dashboard.html
 msgid "Virgil - Dashboard"
@@ -2174,42 +2470,6 @@ msgstr "%(delta)s względem średniej z %(days)s dni"
 #: app/templates/dashboard.html
 msgid "Insights"
 msgstr "Wnioski"
-
-#: app/templates/dashboard.html
-msgid "Sleep"
-msgstr "Sen"
-
-#: app/templates/dashboard.html
-msgid "Readiness"
-msgstr "Gotowość"
-
-#: app/templates/dashboard.html
-msgid "HRV"
-msgstr "HRV"
-
-#: app/templates/dashboard.html
-msgid "RHR"
-msgstr "Tętno spoczynkowe"
-
-#: app/templates/dashboard.html
-msgid "Activity"
-msgstr "Aktywność"
-
-#: app/templates/dashboard.html
-msgid "(yesterday)"
-msgstr "(wczoraj)"
-
-#: app/templates/dashboard.html
-msgid "Steps"
-msgstr "Kroki"
-
-#: app/templates/dashboard.html
-msgid "Stress:"
-msgstr "Stres:"
-
-#: app/templates/dashboard.html
-msgid "Recovery:"
-msgstr "Regeneracja:"
 
 #: app/templates/dashboard.html
 msgid "No Oura data yet."
@@ -2303,10 +2563,6 @@ msgid "Priorities"
 msgstr "Priorytety"
 
 #: app/templates/dashboard.html
-msgid "History"
-msgstr "Historia"
-
-#: app/templates/dashboard.html
 #, python-format
 msgid "(last %(count)s week)"
 msgid_plural "(last %(count)s weeks)"
@@ -2343,12 +2599,6 @@ msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
 #: app/templates/dashboard.html app/templates/experiment_detail.html
-#: app/templates/finance.html app/templates/freedom.html
-#: app/templates/training.html
-msgid "Date"
-msgstr "Data"
-
-#: app/templates/dashboard.html app/templates/experiment_detail.html
 #: app/templates/freedom.html
 msgid "Today"
 msgstr "Dzisiaj"
@@ -2357,6 +2607,34 @@ msgstr "Dzisiaj"
 #: app/templates/experiment_new.html
 msgid "Metrics"
 msgstr "Wskaźniki"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "Sleep"
+msgstr "Sen"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "HRV"
+msgstr "HRV"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "RHR"
+msgstr "Tętno spoczynkowe"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "(yesterday)"
+msgstr "(wczoraj)"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "Stress:"
+msgstr "Stres:"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "Recovery:"
+msgstr "Regeneracja:"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "History"
+msgstr "Historia"
 
 #: app/templates/experiment_detail.html
 #, python-format
@@ -2469,14 +2747,6 @@ msgid "Log Entry"
 msgstr "Zapisz wpis"
 
 #: app/templates/experiment_detail.html
-msgid "Metric"
-msgstr "Wskaźnik"
-
-#: app/templates/experiment_detail.html
-msgid "Value"
-msgstr "Wartość"
-
-#: app/templates/experiment_detail.html
 msgid "easy pace / TENSION, 7→3"
 msgstr "spokojne tempo / NAPIĘCIE, 7→3"
 
@@ -2548,15 +2818,15 @@ msgstr "Usunąć ten eksperyment i wszystkie jego dane?"
 msgid "Reopen"
 msgstr "Wznów"
 
-#: app/templates/experiment_detail.html app/templates/experiment_edit.html
-msgid "Delete"
-msgstr "Usuń"
-
 #: app/templates/experiment_detail.html app/templates/experiments.html
 #: app/templates/goals.html
 #, python-format
 msgid "%(start)s to %(end)s"
 msgstr "%(start)s do %(end)s"
+
+#: app/templates/experiment_detail.html app/templates/oura.html
+msgid "Metric"
+msgstr "Wskaźnik"
 
 #: app/templates/experiment_edit.html
 #, python-format
@@ -2798,11 +3068,6 @@ msgstr "Utwórz eksperyment"
 msgid "Cancel"
 msgstr "Anuluj"
 
-#: app/templates/experiment_new.html app/templates/finance_setup.html
-#: app/templates/freedom.html
-msgid "Name"
-msgstr "Nazwa"
-
 #: app/templates/experiment_new.html app/templates/freedom.html
 msgid "Type"
 msgstr "Typ"
@@ -2872,10 +3137,6 @@ msgstr "Poduszka"
 #: app/templates/finance.html
 msgid "Months of essential cost"
 msgstr "Miesiące niezbędnych kosztów"
-
-#: app/templates/finance.html
-msgid "Score"
-msgstr "Wynik"
 
 #: app/templates/finance.html
 #, python-format
@@ -2994,6 +3255,10 @@ msgstr "Nie dotyczy"
 #: app/templates/finance.html app/templates/finance_setup.html
 msgid "independent of work"
 msgstr "niezależny od pracy"
+
+#: app/templates/finance.html app/templates/oura.html
+msgid "Score"
+msgstr "Wynik"
 
 #: app/templates/finance_setup.html
 msgid "Virgil - Finance setup"
@@ -3806,6 +4071,179 @@ msgstr "Brak celów w wybranym horyzoncie."
 #: app/templates/goals.html app/templates/training.html
 msgid "Open"
 msgstr "Otwórz"
+
+#: app/templates/oura.html
+msgid "Oura Ring Data"
+msgstr "Dane z pierścienia Oura"
+
+#: app/templates/oura.html
+msgid "Syncing..."
+msgstr "Synchronizacja..."
+
+#: app/templates/oura.html
+msgid "Sync from API"
+msgstr "Synchronizuj z API"
+
+#: app/templates/oura.html
+#, python-format
+msgid "Readiness %(value)s"
+msgstr "Gotowość %(value)s"
+
+#: app/templates/oura.html
+#, python-format
+msgid "%(days)s-day baseline %(value)s"
+msgstr "punkt odniesienia z %(days)s dni: %(value)s"
+
+#: app/templates/oura.html
+#, python-format
+msgid "%(delta)s versus baseline"
+msgstr "%(delta)s względem punktu odniesienia"
+
+#: app/templates/oura.html
+msgid "above"
+msgstr "powyżej"
+
+#: app/templates/oura.html
+msgid "below"
+msgstr "poniżej"
+
+#: app/templates/oura.html
+msgid "steady"
+msgstr "stabilnie"
+
+#: app/templates/oura.html
+msgid "Not enough history yet for a baseline."
+msgstr "Za mało historii na punkt odniesienia."
+
+#: app/templates/oura.html
+msgid "Today's Vitals"
+msgstr "Dzisiejsze parametry"
+
+#: app/templates/oura.html
+msgid "Total"
+msgstr "Razem"
+
+#: app/templates/oura.html
+msgid "Deep"
+msgstr "Głęboki"
+
+#: app/templates/oura.html
+msgid "REM"
+msgstr "REM"
+
+#: app/templates/oura.html
+msgid "Recovery"
+msgstr "Regeneracja"
+
+#: app/templates/oura.html
+msgid "HRV (ms)"
+msgstr "HRV (ms)"
+
+#: app/templates/oura.html
+msgid "RHR (bpm)"
+msgstr "Tętno spoczynkowe (bpm)"
+
+#: app/templates/oura.html
+msgid "Monthly Trends"
+msgstr "Trendy miesięczne"
+
+#: app/templates/oura.html
+#, python-format
+msgid "Monthly %(name)s; History below, set to Monthly, lists the values by month"
+msgstr "%(name)s miesięcznie; Historia poniżej, ustawiona na Miesięcznie, pokazuje wartości według miesięcy"
+
+#: app/templates/oura.html
+msgid "Compare metrics"
+msgstr "Porównaj wskaźniki"
+
+#: app/templates/oura.html
+msgid "Daily Trends"
+msgstr "Trendy dzienne"
+
+#: app/templates/oura.html
+msgid "Daily trends and history window"
+msgstr "Zakres trendów dziennych i historii"
+
+#: app/templates/oura.html
+#, python-format
+msgid "HRV, resting heart rate, sleep and readiness over the last %(range_weeks)s weeks; the History section lists each day"
+msgstr "HRV, tętno spoczynkowe, sen i gotowość z ostatnich tygodni (%(range_weeks)s); sekcja Historia pokazuje każdy dzień"
+
+#: app/templates/oura.html
+#, python-format
+msgid "No Oura days in the last %(count)s week."
+msgid_plural "No Oura days in the last %(count)s weeks."
+msgstr[0] "Brak dni z Oura w ostatnim %(count)s tygodniu."
+msgstr[1] "Brak dni z Oura w ostatnich %(count)s tygodniach."
+msgstr[2] "Brak dni z Oura w ostatnich %(count)s tygodniach."
+
+#: app/templates/oura.html
+#, python-format
+msgid "(daily rows: last %(count)s week)"
+msgid_plural "(daily rows: last %(count)s weeks)"
+msgstr[0] "(wiersze dzienne: ostatni %(count)s tydzień)"
+msgstr[1] "(wiersze dzienne: ostatnie %(count)s tygodnie)"
+msgstr[2] "(wiersze dzienne: ostatnich %(count)s tygodni)"
+
+#: app/templates/oura.html
+msgid "History view"
+msgstr "Widok historii"
+
+#: app/templates/oura.html
+msgid "Monthly"
+msgstr "Miesięcznie"
+
+#: app/templates/oura.html
+msgid "Ready"
+msgstr "Gotowość"
+
+#: app/templates/oura.html
+msgid "Sleep (h)"
+msgstr "Sen (h)"
+
+#: app/templates/oura.html
+msgid "Hours"
+msgstr "Godziny"
+
+#: app/templates/oura.html
+msgid "Add month"
+msgstr "Dodaj miesiąc"
+
+#: app/templates/oura.html
+msgid "Month (YYYY-MM)"
+msgstr "Miesiąc (RRRR-MM)"
+
+#: app/templates/oura.html
+msgid "Sleep Duration (h)"
+msgstr "Długość snu (h)"
+
+#: app/templates/oura.html
+msgid "Deep Sleep (h)"
+msgstr "Sen głęboki (h)"
+
+#: app/templates/oura.html
+msgid "REM Sleep (h)"
+msgstr "Sen REM (h)"
+
+#: app/templates/oura.html
+msgid "Resting HR (bpm)"
+msgstr "Tętno spoczynkowe (bpm)"
+
+#: app/templates/oura.html
+msgid "Lowest HR (bpm)"
+msgstr "Najniższe tętno (bpm)"
+
+#: app/templates/oura.html
+msgid "Stress Normal"
+msgstr "Stres: normalny"
+
+#: app/templates/oura.html
+msgid "Stress Stressful"
+msgstr "Stres: wysoki"
+
+#: app/templates/oura.html
+msgid "Stress Restored"
+msgstr "Stres: regeneracja"
 
 #: app/templates/partials/experiment_card.html
 #, python-format

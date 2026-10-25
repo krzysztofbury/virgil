@@ -22,9 +22,7 @@ TEMPLATES = APP / "templates"
 
 PENDING_TEMPLATES = {
     "admin_users.html",
-    "bloodwork.html",
     "onboarding.html",
-    "oura.html",
     "partials/job_notifications.html",
     "partials/job_status.html",
     "settings.html",
@@ -39,9 +37,7 @@ BILINGUAL_TEMPLATES = {"offline.html"}
 PENDING_PAGES = {
     "/admin/users",
     "/api/jobs/active",
-    "/bloodwork",
     "/onboarding",
-    "/oura",
     "/settings?tab=general",
     "/settings?tab=configuration",
     "/settings?tab=integrations",
@@ -51,10 +47,8 @@ PENDING_PAGES = {
 }
 PENDING_MODULES = {
     "routers/admin.py",
-    "routers/bloodwork.py",
     "routers/jobs.py",
     "routers/onboarding.py",
-    "routers/oura.py",
     "routers/settings.py",
     "csrf.py",
 }

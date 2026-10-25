@@ -6,6 +6,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _
 from app.main import templates
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, truncate, valid_date
@@ -219,11 +220,11 @@ async def save_result(
 ):
     date = valid_date(date)
     if not date:
-        return error_redirect(request, "/bloodwork", "Choose a valid bloodwork date.")
+        return error_redirect(request, "/bloodwork", _("Choose a valid bloodwork date."))
     if flag and flag not in ("", "H", "L"):
-        return error_redirect(request, "/bloodwork", "Choose a valid bloodwork result flag.")
+        return error_redirect(request, "/bloodwork", _("Choose a valid bloodwork result flag."))
     if not isfinite(value):
-        return error_redirect(request, "/bloodwork", "Enter the result as a number.")
+        return error_redirect(request, "/bloodwork", _("Enter the result as a number."))
     value_text = truncate(value_text, 200)
     db = get_user_db_from_request(request)
 
@@ -231,7 +232,7 @@ async def save_result(
     # foreign-key 500 instead of a controlled redirect.
     marker_rows = await db.execute_fetchall("SELECT ref_low, ref_high FROM blood_markers WHERE id = ?", (marker_id,))
     if not marker_rows:
-        return error_redirect(request, "/bloodwork", "Blood marker was not found.")
+        return error_redirect(request, "/bloodwork", _("Blood marker was not found."))
 
     # No explicit flag → derive it from the stored reference range, so the
     # lab-reported value can still override (labs use their own ranges). Here an
@@ -252,7 +253,7 @@ async def save_result(
         (marker_id, date, value, value_text, flag),
     )
     await db.commit()
-    return success_redirect(request, "/bloodwork", "Blood result saved.")
+    return success_redirect(request, "/bloodwork", _("Blood result saved."))
 
 
 @router.post("/bloodwork/marker")
@@ -269,9 +270,9 @@ async def save_marker(
     category = category.strip()
     unit = unit.strip()
     if not name or not category or not unit:
-        return error_redirect(request, "/bloodwork", "Name, category, and unit are required.")
+        return error_redirect(request, "/bloodwork", _("Name, category, and unit are required."))
     if ref_low is not None and ref_high is not None and ref_low > ref_high:
-        return error_redirect(request, "/bloodwork", "Reference minimum cannot exceed the maximum.")
+        return error_redirect(request, "/bloodwork", _("Reference minimum cannot exceed the maximum."))
     db = get_user_db_from_request(request)
     await db.execute(
         """
@@ -285,7 +286,7 @@ async def save_marker(
         (name, category, unit, ref_low, ref_high, display_order),
     )
     await db.commit()
-    return success_redirect(request, "/bloodwork", "Blood marker saved.")
+    return success_redirect(request, "/bloodwork", _("Blood marker saved."))
 
 
 def _marker_page(category: str, marker_id: int) -> str:
@@ -315,18 +316,18 @@ async def edit_result(
         (result_id,),
     )
     if not rows:
-        return error_redirect(request, "/bloodwork", "That blood result no longer exists.")
+        return error_redirect(request, "/bloodwork", _("That blood result no longer exists."))
     marker = dict(rows[0])
     destination = _marker_page(category, marker["marker_id"])
     date = valid_date(date)
     if not date:
-        return error_redirect(request, destination, "Choose a valid bloodwork date.")
+        return error_redirect(request, destination, _("Choose a valid bloodwork date."))
     if not isfinite(value):
-        return error_redirect(request, destination, "Enter the result as a number.")
+        return error_redirect(request, destination, _("Enter the result as a number."))
     if flag == "auto":
         flag = "" if value_text.strip() else compute_flag(value, marker["ref_low"], marker["ref_high"])
     elif flag not in ("", "H", "L"):
-        return error_redirect(request, destination, "Choose a valid bloodwork result flag.")
+        return error_redirect(request, destination, _("Choose a valid bloodwork result flag."))
     try:
         await db.execute(
             "UPDATE blood_results SET date = ?, value = ?, value_text = ?, flag = ? WHERE id = ?",
@@ -335,10 +336,12 @@ async def edit_result(
     except sqlite3.IntegrityError:
         await db.rollback()
         return error_redirect(
-            request, destination, f"This marker already has a result on {date}. Edit or delete that one instead."
+            request,
+            destination,
+            _("This marker already has a result on {date}. Edit or delete that one instead.").format(date=date),
         )
     await db.commit()
-    return success_redirect(request, destination, "Blood result corrected.")
+    return success_redirect(request, destination, _("Blood result corrected."))
 
 
 @router.post("/bloodwork/result/{result_id}/delete")
@@ -346,7 +349,7 @@ async def delete_result(request: Request, result_id: int, category: str = Form("
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT marker_id FROM blood_results WHERE id = ?", (result_id,))
     if not rows:
-        return error_redirect(request, "/bloodwork", "That blood result no longer exists.")
+        return error_redirect(request, "/bloodwork", _("That blood result no longer exists."))
     await db.execute("DELETE FROM blood_results WHERE id = ?", (result_id,))
     await db.commit()
-    return success_redirect(request, _marker_page(category, rows[0]["marker_id"]), "Blood result deleted.")
+    return success_redirect(request, _marker_page(category, rows[0]["marker_id"]), _("Blood result deleted."))

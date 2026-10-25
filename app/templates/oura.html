@@ -5,13 +5,13 @@
 <div class="page-header">
     <div class="flex-between">
         <div>
-            <h1>Oura Ring Data</h1>
+            <h1>{{ _("Oura Ring Data") }}</h1>
             {% include "partials/oura_freshness.html" %}
         </div>
         {% if oura_connected %}
         <form method="POST" action="/oura/api-sync" hx-post="/oura/api-sync" hx-swap="none" style="margin:0;">
             <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
-            <button type="submit" class="btn btn-primary btn-sm" data-pending-label="Syncing...">Sync from API</button>
+            <button type="submit" class="btn btn-primary btn-sm" data-pending-label="{{ _("Syncing...") }}">{{ _("Sync from API") }}</button>
         </form>
         {% endif %}
     </div>
@@ -23,17 +23,17 @@
 {% if baseline.today is not none %}
 <div class="card" id="readiness-baseline" style="margin-bottom: 1rem;">
     <div class="card-header">
-        <h3>Readiness {{ baseline.today }}</h3>
+        <h3>{% trans value=baseline.today %}Readiness {{ value }}{% endtrans %}</h3>
         {% if baseline.baseline is not none %}
-        <small class="text-muted">{{ baseline.days }}-day baseline {{ baseline.baseline }}</small>
+        <small class="text-muted">{% trans days=baseline.days, value=baseline.baseline %}{{ days }}-day baseline {{ value }}{% endtrans %}</small>
         {% endif %}
     </div>
     {% if baseline.status %}
     <p class="baseline-status baseline-{{ baseline.status }}">
-        {{ '%+d'|format(baseline.delta) }} versus baseline &middot; {{ baseline.status }}
+        {% trans delta='%+d'|format(baseline.delta) %}{{ delta }} versus baseline{% endtrans %} &middot; {% if baseline.status == 'above' %}{{ _("above") }}{% elif baseline.status == 'below' %}{{ _("below") }}{% else %}{{ _("steady") }}{% endif %}
     </p>
     {% else %}
-    <p class="text-muted">Not enough history yet for a baseline.</p>
+    <p class="text-muted">{{ _("Not enough history yet for a baseline.") }}</p>
     {% endif %}
 </div>
 {% endif %}
@@ -42,82 +42,82 @@
      belongs to which system. -->
 {% if oura_today %}
 <div class="card" style="margin-bottom: 1.5rem;">
-    <div class="card-header"><h3>Today's Vitals</h3></div>
+    <div class="card-header"><h3>{{ _("Today's Vitals") }}</h3></div>
 
     {# Each group names itself once; the tiles under it say which number is which. #}
-    <h4 class="vitals-group">Sleep</h4>
+    <h4 class="vitals-group">{{ _("Sleep") }}</h4>
     <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
-            <div class="stat-label">Score</div>
+            <div class="stat-label">{{ _("Score") }}</div>
         </div>
         {% if oura_today.sleep_duration_hours %}
         <div class="stat-card">
             <div class="stat-value">{{ '%.1f'|format(oura_today.sleep_duration_hours) }}<small>h</small></div>
-            <div class="stat-label">Total</div>
+            <div class="stat-label">{{ _("Total") }}</div>
         </div>
         {% endif %}
         {% if oura_today.deep_sleep_hours %}
         <div class="stat-card">
             <div class="stat-value">{{ '%.1f'|format(oura_today.deep_sleep_hours) }}<small>h</small></div>
-            <div class="stat-label">Deep</div>
+            <div class="stat-label">{{ _("Deep") }}</div>
         </div>
         {% endif %}
         {% if oura_today.rem_sleep_hours %}
         <div class="stat-card">
             <div class="stat-value">{{ '%.1f'|format(oura_today.rem_sleep_hours) }}<small>h</small></div>
-            <div class="stat-label">REM</div>
+            <div class="stat-label">{{ _("REM") }}</div>
         </div>
         {% endif %}
     </div>
 
-    <h4 class="vitals-group">Activity</h4>
+    <h4 class="vitals-group">{{ _("Activity") }}</h4>
     <div class="stat-grid">
         <div class="stat-card">
             {% if oura_today.activity_score %}
             <div class="stat-value">{{ oura_today.activity_score }}</div>
-            <div class="stat-label">Score</div>
+            <div class="stat-label">{{ _("Score") }}</div>
             {% elif yesterday_fallback.activity_score %}
             <div class="stat-value">{{ yesterday_fallback.activity_score }}</div>
-            <div class="stat-label">Score <small class="text-muted">(yesterday)</small></div>
+            <div class="stat-label">{{ _("Score") }} <small class="text-muted">{{ _("(yesterday)") }}</small></div>
             {% else %}
             <div class="stat-value">-</div>
-            <div class="stat-label">Score</div>
+            <div class="stat-label">{{ _("Score") }}</div>
             {% endif %}
         </div>
         <div class="stat-card">
             {% if oura_today.steps %}
             <div class="stat-value">{{ oura_today.steps|thousands }}</div>
-            <div class="stat-label">Steps</div>
+            <div class="stat-label">{{ _("Steps") }}</div>
             {% elif yesterday_fallback.steps %}
             <div class="stat-value">{{ yesterday_fallback.steps|thousands }}</div>
-            <div class="stat-label">Steps <small class="text-muted">(yesterday)</small></div>
+            <div class="stat-label">{{ _("Steps") }} <small class="text-muted">{{ _("(yesterday)") }}</small></div>
             {% else %}
             <div class="stat-value">-</div>
-            <div class="stat-label">Steps</div>
+            <div class="stat-label">{{ _("Steps") }}</div>
             {% endif %}
         </div>
     </div>
 
-    <h4 class="vitals-group">Recovery</h4>
+    <h4 class="vitals-group">{{ _("Recovery") }}</h4>
     <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
-            <div class="stat-label">Readiness</div>
+            <div class="stat-label">{{ _("Readiness") }}</div>
         </div>
         <div class="stat-card">
             <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
-            <div class="stat-label">HRV (ms)</div>
+            <div class="stat-label">{{ _("HRV (ms)") }}</div>
         </div>
         <div class="stat-card">
             <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
-            <div class="stat-label">RHR (bpm)</div>
+            <div class="stat-label">{{ _("RHR (bpm)") }}</div>
         </div>
     </div>
     {% if oura_today.stress_high is not none or oura_today.stress_rest is not none %}
     <div style="margin-top:0.5rem;display:flex;gap:1.5rem;flex-wrap:wrap;">
-        {% if oura_today.stress_high %}<small>Stress: <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
-        {% if oura_today.stress_rest %}<small>Recovery: <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
+        {% if oura_today.stress_high %}<small>{{ _("Stress:") }} <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
+        {% if oura_today.stress_rest %}<small>{{ _("Recovery:") }} <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
     </div>
     {% endif %}
 </div>
@@ -128,16 +128,16 @@
 <!-- Monthly Chart -->
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header">
-        <h3>Monthly Trends</h3>
-        <select aria-label="Metric" data-navigate="/oura/{value}#metric-content" class="metric-select">
+        <h3>{{ _("Monthly Trends") }}</h3>
+        <select aria-label="{{ _("Metric") }}" data-navigate="/oura/{value}#metric-content" class="metric-select">
             {% for key, name, unit in metrics %}
-            <option value="{{ key }}" {{ 'selected' if current_metric == key else '' }}>{{ name }}{% if unit %} ({{ unit }}){% endif %}</option>
+            <option value="{{ key }}" {{ 'selected' if current_metric == key else '' }}>{{ _(name) }}{% if unit %} ({{ unit }}){% endif %}</option>
             {% endfor %}
         </select>
     </div>
     <div class="chart-container">
         <canvas id="ouraChart" height="200" role="img"
-                aria-label="Monthly {{ metric_name }}; History below, set to Monthly, lists the values by month"></canvas>
+                aria-label="{% trans name=metric_name %}Monthly {{ name }}; History below, set to Monthly, lists the values by month{% endtrans %}"></canvas>
     </div>
 </div>
 <script nonce="{{ request.state.csp_nonce }}">
@@ -148,7 +148,7 @@
         var chart = new Chart(ctx, {
             type: 'line',
             data: { labels: {{ labels | tojson }}, datasets: [{
-                label: '{{ metric_name }}',
+                label: {{ metric_name|tojson }},
                 data: {{ values | tojson }},
                 borderColor: 'rgb(168, 85, 247)',
                 backgroundColor: 'rgba(168, 85, 247, 0.1)',
@@ -178,33 +178,33 @@
      different question from the default trend above, so it goes last and
      says what it is. Not collapsed: a Chart.js canvas inside a closed
      details renders at zero size. -->
-<div class="section-title">Compare metrics</div>
+<div class="section-title">{{ _("Compare metrics") }}</div>
 {% if has_daily %}
 <div class="card" id="compare-metrics" style="margin-bottom: 1.5rem;">
     <div class="card-header flex-between">
-        <h3>Daily Trends</h3>
-        {% with range_label = "Daily trends and history window" %}{% include "partials/range_picker.html" %}{% endwith %}
+        <h3>{{ _("Daily Trends") }}</h3>
+        {% with range_label = _("Daily trends and history window") %}{% include "partials/range_picker.html" %}{% endwith %}
     </div>
     {% if trend_labels %}
     <div class="chart-container">
         <canvas id="dailyTrendChart" height="200" role="img"
-                aria-label="HRV, resting heart rate, sleep and readiness over the last {{ range_weeks }} weeks; the History section lists each day"></canvas>
+                aria-label="{% trans %}HRV, resting heart rate, sleep and readiness over the last {{ range_weeks }} weeks; the History section lists each day{% endtrans %}"></canvas>
     </div>
     {% else %}
-    <p class="text-muted">No Oura days in the last {{ range_weeks }} weeks.</p>
+    <p class="text-muted">{% trans count=range_weeks %}No Oura days in the last {{ count }} week.{% pluralize %}No Oura days in the last {{ count }} weeks.{% endtrans %}</p>
     {% endif %}
 </div>
 {% endif %}
 
 <!-- History -->
 <details style="margin-bottom: 1.5rem;">
-    <summary>History <small class="text-muted">(daily rows: last {{ range_weeks }} weeks)</small></summary>
+    <summary>{{ _("History") }} <small class="text-muted">{% trans count=range_weeks %}(daily rows: last {{ count }} week){% pluralize %}(daily rows: last {{ count }} weeks){% endtrans %}</small></summary>
     <div class="card" style="margin-top: 0.75rem;">
         <div class="card-header">
-            <h3>History</h3>
-            <select class="metric-select" id="history-view" aria-label="History view" data-view-switch>
-                <option value="daily">Daily</option>
-                <option value="monthly">Monthly</option>
+            <h3>{{ _("History") }}</h3>
+            <select class="metric-select" id="history-view" aria-label="{{ _("History view") }}" data-view-switch>
+                <option value="daily">{{ _("Daily") }}</option>
+                <option value="monthly">{{ _("Monthly") }}</option>
             </select>
         </div>
 
@@ -213,27 +213,27 @@
             <table class="history-table">
                 <thead>
                     <tr>
-                        <th>Date</th>
-                        <th>Sleep</th>
-                        <th>Ready</th>
-                        <th>Activity</th>
-                        <th>HRV</th>
-                        <th>RHR</th>
-                        <th>Sleep (h)</th>
-                        <th>Steps</th>
+                        <th>{{ _("Date") }}</th>
+                        <th>{{ _("Sleep") }}</th>
+                        <th>{{ _("Ready") }}</th>
+                        <th>{{ _("Activity") }}</th>
+                        <th>{{ _("HRV") }}</th>
+                        <th>{{ _("RHR") }}</th>
+                        <th>{{ _("Sleep (h)") }}</th>
+                        <th>{{ _("Steps") }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for d in daily_data %}
                     <tr>
                         <td class="history-when"><small>{{ d.date }}</small></td>
-                        <td data-label="Sleep">{{ d.sleep_score or '-' }}</td>
-                        <td data-label="Ready">{{ d.readiness_score or '-' }}</td>
-                        <td data-label="Activity">{{ d.activity_score or '-' }}</td>
-                        <td data-label="HRV">{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
-                        <td data-label="RHR">{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
-                        <td data-label="Hours">{{ '%.1f h'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
-                        <td data-label="Steps">{{ d.steps|thousands or '-' }}</td>
+                        <td data-label="{{ _("Sleep") }}">{{ d.sleep_score or '-' }}</td>
+                        <td data-label="{{ _("Ready") }}">{{ d.readiness_score or '-' }}</td>
+                        <td data-label="{{ _("Activity") }}">{{ d.activity_score or '-' }}</td>
+                        <td data-label="{{ _("HRV") }}">{{ d.avg_hrv|round|int if d.avg_hrv else '-' }}</td>
+                        <td data-label="{{ _("RHR") }}">{{ d.resting_hr|round|int if d.resting_hr else '-' }}</td>
+                        <td data-label="{{ _("Hours") }}">{{ '%.1f h'|format(d.sleep_duration_hours) if d.sleep_duration_hours else '-' }}</td>
+                        <td data-label="{{ _("Steps") }}">{{ d.steps|thousands or '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -245,27 +245,27 @@
             <table class="history-table">
                 <thead>
                     <tr>
-                        <th>Month</th>
-                        <th>Sleep</th>
-                        <th>Ready</th>
-                        <th>Activity</th>
-                        <th>Steps</th>
-                        <th>Duration</th>
-                        <th>HRV</th>
-                        <th>RHR</th>
+                        <th>{{ _("Month") }}</th>
+                        <th>{{ _("Sleep") }}</th>
+                        <th>{{ _("Ready") }}</th>
+                        <th>{{ _("Activity") }}</th>
+                        <th>{{ _("Steps") }}</th>
+                        <th>{{ _("Duration") }}</th>
+                        <th>{{ _("HRV") }}</th>
+                        <th>{{ _("RHR") }}</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for d in data|reverse %}
                     <tr>
                         <td class="history-when">{{ d.month }}</td>
-                        <td data-label="Sleep">{{ d.sleep_score|int if d.sleep_score else '-' }}</td>
-                        <td data-label="Ready">{{ d.readiness|int if d.readiness else '-' }}</td>
-                        <td data-label="Activity">{{ d.activity|int if d.activity else '-' }}</td>
-                        <td data-label="Steps">{{ d.steps|thousands or '-' }}</td>
-                        <td data-label="Duration">{{ '%.1f h'|format(d.sleep_duration) if d.sleep_duration else '-' }}</td>
-                        <td data-label="HRV">{{ d.hrv|int if d.hrv else '-' }}</td>
-                        <td data-label="RHR">{{ d.rhr|int if d.rhr else '-' }}</td>
+                        <td data-label="{{ _("Sleep") }}">{{ d.sleep_score|int if d.sleep_score else '-' }}</td>
+                        <td data-label="{{ _("Ready") }}">{{ d.readiness|int if d.readiness else '-' }}</td>
+                        <td data-label="{{ _("Activity") }}">{{ d.activity|int if d.activity else '-' }}</td>
+                        <td data-label="{{ _("Steps") }}">{{ d.steps|thousands or '-' }}</td>
+                        <td data-label="{{ _("Duration") }}">{{ '%.1f h'|format(d.sleep_duration) if d.sleep_duration else '-' }}</td>
+                        <td data-label="{{ _("HRV") }}">{{ d.hrv|int if d.hrv else '-' }}</td>
+                        <td data-label="{{ _("RHR") }}">{{ d.rhr|int if d.rhr else '-' }}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -273,43 +273,43 @@
         </div>
 
         <details style="margin-top: 0.75rem;">
-            <summary style="font-size: 0.85rem;">Add month</summary>
+            <summary style="font-size: 0.85rem;">{{ _("Add month") }}</summary>
         <form method="POST" action="/oura/save" style="margin-top: 0.5rem;">
             <div class="grid">
                 <div>
-                    <label>Month (YYYY-MM)
+                    <label>{{ _("Month (YYYY-MM)") }}
                         <input type="text" name="month" placeholder="2026-02" required pattern="\d{4}-\d{2}">
                     </label>
                 </div>
             </div>
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>Sleep Score <input type="number" name="sleep_score" step="0.1"></label></div>
-                <div><label>Readiness <input type="number" name="readiness" step="0.1"></label></div>
-                <div><label>Activity <input type="number" name="activity" step="0.1"></label></div>
+                <div><label>{{ _("Sleep Score") }} <input type="number" name="sleep_score" step="0.1"></label></div>
+                <div><label>{{ _("Readiness") }} <input type="number" name="readiness" step="0.1"></label></div>
+                <div><label>{{ _("Activity") }} <input type="number" name="activity" step="0.1"></label></div>
             </div>
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>Steps <input type="number" name="steps"></label></div>
-                <div><label>Sleep Duration (h) <input type="number" name="sleep_duration" step="0.1"></label></div>
-                <div><label>Deep Sleep (h) <input type="number" name="deep_sleep" step="0.1"></label></div>
+                <div><label>{{ _("Steps") }} <input type="number" name="steps"></label></div>
+                <div><label>{{ _("Sleep Duration (h)") }} <input type="number" name="sleep_duration" step="0.1"></label></div>
+                <div><label>{{ _("Deep Sleep (h)") }} <input type="number" name="deep_sleep" step="0.1"></label></div>
             </div>
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>REM Sleep (h) <input type="number" name="rem_sleep" step="0.1"></label></div>
-                <div><label>Resting HR (bpm) <input type="number" name="rhr" step="0.1"></label></div>
-                <div><label>Lowest HR (bpm) <input type="number" name="lowest_hr" step="0.1"></label></div>
+                <div><label>{{ _("REM Sleep (h)") }} <input type="number" name="rem_sleep" step="0.1"></label></div>
+                <div><label>{{ _("Resting HR (bpm)") }} <input type="number" name="rhr" step="0.1"></label></div>
+                <div><label>{{ _("Lowest HR (bpm)") }} <input type="number" name="lowest_hr" step="0.1"></label></div>
             </div>
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>HRV (ms) <input type="number" name="hrv" step="0.1"></label></div>
-                <div><label>Cardio Age <input type="number" name="cardiovascular_age"></label></div>
+                <div><label>{{ _("HRV (ms)") }} <input type="number" name="hrv" step="0.1"></label></div>
+                <div><label>{{ _("Cardio Age") }} <input type="number" name="cardiovascular_age"></label></div>
             </div>
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>Stress Normal <input type="number" name="stress_normal"></label></div>
-                <div><label>Stress Stressful <input type="number" name="stress_stressful"></label></div>
-                <div><label>Stress Restored <input type="number" name="stress_restored"></label></div>
+                <div><label>{{ _("Stress Normal") }} <input type="number" name="stress_normal"></label></div>
+                <div><label>{{ _("Stress Stressful") }} <input type="number" name="stress_stressful"></label></div>
+                <div><label>{{ _("Stress Restored") }} <input type="number" name="stress_restored"></label></div>
             </div>
             <div style="margin-top: 0.75rem;">
-                <label>Notes <input type="text" name="notes"></label>
+                <label>{{ _("Notes") }} <input type="text" name="notes"></label>
             </div>
-            <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+            <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">{{ _("Save") }}</button>
         </form>
         </details>
     </div>
@@ -334,7 +334,7 @@
             yAxisID: 'y',
         },
         {
-            label: 'Sleep',
+            label: {{ _("Sleep")|tojson }},
             data: {{ trend_sleep | tojson }},
             borderColor: 'rgb(59, 130, 246)',
             tension: 0.3,
@@ -342,7 +342,7 @@
             yAxisID: 'y1',
         },
         {
-            label: 'Readiness',
+            label: {{ _("Readiness")|tojson }},
             data: {{ trend_readiness | tojson }},
             borderColor: 'rgb(34, 197, 94)',
             tension: 0.3,
@@ -350,7 +350,7 @@
             yAxisID: 'y1',
         },
         {
-            label: 'RHR',
+            label: {{ _("RHR")|tojson }},
             data: {{ trend_rhr | tojson }},
             borderColor: 'rgb(239, 68, 68)',
             tension: 0.3,
@@ -363,7 +363,7 @@
             // axis is stated here, in theme colours.
             scales: {
                 y: { position: 'left', grace: '10%', grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text }, title: { display: true, text: 'HRV / RHR', color: getChartColors().text } },
-                y1: { position: 'right', suggestedMin: 50, suggestedMax: 100, grid: { drawOnChartArea: false }, ticks: { color: getChartColors().text }, title: { display: true, text: 'Score', color: getChartColors().text } },
+                y1: { position: 'right', suggestedMin: 50, suggestedMax: 100, grid: { drawOnChartArea: false }, ticks: { color: getChartColors().text }, title: { display: true, text: {{ _("Score")|tojson }}, color: getChartColors().text } },
                 x: { grid: { color: getChartColors().grid }, ticks: { color: getChartColors().text } }
             }
         }
