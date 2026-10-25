@@ -464,6 +464,17 @@ document.addEventListener('htmx:beforeRequest', function(event) {
 
 document.addEventListener('htmx:afterSettle', refocusPending);
 
+// The server percent-encodes the message: header values cannot carry Polish letters.
+function feedbackHeader(xhr) {
+    var message = xhr.getResponseHeader('X-Feedback-Message');
+    if (!message) return message;
+    try {
+        return decodeURIComponent(message);
+    } catch (e) {
+        return message;
+    }
+}
+
 document.addEventListener('htmx:afterRequest', function(event) {
     var form = requestForm(event);
     restorePending(form);
@@ -471,7 +482,7 @@ document.addEventListener('htmx:afterRequest', function(event) {
     if (!event.detail.successful || !event.detail.target || !event.detail.target.isConnected) refocusPending();
     if (!event.detail.successful) return;
     var xhr = event.detail.xhr;
-    var message = xhr.getResponseHeader('X-Feedback-Message');
+    var message = feedbackHeader(xhr);
     var kind = xhr.getResponseHeader('X-Feedback-Kind') || 'success';
     var clearKey = xhr.getResponseHeader('X-Draft-Clear');
     if (clearKey) clearDraft(clearKey);
@@ -485,7 +496,7 @@ document.addEventListener('htmx:responseError', function(event) {
     var form = requestForm(event);
     restorePending(form);
     clearDraftPending(form);
-    var message = xhr.getResponseHeader('X-Feedback-Message');
+    var message = feedbackHeader(xhr);
     // A failed read lost nothing; the offline banner reports an unreachable Virgil.
     if (event.detail.requestConfig.verb === 'get' && isProxyUnreachable(xhr.status)) return;
     if (message) showFeedback(message, xhr.getResponseHeader('X-Feedback-Kind') || 'error');

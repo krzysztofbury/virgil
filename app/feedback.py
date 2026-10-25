@@ -1,7 +1,7 @@
 """One bounded feedback contract for PRG and HTMX mutations."""
 
 import re
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
+from urllib.parse import parse_qsl, quote, urlencode, urlsplit, urlunsplit
 
 from fastapi import Request
 from fastapi.responses import RedirectResponse, Response
@@ -54,6 +54,15 @@ def feedback_redirect(
         return Response(status_code=200, headers=headers)
     target = feedback_url(path, msg=msg, err=err, clear_draft=clear_draft)
     return RedirectResponse(target, status_code=303)
+
+
+def feedback_headers(message: str, *, kind: str = "success") -> dict[str, str]:
+    """Headers carrying one outcome to an htmx request.
+
+    Header values must be Latin-1, so the (possibly Polish) message is
+    percent-encoded; app.js decodes it before showing it.
+    """
+    return {"X-Feedback-Message": quote(_bounded_message(message), safe=" "), "X-Feedback-Kind": kind}
 
 
 def success_redirect(request: Request, path: str, message: str, *, clear_draft: str | None = None) -> Response:

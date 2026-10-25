@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
-from app.feedback import error_redirect, success_redirect
+from app.feedback import error_redirect, feedback_headers, success_redirect
 from app.main import templates
 from app.services.jobs import get_job_status, list_active_job_statuses, retry_job
 from app.user_db import get_user_db_from_request
@@ -189,7 +189,7 @@ async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str 
                 request,
                 row,
                 status_code=409,
-                headers={"X-Feedback-Kind": "error", "X-Feedback-Message": message, "X-Feedback-Swap": "true"},
+                headers={**feedback_headers(message, kind="error"), "X-Feedback-Swap": "true"},
             )
         return error_redirect(request, redirect_path, message)
 
@@ -201,7 +201,7 @@ async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str 
                 request,
                 current,
                 status_code=409,
-                headers={"X-Feedback-Kind": "error", "X-Feedback-Message": message, "X-Feedback-Swap": "true"},
+                headers={**feedback_headers(message, kind="error"), "X-Feedback-Swap": "true"},
             )
         return error_redirect(request, redirect_path, message)
 
@@ -212,6 +212,6 @@ async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str 
         return _render_job(
             request,
             updated,
-            headers={"X-Feedback-Kind": "success", "X-Feedback-Message": "Job queued for retry."},
+            headers=feedback_headers("Job queued for retry."),
         )
     return success_redirect(request, redirect_path, "Job queued for retry.")

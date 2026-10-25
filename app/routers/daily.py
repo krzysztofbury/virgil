@@ -6,7 +6,7 @@ from datetime import timedelta
 from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
-from app.feedback import error_redirect, success_redirect
+from app.feedback import error_redirect, feedback_headers, success_redirect
 from app.main import templates
 from app.services.daily_log import (
     STATUS_FIELDS,
@@ -159,13 +159,11 @@ async def cycle_daily_status(request: Request, day: str, field: str = Form(...))
     """
     day = valid_date(day)
     if not day:
-        return Response(
-            status_code=422, headers={"X-Feedback-Message": "Invalid daily-log date.", "X-Feedback-Kind": "error"}
-        )
+        return Response(status_code=422, headers=feedback_headers("Invalid daily-log date.", kind="error"))
     try:
         log = await cycle_status(get_user_db_from_request(request), day, field)
     except DailyLogError as exc:
-        return Response(status_code=422, headers={"X-Feedback-Message": str(exc), "X-Feedback-Kind": "error"})
+        return Response(status_code=422, headers=feedback_headers(str(exc), kind="error"))
     return templates.TemplateResponse(
         request,
         "partials/today_block.html",
@@ -234,11 +232,7 @@ async def save_daily(
     if request.headers.get("HX-Request"):
         return Response(
             status_code=200,
-            headers={
-                "X-Feedback-Message": "Saved",
-                "X-Feedback-Kind": "success",
-                "X-Draft-Clear": f"daily:{date}",
-            },
+            headers={**feedback_headers("Saved"), "X-Draft-Clear": f"daily:{date}"},
         )
     return success_redirect(request, f"/daily/{date}", "Daily log saved.", clear_draft=f"daily:{date}")
 
@@ -308,6 +302,6 @@ async def save_measurements(
     if request.headers.get("HX-Request"):
         return Response(
             status_code=200,
-            headers={"X-Feedback-Message": "Measurements saved", "X-Feedback-Kind": "success"},
+            headers=feedback_headers("Measurements saved"),
         )
     return success_redirect(request, f"/daily/{date}", "Measurements saved.")

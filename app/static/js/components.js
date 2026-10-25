@@ -2,6 +2,21 @@
 // attributes: anything past a simple expression lives in a component registered
 // below. Loaded before Alpine (which is deferred), so alpine:init has not fired.
 
+// Polish strings for our scripts (#152), rendered into the page by base.html.
+// English is the message id, so a missing entry shows the English text.
+var i18nCatalog = null;
+function gettext(message) {
+    if (i18nCatalog === null) {
+        var block = document.getElementById('i18n-catalog');
+        try {
+            i18nCatalog = block ? JSON.parse(block.textContent) : {};
+        } catch (e) {
+            i18nCatalog = {};
+        }
+    }
+    return i18nCatalog[message] || message;
+}
+
 // The phone tab bar's More menu.
 function bottomBar() {
     return {
