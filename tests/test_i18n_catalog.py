@@ -58,9 +58,11 @@ def test_placeholders_match():
 
 
 def test_polish_fits_the_feedback_bound():
+    """Feedback messages come from Python (templates never build a feedback URL)."""
     too_long = [
         message.id
         for message in _messages()
+        if any(filename.endswith(".py") for filename, _line in message.locations)
         for form in _forms(message.string)
         if len(form) > MAX_FEEDBACK_LENGTH >= len(_forms(message.id)[0])
     ]

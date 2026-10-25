@@ -47,7 +47,7 @@ msgstr "Rozwój"
 msgid "Relaxation"
 msgstr "Odpoczynek"
 
-#: app/db.py
+#: app/db.py app/templates/onboarding.html
 msgid "Family"
 msgstr "Rodzina"
 
@@ -79,77 +79,68 @@ msgstr[2] "{num} minut temu"
 msgid "just now"
 msgstr "przed chwilą"
 
-#: app/i18n.py
-msgid "Active"
-msgstr "Aktywny"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Mon"
+msgstr "Pon"
 
-#: app/i18n.py
-msgid "Paused"
-msgstr "Wstrzymany"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Tue"
+msgstr "Wt"
 
-#: app/i18n.py
-msgid "Completed"
-msgstr "Ukończony"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Wed"
+msgstr "Śr"
 
-#: app/i18n.py
-msgid "Abandoned"
-msgstr "Porzucony"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Thu"
+msgstr "Czw"
 
-#: app/i18n.py
-msgid "Carried"
-msgstr "Przeniesiony"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Fri"
+msgstr "Pt"
 
-#: app/i18n.py
-msgid "Day"
-msgstr "Dzień"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Sat"
+msgstr "Sob"
 
-#: app/i18n.py
-msgid "Quarter"
-msgstr "Kwartał"
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Sun"
+msgstr "Niedz"
 
-#: app/i18n.py
-msgid "Year"
-msgstr "Rok"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Monday"
+msgstr "Poniedziałek"
 
-#: app/i18n.py
-msgid "Cash"
-msgstr "Gotówka"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Tuesday"
+msgstr "Wtorek"
 
-#: app/i18n.py
-msgid "Bonds"
-msgstr "Obligacje"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Wednesday"
+msgstr "Środa"
 
-#: app/i18n.py
-msgid "Retirement"
-msgstr "Emerytalne"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Sunday"
+msgstr "Niedziela"
 
-#: app/i18n.py
-msgid "Brokerage"
-msgstr "Maklerskie"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Thursday"
+msgstr "Czwartek"
 
-#: app/i18n.py
-msgid "Crypto"
-msgstr "Kryptowaluty"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Friday"
+msgstr "Piątek"
 
-#: app/i18n.py
-msgid "Property"
-msgstr "Nieruchomości"
-
-#: app/i18n.py
-msgid "Other"
-msgstr "Inne"
-
-#: app/i18n.py
-msgid "1 Year"
-msgstr "1 rok"
-
-#: app/i18n.py
-msgid "3 Years"
-msgstr "3 lata"
-
-#: app/i18n.py
-msgid "10 Years"
-msgstr "10 lat"
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Saturday"
+msgstr "Sobota"
 
 #: app/i18n.py app/static/js/app.js
 msgid "Jan"
@@ -199,71 +190,39 @@ msgstr "Lis"
 msgid "Dec"
 msgstr "Gru"
 
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Monday"
-msgstr "Poniedziałek"
+#: app/i18n.py app/templates/admin_users.html app/templates/settings.html
+msgid "Active"
+msgstr "Aktywny"
+
+#: app/i18n.py
+msgid "Paused"
+msgstr "Wstrzymany"
+
+#: app/i18n.py app/routers/jobs.py
+msgid "Completed"
+msgstr "Ukończony"
+
+#: app/i18n.py
+msgid "Abandoned"
+msgstr "Porzucony"
 
 #: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Tuesday"
-msgstr "Wtorek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Wednesday"
-msgstr "Środa"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Sunday"
-msgstr "Niedziela"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Thursday"
-msgstr "Czwartek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Friday"
-msgstr "Piątek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Saturday"
-msgstr "Sobota"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
+#: app/templates/partials/today_block.html app/templates/settings.html
 msgid "Pending"
 msgstr "Do zrobienia"
+
+#: app/i18n.py
+msgid "Carried"
+msgstr "Przeniesiony"
 
 #: app/i18n.py app/static/js/app.js app/templates/daily.html
 #: app/templates/partials/today_block.html
 msgid "Skipped"
 msgstr "Pominięte"
 
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Mon"
-msgstr "Pon"
-
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Tue"
-msgstr "Wt"
-
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Wed"
-msgstr "Śr"
-
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Thu"
-msgstr "Czw"
-
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Fri"
-msgstr "Pt"
-
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Sat"
-msgstr "Sob"
-
-#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
-msgid "Sun"
-msgstr "Niedz"
+#: app/i18n.py
+msgid "Day"
+msgstr "Dzień"
 
 #: app/i18n.py app/templates/dashboard.html app/templates/experiments.html
 msgid "Week"
@@ -272,6 +231,86 @@ msgstr "Tydzień"
 #: app/i18n.py app/templates/oura.html
 msgid "Month"
 msgstr "Miesiąc"
+
+#: app/i18n.py
+msgid "Quarter"
+msgstr "Kwartał"
+
+#: app/i18n.py
+msgid "Year"
+msgstr "Rok"
+
+#: app/i18n.py app/templates/onboarding.html
+msgid "Male"
+msgstr "Mężczyzna"
+
+#: app/i18n.py app/templates/onboarding.html
+msgid "Female"
+msgstr "Kobieta"
+
+#: app/i18n.py app/templates/admin_users.html
+msgid "Admin"
+msgstr "Administrator"
+
+#: app/i18n.py app/templates/admin_users.html
+msgid "User"
+msgstr "Użytkownik"
+
+#: app/i18n.py
+msgid "Warmup"
+msgstr "Rozgrzewka"
+
+#: app/i18n.py
+msgid "Core"
+msgstr "Część główna"
+
+#: app/i18n.py
+msgid "Cardio"
+msgstr "Cardio"
+
+#: app/i18n.py
+msgid "Stretching"
+msgstr "Rozciąganie"
+
+#: app/i18n.py
+msgid "Cash"
+msgstr "Gotówka"
+
+#: app/i18n.py
+msgid "Bonds"
+msgstr "Obligacje"
+
+#: app/i18n.py
+msgid "Retirement"
+msgstr "Emerytalne"
+
+#: app/i18n.py
+msgid "Brokerage"
+msgstr "Maklerskie"
+
+#: app/i18n.py
+msgid "Crypto"
+msgstr "Kryptowaluty"
+
+#: app/i18n.py
+msgid "Property"
+msgstr "Nieruchomości"
+
+#: app/i18n.py
+msgid "Other"
+msgstr "Inne"
+
+#: app/i18n.py
+msgid "1 Year"
+msgstr "1 rok"
+
+#: app/i18n.py
+msgid "3 Years"
+msgstr "3 lata"
+
+#: app/i18n.py
+msgid "10 Years"
+msgstr "10 lat"
 
 #: app/library_validation.py
 #, python-brace-format
@@ -325,6 +364,82 @@ msgstr "nazwa nie może być pusta"
 #, python-brace-format
 msgid "cannot rename {name} — training history exists under that name; archive this entry and create a new one instead"
 msgstr "nie można zmienić nazwy {name}, bo pod tą nazwą jest historia treningów; zarchiwizuj tę pozycję i utwórz nową"
+
+#: app/routers/admin.py
+msgid "Enter a valid email address, or leave it empty."
+msgstr "Podaj prawidłowy adres e-mail albo zostaw puste."
+
+#: app/routers/admin.py
+msgid "Unknown role."
+msgstr "Nieznana rola."
+
+#: app/routers/admin.py
+msgid "That invite was already used, revoked or expired."
+msgstr "To zaproszenie zostało już wykorzystane, unieważnione albo wygasło."
+
+#: app/routers/admin.py
+msgid "Invite revoked."
+msgstr "Zaproszenie unieważnione."
+
+#: app/routers/admin.py
+msgid "Change your own password under Settings > Security."
+msgstr "Swoje hasło zmienisz w Ustawienia > Bezpieczeństwo."
+
+#: app/routers/admin.py
+msgid "User account was not found."
+msgstr "Nie znaleziono konta użytkownika."
+
+#: app/routers/admin.py
+msgid "Enable the account before resetting its password."
+msgstr "Włącz konto, zanim zresetujesz jego hasło."
+
+#: app/routers/admin.py
+msgid "The account may use the server's LLM key."
+msgstr "To konto może korzystać z klucza LLM serwera."
+
+#: app/routers/admin.py
+msgid "The account no longer uses the server's LLM key."
+msgstr "To konto nie korzysta już z klucza LLM serwera."
+
+#: app/routers/admin.py
+msgid "Your own role cannot be changed from the admin panel."
+msgstr "Własnej roli nie można zmienić w panelu administratora."
+
+#: app/routers/admin.py
+msgid "Role changed."
+msgstr "Rola zmieniona."
+
+#: app/routers/admin.py
+msgid "Your account cannot be disabled from the admin panel."
+msgstr "Własnego konta nie można wyłączyć w panelu administratora."
+
+#: app/routers/admin.py app/routers/settings.py
+msgid "Another account operation is already in progress."
+msgstr "Inna operacja na koncie już trwa."
+
+#: app/routers/admin.py
+msgid "Disable the user's remote subscriptions before disabling the account."
+msgstr "Zanim wyłączysz konto, wyłącz zdalne subskrypcje użytkownika."
+
+#: app/routers/admin.py
+msgid "User account disabled."
+msgstr "Konto użytkownika wyłączone."
+
+#: app/routers/admin.py
+msgid "User account enabled."
+msgstr "Konto użytkownika włączone."
+
+#: app/routers/admin.py
+msgid "Your account cannot be deleted from the admin panel."
+msgstr "Własnego konta nie można usunąć w panelu administratora."
+
+#: app/routers/admin.py
+msgid "Disable the user's remote subscriptions before deleting the account."
+msgstr "Zanim usuniesz konto, wyłącz zdalne subskrypcje użytkownika."
+
+#: app/routers/admin.py
+msgid "User account deleted."
+msgstr "Konto użytkownika usunięte."
 
 #: app/routers/auth.py
 msgid "This invite link is invalid, used or expired. Ask for a new one."
@@ -499,9 +614,45 @@ msgstr "Wynik badania poprawiony."
 msgid "Blood result deleted."
 msgstr "Wynik badania usunięty."
 
+#: app/routers/daily.py app/templates/daily.html
+msgid "Morning Routine"
+msgstr "Poranna rutyna"
+
+#: app/routers/daily.py app/templates/daily.html
+msgid "Evening Routine"
+msgstr "Wieczorna rutyna"
+
+#: app/routers/daily.py app/templates/partials/today_block.html
+msgid "Water"
+msgstr "Woda"
+
+#: app/routers/daily.py app/templates/daily.html app/templates/onboarding.html
+#: app/templates/partials/today_block.html
+msgid "Body"
+msgstr "Ciało"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Spirit"
+msgstr "Duch"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Self"
+msgstr "Konto"
+
+#: app/routers/daily.py app/templates/daily.html app/templates/onboarding.html
+#: app/templates/partials/today_block.html
+msgid "Relations"
+msgstr "Relacje"
+
 #: app/routers/daily.py
 msgid "Invalid daily-log date."
 msgstr "Nieprawidłowa data dziennika."
+
+#: app/routers/daily.py app/static/js/app.js
+msgid "Saved"
+msgstr "Zapisano"
 
 #: app/routers/daily.py
 msgid "Daily log saved."
@@ -510,6 +661,14 @@ msgstr "Dziennik zapisany."
 #: app/routers/daily.py
 msgid "Invalid planning date."
 msgstr "Nieprawidłowa data planowania."
+
+#: app/routers/daily.py app/routers/dashboard.py app/routers/experiments.py
+msgid "No AI provider is configured. Add one in Settings."
+msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
+
+#: app/routers/daily.py app/routers/dashboard.py
+msgid "Reload the page and try again."
+msgstr "Odśwież stronę i spróbuj ponownie."
 
 #: app/routers/daily.py
 msgid "A.N.D.Y. suggestions are already queued."
@@ -535,49 +694,9 @@ msgstr "Zapisano pomiary"
 msgid "Measurements saved."
 msgstr "Pomiary zapisane."
 
-#: app/routers/daily.py app/routers/dashboard.py
-msgid "Reload the page and try again."
-msgstr "Odśwież stronę i spróbuj ponownie."
-
-#: app/routers/daily.py app/routers/dashboard.py app/routers/experiments.py
-msgid "No AI provider is configured. Add one in Settings."
-msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
-
-#: app/routers/daily.py app/static/js/app.js
-msgid "Saved"
-msgstr "Zapisano"
-
-#: app/routers/daily.py app/templates/daily.html
-msgid "Morning Routine"
-msgstr "Poranna rutyna"
-
-#: app/routers/daily.py app/templates/daily.html
-msgid "Evening Routine"
-msgstr "Wieczorna rutyna"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Body"
-msgstr "Ciało"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Spirit"
-msgstr "Duch"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Self"
-msgstr "Konto"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Relations"
-msgstr "Relacje"
-
-#: app/routers/daily.py app/templates/partials/today_block.html
-msgid "Water"
-msgstr "Woda"
+#: app/routers/dashboard.py app/templates/dashboard.html
+msgid "Power level"
+msgstr "Poziom mocy"
 
 #: app/routers/dashboard.py
 msgid "A briefing is already queued."
@@ -590,10 +709,6 @@ msgstr "Nie udało się dodać briefingu do kolejki. Spróbuj ponownie."
 #: app/routers/dashboard.py
 msgid "Briefing queued."
 msgstr "Briefing dodany do kolejki."
-
-#: app/routers/dashboard.py app/templates/dashboard.html
-msgid "Power level"
-msgstr "Poziom mocy"
 
 #: app/routers/experiments.py
 msgid "upcoming"
@@ -608,6 +723,10 @@ msgstr "zapisano: {num}"
 #, python-brace-format
 msgid "{num}m logged"
 msgstr "zapisano: {num} min"
+
+#: app/routers/experiments.py app/templates/experiment_detail.html
+msgid "no target"
+msgstr "bez celu"
 
 #: app/routers/experiments.py
 #, python-brace-format
@@ -770,10 +889,6 @@ msgstr "Eksperyment usunięty."
 msgid "Week {number} targets updated."
 msgstr "Cele tygodnia {number} zaktualizowane."
 
-#: app/routers/experiments.py app/templates/experiment_detail.html
-msgid "no target"
-msgstr "bez celu"
-
 #: app/routers/finance.py
 msgid "Fill in at least one balance."
 msgstr "Wpisz co najmniej jedno saldo."
@@ -904,6 +1019,106 @@ msgstr "Krok przeniesiony."
 msgid "Execution rep removed."
 msgstr "Krok usunięty."
 
+#: app/routers/jobs.py
+msgid "Queued"
+msgstr "W kolejce"
+
+#: app/routers/jobs.py app/templates/settings.html
+msgid "Running"
+msgstr "W toku"
+
+#: app/routers/jobs.py app/templates/settings.html
+msgid "Failed"
+msgstr "Nieudane"
+
+#: app/routers/jobs.py
+msgid "Cancelled"
+msgstr "Anulowane"
+
+#: app/routers/jobs.py
+msgid "Needs review"
+msgstr "Do sprawdzenia"
+
+#: app/routers/jobs.py
+msgid "A.N.D.Y. suggestions"
+msgstr "Propozycje A.N.D.Y."
+
+#: app/routers/jobs.py
+msgid "Backup"
+msgstr "Kopia zapasowa"
+
+#: app/routers/jobs.py
+msgid "Experiment week summary"
+msgstr "Podsumowanie tygodnia eksperymentu"
+
+#: app/routers/jobs.py
+msgid "Medical record import"
+msgstr "Import wyników badań"
+
+#: app/routers/jobs.py
+msgid "Morning briefing"
+msgstr "Poranny briefing"
+
+#: app/routers/jobs.py
+msgid "Onboarding AI extras"
+msgstr "Dodatki AI z wdrożenia"
+
+#: app/routers/jobs.py
+msgid "Oura sync"
+msgstr "Synchronizacja Oura"
+
+#: app/routers/jobs.py
+msgid "Training note analysis"
+msgstr "Analiza notatki z treningu"
+
+#: app/routers/jobs.py
+msgid "Waiting for a worker."
+msgstr "Czeka na wykonanie."
+
+#: app/routers/jobs.py
+msgid "Work is in progress."
+msgstr "Praca w toku."
+
+#: app/routers/jobs.py
+msgid "Completed successfully."
+msgstr "Zakończone pomyślnie."
+
+#: app/routers/jobs.py
+msgid "The last attempt failed."
+msgstr "Ostatnia próba się nie powiodła."
+
+#: app/routers/jobs.py
+msgid "This job was cancelled."
+msgstr "To zadanie zostało anulowane."
+
+#: app/routers/jobs.py
+msgid "The previous attempt may have completed outside Virgil."
+msgstr "Poprzednia próba mogła się zakończyć poza Virgilem."
+
+#: app/routers/jobs.py app/templates/settings.html
+msgid "Partial"
+msgstr "Częściowe"
+
+#: app/routers/jobs.py
+msgid "Sync completed with partial data; existing data from failed sources was preserved."
+msgstr "Synchronizacja zakończona z częściowymi danymi; dane z nieudanych źródeł zostały zachowane."
+
+#: app/routers/jobs.py
+msgid "Job not found."
+msgstr "Nie znaleziono zadania."
+
+#: app/routers/jobs.py
+msgid "Confirm that you checked the external service before retrying this job."
+msgstr "Potwierdź, że sprawdziłeś zewnętrzną usługę, zanim ponowisz to zadanie."
+
+#: app/routers/jobs.py
+msgid "This job is no longer available for retry."
+msgstr "Tego zadania nie można już ponowić."
+
+#: app/routers/jobs.py
+msgid "Job queued for retry."
+msgstr "Zadanie dodane do ponowienia."
+
 #: app/routers/life_scores.py
 msgid "Choose a valid life-score date."
 msgstr "Wybierz prawidłową datę oceny."
@@ -911,6 +1126,126 @@ msgstr "Wybierz prawidłową datę oceny."
 #: app/routers/life_scores.py
 msgid "Life scores saved."
 msgstr "Oceny życia zapisane."
+
+#: app/routers/onboarding.py
+msgid "Choose a valid sex option."
+msgstr "Wybierz prawidłową płeć."
+
+#: app/routers/onboarding.py
+msgid "Enter age as a whole number from 10 to 120."
+msgstr "Podaj wiek jako liczbę całkowitą od 10 do 120."
+
+#: app/routers/onboarding.py
+msgid "Enter an age from 10 to 120."
+msgstr "Podaj wiek od 10 do 120."
+
+#: app/routers/onboarding.py
+msgid "Enter height as a positive number."
+msgstr "Podaj wzrost jako liczbę dodatnią."
+
+#: app/routers/onboarding.py
+msgid "Enter weight as a positive number."
+msgstr "Podaj wagę jako liczbę dodatnią."
+
+#: app/routers/onboarding.py
+msgid "About-you details saved."
+msgstr "Informacje o Tobie zapisane."
+
+#: app/routers/onboarding.py
+msgid "Ideal-day details saved."
+msgstr "Opis idealnego dnia zapisany."
+
+#: app/routers/onboarding.py
+msgid "Goals saved."
+msgstr "Cele zapisane."
+
+#: app/routers/onboarding.py
+msgid "Choose only equipment options shown in the form."
+msgstr "Wybierz tylko sprzęt pokazany w formularzu."
+
+#: app/routers/onboarding.py
+msgid "Habits and training details saved."
+msgstr "Nawyki i trening zapisane."
+
+#: app/routers/onboarding.py
+msgid "Upload a medical PDF or paste lab results, or skip this step."
+msgstr "Wgraj PDF z wynikami albo wklej wyniki badań, albo pomiń ten krok."
+
+#: app/routers/onboarding.py
+msgid "Medical record import needs an LLM: add your own API key in Settings."
+msgstr "Import wyników badań wymaga LLM: dodaj własny klucz API w Ustawieniach."
+
+#: app/routers/onboarding.py
+msgid "Medical PDFs must be 20 MB or smaller."
+msgstr "Pliki PDF z wynikami mogą mieć najwyżej 20 MB."
+
+#: app/routers/onboarding.py
+msgid "The uploaded medical PDF is empty."
+msgstr "Wgrany PDF z wynikami jest pusty."
+
+#: app/routers/onboarding.py
+msgid "Could not accept that upload. Try again."
+msgstr "Nie udało się przyjąć pliku. Spróbuj ponownie."
+
+#: app/routers/onboarding.py
+msgid "A medical import is already queued."
+msgstr "Import wyników badań jest już w kolejce."
+
+#: app/routers/onboarding.py
+msgid "The import could not be queued. Try again."
+msgstr "Nie udało się dodać importu do kolejki. Spróbuj ponownie."
+
+#: app/routers/onboarding.py
+msgid "Reading your results. They will appear in Bloodwork when the import finishes."
+msgstr "Odczytuję Twoje wyniki. Pojawią się w Badaniach, gdy import się zakończy."
+
+#: app/routers/onboarding.py
+msgid "Onboarding complete."
+msgstr "Wdrożenie zakończone."
+
+#: app/routers/onboarding.py
+msgid "Onboarding complete. The AI extras are already on their way."
+msgstr "Wdrożenie zakończone. Dodatki AI są już w drodze."
+
+#: app/routers/onboarding.py
+msgid "Onboarding complete. The AI extras could not be queued."
+msgstr "Wdrożenie zakończone. Nie udało się dodać dodatków AI do kolejki."
+
+#: app/routers/onboarding.py
+msgid "Onboarding complete. The AI extras are being prepared."
+msgstr "Wdrożenie zakończone. Dodatki AI są przygotowywane."
+
+#: app/routers/onboarding.py
+msgid "AI extras need an LLM: add your own API key in Settings."
+msgstr "Dodatki AI wymagają LLM: dodaj własny klucz API w Ustawieniach."
+
+#: app/routers/onboarding.py
+msgid "The AI extras are already queued."
+msgstr "Dodatki AI są już w kolejce."
+
+#: app/routers/onboarding.py
+msgid "The AI extras could not be queued. Try again."
+msgstr "Nie udało się dodać dodatków AI do kolejki. Spróbuj ponownie."
+
+#: app/routers/onboarding.py
+msgid "Finishing the AI extras."
+msgstr "Kończę dodatki AI."
+
+#: app/routers/oura.py app/templates/oura.html
+msgid "Sleep Score"
+msgstr "Wynik snu"
+
+#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
+msgid "Readiness"
+msgstr "Gotowość"
+
+#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
+msgid "Activity"
+msgstr "Aktywność"
+
+#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
+msgid "Steps"
+msgstr "Kroki"
 
 #: app/routers/oura.py
 msgid "Sleep Duration"
@@ -932,6 +1267,10 @@ msgstr "Tętno spoczynkowe"
 msgid "Lowest HR"
 msgstr "Najniższe tętno"
 
+#: app/routers/oura.py app/templates/oura.html
+msgid "Cardio Age"
+msgstr "Wiek sercowo-naczyniowy"
+
 #: app/routers/oura.py
 msgid "Invalid Oura month."
 msgstr "Nieprawidłowy miesiąc Oura."
@@ -948,7 +1287,7 @@ msgstr "Nie znaleziono miesiąca Oura."
 msgid "Oura month deleted."
 msgstr "Miesiąc Oura usunięty."
 
-#: app/routers/oura.py
+#: app/routers/oura.py app/routers/settings.py
 msgid "Oura is not connected."
 msgstr "Oura nie jest połączona."
 
@@ -956,29 +1295,278 @@ msgstr "Oura nie jest połączona."
 msgid "Oura sync could not be queued. Try again."
 msgstr "Nie udało się dodać synchronizacji Oura do kolejki. Spróbuj ponownie."
 
-#: app/routers/oura.py
+#: app/routers/oura.py app/routers/settings.py
 msgid "Oura sync queued."
 msgstr "Synchronizacja Oura dodana do kolejki."
 
-#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
-msgid "Readiness"
-msgstr "Gotowość"
+#: app/routers/settings.py
+msgid "Password is incorrect. No token was created."
+msgstr "Hasło jest nieprawidłowe. Token nie został utworzony."
 
-#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
-msgid "Activity"
-msgstr "Aktywność"
+#: app/routers/settings.py
+msgid "Give the token a name, such as the tool it is for."
+msgstr "Nazwij token, np. nazwą narzędzia, dla którego jest."
 
-#: app/routers/oura.py app/templates/dashboard.html app/templates/oura.html
-msgid "Steps"
-msgstr "Kroki"
+#: app/routers/settings.py
+msgid "Choose when the token expires."
+msgstr "Wybierz, kiedy token wygasa."
 
-#: app/routers/oura.py app/templates/oura.html
-msgid "Sleep Score"
-msgstr "Wynik snu"
+#: app/routers/settings.py
+msgid "Choose at least one scope."
+msgstr "Wybierz co najmniej jeden zakres."
 
-#: app/routers/oura.py app/templates/oura.html
-msgid "Cardio Age"
-msgstr "Wiek sercowo-naczyniowy"
+#: app/routers/settings.py
+msgid "That token was already revoked."
+msgstr "Ten token został już unieważniony."
+
+#: app/routers/settings.py
+msgid "Token revoked. It stops working now."
+msgstr "Token unieważniony. Przestaje działać od teraz."
+
+#: app/routers/settings.py
+msgid "Sets must be a whole number."
+msgstr "Liczba serii musi być liczbą całkowitą."
+
+#: app/routers/settings.py
+msgid "Exercise added to the library."
+msgstr "Ćwiczenie dodane do biblioteki."
+
+#: app/routers/settings.py
+msgid "No library changes were submitted."
+msgstr "Nie przesłano żadnych zmian w bibliotece."
+
+#: app/routers/settings.py
+msgid "Library entry updated."
+msgstr "Pozycja biblioteki zaktualizowana."
+
+#: app/routers/settings.py
+msgid "Exercise deleted from the library."
+msgstr "Ćwiczenie usunięte z biblioteki."
+
+#: app/routers/settings.py
+msgid "Exercise archived."
+msgstr "Ćwiczenie zarchiwizowane."
+
+#: app/routers/settings.py
+msgid "Exercise restored."
+msgstr "Ćwiczenie przywrócone."
+
+#: app/routers/settings.py
+msgid "Training schedule saved."
+msgstr "Plan treningów zapisany."
+
+#: app/routers/settings.py
+msgid "Backup interval must be a number from 1 to 168."
+msgstr "Odstęp kopii zapasowych musi być liczbą od 1 do 168."
+
+#: app/routers/settings.py
+msgid "Backup copies must be a whole number from 1 to 100."
+msgstr "Liczba kopii zapasowych musi być liczbą całkowitą od 1 do 100."
+
+#: app/routers/settings.py
+msgid "Oura sync interval must be a number from 1 to 168."
+msgstr "Odstęp synchronizacji Oura musi być liczbą od 1 do 168."
+
+#: app/routers/settings.py
+msgid "Automation settings saved."
+msgstr "Ustawienia automatyzacji zapisane."
+
+#: app/routers/settings.py
+msgid "Feature settings updated."
+msgstr "Ustawienia modułów zaktualizowane."
+
+#: app/routers/settings.py
+msgid "Backup could not be queued. Try again."
+msgstr "Nie udało się dodać kopii zapasowej do kolejki. Spróbuj ponownie."
+
+#: app/routers/settings.py
+msgid "Backup queued."
+msgstr "Kopia zapasowa dodana do kolejki."
+
+#: app/routers/settings.py
+msgid "Choose a valid export scope."
+msgstr "Wybierz prawidłowy zakres eksportu."
+
+#: app/routers/settings.py
+msgid "Choose only valid export sections."
+msgstr "Wybierz tylko prawidłowe sekcje eksportu."
+
+#: app/routers/settings.py
+msgid "Choose at least one export section."
+msgstr "Wybierz co najmniej jedną sekcję eksportu."
+
+#: app/routers/settings.py
+msgid "Choose a Virgil JSON export to restore."
+msgstr "Wybierz eksport JSON z Virgila do przywrócenia."
+
+#: app/routers/settings.py
+#, python-brace-format
+msgid "The file is larger than {size} MB."
+msgstr "Plik jest większy niż {size} MB."
+
+#: app/routers/settings.py
+msgid "The file could not be checked. Nothing was changed."
+msgstr "Nie udało się sprawdzić pliku. Nic nie zostało zmienione."
+
+#: app/routers/settings.py
+msgid "File checked. Nothing has changed yet."
+msgstr "Plik sprawdzony. Na razie nic się nie zmieniło."
+
+#: app/routers/settings.py app/services/data_transfer.py
+msgid "That import has expired. Upload the file again."
+msgstr "Ten import wygasł. Wgraj plik ponownie."
+
+#: app/routers/settings.py
+msgid "No copy of your current data could be saved, so nothing was imported."
+msgstr "Nie udało się zapisać kopii obecnych danych, więc nic nie zostało zaimportowane."
+
+#: app/routers/settings.py
+msgid "The restore did not finish and nothing was changed. Try again."
+msgstr "Przywracanie się nie zakończyło i nic nie zostało zmienione. Spróbuj ponownie."
+
+#: app/routers/settings.py
+msgid "Data restored from the export."
+msgstr "Dane przywrócone z eksportu."
+
+#: app/routers/settings.py
+msgid "Import cancelled. Nothing was changed."
+msgstr "Import anulowany. Nic nie zostało zmienione."
+
+#: app/routers/settings.py
+msgid "Provider, model, and API key are required."
+msgstr "Dostawca, model i klucz API są wymagane."
+
+#: app/routers/settings.py
+msgid "LLM provider added."
+msgstr "Dostawca LLM dodany."
+
+#: app/routers/settings.py
+msgid "LLM provider not found."
+msgstr "Nie znaleziono dostawcy LLM."
+
+#: app/routers/settings.py
+msgid "LLM provider was not activated."
+msgstr "Dostawca LLM nie został aktywowany."
+
+#: app/routers/settings.py
+msgid "LLM provider activated."
+msgstr "Dostawca LLM aktywowany."
+
+#: app/routers/settings.py
+msgid "Choose one of the listed thinking levels."
+msgstr "Wybierz jeden z podanych poziomów myślenia."
+
+#: app/routers/settings.py
+msgid "Thinking level saved."
+msgstr "Poziom myślenia zapisany."
+
+#: app/routers/settings.py
+msgid "LLM provider deleted."
+msgstr "Dostawca LLM usunięty."
+
+#: app/routers/settings.py
+msgid "Sign in again before resetting data."
+msgstr "Zaloguj się ponownie, zanim zresetujesz dane."
+
+#: app/routers/settings.py
+msgid "Password is incorrect. Nothing was reset."
+msgstr "Hasło jest nieprawidłowe. Nic nie zostało zresetowane."
+
+#: app/routers/settings.py
+msgid "Factory reset stopped because remote subscriptions could not be removed. Try again later."
+msgstr "Reset do ustawień fabrycznych przerwany, bo nie udało się usunąć zdalnych subskrypcji. Spróbuj później."
+
+#: app/routers/settings.py
+msgid "Factory reset completed. Start onboarding again."
+msgstr "Reset do ustawień fabrycznych zakończony. Zacznij wdrożenie od nowa."
+
+#: app/routers/settings.py
+msgid "Oura client ID and client secret are required."
+msgstr "Client ID i client secret Oura są wymagane."
+
+#: app/routers/settings.py
+msgid "Disable the Oura webhook before changing application credentials."
+msgstr "Wyłącz webhook Oura, zanim zmienisz dane aplikacji."
+
+#: app/routers/settings.py
+msgid "Oura credentials saved."
+msgstr "Dane aplikacji Oura zapisane."
+
+#: app/routers/settings.py
+msgid "Oura integration is not configured."
+msgstr "Integracja z Oura nie jest skonfigurowana."
+
+#: app/routers/settings.py
+msgid "Oura was not disconnected because remote subscriptions could not be removed."
+msgstr "Oura nie została odłączona, bo nie udało się usunąć zdalnych subskrypcji."
+
+#: app/routers/settings.py
+msgid "Oura was not disconnected."
+msgstr "Oura nie została odłączona."
+
+#: app/routers/settings.py
+msgid "Oura disconnected."
+msgstr "Oura odłączona."
+
+#: app/routers/settings.py
+msgid "Oura sync could not be queued."
+msgstr "Nie udało się dodać synchronizacji Oura do kolejki."
+
+#: app/routers/settings.py
+msgid "Connect Oura again before enabling the webhook."
+msgstr "Połącz Oura ponownie, zanim włączysz webhook."
+
+#: app/routers/settings.py
+msgid "Oura webhook is already enabled."
+msgstr "Webhook Oura jest już włączony."
+
+#: app/routers/settings.py
+msgid "Webhook setup is pending and will retry automatically."
+msgstr "Konfiguracja webhooka czeka i zostanie automatycznie ponowiona."
+
+#: app/routers/settings.py
+msgid "Webhook setup queued."
+msgstr "Konfiguracja webhooka dodana do kolejki."
+
+#: app/routers/settings.py
+msgid "Oura webhook enabled."
+msgstr "Webhook Oura włączony."
+
+#: app/routers/settings.py
+msgid "Webhook is partially active and will retry automatically."
+msgstr "Webhook działa częściowo i zostanie automatycznie ponowiony."
+
+#: app/routers/settings.py
+msgid "Oura webhook is not enabled."
+msgstr "Webhook Oura nie jest włączony."
+
+#: app/routers/settings.py
+msgid "Oura webhook disabled."
+msgstr "Webhook Oura wyłączony."
+
+#: app/routers/settings.py
+msgid "Webhook disable is pending and will retry automatically."
+msgstr "Wyłączanie webhooka czeka i zostanie automatycznie ponowione."
+
+#: app/routers/training.py app/services/measurements.py
+#: app/services/training_log.py app/templates/training.html
+msgid "Weight"
+msgstr "Waga"
+
+#: app/routers/training.py app/services/training_log.py
+msgid "Set number"
+msgstr "Numer serii"
+
+#: app/routers/training.py app/services/training_log.py
+#: app/templates/partials/wod_row.html app/templates/settings.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Reps"
+msgstr "Powtórzenia"
+
+#: app/routers/training.py app/services/training_log.py app/templates/oura.html
+#: app/templates/training.html
+msgid "Duration"
+msgstr "Czas trwania"
 
 #: app/routers/training.py
 #, python-brace-format
@@ -1093,6 +1681,11 @@ msgstr "Sesja zmieniła się, zanim otworzył się ręczny wpis."
 msgid "Manual entry is ready. Fill in the exercises and save."
 msgstr "Ręczny wpis gotowy. Uzupełnij ćwiczenia i zapisz."
 
+#: app/routers/training.py app/services/finance.py
+#, python-brace-format
+msgid "{field} must be a number"
+msgstr "{field} musi być liczbą"
+
 #: app/routers/training.py
 msgid "That set no longer exists."
 msgstr "Ta seria już nie istnieje."
@@ -1123,31 +1716,6 @@ msgstr "Sesja nie została usunięta: nie istnieje."
 msgid "Training session deleted."
 msgstr "Sesja treningowa usunięta."
 
-#: app/routers/training.py app/services/finance.py
-#, python-brace-format
-msgid "{field} must be a number"
-msgstr "{field} musi być liczbą"
-
-#: app/routers/training.py app/services/measurements.py
-#: app/services/training_log.py app/templates/training.html
-msgid "Weight"
-msgstr "Waga"
-
-#: app/routers/training.py app/services/training_log.py
-msgid "Set number"
-msgstr "Numer serii"
-
-#: app/routers/training.py app/services/training_log.py app/templates/oura.html
-#: app/templates/training.html
-msgid "Duration"
-msgstr "Czas trwania"
-
-#: app/routers/training.py app/services/training_log.py
-#: app/templates/partials/wod_row.html app/templates/training.html
-#: app/templates/wod_confirm.html
-msgid "Reps"
-msgstr "Powtórzenia"
-
 #: app/services/daily_log.py
 #, python-brace-format
 msgid "Unknown daily-log fields: {fields}"
@@ -1162,6 +1730,11 @@ msgstr "Energia musi być liczbą całkowitą od 1 do 10 albo pusta"
 msgid "{field} must be one of: {choices}"
 msgstr "{field} musi mieć jedną z wartości: {choices}"
 
+#: app/services/daily_log.py app/services/goal_data.py
+#, python-brace-format
+msgid "{field} must be text"
+msgstr "{field} musi być tekstem"
+
 #: app/services/daily_log.py
 #, python-brace-format
 msgid "{field} must be at most {limit} characters"
@@ -1172,10 +1745,262 @@ msgstr "{field} może mieć najwyżej {limit} znaków"
 msgid "{field} is not a daily-log status"
 msgstr "{field} nie jest statusem dziennika"
 
-#: app/services/daily_log.py app/services/goal_data.py
+#: app/services/data_transfer.py
+msgid "Profile"
+msgstr "Profil"
+
+#: app/services/data_transfer.py
+msgid "Training plan exercises"
+msgstr "Ćwiczenia planu treningowego"
+
+#: app/services/data_transfer.py
+msgid "Training entries"
+msgstr "Pozycje treningów"
+
+#: app/services/data_transfer.py
+msgid "Exercise tags"
+msgstr "Tagi ćwiczeń"
+
+#: app/services/data_transfer.py
+msgid "Freedom habits"
+msgstr "Nawyki Freedom"
+
+#: app/services/data_transfer.py
+msgid "Freedom journal"
+msgstr "Dziennik Freedom"
+
+#: app/services/data_transfer.py
+msgid "Freedom pleasures"
+msgstr "Przyjemności Freedom"
+
+#: app/services/data_transfer.py
+msgid "Freedom days"
+msgstr "Dni Freedom"
+
+#: app/services/data_transfer.py
+msgid "Freedom bricks"
+msgstr "Cegły Freedom"
+
+#: app/services/data_transfer.py
+msgid "Freedom events"
+msgstr "Zdarzenia Freedom"
+
+#: app/services/data_transfer.py
+msgid "Oura days"
+msgstr "Dni Oura"
+
+#: app/services/data_transfer.py
+msgid "Oura months"
+msgstr "Miesiące Oura"
+
+#: app/services/data_transfer.py
+msgid "Oura workouts"
+msgstr "Treningi Oura"
+
+#: app/services/data_transfer.py
+msgid "Experiment metrics"
+msgstr "Wskaźniki eksperymentów"
+
+#: app/services/data_transfer.py
+msgid "Sync log"
+msgstr "Dziennik synchronizacji"
+
+#: app/services/data_transfer.py
+msgid "Finance score rules"
+msgstr "Reguły wyniku finansów"
+
+#: app/services/data_transfer.py
+msgid "Finance income sources"
+msgstr "Źródła dochodu"
+
+#: app/services/data_transfer.py
+msgid "Daily logs"
+msgstr "Wpisy dziennika"
+
+#: app/services/data_transfer.py
+msgid "Daily briefings"
+msgstr "Codzienne briefingi"
+
+#: app/services/data_transfer.py
+msgid "Body measurements"
+msgstr "Pomiary ciała"
+
+#: app/services/data_transfer.py
+msgid "Training sessions"
+msgstr "Sesje treningowe"
+
+#: app/services/data_transfer.py
+msgid "Exercise families"
+msgstr "Rodziny ćwiczeń"
+
+#: app/services/data_transfer.py
+msgid "Exercise library"
+msgstr "Biblioteka ćwiczeń"
+
+#: app/services/data_transfer.py
+msgid "Exercise aliases"
+msgstr "Aliasy ćwiczeń"
+
+#: app/services/data_transfer.py
+msgid "Blood markers"
+msgstr "Wskaźniki krwi"
+
+#: app/services/data_transfer.py
+msgid "Blood results"
+msgstr "Wyniki badań krwi"
+
+#: app/services/data_transfer.py
+msgid "Life scores"
+msgstr "Oceny życia"
+
+#: app/services/data_transfer.py
+msgid "Goal areas"
+msgstr "Obszary celów"
+
+#: app/services/data_transfer.py app/static/js/app.js app/templates/base.html
+#: app/templates/settings.html
+msgid "Goals"
+msgstr "Cele"
+
+#: app/services/data_transfer.py
+msgid "Goal reps"
+msgstr "Kroki celów"
+
+#: app/services/data_transfer.py
+msgid "Goal changes"
+msgstr "Zmiany celów"
+
+#: app/services/data_transfer.py
+msgid "Deleted goals"
+msgstr "Usunięte cele"
+
+#: app/services/data_transfer.py app/static/js/app.js app/templates/base.html
+#: app/templates/experiments.html app/templates/settings.html
+msgid "Experiments"
+msgstr "Eksperymenty"
+
+#: app/services/data_transfer.py
+msgid "Experiment weeks"
+msgstr "Tygodnie eksperymentów"
+
+#: app/services/data_transfer.py
+msgid "Experiment entries"
+msgstr "Wpisy eksperymentów"
+
+#: app/services/data_transfer.py
+msgid "Experiment summaries"
+msgstr "Podsumowania eksperymentów"
+
+#: app/services/data_transfer.py
+msgid "Finance layers"
+msgstr "Warstwy finansów"
+
+#: app/services/data_transfer.py
+msgid "Finance accounts"
+msgstr "Konta finansowe"
+
+#: app/services/data_transfer.py
+msgid "Finance balances"
+msgstr "Salda"
+
+#: app/services/data_transfer.py
+msgid "Finance assumptions"
+msgstr "Założenia finansowe"
+
+#: app/services/data_transfer.py
+msgid "Finance policies"
+msgstr "Ubezpieczenia"
+
+#: app/services/data_transfer.py
+msgid "The file is not valid JSON."
+msgstr "Plik nie jest prawidłowym JSON-em."
+
+#: app/services/data_transfer.py
+msgid "This is not a Virgil JSON export. Download one from Settings > Data."
+msgstr "To nie jest eksport JSON z Virgila. Pobierz go w Ustawienia > Dane."
+
+#: app/services/data_transfer.py
 #, python-brace-format
-msgid "{field} must be text"
-msgstr "{field} musi być tekstem"
+msgid "This export uses format version {value!r}, not {FORMAT_VERSION}."
+msgstr "Ten eksport ma format w wersji {value!r}, a nie {FORMAT_VERSION}."
+
+#: app/services/data_transfer.py
+msgid "The export does not say which schema version it was made with."
+msgstr "Eksport nie podaje, w jakiej wersji schematu powstał."
+
+#: app/services/data_transfer.py
+msgid "This export was made by a newer version of Virgil. Update this server first."
+msgstr "Ten eksport powstał w nowszej wersji Virgila. Najpierw zaktualizuj ten serwer."
+
+#: app/services/data_transfer.py
+msgid "The export's tables or settings are not objects."
+msgstr "Tabele albo ustawienia w eksporcie nie są obiektami."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "The export contains tables an import does not restore: {choices}."
+msgstr "Eksport zawiera tabele, których import nie przywraca: {choices}."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "A row in {table} is not an object."
+msgstr "Wiersz w {table} nie jest obiektem."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "{table} has columns this schema version does not: {choices}."
+msgstr "{table} ma kolumny, których ta wersja schematu nie ma: {choices}."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "A value in {table} is a list or object, not text or a number."
+msgstr "Wartość w {table} jest listą albo obiektem, a nie tekstem lub liczbą."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "The export is incomplete; it has no {choices}."
+msgstr "Eksport jest niekompletny; brakuje w nim: {choices}."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "{choices} did not exist at schema version {schema_version}."
+msgstr "{choices} nie istniało w wersji schematu {schema_version}."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "{table} is not a list of rows."
+msgstr "{table} nie jest listą wierszy."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "A row in {table} is empty."
+msgstr "Wiersz w {table} jest pusty."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "A row in {table} breaks a rule of the schema: {error}."
+msgstr "Wiersz w {table} łamie regułę schematu: {error}."
+
+#: app/services/data_transfer.py
+msgid "The staged copy failed SQLite's integrity check. Nothing was changed."
+msgstr "Przygotowana kopia nie przeszła kontroli integralności SQLite. Nic nie zostało zmienione."
+
+#: app/services/data_transfer.py
+#, python-brace-format
+msgid "Rows in {choices} point at rows the export does not have. Nothing was changed."
+msgstr "Wiersze w {choices} wskazują na wiersze, których nie ma w eksporcie. Nic nie zostało zmienione."
+
+#: app/services/data_transfer.py
+msgid "The export's references could not be settled. Nothing was changed."
+msgstr "Nie udało się uzgodnić powiązań w eksporcie. Nic nie zostało zmienione."
+
+#: app/services/data_transfer.py
+msgid "That import was not found. Upload the file again."
+msgstr "Nie znaleziono tego importu. Wgraj plik ponownie."
+
+#: app/services/data_transfer.py
+msgid "The server was updated after this file was checked. Upload it again."
+msgstr "Serwer został zaktualizowany po sprawdzeniu tego pliku. Wgraj go ponownie."
 
 #: app/services/finance.py
 #, python-brace-format
@@ -1191,6 +2016,11 @@ msgstr "{field} musi być trzyliterowym kodem, np. PLN albo EUR"
 #, python-brace-format
 msgid "{field} must be an ISO date (YYYY-MM-DD)"
 msgstr "{field} musi być datą ISO (RRRR-MM-DD)"
+
+#: app/services/finance.py app/services/goal_data.py
+#, python-brace-format
+msgid "{field} is required"
+msgstr "{field} jest wymagane"
 
 #: app/services/finance.py
 #, python-brace-format
@@ -1352,11 +2182,6 @@ msgstr "{label}: kolejność musi być liczbą całkowitą"
 #: app/services/finance.py
 msgid "Two layers cannot share a name"
 msgstr "Dwie warstwy nie mogą mieć tej samej nazwy"
-
-#: app/services/finance.py app/services/goal_data.py
-#, python-brace-format
-msgid "{field} is required"
-msgstr "{field} jest wymagane"
 
 #: app/services/freedom_log.py
 msgid "Choose a date of today or earlier."
@@ -1642,6 +2467,11 @@ msgstr "Nieznane pola pomiarów: {fields}"
 msgid "{field} must be between {low} and {high}"
 msgstr "{field} musi mieścić się między {low} a {high}."
 
+#: app/services/training_log.py app/templates/partials/wod_row.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Equipment"
+msgstr "Sprzęt"
+
 #: app/services/training_log.py
 msgid "movement is required"
 msgstr "ćwiczenie jest wymagane"
@@ -1698,11 +2528,6 @@ msgstr "Ta seria już nie istnieje"
 msgid "{movement} is not in the exercise library. Add it there, then correct the set."
 msgstr "{movement} nie ma w bibliotece ćwiczeń. Dodaj je tam, a potem popraw serię."
 
-#: app/services/training_log.py app/templates/partials/wod_row.html
-#: app/templates/training.html app/templates/wod_confirm.html
-msgid "Equipment"
-msgstr "Sprzęt"
-
 #: app/static/js/app.js
 msgid "January"
 msgstr "Styczeń"
@@ -1751,9 +2576,17 @@ msgstr "Grudzień"
 msgid "Suggestions are ready, but the daily card could not refresh."
 msgstr "Propozycje są gotowe, ale nie udało się odświeżyć karty dnia."
 
+#: app/static/js/app.js app/templates/partials/feedback.html
+msgid "Dismiss error"
+msgstr "Zamknij błąd"
+
 #: app/static/js/app.js
 msgid "A draft from a failed network request was restored."
 msgstr "Przywrócono szkic z nieudanego żądania sieciowego."
+
+#: app/static/js/app.js app/templates/training.html
+msgid "Saving..."
+msgstr "Zapisywanie..."
 
 #: app/static/js/app.js
 msgid "Working..."
@@ -1775,6 +2608,11 @@ msgstr "Błąd sieci. Zmiany nie zostały potwierdzone."
 msgid "Request timed out. Your changes were not confirmed."
 msgstr "Przekroczono czas żądania. Zmiany nie zostały potwierdzone."
 
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Done"
+msgstr "Zrobione"
+
 #: app/static/js/app.js
 msgid "Offline. Read-only until Virgil is back."
 msgstr "Offline. Tylko odczyt, dopóki Virgil nie wróci."
@@ -1791,6 +2629,11 @@ msgstr "Połączenie wróciło."
 msgid "No connection. Nothing was saved."
 msgstr "Brak połączenia. Nic nie zostało zapisane."
 
+#: app/static/js/app.js app/templates/base.html app/templates/freedom.html
+#: app/templates/partials/freedom_today.html app/templates/settings.html
+msgid "Freedom"
+msgstr "Freedom"
+
 #: app/static/js/app.js
 msgid "Keyboard Shortcuts"
 msgstr "Skróty klawiszowe"
@@ -1798,6 +2641,20 @@ msgstr "Skróty klawiszowe"
 #: app/static/js/app.js
 msgid "Navigation (press g then...)"
 msgstr "Nawigacja (naciśnij g, a potem...)"
+
+#: app/static/js/app.js app/templates/base.html
+#: app/templates/experiment_detail.html
+msgid "Dashboard"
+msgstr "Pulpit"
+
+#: app/static/js/app.js app/templates/base.html app/templates/oura.html
+msgid "Daily"
+msgstr "Dziennik"
+
+#: app/static/js/app.js app/templates/base.html app/templates/settings.html
+#: app/templates/training.html
+msgid "Training"
+msgstr "Trening"
 
 #: app/static/js/app.js
 msgid "Oura"
@@ -1807,11 +2664,23 @@ msgstr "Oura"
 msgid "Bloodwork"
 msgstr "Badania krwi"
 
+#: app/static/js/app.js app/templates/base.html app/templates/settings.html
+msgid "Settings"
+msgstr "Ustawienia"
+
 #: app/static/js/app.js
 msgid "Daily Page"
 msgstr "Strona dziennika"
 
-#: app/static/js/app.js
+#: app/static/js/app.js app/templates/daily.html
+msgid "Previous day"
+msgstr "Poprzedni dzień"
+
+#: app/static/js/app.js app/templates/daily.html
+msgid "Next day"
+msgstr "Następny dzień"
+
+#: app/static/js/app.js app/templates/settings.html
 msgid "General"
 msgstr "Ogólne"
 
@@ -1839,60 +2708,233 @@ msgstr[0] "{num} pole wymaga uwagi."
 msgstr[1] "{num} pola wymagają uwagi."
 msgstr[2] "{num} pól wymaga uwagi."
 
-#: app/static/js/app.js app/templates/base.html
-msgid "Goals"
-msgstr "Cele"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Settings"
-msgstr "Ustawienia"
-
-#: app/static/js/app.js app/templates/base.html
-#: app/templates/experiment_detail.html
-msgid "Dashboard"
-msgstr "Pulpit"
-
-#: app/static/js/app.js app/templates/base.html app/templates/experiments.html
-msgid "Experiments"
-msgstr "Eksperymenty"
-
-#: app/static/js/app.js app/templates/base.html app/templates/freedom.html
-#: app/templates/partials/freedom_today.html
-msgid "Freedom"
-msgstr "Freedom"
-
-#: app/static/js/app.js app/templates/base.html app/templates/oura.html
-msgid "Daily"
-msgstr "Dziennik"
-
-#: app/static/js/app.js app/templates/base.html app/templates/training.html
-msgid "Training"
-msgstr "Trening"
-
-#: app/static/js/app.js app/templates/daily.html
-msgid "Previous day"
-msgstr "Poprzedni dzień"
-
-#: app/static/js/app.js app/templates/daily.html
-msgid "Next day"
-msgstr "Następny dzień"
-
-#: app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Done"
-msgstr "Zrobione"
-
-#: app/static/js/app.js app/templates/partials/feedback.html
-msgid "Dismiss error"
-msgstr "Zamknij błąd"
-
-#: app/static/js/app.js app/templates/training.html
-msgid "Saving..."
-msgstr "Zapisywanie..."
-
 #: app/static/js/components.js
 msgid "Recently used"
 msgstr "Ostatnio używane"
+
+#: app/templates/admin_users.html
+msgid "Virgil - Admin"
+msgstr "Virgil - Administracja"
+
+#: app/templates/admin_users.html
+msgid "User Management"
+msgstr "Zarządzanie użytkownikami"
+
+#: app/templates/admin_users.html
+#, python-format
+msgid "%(count)s user"
+msgid_plural "%(count)s users"
+msgstr[0] "%(count)s użytkownik"
+msgstr[1] "%(count)s użytkowników"
+msgstr[2] "%(count)s użytkowników"
+
+#: app/templates/admin_users.html
+msgid "Registration open"
+msgstr "Rejestracja otwarta"
+
+#: app/templates/admin_users.html
+msgid "Registration closed"
+msgstr "Rejestracja zamknięta"
+
+#: app/templates/admin_users.html
+#, python-format
+msgid "It sets a new password once, works for %(minutes)s minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked."
+msgstr "Ustawia nowe hasło jeden raz, działa przez %(minutes)s minut i nie zostanie pokazany ponownie. Po jego użyciu sesje tej osoby się kończą, a jej tokeny API zostają unieważnione."
+
+#: app/templates/admin_users.html
+#, python-format
+msgid "Send this link to %(email)s."
+msgstr "Wyślij ten link do %(email)s."
+
+#: app/templates/admin_users.html
+msgid "Password reset link"
+msgstr "Link do resetu hasła"
+
+#: app/templates/admin_users.html app/templates/auth_login.html
+#: app/templates/auth_signup.html
+msgid "Email"
+msgstr "E-mail"
+
+#: app/templates/admin_users.html app/templates/bloodwork.html
+#: app/templates/experiment_new.html app/templates/finance_setup.html
+#: app/templates/freedom.html app/templates/settings.html
+msgid "Name"
+msgstr "Nazwa"
+
+#: app/templates/admin_users.html
+msgid "Role"
+msgstr "Rola"
+
+#: app/templates/admin_users.html app/templates/experiment_edit.html
+#: app/templates/finance_setup.html app/templates/goals.html
+#: app/templates/settings.html
+msgid "Status"
+msgstr "Status"
+
+#: app/templates/admin_users.html
+msgid "Server LLM key"
+msgstr "Klucz LLM serwera"
+
+#: app/templates/admin_users.html
+msgid "Last Login"
+msgstr "Ostatnie logowanie"
+
+#: app/templates/admin_users.html app/templates/goals.html
+msgid "Created"
+msgstr "Utworzono"
+
+#: app/templates/admin_users.html app/templates/experiment_detail.html
+#: app/templates/settings.html
+msgid "Actions"
+msgstr "Akcje"
+
+#: app/templates/admin_users.html app/templates/settings.html
+msgid "Disabled"
+msgstr "Wyłączone"
+
+#: app/templates/admin_users.html
+msgid "Yes"
+msgstr "Tak"
+
+#: app/templates/admin_users.html
+msgid "No"
+msgstr "Nie"
+
+#: app/templates/admin_users.html
+msgid "Withdraw"
+msgstr "Cofnij"
+
+#: app/templates/admin_users.html
+msgid "Allow"
+msgstr "Zezwól"
+
+#: app/templates/admin_users.html app/templates/settings.html
+msgid "Never"
+msgstr "Nigdy"
+
+#: app/templates/admin_users.html
+msgid "Make user"
+msgstr "Ustaw jako użytkownika"
+
+#: app/templates/admin_users.html
+msgid "Make admin"
+msgstr "Ustaw jako administratora"
+
+#: app/templates/admin_users.html
+msgid "Reset link"
+msgstr "Link do resetu"
+
+#: app/templates/admin_users.html
+msgid "Disable"
+msgstr "Wyłącz"
+
+#: app/templates/admin_users.html
+msgid "Enable"
+msgstr "Włącz"
+
+#: app/templates/admin_users.html
+#, python-format
+msgid "Delete user %(email)s? This removes all their data and its backups."
+msgstr "Usunąć użytkownika %(email)s? To usuwa wszystkie jego dane i ich kopie zapasowe."
+
+#: app/templates/admin_users.html app/templates/bloodwork.html
+#: app/templates/experiment_detail.html app/templates/experiment_edit.html
+#: app/templates/settings.html
+msgid "Delete"
+msgstr "Usuń"
+
+#: app/templates/admin_users.html
+msgid "Invites"
+msgstr "Zaproszenia"
+
+#: app/templates/admin_users.html
+msgid "Send this link."
+msgstr "Wyślij ten link."
+
+#: app/templates/admin_users.html
+#, python-format
+msgid "It works once, for %(days)s days, and is not shown again."
+msgstr "Działa jeden raz, przez %(days)s dni, i nie zostanie pokazany ponownie."
+
+#: app/templates/admin_users.html
+msgid "Invite link"
+msgstr "Link z zaproszeniem"
+
+#: app/templates/admin_users.html
+msgid "Registration is open; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys."
+msgstr "Rejestracja jest otwarta; zaproszenie i tak pozwala jednej osobie założyć konto. Każde konto jest osobne: własne dane, logowanie i klucze."
+
+#: app/templates/admin_users.html
+msgid "Registration is closed; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys."
+msgstr "Rejestracja jest zamknięta; zaproszenie pozwala mimo to jednej osobie założyć konto. Każde konto jest osobne: własne dane, logowanie i klucze."
+
+#: app/templates/admin_users.html
+msgid "Create an invite"
+msgstr "Utwórz zaproszenie"
+
+#: app/templates/admin_users.html
+msgid "(optional: only this address can use it)"
+msgstr "(opcjonalnie: tylko ten adres może go użyć)"
+
+#: app/templates/admin_users.html
+msgid "May use this server's LLM key when they have none of their own"
+msgstr "Może korzystać z klucza LLM tego serwera, gdy nie ma własnego"
+
+#: app/templates/admin_users.html
+msgid "Create invite link"
+msgstr "Utwórz link z zaproszeniem"
+
+#: app/templates/admin_users.html
+msgid "For"
+msgstr "Dla"
+
+#: app/templates/admin_users.html
+msgid "Expires (UTC)"
+msgstr "Wygasa (UTC)"
+
+#: app/templates/admin_users.html
+msgid "Created by"
+msgstr "Utworzone przez"
+
+#: app/templates/admin_users.html
+msgid "Any address"
+msgstr "Dowolny adres"
+
+#: app/templates/admin_users.html app/templates/settings.html
+msgid "Revoke"
+msgstr "Unieważnij"
+
+#: app/templates/admin_users.html
+msgid "Security events"
+msgstr "Zdarzenia bezpieczeństwa"
+
+#: app/templates/admin_users.html
+msgid "Sign-ins, sign-outs and account changes from the last 180 days, newest first."
+msgstr "Logowania, wylogowania i zmiany kont z ostatnich 180 dni, od najnowszych."
+
+#: app/templates/admin_users.html
+msgid "Time (UTC)"
+msgstr "Czas (UTC)"
+
+#: app/templates/admin_users.html
+msgid "Event"
+msgstr "Zdarzenie"
+
+#: app/templates/admin_users.html
+msgid "Account"
+msgstr "Konto"
+
+#: app/templates/admin_users.html
+msgid "IP"
+msgstr "IP"
+
+#: app/templates/admin_users.html
+msgid "Detail"
+msgstr "Szczegóły"
+
+#: app/templates/admin_users.html
+msgid "No events yet."
+msgstr "Brak zdarzeń."
 
 #: app/templates/auth_login.html
 msgid "Virgil - Login"
@@ -1901,6 +2943,11 @@ msgstr "Virgil - Logowanie"
 #: app/templates/auth_login.html
 msgid "Sign in to continue."
 msgstr "Zaloguj się, żeby kontynuować."
+
+#: app/templates/auth_login.html app/templates/auth_signup.html
+#: app/templates/settings.html
+msgid "Password"
+msgstr "Hasło"
 
 #: app/templates/auth_login.html
 msgid "Sign In"
@@ -1914,19 +2961,11 @@ msgstr "Nie masz konta?"
 msgid "Sign up"
 msgstr "Zarejestruj się"
 
-#: app/templates/auth_login.html app/templates/auth_signup.html
-msgid "Email"
-msgstr "E-mail"
-
-#: app/templates/auth_login.html app/templates/auth_signup.html
-msgid "Password"
-msgstr "Hasło"
-
 #: app/templates/auth_mfa_setup.html
 msgid "Virgil - MFA Setup"
 msgstr "Virgil - Konfiguracja MFA"
 
-#: app/templates/auth_mfa_setup.html
+#: app/templates/auth_mfa_setup.html app/templates/settings.html
 msgid "Two-Factor Authentication"
 msgstr "Uwierzytelnianie dwuskładnikowe"
 
@@ -1999,11 +3038,11 @@ msgstr "Virgil - Reset hasła"
 msgid "Set a new password for %(email)s."
 msgstr "Ustaw nowe hasło dla %(email)s."
 
-#: app/templates/auth_reset.html
+#: app/templates/auth_reset.html app/templates/settings.html
 msgid "New password"
 msgstr "Nowe hasło"
 
-#: app/templates/auth_reset.html
+#: app/templates/auth_reset.html app/templates/settings.html
 msgid "Repeat new password"
 msgstr "Powtórz nowe hasło"
 
@@ -2055,6 +3094,12 @@ msgstr "Przejdź do treści"
 msgid "Blood"
 msgstr "Badania"
 
+#: app/templates/base.html app/templates/finance.html
+#: app/templates/finance_setup.html app/templates/onboarding.html
+#: app/templates/settings.html
+msgid "Finance"
+msgstr "Finanse"
+
 #: app/templates/base.html
 msgid "Install App"
 msgstr "Zainstaluj aplikację"
@@ -2067,7 +3112,7 @@ msgstr "Zmień motyw"
 msgid "Admin: users"
 msgstr "Admin: użytkownicy"
 
-#: app/templates/base.html
+#: app/templates/base.html app/templates/onboarding.html
 msgid "Log out"
 msgstr "Wyloguj"
 
@@ -2078,11 +3123,6 @@ msgstr "Start"
 #: app/templates/base.html
 msgid "More"
 msgstr "Więcej"
-
-#: app/templates/base.html app/templates/finance.html
-#: app/templates/finance_setup.html
-msgid "Finance"
-msgstr "Finanse"
 
 #: app/templates/bloodwork.html
 msgid "Virgil - Blood Work"
@@ -2109,11 +3149,11 @@ msgstr "Wykres"
 msgid "Chart for %(name)s"
 msgstr "Wykres: %(name)s"
 
-#: app/templates/bloodwork.html
+#: app/templates/bloodwork.html app/templates/settings.html
 msgid "Blood Work"
 msgstr "Badania krwi"
 
-#: app/templates/bloodwork.html
+#: app/templates/bloodwork.html app/templates/settings.html
 msgid "All"
 msgstr "Wszystkie"
 
@@ -2130,6 +3170,17 @@ msgstr "Popraw wyniki %(name)s (%(count)s)"
 #: app/templates/bloodwork.html
 msgid "No results for this marker yet."
 msgstr "Brak wyników dla tego wskaźnika."
+
+#: app/templates/bloodwork.html app/templates/dashboard.html
+#: app/templates/experiment_detail.html app/templates/finance.html
+#: app/templates/freedom.html app/templates/oura.html
+#: app/templates/training.html
+msgid "Date"
+msgstr "Data"
+
+#: app/templates/bloodwork.html app/templates/experiment_detail.html
+msgid "Value"
+msgstr "Wartość"
 
 #: app/templates/bloodwork.html
 msgid "Text"
@@ -2159,6 +3210,13 @@ msgstr "L (laboratorium)"
 #, python-format
 msgid "Save the result from %(date)s"
 msgstr "Zapisz wynik z %(date)s"
+
+#: app/templates/bloodwork.html app/templates/daily.html
+#: app/templates/dashboard.html app/templates/experiment_detail.html
+#: app/templates/freedom.html app/templates/oura.html
+#: app/templates/settings.html
+msgid "Save"
+msgstr "Zapisz"
 
 #: app/templates/bloodwork.html
 #, python-format
@@ -2240,33 +3298,6 @@ msgstr "Kolejność"
 msgid "Save marker"
 msgstr "Zapisz wskaźnik"
 
-#: app/templates/bloodwork.html app/templates/daily.html
-#: app/templates/dashboard.html app/templates/experiment_detail.html
-#: app/templates/freedom.html app/templates/oura.html
-msgid "Save"
-msgstr "Zapisz"
-
-#: app/templates/bloodwork.html app/templates/dashboard.html
-#: app/templates/experiment_detail.html app/templates/finance.html
-#: app/templates/freedom.html app/templates/oura.html
-#: app/templates/training.html
-msgid "Date"
-msgstr "Data"
-
-#: app/templates/bloodwork.html app/templates/experiment_detail.html
-msgid "Value"
-msgstr "Wartość"
-
-#: app/templates/bloodwork.html app/templates/experiment_detail.html
-#: app/templates/experiment_edit.html
-msgid "Delete"
-msgstr "Usuń"
-
-#: app/templates/bloodwork.html app/templates/experiment_new.html
-#: app/templates/finance_setup.html app/templates/freedom.html
-msgid "Name"
-msgstr "Nazwa"
-
 #: app/templates/daily.html
 msgid "Virgil - Daily Log"
 msgstr "Virgil - Dziennik"
@@ -2295,9 +3326,20 @@ msgstr "Wysoka"
 msgid "Water Intake (>2500ml)"
 msgstr "Woda (>2500 ml)"
 
+#: app/templates/daily.html app/templates/dashboard.html
+#: app/templates/onboarding.html app/templates/partials/job_status.html
+msgid "Queueing..."
+msgstr "Dodawanie do kolejki..."
+
 #: app/templates/daily.html
 msgid "Generate with AI"
 msgstr "Wygeneruj z AI"
+
+#: app/templates/daily.html app/templates/experiment_detail.html
+#: app/templates/freedom.html app/templates/onboarding.html
+#: app/templates/training.html
+msgid "Edit"
+msgstr "Edytuj"
 
 #: app/templates/daily.html
 #, python-format
@@ -2307,6 +3349,11 @@ msgstr "%(label)s: zadanie"
 #: app/templates/daily.html
 msgid "What will you do?"
 msgstr "Co zrobisz?"
+
+#: app/templates/daily.html app/templates/experiment_detail.html
+#: app/templates/oura.html app/templates/settings.html
+msgid "Notes"
+msgstr "Notatki"
 
 #: app/templates/daily.html
 msgid "Notes for the day..."
@@ -2369,8 +3416,10 @@ msgid "Measurements (Saturday)"
 msgstr "Pomiary (sobota)"
 
 #: app/templates/daily.html app/templates/dashboard.html
-msgid "Queueing..."
-msgstr "Dodawanie do kolejki..."
+#: app/templates/onboarding.html app/templates/partials/wod_row.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Weight (kg)"
+msgstr "Waga (kg)"
 
 #: app/templates/daily.html app/templates/dashboard.html
 msgid "Arm (cm)"
@@ -2387,22 +3436,6 @@ msgstr "Biodra (cm)"
 #: app/templates/daily.html app/templates/dashboard.html
 msgid "Thighs (cm)"
 msgstr "Uda (cm)"
-
-#: app/templates/daily.html app/templates/dashboard.html
-#: app/templates/partials/wod_row.html app/templates/training.html
-#: app/templates/wod_confirm.html
-msgid "Weight (kg)"
-msgstr "Waga (kg)"
-
-#: app/templates/daily.html app/templates/experiment_detail.html
-#: app/templates/freedom.html app/templates/training.html
-msgid "Edit"
-msgstr "Edytuj"
-
-#: app/templates/daily.html app/templates/experiment_detail.html
-#: app/templates/oura.html
-msgid "Notes"
-msgstr "Notatki"
 
 #: app/templates/dashboard.html
 msgid "Virgil - Dashboard"
@@ -2424,7 +3457,7 @@ msgstr "Wybierz cele"
 msgid "Star up to 3 goals on the Goals page and they stay here, in view."
 msgstr "Oznacz gwiazdką do 3 celów na stronie Cele, a zostaną tutaj, na widoku."
 
-#: app/templates/dashboard.html
+#: app/templates/dashboard.html app/templates/settings.html
 msgid "Morning Briefing"
 msgstr "Poranny briefing"
 
@@ -2471,6 +3504,35 @@ msgstr "%(delta)s względem średniej z %(days)s dni"
 msgid "Insights"
 msgstr "Wnioski"
 
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "Sleep"
+msgstr "Sen"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "HRV"
+msgstr "HRV"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "RHR"
+msgstr "Tętno spoczynkowe"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "(yesterday)"
+msgstr "(wczoraj)"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "Stress:"
+msgstr "Stres:"
+
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "Recovery:"
+msgstr "Regeneracja:"
+
+#: app/templates/dashboard.html app/templates/experiment_detail.html
+#: app/templates/freedom.html
+msgid "Today"
+msgstr "Dzisiaj"
+
 #: app/templates/dashboard.html
 msgid "No Oura data yet."
 msgstr "Brak danych z Oura."
@@ -2492,7 +3554,7 @@ msgstr "Brak pomiarów."
 msgid "<a href=\"/daily/%(measurement_day)s#measurements\">Add them on Daily</a>, which asks for weight and body measurements on Saturdays."
 msgstr "<a href=\"/daily/%(measurement_day)s#measurements\">Dodaj je w Dzienniku</a>, który w soboty prosi o wagę i obwody ciała."
 
-#: app/templates/dashboard.html
+#: app/templates/dashboard.html app/templates/settings.html
 msgid "Life Scores"
 msgstr "Oceny życia"
 
@@ -2538,6 +3600,11 @@ msgstr "Poziom mocy"
 msgid "Energy Avg"
 msgstr "Średnia energia"
 
+#: app/templates/dashboard.html app/templates/experiment_edit.html
+#: app/templates/experiment_new.html
+msgid "Metrics"
+msgstr "Wskaźniki"
+
 #: app/templates/dashboard.html
 msgid "PMO Status"
 msgstr "Status PMO"
@@ -2570,6 +3637,10 @@ msgstr[0] "(ostatni %(count)s tydzień)"
 msgstr[1] "(ostatnie %(count)s tygodnie)"
 msgstr[2] "(ostatnich %(count)s tygodni)"
 
+#: app/templates/dashboard.html app/templates/oura.html
+msgid "History"
+msgstr "Historia"
+
 #: app/templates/dashboard.html
 msgid "Power"
 msgstr "Moc"
@@ -2598,43 +3669,11 @@ msgstr "dzisiaj"
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
-#: app/templates/dashboard.html app/templates/experiment_detail.html
-#: app/templates/freedom.html
-msgid "Today"
-msgstr "Dzisiaj"
-
-#: app/templates/dashboard.html app/templates/experiment_edit.html
-#: app/templates/experiment_new.html
-msgid "Metrics"
-msgstr "Wskaźniki"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "Sleep"
-msgstr "Sen"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "HRV"
-msgstr "HRV"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "RHR"
-msgstr "Tętno spoczynkowe"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "(yesterday)"
-msgstr "(wczoraj)"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "Stress:"
-msgstr "Stres:"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "Recovery:"
-msgstr "Regeneracja:"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "History"
-msgstr "Historia"
+#: app/templates/experiment_detail.html app/templates/experiments.html
+#: app/templates/goals.html
+#, python-format
+msgid "%(start)s to %(end)s"
+msgstr "%(start)s do %(end)s"
 
 #: app/templates/experiment_detail.html
 #, python-format
@@ -2746,6 +3785,11 @@ msgstr "ocena 0-10"
 msgid "Log Entry"
 msgstr "Zapisz wpis"
 
+#: app/templates/experiment_detail.html app/templates/oura.html
+#: app/templates/settings.html
+msgid "Metric"
+msgstr "Wskaźnik"
+
 #: app/templates/experiment_detail.html
 msgid "easy pace / TENSION, 7→3"
 msgstr "spokojne tempo / NAPIĘCIE, 7→3"
@@ -2791,10 +3835,6 @@ msgid "Delete the %(name)s entry from %(date)s"
 msgstr "Usuń wpis %(name)s z %(date)s"
 
 #: app/templates/experiment_detail.html
-msgid "Actions"
-msgstr "Akcje"
-
-#: app/templates/experiment_detail.html
 msgid "Mark this experiment as completed? You can reopen it later."
 msgstr "Oznaczyć ten eksperyment jako ukończony? Możesz go później wznowić."
 
@@ -2818,16 +3858,6 @@ msgstr "Usunąć ten eksperyment i wszystkie jego dane?"
 msgid "Reopen"
 msgstr "Wznów"
 
-#: app/templates/experiment_detail.html app/templates/experiments.html
-#: app/templates/goals.html
-#, python-format
-msgid "%(start)s to %(end)s"
-msgstr "%(start)s do %(end)s"
-
-#: app/templates/experiment_detail.html app/templates/oura.html
-msgid "Metric"
-msgstr "Wskaźnik"
-
 #: app/templates/experiment_edit.html
 #, python-format
 msgid "Virgil - Edit %(title)s"
@@ -2841,6 +3871,39 @@ msgstr "Edytuj eksperyment"
 #, python-format
 msgid "Back to %(title)s"
 msgstr "Wróć do: %(title)s"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Basics"
+msgstr "Podstawy"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Title"
+msgstr "Tytuł"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+#: app/templates/finance_setup.html
+msgid "Description"
+msgstr "Opis"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Linked goal"
+msgstr "Powiązany cel"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "optional"
+msgstr "opcjonalnie"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "No linked goal"
+msgstr "Bez powiązanego celu"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Start Date"
+msgstr "Data startu"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Number of Weeks"
+msgstr "Liczba tygodni"
 
 #: app/templates/experiment_edit.html
 msgid "Shrinking removes the trailing weeks' targets/labels."
@@ -2865,6 +3928,18 @@ msgstr "Typu nie można zmienić po utworzeniu, żeby zapisane wartości zachowa
 #: app/templates/experiment_edit.html
 msgid "Metric name"
 msgstr "Nazwa wskaźnika"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Minutes"
+msgstr "Minuty"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Count"
+msgstr "Liczba"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Rating 0-10"
+msgstr "Ocena 0-10"
 
 #: app/templates/experiment_edit.html
 msgid "Target (0 = none)"
@@ -2894,6 +3969,10 @@ msgstr[0] "Usunąć wskaźnik %(name)s i jego %(count)s wpis? Niezapisane zmiany
 msgstr[1] "Usunąć wskaźnik %(name)s i jego %(count)s wpisy? Niezapisane zmiany na tej stronie przepadną."
 msgstr[2] "Usunąć wskaźnik %(name)s i jego %(count)s wpisów? Niezapisane zmiany na tej stronie przepadną."
 
+#: app/templates/experiment_edit.html app/templates/freedom.html
+msgid "Save changes"
+msgstr "Zapisz zmiany"
+
 #: app/templates/experiment_edit.html
 msgid "Add a metric"
 msgstr "Dodaj wskaźnik"
@@ -2901,6 +3980,10 @@ msgstr "Dodaj wskaźnik"
 #: app/templates/experiment_edit.html
 msgid "New metric name"
 msgstr "Nazwa nowego wskaźnika"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Yes / No (daily)"
+msgstr "Tak / Nie (codziennie)"
 
 #: app/templates/experiment_edit.html
 msgid "Target (0 = none; Count/Yes-No only)"
@@ -2911,66 +3994,8 @@ msgid "Oura names (Minutes only)"
 msgstr "Nazwy z Oura (tylko Minuty)"
 
 #: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Basics"
-msgstr "Podstawy"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Title"
-msgstr "Tytuł"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Linked goal"
-msgstr "Powiązany cel"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "optional"
-msgstr "opcjonalnie"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "No linked goal"
-msgstr "Bez powiązanego celu"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Start Date"
-msgstr "Data startu"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Number of Weeks"
-msgstr "Liczba tygodni"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Minutes"
-msgstr "Minuty"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Count"
-msgstr "Liczba"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Rating 0-10"
-msgstr "Ocena 0-10"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Yes / No (daily)"
-msgstr "Tak / Nie (codziennie)"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
 msgid "+ Add Metric"
 msgstr "+ Dodaj wskaźnik"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-#: app/templates/finance_setup.html
-msgid "Description"
-msgstr "Opis"
-
-#: app/templates/experiment_edit.html app/templates/finance_setup.html
-#: app/templates/goals.html
-msgid "Status"
-msgstr "Status"
-
-#: app/templates/experiment_edit.html app/templates/freedom.html
-msgid "Save changes"
-msgstr "Zapisz zmiany"
 
 #: app/templates/experiment_new.html
 msgid "Virgil - New Experiment"
@@ -2995,6 +4020,10 @@ msgstr "Co śledzi ten eksperyment: minuty aktywności, liczbę zdarzeń, codzie
 #: app/templates/experiment_new.html
 msgid "Zone 2 / Meditation / Urge logged"
 msgstr "Strefa 2 / Medytacja / Zapisana pokusa"
+
+#: app/templates/experiment_new.html app/templates/freedom.html
+msgid "Type"
+msgstr "Typ"
 
 #: app/templates/experiment_new.html
 msgid "Color"
@@ -3064,13 +4093,9 @@ msgstr ",,DELOAD,,,,TAPER,"
 msgid "Create Experiment"
 msgstr "Utwórz eksperyment"
 
-#: app/templates/experiment_new.html
+#: app/templates/experiment_new.html app/templates/settings_import.html
 msgid "Cancel"
 msgstr "Anuluj"
-
-#: app/templates/experiment_new.html app/templates/freedom.html
-msgid "Type"
-msgstr "Typ"
 
 #: app/templates/experiments.html
 msgid "Virgil - Experiments"
@@ -3138,6 +4163,10 @@ msgstr "Poduszka"
 msgid "Months of essential cost"
 msgstr "Miesiące niezbędnych kosztów"
 
+#: app/templates/finance.html app/templates/oura.html
+msgid "Score"
+msgstr "Wynik"
+
 #: app/templates/finance.html
 #, python-format
 msgid "%(points)s with all stable income"
@@ -3178,6 +4207,10 @@ msgstr "%(points)s z %(total)s punktów"
 msgid "Score unknown"
 msgstr "Wynik nieznany"
 
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "Counts toward the cushion"
+msgstr "Liczy się do poduszki"
+
 #: app/templates/finance.html
 msgid "not counted"
 msgstr "nie liczy się"
@@ -3195,6 +4228,18 @@ msgstr "na {date}"
 msgid "no balance yet"
 msgstr "brak salda"
 
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "In place"
+msgstr "Jest"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "None"
+msgstr "Brak"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "Not applicable"
+msgstr "Nie dotyczy"
+
 #: app/templates/finance.html
 msgid "No policies set."
 msgstr "Brak ubezpieczeń."
@@ -3206,6 +4251,10 @@ msgstr "Dodaj je"
 #: app/templates/finance.html
 msgid "depends on work"
 msgstr "zależny od pracy"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "independent of work"
+msgstr "niezależny od pracy"
 
 #: app/templates/finance.html
 msgid "per month"
@@ -3235,30 +4284,6 @@ msgstr "Jedna data dla całego zestawienia. Każde pole zaczyna od ostatniego sa
 #: app/templates/finance.html
 msgid "Save snapshot"
 msgstr "Zapisz zestawienie"
-
-#: app/templates/finance.html app/templates/finance_setup.html
-msgid "Counts toward the cushion"
-msgstr "Liczy się do poduszki"
-
-#: app/templates/finance.html app/templates/finance_setup.html
-msgid "In place"
-msgstr "Jest"
-
-#: app/templates/finance.html app/templates/finance_setup.html
-msgid "None"
-msgstr "Brak"
-
-#: app/templates/finance.html app/templates/finance_setup.html
-msgid "Not applicable"
-msgstr "Nie dotyczy"
-
-#: app/templates/finance.html app/templates/finance_setup.html
-msgid "independent of work"
-msgstr "niezależny od pracy"
-
-#: app/templates/finance.html app/templates/oura.html
-msgid "Score"
-msgstr "Wynik"
 
 #: app/templates/finance_setup.html
 msgid "Virgil - Finance setup"
@@ -3488,7 +4513,7 @@ msgstr "Zapisz ubezpieczenia"
 msgid "Virgil - Freedom"
 msgstr "Virgil - Freedom"
 
-#: app/templates/freedom.html
+#: app/templates/freedom.html app/templates/settings.html
 msgid "Something else"
 msgstr "Coś innego"
 
@@ -3496,7 +4521,7 @@ msgstr "Coś innego"
 msgid "Something else, in your words"
 msgstr "Coś innego, Twoimi słowami"
 
-#: app/templates/freedom.html
+#: app/templates/freedom.html app/templates/settings.html
 msgid "Add"
 msgstr "Dodaj"
 
@@ -3511,6 +4536,32 @@ msgstr "Od czego się uwalniasz?"
 #: app/templates/freedom.html
 msgid "Pick one or more. Each gets its own daily check-in, a log of the urges you survive and its own streak. You can change this any time in Settings."
 msgstr "Wybierz jeden lub więcej. Każdy dostaje własny codzienny check-in, dziennik przetrwanych pokus i własną serię. Możesz to zmienić w każdej chwili w Ustawieniach."
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+#, python-format
+msgid "%(count)s day clean · this week %(pct)s%%"
+msgid_plural "%(count)s days clean · this week %(pct)s%%"
+msgstr[0] "%(count)s czysty dzień · ten tydzień %(pct)s%%"
+msgstr[1] "%(count)s czyste dni · ten tydzień %(pct)s%%"
+msgstr[2] "%(count)s czystych dni · ten tydzień %(pct)s%%"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Clean"
+msgstr "Czysto"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Slipped"
+msgstr "Potknięcie"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+#, python-format
+msgid "%(name)s: clean today"
+msgstr "%(name)s: dziś czysto"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+#, python-format
+msgid "%(name)s: log a slip"
+msgstr "%(name)s: zapisz potknięcie"
 
 #: app/templates/freedom.html
 msgid "bricks · urges survived"
@@ -3721,6 +4772,11 @@ msgstr "Nawrót"
 msgid "Reset"
 msgstr "Reset"
 
+#: app/templates/freedom.html app/templates/partials/wod_row.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Note"
+msgstr "Notatka"
+
 #: app/templates/freedom.html
 #, python-format
 msgid "Delete the relapse record from %(date)s? The streak is counted again without it."
@@ -3815,37 +4871,6 @@ msgstr "Przestań śledzić ten nawyk"
 msgid "Track another habit"
 msgstr "Śledź kolejny nawyk"
 
-#: app/templates/freedom.html app/templates/partials/freedom_today.html
-#, python-format
-msgid "%(count)s day clean · this week %(pct)s%%"
-msgid_plural "%(count)s days clean · this week %(pct)s%%"
-msgstr[0] "%(count)s czysty dzień · ten tydzień %(pct)s%%"
-msgstr[1] "%(count)s czyste dni · ten tydzień %(pct)s%%"
-msgstr[2] "%(count)s czystych dni · ten tydzień %(pct)s%%"
-
-#: app/templates/freedom.html app/templates/partials/freedom_today.html
-msgid "Clean"
-msgstr "Czysto"
-
-#: app/templates/freedom.html app/templates/partials/freedom_today.html
-msgid "Slipped"
-msgstr "Potknięcie"
-
-#: app/templates/freedom.html app/templates/partials/freedom_today.html
-#, python-format
-msgid "%(name)s: clean today"
-msgstr "%(name)s: dziś czysto"
-
-#: app/templates/freedom.html app/templates/partials/freedom_today.html
-#, python-format
-msgid "%(name)s: log a slip"
-msgstr "%(name)s: zapisz potknięcie"
-
-#: app/templates/freedom.html app/templates/partials/wod_row.html
-#: app/templates/training.html app/templates/wod_confirm.html
-msgid "Note"
-msgstr "Notatka"
-
 #: app/templates/goals.html
 msgid "Virgil - Goals"
 msgstr "Virgil - Cele"
@@ -3873,6 +4898,10 @@ msgstr[2] "Usunąć ten cel? Możesz go przywrócić w sekcji Ostatnio usunięte
 #: app/templates/goals.html
 msgid "Delete goal"
 msgstr "Usuń cel"
+
+#: app/templates/goals.html app/templates/training.html
+msgid "Open"
+msgstr "Otwórz"
 
 #: app/templates/goals.html
 msgid "Details and execution"
@@ -3913,10 +4942,6 @@ msgstr "Dodaj krok"
 #: app/templates/goals.html
 msgid "Changes"
 msgstr "Zmiany"
-
-#: app/templates/goals.html
-msgid "Created"
-msgstr "Utworzono"
 
 #: app/templates/goals.html
 msgid "Added to focus"
@@ -4056,7 +5081,7 @@ msgstr "do przywrócenia do %(date)s"
 msgid "Restore %(name)s"
 msgstr "Przywróć %(name)s"
 
-#: app/templates/goals.html
+#: app/templates/goals.html app/templates/settings.html
 msgid "Restore"
 msgstr "Przywróć"
 
@@ -4068,9 +5093,317 @@ msgstr "Otwórz obszary"
 msgid "No goals in the selected horizon yet."
 msgstr "Brak celów w wybranym horyzoncie."
 
-#: app/templates/goals.html app/templates/training.html
-msgid "Open"
-msgstr "Otwórz"
+#: app/templates/onboarding.html
+msgid "Virgil - Onboarding"
+msgstr "Virgil - Wdrożenie"
+
+#: app/templates/onboarding.html
+#, python-format
+msgid "Step %(step)s of 6"
+msgstr "Krok %(step)s z 6"
+
+#: app/templates/onboarding.html
+msgid "About You"
+msgstr "O Tobie"
+
+#: app/templates/onboarding.html
+msgid "This helps Virgil recommend realistic training loads and goals. A 25-year-old single person and a 40-year-old parent with 2 kids need very different daily plans."
+msgstr "To pomaga Virgilowi proponować realne obciążenia treningowe i cele. Samotna 25-latka i 40-letni rodzic dwójki dzieci potrzebują zupełnie innych planów dnia."
+
+#: app/templates/onboarding.html
+msgid "Sex"
+msgstr "Płeć"
+
+#: app/templates/onboarding.html
+msgid "— prefer not to say —"
+msgstr "(wolę nie podawać)"
+
+#: app/templates/onboarding.html
+msgid "Age"
+msgstr "Wiek"
+
+#: app/templates/onboarding.html
+msgid "Height (cm)"
+msgstr "Wzrost (cm)"
+
+#: app/templates/onboarding.html
+msgid "e.g. married, 2 kids (ages 6, 9)"
+msgstr "np. żonaty/zamężna, 2 dzieci (6 i 9 lat)"
+
+#: app/templates/onboarding.html
+msgid "Next"
+msgstr "Dalej"
+
+#: app/templates/onboarding.html
+msgid "Skip this step"
+msgstr "Pomiń ten krok"
+
+#: app/templates/onboarding.html
+msgid "Your Ideal Day"
+msgstr "Twój idealny dzień"
+
+#: app/templates/onboarding.html
+msgid "Virgil will create a realistic version of your ideal day, adjusted for your real obligations. Without this, daily task suggestions will be generic."
+msgstr "Virgil stworzy realną wersję Twojego idealnego dnia, dopasowaną do faktycznych obowiązków. Bez tego codzienne propozycje zadań będą ogólne."
+
+#: app/templates/onboarding.html
+msgid "See example"
+msgstr "Zobacz przykład"
+
+#: app/templates/onboarding.html
+msgid "~ 06:00 START"
+msgstr "~ 06:00 START"
+
+#: app/templates/onboarding.html
+msgid "— Water + light exposure + cold shower + meditation"
+msgstr "Woda + światło + zimny prysznic + medytacja"
+
+#: app/templates/onboarding.html
+msgid "~ 07:30 PREP"
+msgstr "~ 07:30 PRZYGOTOWANIE"
+
+#: app/templates/onboarding.html
+msgid "— Protein breakfast + plan the day + zero social media"
+msgstr "Białkowe śniadanie + plan dnia + zero social mediów"
+
+#: app/templates/onboarding.html
+msgid "~ 09:00 DEEP WORK"
+msgstr "~ 09:00 GŁĘBOKA PRACA"
+
+#: app/templates/onboarding.html
+msgid "— 4 blocks of 50 min, hardest tasks"
+msgstr "4 bloki po 50 min, najtrudniejsze zadania"
+
+#: app/templates/onboarding.html
+msgid "~ 13:00 BREAK"
+msgstr "~ 13:00 PRZERWA"
+
+#: app/templates/onboarding.html
+msgid "— Lunch + relax + social media reward"
+msgstr "Obiad + odpoczynek + social media w nagrodę"
+
+#: app/templates/onboarding.html
+msgid "~ 14:00 SHALLOW WORK"
+msgstr "~ 14:00 PŁYTKA PRACA"
+
+#: app/templates/onboarding.html
+msgid "— Admin, calls, lighter tasks"
+msgstr "Sprawy bieżące, rozmowy, lżejsze zadania"
+
+#: app/templates/onboarding.html
+msgid "~ 17:00 FAMILY & BODY"
+msgstr "~ 17:00 RODZINA I CIAŁO"
+
+#: app/templates/onboarding.html
+msgid "— Training + dinner + family (100% presence)"
+msgstr "Trening + kolacja + rodzina (100% obecności)"
+
+#: app/templates/onboarding.html
+msgid "~ 21:00 WIND DOWN"
+msgstr "~ 21:00 WYCISZENIE"
+
+#: app/templates/onboarding.html
+msgid "— Journal + reading + no electronics"
+msgstr "Dziennik + czytanie + bez elektroniki"
+
+#: app/templates/onboarding.html
+msgid "Describe your perfect day from morning to night... Use time blocks like: 06:00 - Morning routine... 09:00 - Deep work... 17:00 - Family time..."
+msgstr "Opisz swój idealny dzień od rana do wieczora... Użyj bloków czasu, np.: 06:00 - Poranna rutyna... 09:00 - Głęboka praca... 17:00 - Czas z rodziną..."
+
+#: app/templates/onboarding.html
+msgid "Back"
+msgstr "Wstecz"
+
+#: app/templates/onboarding.html
+msgid "Your End Goals"
+msgstr "Twoje cele docelowe"
+
+#: app/templates/onboarding.html
+msgid "Virgil breaks your end goals into 3 milestone levels and tracks your progress. Without goals, the dashboard life scores section will be empty."
+msgstr "Virgil dzieli Twoje cele docelowe na 3 poziomy kamieni milowych i śledzi postęp. Bez celów sekcja ocen życia na pulpicie będzie pusta."
+
+#: app/templates/onboarding.html
+msgid "Mind"
+msgstr "Umysł"
+
+#: app/templates/onboarding.html
+msgid "e.g. Stoic calm as my nature, daily meditation practice"
+msgstr "np. Stoicki spokój jako moja natura, codzienna medytacja"
+
+#: app/templates/onboarding.html
+msgid "e.g. Athletic physique, biologically 10 years younger"
+msgstr "np. Wysportowana sylwetka, biologicznie 10 lat młodziej"
+
+#: app/templates/onboarding.html
+msgid "e.g. Full financial independence, work by choice"
+msgstr "np. Pełna niezależność finansowa, praca z wyboru"
+
+#: app/templates/onboarding.html
+msgid "e.g. Strong, loving family, deep lifelong friendships"
+msgstr "np. Silna, kochająca rodzina, głębokie przyjaźnie na całe życie"
+
+#: app/templates/onboarding.html
+#, python-format
+msgid "Your 10-year vision. Saved in Goals as a 10-year goal under %(area)s."
+msgstr "Twoja wizja na 10 lat. Zapisana w Celach jako cel 10-letni w obszarze %(area)s."
+
+#: app/templates/onboarding.html
+msgid "its area"
+msgstr "jego obszar"
+
+#: app/templates/onboarding.html
+msgid "Habits & Training"
+msgstr "Nawyki i trening"
+
+#: app/templates/onboarding.html
+msgid "Virgil will set up your training protocol and suggest one experiment to replace a bad habit. Without this, you'll need to configure training manually."
+msgstr "Virgil przygotuje Twój plan treningowy i zaproponuje jeden eksperyment, który zastąpi zły nawyk. Bez tego trening skonfigurujesz ręcznie."
+
+#: app/templates/onboarding.html
+msgid "Current training routine"
+msgstr "Obecna rutyna treningowa"
+
+#: app/templates/onboarding.html
+msgid "e.g. Home gym 3x/week (Mon/Wed/Fri). Kettlebells, resistance bands, pull-up bar. Focus on compound movements."
+msgstr "np. Domowa siłownia 3x w tygodniu (pon/śr/pt). Kettlebelle, gumy, drążek. Nacisk na ćwiczenia złożone."
+
+#: app/templates/onboarding.html
+msgid "Equipment available"
+msgstr "Dostępny sprzęt"
+
+#: app/templates/onboarding.html
+msgid "Home gym"
+msgstr "Domowa siłownia"
+
+#: app/templates/onboarding.html
+msgid "Gym membership"
+msgstr "Karnet na siłownię"
+
+#: app/templates/onboarding.html
+msgid "Resistance bands"
+msgstr "Gumy oporowe"
+
+#: app/templates/onboarding.html
+msgid "Kettlebells"
+msgstr "Kettlebelle"
+
+#: app/templates/onboarding.html
+msgid "Bodyweight only"
+msgstr "Tylko masa ciała"
+
+#: app/templates/onboarding.html
+msgid "Habits you want to build"
+msgstr "Nawyki, które chcesz zbudować"
+
+#: app/templates/onboarding.html
+msgid "e.g. Morning cold shower, daily reading, consistent sleep schedule"
+msgstr "np. Poranny zimny prysznic, codzienne czytanie, stałe pory snu"
+
+#: app/templates/onboarding.html
+msgid "Habits you want to break"
+msgstr "Nawyki, z których chcesz zrezygnować"
+
+#: app/templates/onboarding.html
+msgid "e.g. Doom scrolling, late-night snacking, procrastination"
+msgstr "np. Bezmyślne scrollowanie, podjadanie w nocy, prokrastynacja"
+
+#: app/templates/onboarding.html
+msgid "Medical Records"
+msgstr "Wyniki badań"
+
+#: app/templates/onboarding.html
+msgid "Virgil will track your blood markers over time and flag trends. This is completely optional — you can add results later in the Bloodwork section."
+msgstr "Virgil będzie śledzić Twoje wskaźniki krwi w czasie i oznaczać trendy. To całkowicie opcjonalne: wyniki możesz dodać później w sekcji Badania."
+
+#: app/templates/onboarding.html
+msgid "Importing medical records needs an LLM. Add your own API key under Settings, or add blood work results by hand in Blood Work later."
+msgstr "Import wyników badań wymaga LLM. Dodaj własny klucz API w Ustawieniach albo dodaj wyniki ręcznie później w Badaniach krwi."
+
+#: app/templates/onboarding.html
+msgid "Upload PDF"
+msgstr "Wgraj PDF"
+
+#: app/templates/onboarding.html
+msgid "Paste text"
+msgstr "Wklej tekst"
+
+#: app/templates/onboarding.html
+msgid "Blood test PDF"
+msgstr "PDF z badaniem krwi"
+
+#: app/templates/onboarding.html
+msgid "Paste lab results"
+msgstr "Wklej wyniki badań"
+
+#: app/templates/onboarding.html
+msgid "Paste your lab results here... e.g. WBC: 5.63 tys/µl RBC: 5.21 mln/µl HGB: 15.8 g/dl TSH: 1.898 µIU/ml"
+msgstr "Wklej tu wyniki badań... np. WBC: 5.63 tys/µl RBC: 5.21 mln/µl HGB: 15.8 g/dl TSH: 1.898 µIU/ml"
+
+#: app/templates/onboarding.html
+msgid "Process & Next"
+msgstr "Przetwórz i dalej"
+
+#: app/templates/onboarding.html
+msgid "Summary"
+msgstr "Podsumowanie"
+
+#: app/templates/onboarding.html
+msgid "Review what you've shared. Edit any section, then confirm to let Virgil personalize your experience."
+msgstr "Przejrzyj to, czym się podzieliłeś. Popraw dowolną sekcję, a potem potwierdź, żeby Virgil dopasował się do Ciebie."
+
+#: app/templates/onboarding.html
+#, python-format
+msgid "%(count)s year"
+msgid_plural "%(count)s years"
+msgstr[0] "%(count)s rok"
+msgstr[1] "%(count)s lata"
+msgstr[2] "%(count)s lat"
+
+#: app/templates/onboarding.html
+#, python-format
+msgid "Family: %(family)s"
+msgstr "Rodzina: %(family)s"
+
+#: app/templates/onboarding.html
+msgid "End Goals"
+msgstr "Cele docelowe"
+
+#: app/templates/onboarding.html
+#, python-format
+msgid "Equipment: %(equipment)s"
+msgstr "Sprzęt: %(equipment)s"
+
+#: app/templates/onboarding.html
+msgid "AI extras"
+msgstr "Dodatki AI"
+
+#: app/templates/onboarding.html
+msgid "These are prepared in the background. Nothing here blocks you: your account works without them."
+msgstr "Przygotowują się w tle. Nic tu Cię nie blokuje: konto działa bez nich."
+
+#: app/templates/onboarding.html
+msgid "not yet"
+msgstr "jeszcze nie"
+
+#: app/templates/onboarding.html
+msgid "nothing to use"
+msgstr "nie ma czego użyć"
+
+#: app/templates/onboarding.html
+msgid "Finish the AI extras"
+msgstr "Dokończ dodatki AI"
+
+#: app/templates/onboarding.html
+msgid "Finishing..."
+msgstr "Kończę..."
+
+#: app/templates/onboarding.html
+msgid "Continue without AI"
+msgstr "Kontynuuj bez AI"
+
+#: app/templates/onboarding.html
+msgid "Confirm & Start"
+msgstr "Potwierdź i zacznij"
 
 #: app/templates/oura.html
 msgid "Oura Ring Data"
@@ -4189,7 +5522,7 @@ msgstr[2] "(wiersze dzienne: ostatnich %(count)s tygodni)"
 msgid "History view"
 msgstr "Widok historii"
 
-#: app/templates/oura.html
+#: app/templates/oura.html app/templates/settings.html
 msgid "Monthly"
 msgstr "Miesięcznie"
 
@@ -4301,6 +5634,45 @@ msgstr "Zadania w tle"
 msgid "Open Freedom"
 msgstr "Otwórz Freedom"
 
+#: app/templates/partials/job_status.html
+msgid "Dismiss this notification"
+msgstr "Zamknij to powiadomienie"
+
+#: app/templates/partials/job_status.html
+#, python-format
+msgid "Attempts made: %(count)s"
+msgstr "Wykonane próby: %(count)s"
+
+#: app/templates/partials/job_status.html
+#, python-format
+msgid "Attempt limit: %(count)s"
+msgstr "Limit prób: %(count)s"
+
+#: app/templates/partials/job_status.html
+#, python-format
+msgid "Created: %(when)s UTC"
+msgstr "Utworzono: %(when)s UTC"
+
+#: app/templates/partials/job_status.html
+msgid "Last error:"
+msgstr "Ostatni błąd:"
+
+#: app/templates/partials/job_status.html
+msgid "Check before retrying."
+msgstr "Sprawdź, zanim ponowisz."
+
+#: app/templates/partials/job_status.html
+msgid "The external service may already have completed this work. Verify it there first to avoid a duplicate action or charge."
+msgstr "Zewnętrzna usługa mogła już wykonać to zadanie. Najpierw sprawdź to tam, żeby uniknąć podwójnej akcji albo opłaty."
+
+#: app/templates/partials/job_status.html
+msgid "Retry anyway"
+msgstr "Ponów mimo to"
+
+#: app/templates/partials/job_status.html
+msgid "Retry"
+msgstr "Ponów"
+
 #: app/templates/partials/oura_freshness.html
 msgid "Last synced"
 msgstr "Ostatnia synchronizacja"
@@ -4391,10 +5763,6 @@ msgstr "Szukaj ćwiczeń"
 msgid "Not recognised: \"%(label)s\". Pick the movement it means, or leave it to skip."
 msgstr "Nie rozpoznano: \"%(label)s\". Wybierz ćwiczenie, o które chodzi, albo zostaw, żeby pominąć."
 
-#: app/templates/partials/wod_row.html
-msgid "+ add set"
-msgstr "+ dodaj serię"
-
 #: app/templates/partials/wod_row.html app/templates/training.html
 #: app/templates/wod_confirm.html
 msgid "Movement"
@@ -4408,6 +5776,890 @@ msgstr "Seria"
 #: app/templates/partials/wod_row.html app/templates/wod_confirm.html
 msgid "Time (s)"
 msgstr "Czas (s)"
+
+#: app/templates/partials/wod_row.html
+msgid "+ add set"
+msgstr "+ dodaj serię"
+
+#: app/templates/settings.html
+msgid "Virgil - Settings"
+msgstr "Virgil - Ustawienia"
+
+#: app/templates/settings.html
+msgid "App Config"
+msgstr "Konfiguracja"
+
+#: app/templates/settings.html
+msgid "Integrations"
+msgstr "Integracje"
+
+#: app/templates/settings.html
+msgid "Automation"
+msgstr "Automatyzacja"
+
+#: app/templates/settings.html
+msgid "Security"
+msgstr "Bezpieczeństwo"
+
+#: app/templates/settings.html app/templates/settings_import.html
+msgid "Data"
+msgstr "Dane"
+
+#: app/templates/settings.html
+msgid "LLM Providers"
+msgstr "Dostawcy LLM"
+
+#: app/templates/settings.html
+msgid "Provider"
+msgstr "Dostawca"
+
+#: app/templates/settings.html
+msgid "Model"
+msgstr "Model"
+
+#: app/templates/settings.html
+msgid "API Key"
+msgstr "Klucz API"
+
+#: app/templates/settings.html
+msgid "Activate"
+msgstr "Aktywuj"
+
+#: app/templates/settings.html
+msgid "No providers configured."
+msgstr "Nie skonfigurowano dostawców."
+
+#: app/templates/settings.html
+msgid "This server's own key is used until you add one."
+msgstr "Dopóki nie dodasz własnego, używany jest klucz tego serwera."
+
+#: app/templates/settings.html
+msgid "Add one to use the AI features."
+msgstr "Dodaj go, żeby korzystać z funkcji AI."
+
+#: app/templates/settings.html
+msgid "Keys are stored encrypted with this server's key, so whoever runs the server can read them."
+msgstr "Klucze są szyfrowane kluczem tego serwera, więc osoba, która go prowadzi, może je odczytać."
+
+#: app/templates/settings.html
+msgid "Thinking level"
+msgstr "Poziom myślenia"
+
+#: app/templates/settings.html
+msgid "How much the model may think before answering. Higher levels cost more and take longer."
+msgstr "Ile model może myśleć przed odpowiedzią. Wyższe poziomy kosztują więcej i trwają dłużej."
+
+#: app/templates/settings.html
+msgid "Add provider"
+msgstr "Dodaj dostawcę"
+
+#: app/templates/settings.html
+msgid "Anthropic"
+msgstr "Anthropic"
+
+#: app/templates/settings.html
+msgid "OpenAI"
+msgstr "OpenAI"
+
+#: app/templates/settings.html
+msgid "Google Gemini"
+msgstr "Google Gemini"
+
+#: app/templates/settings.html
+msgid "Mistral"
+msgstr "Mistral"
+
+#: app/templates/settings.html
+msgid "Groq"
+msgstr "Groq"
+
+#: app/templates/settings.html
+msgid "Ollama (local)"
+msgstr "Ollama (lokalnie)"
+
+#: app/templates/settings.html
+msgid "Other (LiteLLM)"
+msgstr "Inny (LiteLLM)"
+
+#: app/templates/settings.html
+msgid "e.g. together_ai/meta-llama/Llama-3-70b"
+msgstr "np. together_ai/meta-llama/Llama-3-70b"
+
+#: app/templates/settings.html
+msgid "sk-..."
+msgstr "sk-..."
+
+#: app/templates/settings.html
+msgid "Modules"
+msgstr "Moduły"
+
+#: app/templates/settings.html
+msgid "Break free from habits that hold you back. Each habit you choose gets a daily check-in, a log of the urges you survive and its own streak. Only you see it."
+msgstr "Uwolnij się od nawyków, które Cię hamują. Każdy wybrany nawyk dostaje codzienny check-in, dziennik przetrwanych pokus i własną serię. Widzisz to tylko Ty."
+
+#: app/templates/settings.html
+msgid "Habits you're working on"
+msgstr "Nawyki, nad którymi pracujesz"
+
+#: app/templates/settings.html
+msgid "In your words"
+msgstr "Twoimi słowami"
+
+#: app/templates/settings.html
+msgid "Unchecking a habit stops tracking it. Its history is kept and returns if you check it again."
+msgstr "Odznaczenie nawyku kończy jego śledzenie. Historia zostaje i wróci, jeśli zaznaczysz go ponownie."
+
+#: app/templates/settings.html
+msgid "Show these habits on the dashboard"
+msgstr "Pokazuj te nawyki na pulpicie"
+
+#: app/templates/settings.html
+msgid "Off keeps their names and streaks on the Freedom page only, away from anyone glancing at the home screen."
+msgstr "Wyłączenie zostawia ich nazwy i serie tylko na stronie Freedom, z dala od osób zerkających na ekran główny."
+
+#: app/templates/settings.html
+msgid "Your financial fortress: the layers you define, your accounts and their balances once a month, how many months your cushion covers and a score. No bank connection; you enter the numbers."
+msgstr "Twoja finansowa forteca: warstwy, które definiujesz, konta i ich salda raz w miesiącu, ile miesięcy pokrywa poduszka i wynik. Bez połączenia z bankiem; liczby wpisujesz sam."
+
+#: app/templates/settings.html
+msgid "Save modules"
+msgstr "Zapisz moduły"
+
+#: app/templates/settings.html
+msgid "Storage"
+msgstr "Przechowywanie"
+
+#: app/templates/settings.html
+msgid "Database:"
+msgstr "Baza danych:"
+
+#: app/templates/settings.html
+msgid "Training Schedule"
+msgstr "Plan treningów"
+
+#: app/templates/settings.html
+msgid "What the A.N.D.Y. planner assumes about your week. It only decides whether today is a training day — it never prescribes movements."
+msgstr "Co planer A.N.D.Y. zakłada o Twoim tygodniu. Decyduje tylko, czy dziś jest dzień treningowy, i nigdy nie narzuca ćwiczeń."
+
+#: app/templates/settings.html
+msgid "Training days"
+msgstr "Dni treningowe"
+
+#: app/templates/settings.html
+msgid "Swim sessions / week"
+msgstr "Pływanie / tydzień"
+
+#: app/templates/settings.html
+msgid "Swim has no fixed day - set 0 to drop it from the plan. With no day chosen, the planner is told no fixed days are set, rather than assuming a week you never chose."
+msgstr "Pływanie nie ma stałego dnia. Ustaw 0, żeby usunąć je z planu. Gdy nie wybierzesz żadnego dnia, planer wie, że nie ma stałych dni, zamiast zakładać tydzień, którego nie wybrałeś."
+
+#: app/templates/settings.html
+msgid "Exercise Library"
+msgstr "Biblioteka ćwiczeń"
+
+#: app/templates/settings.html
+msgid "The vocabulary the workout parser resolves your notes against. Add your own entries; built-in ones can be archived (hidden from the parser) but not edited or deleted."
+msgstr "Słownik, według którego parser treningów odczytuje Twoje notatki. Dodawaj własne pozycje; wbudowane można zarchiwizować (ukryć przed parserem), ale nie edytować ani usuwać."
+
+#: app/templates/settings.html
+msgid "search name or tag"
+msgstr "szukaj nazwy lub tagu"
+
+#: app/templates/settings.html
+msgid "Search the exercise library"
+msgstr "Szukaj w bibliotece ćwiczeń"
+
+#: app/templates/settings.html
+msgid "Section"
+msgstr "Sekcja"
+
+#: app/templates/settings.html
+msgid "All sections"
+msgstr "Wszystkie sekcje"
+
+#: app/templates/settings.html
+msgid "Add exercise"
+msgstr "Dodaj ćwiczenie"
+
+#: app/templates/settings.html
+msgid "Exercise name"
+msgstr "Nazwa ćwiczenia"
+
+#: app/templates/settings.html
+msgid "Sets"
+msgstr "Serie"
+
+#: app/templates/settings.html
+msgid "Reps (e.g. 10-12)"
+msgstr "Powtórzenia (np. 10-12)"
+
+#: app/templates/settings.html
+msgid "Time"
+msgstr "Czas"
+
+#: app/templates/settings.html
+msgid "Cue / notes"
+msgstr "Wskazówki / notatki"
+
+#: app/templates/settings.html
+msgid "Tags (comma-separated)"
+msgstr "Tagi (oddzielone przecinkami)"
+
+#: app/templates/settings.html
+msgid "+ Add"
+msgstr "+ Dodaj"
+
+#: app/templates/settings.html
+msgid "Tags"
+msgstr "Tagi"
+
+#: app/templates/settings.html
+msgid "built-in"
+msgstr "wbudowane"
+
+#: app/templates/settings.html
+msgid "Archive"
+msgstr "Archiwizuj"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Delete %(name)s from the library?"
+msgstr "Usunąć %(name)s z biblioteki?"
+
+#: app/templates/settings.html
+msgid "Oura Ring"
+msgstr "Pierścień Oura"
+
+#: app/templates/settings.html
+msgid "Connected"
+msgstr "Połączono"
+
+#: app/templates/settings.html
+msgid "Error"
+msgstr "Błąd"
+
+#: app/templates/settings.html
+msgid "Configured"
+msgstr "Skonfigurowano"
+
+#: app/templates/settings.html
+msgid "Not configured"
+msgstr "Nie skonfigurowano"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Last sync: %(when)s"
+msgstr "Ostatnia synchronizacja: %(when)s"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Token expires: %(when)s"
+msgstr "Token wygasa: %(when)s"
+
+#: app/templates/settings.html
+msgid "Auto-sync enabled"
+msgstr "Automatyczna synchronizacja włączona"
+
+#: app/templates/settings.html
+msgid "New scopes available: <a href=\"/settings/oura/connect\" style=\"color:var(--accent);font-weight:600;text-decoration:underline;\">re-connect</a> to enable workout import."
+msgstr "Dostępne są nowe uprawnienia: <a href=\"/settings/oura/connect\" style=\"color:var(--accent);font-weight:600;text-decoration:underline;\">połącz ponownie</a>, żeby włączyć import treningów."
+
+#: app/templates/settings.html
+msgid "Client ID:"
+msgstr "Client ID:"
+
+#: app/templates/settings.html
+msgid "Sync Now"
+msgstr "Synchronizuj teraz"
+
+#: app/templates/settings.html
+msgid "Disconnect"
+msgstr "Odłącz"
+
+#: app/templates/settings.html
+msgid "Webhook (Real-time sync)"
+msgstr "Webhook (synchronizacja na bieżąco)"
+
+#: app/templates/settings.html
+msgid "Disabling"
+msgstr "Wyłączanie"
+
+#: app/templates/settings.html
+msgid "Retrying"
+msgstr "Ponawianie"
+
+#: app/templates/settings.html
+msgid "Listening at"
+msgstr "Nasłuchuje pod"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Next subscription renewal: %(when)s"
+msgstr "Następne odnowienie subskrypcji: %(when)s"
+
+#: app/templates/settings.html
+msgid "Retry Disable"
+msgstr "Ponów wyłączenie"
+
+#: app/templates/settings.html
+msgid "Disable Webhook"
+msgstr "Wyłącz webhook"
+
+#: app/templates/settings.html
+msgid "Registers a webhook subscription with Oura to receive real-time data pushes."
+msgstr "Rejestruje w Oura subskrypcję webhooka, żeby otrzymywać dane na bieżąco."
+
+#: app/templates/settings.html
+msgid "Enable Webhook"
+msgstr "Włącz webhook"
+
+#: app/templates/settings.html
+msgid "Token expired or invalid. Please re-connect."
+msgstr "Token wygasł albo jest nieprawidłowy. Połącz ponownie."
+
+#: app/templates/settings.html
+msgid "Connect to Oura"
+msgstr "Połącz z Oura"
+
+#: app/templates/settings.html
+msgid "Change credentials"
+msgstr "Zmień dane aplikacji"
+
+#: app/templates/settings.html
+msgid "Client ID"
+msgstr "Client ID"
+
+#: app/templates/settings.html
+msgid "(encrypted)"
+msgstr "(zaszyfrowane)"
+
+#: app/templates/settings.html
+msgid "Client Secret"
+msgstr "Client Secret"
+
+#: app/templates/settings.html
+msgid "Create an application at <a href=\"https://cloud.ouraring.com/oauth/applications\" target=\"_blank\" rel=\"noopener\">cloud.ouraring.com/oauth/applications</a>."
+msgstr "Utwórz aplikację na <a href=\"https://cloud.ouraring.com/oauth/applications\" target=\"_blank\" rel=\"noopener\">cloud.ouraring.com/oauth/applications</a>."
+
+#: app/templates/settings.html
+msgid "As its redirect URI, paste"
+msgstr "Jako jej redirect URI wklej"
+
+#: app/templates/settings.html
+msgid "Copy"
+msgstr "Kopiuj"
+
+#: app/templates/settings.html
+msgid "Enter the application's client ID and secret below and save, then choose Connect to Oura."
+msgstr "Wpisz poniżej client ID i secret aplikacji, zapisz, a potem wybierz Połącz z Oura."
+
+#: app/templates/settings.html
+msgid "XXXXXXXX"
+msgstr "XXXXXXXX"
+
+#: app/templates/settings.html
+msgid "Garmin Connect"
+msgstr "Garmin Connect"
+
+#: app/templates/settings.html
+msgid "Coming soon"
+msgstr "Wkrótce"
+
+#: app/templates/settings.html
+msgid "Garmin wearable integration for activity and sleep data."
+msgstr "Integracja z urządzeniami Garmin dla danych o aktywności i śnie."
+
+#: app/templates/settings.html
+msgid "Apple Health"
+msgstr "Apple Health"
+
+#: app/templates/settings.html
+msgid "Apple Health integration for workouts, heart rate, and more."
+msgstr "Integracja z Apple Health dla treningów, tętna i nie tylko."
+
+#: app/templates/settings.html
+msgid "Export to Markdown"
+msgstr "Eksport do Markdown"
+
+#: app/templates/settings.html
+msgid "Download a readable summary of a period, for reading or pasting into an AI assistant."
+msgstr "Pobierz czytelne podsumowanie okresu, do czytania albo wklejenia do asystenta AI."
+
+#: app/templates/settings.html
+msgid "Scope"
+msgstr "Zakres"
+
+#: app/templates/settings.html
+msgid "Weekly"
+msgstr "Tygodniowo"
+
+#: app/templates/settings.html
+msgid "Yearly"
+msgstr "Rocznie"
+
+#: app/templates/settings.html
+msgid "Sections"
+msgstr "Sekcje"
+
+#: app/templates/settings.html
+msgid "Daily Logs"
+msgstr "Wpisy dziennika"
+
+#: app/templates/settings.html
+msgid "Body Measurements"
+msgstr "Pomiary ciała"
+
+#: app/templates/settings.html
+msgid "Download Markdown"
+msgstr "Pobierz Markdown"
+
+#: app/templates/settings.html
+msgid "Download"
+msgstr "Pobierz"
+
+#: app/templates/settings.html
+msgid "Download virgil.db"
+msgstr "Pobierz virgil.db"
+
+#: app/templates/settings.html
+msgid "Export JSON"
+msgstr "Eksportuj JSON"
+
+#: app/templates/settings.html
+msgid "Export CSV"
+msgstr "Eksportuj CSV"
+
+#: app/templates/settings.html
+msgid "Restore from JSON"
+msgstr "Przywróć z JSON"
+
+#: app/templates/settings.html
+msgid "Replace your data with an Export JSON file, from this server or another one. The file is checked first and you see what would change before anything is replaced. LLM keys, the Oura connection and your login are not part of an export and stay as they are."
+msgstr "Zastąp swoje dane plikiem eksportu JSON, z tego albo innego serwera. Plik jest najpierw sprawdzany i widzisz, co by się zmieniło, zanim cokolwiek zostanie zastąpione. Klucze LLM, połączenie z Oura i logowanie nie są częścią eksportu i zostają bez zmian."
+
+#: app/templates/settings.html
+msgid "Export file"
+msgstr "Plik eksportu"
+
+#: app/templates/settings.html
+msgid "Check file"
+msgstr "Sprawdź plik"
+
+#: app/templates/settings.html
+msgid "Automated Backup"
+msgstr "Automatyczna kopia zapasowa"
+
+#: app/templates/settings.html
+msgid "Creates scheduled SQLite backups on the server with rolling retention. A factory reset or deleting the account deletes them."
+msgstr "Tworzy zaplanowane kopie SQLite na serwerze z rotacją. Reset do ustawień fabrycznych albo usunięcie konta je usuwa."
+
+#: app/templates/settings.html
+#, python-format
+msgid "The last backup attempt failed %(age)s: %(error)s"
+msgstr "Ostatnia próba kopii zapasowej nie powiodła się %(age)s: %(error)s"
+
+#: app/templates/settings.html
+#, python-format
+msgid "The last backup attempt failed %(age)s."
+msgstr "Ostatnia próba kopii zapasowej nie powiodła się %(age)s."
+
+#: app/templates/settings.html
+msgid "A backup is queued or running."
+msgstr "Kopia zapasowa czeka w kolejce albo trwa."
+
+#: app/templates/settings.html
+msgid "Overdue"
+msgstr "Zaległa"
+
+#: app/templates/settings.html
+msgid "No backup in more than two intervals."
+msgstr "Brak kopii od ponad dwóch odstępów."
+
+#: app/templates/settings.html
+msgid "Off"
+msgstr "Wyłączona"
+
+#: app/templates/settings.html
+msgid "Automated backup is off."
+msgstr "Automatyczna kopia zapasowa jest wyłączona."
+
+#: app/templates/settings.html
+msgid "None yet"
+msgstr "Jeszcze żadnej"
+
+#: app/templates/settings.html
+msgid "No backup has been made yet."
+msgstr "Nie wykonano jeszcze żadnej kopii."
+
+#: app/templates/settings.html
+#, python-format
+msgid "Latest backup: %(age)s (%(local)s)."
+msgstr "Ostatnia kopia: %(age)s (%(local)s)."
+
+#: app/templates/settings.html
+msgid "Enable automated backup"
+msgstr "Włącz automatyczną kopię zapasową"
+
+#: app/templates/settings.html
+msgid "Interval (hours)"
+msgstr "Odstęp (godziny)"
+
+#: app/templates/settings.html
+msgid "Max copies"
+msgstr "Maksimum kopii"
+
+#: app/templates/settings.html
+msgid "Backup Now"
+msgstr "Utwórz kopię teraz"
+
+#: app/templates/settings.html
+msgid "Off-site Copies"
+msgstr "Kopie poza serwerem"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Once a day every account's database, the registry and the encryption key are encrypted and uploaded to the <code>%(bucket)s</code> bucket. Deleting or resetting an account deletes its copies there too."
+msgstr "Raz dziennie baza każdego konta, rejestr i klucz szyfrowania są szyfrowane i wysyłane do bucketu <code>%(bucket)s</code>. Usunięcie albo reset konta usuwa też jego kopie tam."
+
+#: app/templates/settings.html
+msgid "Once a day every account's database, the registry and the encryption key are encrypted and uploaded. Deleting or resetting an account deletes its copies there too."
+msgstr "Raz dziennie baza każdego konta, rejestr i klucz szyfrowania są szyfrowane i wysyłane. Usunięcie albo reset konta usuwa też jego kopie tam."
+
+#: app/templates/settings.html
+msgid "Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings."
+msgstr "Nie skonfigurowano. docs/recovery.md opisuje ustawienia VIRGIL_OFFSITE_*."
+
+#: app/templates/settings.html
+msgid "Not running"
+msgstr "Nie działa"
+
+#: app/templates/settings.html
+#, python-format
+msgid "The last attempt failed: %(problem)s. It retries every hour."
+msgstr "Ostatnia próba się nie powiodła: %(problem)s. Ponawia co godzinę."
+
+#: app/templates/settings.html
+msgid "No off-site copy in more than two days."
+msgstr "Brak kopii poza serwerem od ponad dwóch dni."
+
+#: app/templates/settings.html
+msgid "The first copy is made within a minute or two of starting."
+msgstr "Pierwsza kopia powstaje w ciągu minuty lub dwóch od uruchomienia."
+
+#: app/templates/settings.html
+#, python-format
+msgid "Latest copy: %(age)s, %(count)s file, %(size)s MB."
+msgid_plural "Latest copy: %(age)s, %(count)s files, %(size)s MB."
+msgstr[0] "Ostatnia kopia: %(age)s, %(count)s plik, %(size)s MB."
+msgstr[1] "Ostatnia kopia: %(age)s, %(count)s pliki, %(size)s MB."
+msgstr[2] "Ostatnia kopia: %(age)s, %(count)s plików, %(size)s MB."
+
+#: app/templates/settings.html
+#, python-format
+msgid "%(count)s account deletion waiting to reach it."
+msgid_plural "%(count)s account deletions waiting to reach it."
+msgstr[0] "%(count)s usunięcie konta czeka na dotarcie tam."
+msgstr[1] "%(count)s usunięcia kont czekają na dotarcie tam."
+msgstr[2] "%(count)s usunięć kont czeka na dotarcie tam."
+
+#: app/templates/settings.html
+msgid "Oura Auto-Sync"
+msgstr "Automatyczna synchronizacja Oura"
+
+#: app/templates/settings.html
+msgid "Enable automatic Oura sync"
+msgstr "Włącz automatyczną synchronizację Oura"
+
+#: app/templates/settings.html
+msgid "Sync interval (hours)"
+msgstr "Odstęp synchronizacji (godziny)"
+
+#: app/templates/settings.html
+msgid "Connect Oura Ring in the <a href=\"/settings?tab=integrations\" style=\"color:var(--accent);\">Integrations</a> tab first."
+msgstr "Najpierw połącz pierścień Oura w zakładce <a href=\"/settings?tab=integrations\" style=\"color:var(--accent);\">Integracje</a>."
+
+#: app/templates/settings.html
+msgid "AI-generated daily briefing shown on the dashboard. Requires an active LLM provider."
+msgstr "Codzienny briefing generowany przez AI, widoczny na pulpicie. Wymaga aktywnego dostawcy LLM."
+
+#: app/templates/settings.html
+msgid "Enable morning briefing"
+msgstr "Włącz poranny briefing"
+
+#: app/templates/settings.html
+msgid "Save Automation Settings"
+msgstr "Zapisz ustawienia automatyzacji"
+
+#: app/templates/settings.html
+msgid "Recent Jobs"
+msgstr "Ostatnie zadania"
+
+#: app/templates/settings.html
+msgid "Background work and actions that may need your review."
+msgstr "Praca w tle i działania, które mogą wymagać Twojej uwagi."
+
+#: app/templates/settings.html
+msgid "No background jobs yet."
+msgstr "Brak zadań w tle."
+
+#: app/templates/settings.html
+msgid "Change password"
+msgstr "Zmień hasło"
+
+#: app/templates/settings.html
+msgid "Current password"
+msgstr "Obecne hasło"
+
+#: app/templates/settings.html
+msgid "Every other device signed in to this account is signed out."
+msgstr "Wszystkie inne urządzenia zalogowane na to konto zostaną wylogowane."
+
+#: app/templates/settings.html
+msgid "API tokens"
+msgstr "Tokeny API"
+
+#: app/templates/settings.html
+msgid "A token lets a tool such as an AI agent or a script read or change your data through the API and MCP. It acts only for your account, and only within the scopes you give it."
+msgstr "Token pozwala narzędziu, np. agentowi AI albo skryptowi, czytać lub zmieniać Twoje dane przez API i MCP. Działa tylko dla Twojego konta i tylko w zakresach, które mu nadasz."
+
+#: app/templates/settings.html
+msgid "Token"
+msgstr "Token"
+
+#: app/templates/settings.html
+msgid "Last used"
+msgstr "Ostatnio użyty"
+
+#: app/templates/settings.html
+msgid "Expires"
+msgstr "Wygasa"
+
+#: app/templates/settings.html
+msgid "Scopes"
+msgstr "Zakresy"
+
+#: app/templates/settings.html
+msgid "Expired"
+msgstr "Wygasł"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Revoke %(name)s? Tools using it stop working at once."
+msgstr "Unieważnić %(name)s? Narzędzia, które go używają, od razu przestaną działać."
+
+#: app/templates/settings.html
+msgid "Create a token"
+msgstr "Utwórz token"
+
+#: app/templates/settings.html
+msgid "e.g. Claude Code"
+msgstr "np. Claude Code"
+
+#: app/templates/settings.html
+msgid "In 30 days"
+msgstr "Za 30 dni"
+
+#: app/templates/settings.html
+msgid "In 90 days"
+msgstr "Za 90 dni"
+
+#: app/templates/settings.html
+msgid "In a year"
+msgstr "Za rok"
+
+#: app/templates/settings.html
+msgid "Read: see your data (Freedom and finance also need their own scope)"
+msgstr "Odczyt: widzi Twoje dane (Freedom i finanse wymagają też własnego zakresu)"
+
+#: app/templates/settings.html
+msgid "Write: log days, training, goals and the rest"
+msgstr "Zapis: zapisuje dni, treningi, cele i resztę"
+
+#: app/templates/settings.html
+msgid "Freedom: habits, slips and journal entries"
+msgstr "Freedom: nawyki, potknięcia i wpisy dziennika"
+
+#: app/templates/settings.html
+msgid "Finance: balances, the fortress and its settings"
+msgstr "Finanse: salda, forteca i jej ustawienia"
+
+#: app/templates/settings.html
+msgid "Your password"
+msgstr "Twoje hasło"
+
+#: app/templates/settings.html
+msgid "Create token"
+msgstr "Utwórz token"
+
+#: app/templates/settings.html
+msgid "Configure MFA"
+msgstr "Skonfiguruj MFA"
+
+#: app/templates/settings.html
+msgid "Enabled"
+msgstr "Włączone"
+
+#: app/templates/settings.html
+msgid "Sync Log"
+msgstr "Dziennik synchronizacji"
+
+#: app/templates/settings.html
+msgid "File"
+msgstr "Plik"
+
+#: app/templates/settings.html
+msgid "Message"
+msgstr "Komunikat"
+
+#: app/templates/settings.html app/templates/training.html
+msgid "No entries"
+msgstr "Brak pozycji"
+
+#: app/templates/settings.html
+msgid "Factory Reset"
+msgstr "Reset do ustawień fabrycznych"
+
+#: app/templates/settings.html
+msgid "Wipe all data and start fresh. Your account and login are kept; profile, goals, training, experiments, health data and settings are deleted, and you'll go through onboarding again. The server's backups of your data, off-site copies included, are deleted too."
+msgstr "Wyczyść wszystkie dane i zacznij od nowa. Konto i logowanie zostają; profil, cele, treningi, eksperymenty, dane zdrowotne i ustawienia zostaną usunięte, a Ty przejdziesz wdrożenie ponownie. Kopie zapasowe Twoich danych na serwerze, łącznie z kopiami poza nim, też zostaną usunięte."
+
+#: app/templates/settings.html
+msgid "I understand, show the reset button"
+msgstr "Rozumiem, pokaż przycisk resetu"
+
+#: app/templates/settings.html
+msgid "First, keep a copy."
+msgstr "Najpierw zachowaj kopię."
+
+#: app/templates/settings.html
+#, python-format
+msgid "The newest server backup (%(age)s) goes with the reset."
+msgstr "Najnowsza kopia na serwerze (%(age)s) zostanie usunięta razem z resetem."
+
+#: app/templates/settings.html
+msgid "There is no server backup to restore from."
+msgstr "Nie ma kopii na serwerze, z której można by przywrócić dane."
+
+#: app/templates/settings.html
+msgid "The download is the only way back."
+msgstr "Pobrany plik to jedyna droga powrotu."
+
+#: app/templates/settings.html
+msgid "Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone."
+msgstr "Czy na pewno? To usuwa WSZYSTKIE Twoje dane (konto i logowanie zostają) i nie da się tego cofnąć."
+
+#: app/templates/settings.html
+msgid "Reset All Data"
+msgstr "Zresetuj wszystkie dane"
+
+#: app/templates/settings_import.html
+msgid "Virgil - Restore from export"
+msgstr "Virgil - Przywracanie z eksportu"
+
+#: app/templates/settings_import.html
+msgid "Restore from export"
+msgstr "Przywracanie z eksportu"
+
+#: app/templates/settings_import.html
+msgid "Check before restoring"
+msgstr "Sprawdź przed przywróceniem"
+
+#: app/templates/settings_import.html
+#, python-format
+msgid "The file passed every check and nothing has changed yet. Restoring replaces all of your data with the export's from %(date)s. Your LLM keys, Oura connection and login stay as they are. A copy of your current data is saved on the server first."
+msgstr "Plik przeszedł wszystkie kontrole i na razie nic się nie zmieniło. Przywrócenie zastąpi wszystkie Twoje dane danymi z eksportu z %(date)s. Klucze LLM, połączenie z Oura i logowanie zostają bez zmian. Najpierw kopia obecnych danych zostanie zapisana na serwerze."
+
+#: app/templates/settings_import.html
+msgid "The file passed every check and nothing has changed yet. Restoring replaces all of your data with the export's. Your LLM keys, Oura connection and login stay as they are. A copy of your current data is saved on the server first."
+msgstr "Plik przeszedł wszystkie kontrole i na razie nic się nie zmieniło. Przywrócenie zastąpi wszystkie Twoje dane danymi z eksportu. Klucze LLM, połączenie z Oura i logowanie zostają bez zmian. Najpierw kopia obecnych danych zostanie zapisana na serwerze."
+
+#: app/templates/settings_import.html
+#, python-format
+msgid "The export was made by an older version of Virgil (schema %(version)s); it was upgraded to schema %(latest_schema)s while checking."
+msgstr "Eksport powstał w starszej wersji Virgila (schemat %(version)s); podczas sprawdzania został zaktualizowany do schematu %(latest_schema)s."
+
+#: app/templates/settings_import.html
+msgid "Now"
+msgstr "Teraz"
+
+#: app/templates/settings_import.html
+msgid "After restore"
+msgstr "Po przywróceniu"
+
+#: app/templates/settings_import.html
+#, python-format
+msgid "%(count)s row belonged to entries that were already deleted and is left out."
+msgid_plural "%(count)s rows belonged to entries that were already deleted and are left out."
+msgstr[0] "%(count)s wiersz należał do wpisów, które zostały już usunięte, i zostaje pominięty."
+msgstr[1] "%(count)s wiersze należały do wpisów, które zostały już usunięte, i zostają pominięte."
+msgstr[2] "%(count)s wierszy należało do wpisów, które zostały już usunięte, i zostaje pominiętych."
+
+#: app/templates/settings_import.html
+#, python-format
+msgid "Settings restored: %(count)s."
+msgstr "Przywrócone ustawienia: %(count)s."
+
+#: app/templates/settings_import.html
+#, python-format
+msgid "Not restored, because they belong to the server that made the export: %(names)s."
+msgstr "Nieprzywrócone, bo należą do serwera, który zrobił eksport: %(names)s."
+
+#: app/templates/settings_import.html
+#, python-format
+msgid "Not restored, because their values are outside what Settings allows: %(names)s."
+msgstr "Nieprzywrócone, bo ich wartości wykraczają poza to, na co pozwalają Ustawienia: %(names)s."
+
+#: app/templates/settings_import.html
+msgid "Replace all of your data with this export?"
+msgstr "Zastąpić wszystkie Twoje dane tym eksportem?"
+
+#: app/templates/settings_import.html
+msgid "Replace my data"
+msgstr "Zastąp moje dane"
+
+#: app/templates/settings_token_created.html
+msgid "Virgil - API token"
+msgstr "Virgil - Token API"
+
+#: app/templates/settings_token_created.html
+msgid "Your new API token"
+msgstr "Twój nowy token API"
+
+#: app/templates/settings_token_created.html
+msgid "Copy it now."
+msgstr "Skopiuj go teraz."
+
+#: app/templates/settings_token_created.html
+msgid "It is shown once and cannot be shown again; only a fingerprint of it is stored. If you lose it, revoke it and create another."
+msgstr "Jest pokazywany jeden raz i nie da się go pokazać ponownie; przechowywany jest tylko jego odcisk. Jeśli go zgubisz, unieważnij go i utwórz nowy."
+
+#: app/templates/settings_token_created.html
+msgid "API token"
+msgstr "Token API"
+
+#: app/templates/settings_token_created.html
+msgid "Using it"
+msgstr "Jak go używać"
+
+#: app/templates/settings_token_created.html
+msgid "Send it as <code>Authorization: Bearer</code> or <code>X-API-Key</code>. If this server sits behind Cloudflare Access, the client also needs its service-token headers."
+msgstr "Wysyłaj go jako <code>Authorization: Bearer</code> albo <code>X-API-Key</code>. Jeśli serwer stoi za Cloudflare Access, klient potrzebuje też jego nagłówków service token."
+
+#: app/templates/settings_token_created.html
+msgid "Claude Code, over the hosted MCP endpoint"
+msgstr "Claude Code, przez hostowany endpoint MCP"
+
+#: app/templates/settings_token_created.html
+msgid "The local MCP wrapper"
+msgstr "Lokalny wrapper MCP"
+
+#: app/templates/settings_token_created.html
+msgid "A script"
+msgstr "Skrypt"
+
+#: app/templates/settings_token_created.html
+msgid "Back to Security"
+msgstr "Wróć do bezpieczeństwa"
 
 #: app/templates/training.html
 msgid "Virgil - Training"
@@ -4614,10 +6866,6 @@ msgstr "Usuń %(name)s, serię %(number)s"
 #: app/templates/training.html
 msgid "Stored entries could not be rendered."
 msgstr "Nie udało się wyświetlić zapisanych pozycji."
-
-#: app/templates/training.html
-msgid "No entries"
-msgstr "Brak pozycji"
 
 #: app/templates/training.html
 #, python-format

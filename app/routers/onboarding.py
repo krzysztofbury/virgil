@@ -7,6 +7,7 @@ from fastapi.responses import HTMLResponse
 
 from app.db import set_setting
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _
 from app.main import templates
 from app.models.user_profile import (
     ensure_profile,
@@ -135,24 +136,24 @@ async def save_step1(
     family: str = Form(""),
 ):
     if sex not in {"", "male", "female"}:
-        return error_redirect(request, "/onboarding?step=1", "Choose a valid sex option.")
+        return error_redirect(request, "/onboarding?step=1", _("Choose a valid sex option."))
 
     age_value = None
     if age.strip():
         try:
             age_value = int(age)
         except ValueError:
-            return error_redirect(request, "/onboarding?step=1", "Enter age as a whole number from 10 to 120.")
+            return error_redirect(request, "/onboarding?step=1", _("Enter age as a whole number from 10 to 120."))
         if not 10 <= age_value <= 120:
-            return error_redirect(request, "/onboarding?step=1", "Enter an age from 10 to 120.")
+            return error_redirect(request, "/onboarding?step=1", _("Enter an age from 10 to 120."))
 
     height_value = _safe_float(height_cm)
     if height_cm.strip() and (height_value is None or height_value <= 0):
-        return error_redirect(request, "/onboarding?step=1", "Enter height as a positive number.")
+        return error_redirect(request, "/onboarding?step=1", _("Enter height as a positive number."))
 
     weight_value = _safe_float(weight_kg)
     if weight_kg.strip() and (weight_value is None or weight_value <= 0):
-        return error_redirect(request, "/onboarding?step=1", "Enter weight as a positive number.")
+        return error_redirect(request, "/onboarding?step=1", _("Enter weight as a positive number."))
 
     db = get_user_db_from_request(request)
     await update_step1(
@@ -163,14 +164,14 @@ async def save_step1(
         weight_kg=weight_value,
         family=truncate(family, 500),
     )
-    return success_redirect(request, "/onboarding?step=2", "About-you details saved.")
+    return success_redirect(request, "/onboarding?step=2", _("About-you details saved."))
 
 
 @router.post("/onboarding/step/2")
 async def save_step2(request: Request, ideal_day: str = Form("")):
     db = get_user_db_from_request(request)
     await update_step2(db, ideal_day=truncate(ideal_day, 5000))
-    return success_redirect(request, "/onboarding?step=3", "Ideal-day details saved.")
+    return success_redirect(request, "/onboarding?step=3", _("Ideal-day details saved."))
 
 
 @router.post("/onboarding/step/3")
@@ -220,7 +221,7 @@ async def save_step3(
 
     await update_step3(db)
 
-    return success_redirect(request, "/onboarding?step=4", "Goals saved.")
+    return success_redirect(request, "/onboarding?step=4", _("Goals saved."))
 
 
 @router.post("/onboarding/step/4")
@@ -232,7 +233,7 @@ async def save_step4(
     habits_break: str = Form(""),
 ):
     if any(item not in ALLOWED_EQUIPMENT for item in equipment):
-        return error_redirect(request, "/onboarding?step=4", "Choose only equipment options shown in the form.")
+        return error_redirect(request, "/onboarding?step=4", _("Choose only equipment options shown in the form."))
 
     db = get_user_db_from_request(request)
     await update_step4(
@@ -242,7 +243,7 @@ async def save_step4(
         habits_build=truncate(habits_build, 2000),
         habits_break=truncate(habits_break, 2000),
     )
-    return success_redirect(request, "/onboarding?step=5", "Habits and training details saved.")
+    return success_redirect(request, "/onboarding?step=5", _("Habits and training details saved."))
 
 
 @router.post("/onboarding/step/5")
@@ -275,23 +276,23 @@ async def save_step5(
         return error_redirect(
             request,
             "/onboarding?step=5",
-            "Upload a medical PDF or paste lab results, or skip this step.",
+            _("Upload a medical PDF or paste lab results, or skip this step."),
         )
     if not await llm_available(db):
         return error_redirect(
             request,
             "/onboarding?step=5",
-            "Medical record import needs an LLM: add your own API key in Settings.",
+            _("Medical record import needs an LLM: add your own API key in Settings."),
         )
 
     if has_file:
         if medical_file.size is not None and medical_file.size > MEDICAL_UPLOAD_MAX_BYTES:
-            return error_redirect(request, "/onboarding?step=5", "Medical PDFs must be 20 MB or smaller.")
+            return error_redirect(request, "/onboarding?step=5", _("Medical PDFs must be 20 MB or smaller."))
         payload_bytes = await medical_file.read(MEDICAL_UPLOAD_MAX_BYTES + 1)
         if len(payload_bytes) > MEDICAL_UPLOAD_MAX_BYTES:
-            return error_redirect(request, "/onboarding?step=5", "Medical PDFs must be 20 MB or smaller.")
+            return error_redirect(request, "/onboarding?step=5", _("Medical PDFs must be 20 MB or smaller."))
         if not payload_bytes:
-            return error_redirect(request, "/onboarding?step=5", "The uploaded medical PDF is empty.")
+            return error_redirect(request, "/onboarding?step=5", _("The uploaded medical PDF is empty."))
         source = "pdf"
     else:
         payload_bytes = raw_text.encode("utf-8")
@@ -303,7 +304,7 @@ async def save_step5(
         token = stage_upload(user_id, payload_bytes)
     except (OSError, ValueError):
         logger.exception("Could not stage the medical upload")
-        return error_redirect(request, "/onboarding?step=5", "Could not accept that upload. Try again.")
+        return error_redirect(request, "/onboarding?step=5", _("Could not accept that upload. Try again."))
 
     try:
         result = await enqueue_paid_llm_job(
@@ -314,11 +315,11 @@ async def save_step5(
         )
     except ActiveWorkloadConflictError:
         _discard(user_id, token)
-        return error_redirect(request, "/onboarding?step=5", "A medical import is already queued.")
+        return error_redirect(request, "/onboarding?step=5", _("A medical import is already queued."))
     except Exception:
         logger.exception("Medical import enqueue failed")
         _discard(user_id, token)
-        return error_redirect(request, "/onboarding?step=5", "The import could not be queued. Try again.")
+        return error_redirect(request, "/onboarding?step=5", _("The import could not be queued. Try again."))
 
     from app.routers.jobs import wake_worker_for
 
@@ -327,7 +328,7 @@ async def save_step5(
     return success_redirect(
         request,
         f"/onboarding?step=6&job_id={result.job_id}",
-        "Reading your results. They will appear in Bloodwork when the import finishes.",
+        _("Reading your results. They will appear in Bloodwork when the import finishes."),
     )
 
 
@@ -369,10 +370,10 @@ async def confirm_onboarding(request: Request, without_ai: str = Form("")):
     await set_setting(db, "onboarding_completed", "1")
 
     if without_ai:
-        return success_redirect(request, "/", "Onboarding complete.")
+        return success_redirect(request, "/", _("Onboarding complete."))
     if not await llm_available(db):
         logger.info("No LLM for this account - skipping onboarding enrichment")
-        return success_redirect(request, "/", "Onboarding complete.")
+        return success_redirect(request, "/", _("Onboarding complete."))
 
     try:
         result = await enqueue_paid_llm_job(
@@ -382,10 +383,10 @@ async def confirm_onboarding(request: Request, without_ai: str = Form("")):
             idempotency_key=paid_llm_job_key(ENRICHMENT_JOB_KIND, "confirm"),
         )
     except ActiveWorkloadConflictError:
-        return success_redirect(request, "/", "Onboarding complete. The AI extras are already on their way.")
+        return success_redirect(request, "/", _("Onboarding complete. The AI extras are already on their way."))
     except Exception:
         logger.exception("Onboarding enrichment enqueue failed")
-        return success_redirect(request, "/", "Onboarding complete. The AI extras could not be queued.")
+        return success_redirect(request, "/", _("Onboarding complete. The AI extras could not be queued."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
@@ -393,7 +394,7 @@ async def confirm_onboarding(request: Request, without_ai: str = Form("")):
     return success_redirect(
         request,
         f"/?job_id={result.job_id}",
-        "Onboarding complete. The AI extras are being prepared.",
+        _("Onboarding complete. The AI extras are being prepared."),
     )
 
 
@@ -406,7 +407,9 @@ async def retry_enrichment(request: Request):
 
     db = get_user_db_from_request(request)
     if not await llm_available(db):
-        return error_redirect(request, "/onboarding?step=6", "AI extras need an LLM: add your own API key in Settings.")
+        return error_redirect(
+            request, "/onboarding?step=6", _("AI extras need an LLM: add your own API key in Settings.")
+        )
     nonce = secrets.token_hex(16)
     try:
         result = await enqueue_paid_llm_job(
@@ -416,10 +419,10 @@ async def retry_enrichment(request: Request):
             idempotency_key=paid_llm_job_key(ENRICHMENT_JOB_KIND, nonce),
         )
     except ActiveWorkloadConflictError:
-        return error_redirect(request, "/onboarding?step=6", "The AI extras are already queued.")
+        return error_redirect(request, "/onboarding?step=6", _("The AI extras are already queued."))
     except Exception:
         logger.exception("Onboarding enrichment retry failed")
-        return error_redirect(request, "/onboarding?step=6", "The AI extras could not be queued. Try again.")
+        return error_redirect(request, "/onboarding?step=6", _("The AI extras could not be queued. Try again."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
@@ -427,5 +430,5 @@ async def retry_enrichment(request: Request):
     return success_redirect(
         request,
         f"/onboarding?step=6&job_id={result.job_id}",
-        "Finishing the AI extras.",
+        _("Finishing the AI extras."),
     )

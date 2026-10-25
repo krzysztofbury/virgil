@@ -8,6 +8,7 @@ from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, Response
 
 from app.feedback import error_redirect, feedback_headers, success_redirect
+from app.i18n import N_, _
 from app.main import templates
 from app.services.jobs import get_job_status, list_active_job_statuses, retry_job
 from app.user_db import get_user_db_from_request
@@ -18,32 +19,38 @@ _NO_STORE = {"Cache-Control": "no-store"}
 _ACTIVE_STATUSES = {"queued", "running"}
 _RETRYABLE_STATUSES = {"failed", "needs_attention"}
 _STATUS_LABELS = {
-    "queued": "Queued",
-    "running": "Running",
-    "succeeded": "Completed",
-    "failed": "Failed",
-    "cancelled": "Cancelled",
-    "needs_attention": "Needs review",
+    "queued": N_("Queued"),
+    "running": N_("Running"),
+    "succeeded": N_("Completed"),
+    "failed": N_("Failed"),
+    "cancelled": N_("Cancelled"),
+    "needs_attention": N_("Needs review"),
 }
 # Title-casing the kind reads as "Wod Parse" and "Andy Generation". These are
 # the names the user knows the features by.
 _KIND_LABELS = {
-    "andy_generation": "A.N.D.Y. suggestions",
-    "backup": "Backup",
-    "experiment_summary": "Experiment week summary",
-    "medical_import": "Medical record import",
-    "morning_briefing": "Morning briefing",
-    "onboarding_enrichment": "Onboarding AI extras",
-    "oura_sync": "Oura sync",
-    "wod_parse": "Training note analysis",
+    "andy_generation": N_("A.N.D.Y. suggestions"),
+    "backup": N_("Backup"),
+    "experiment_summary": N_("Experiment week summary"),
+    "medical_import": N_("Medical record import"),
+    "morning_briefing": N_("Morning briefing"),
+    "onboarding_enrichment": N_("Onboarding AI extras"),
+    "oura_sync": N_("Oura sync"),
+    "wod_parse": N_("Training note analysis"),
 }
+
+
+def _kind_label(kind: str) -> str:
+    return _(_KIND_LABELS[kind]) if kind in _KIND_LABELS else kind.replace("_", " ").title()
+
+
 _STATUS_DESCRIPTIONS = {
-    "queued": "Waiting for a worker.",
-    "running": "Work is in progress.",
-    "succeeded": "Completed successfully.",
-    "failed": "The last attempt failed.",
-    "cancelled": "This job was cancelled.",
-    "needs_attention": "The previous attempt may have completed outside Virgil.",
+    "queued": N_("Waiting for a worker."),
+    "running": N_("Work is in progress."),
+    "succeeded": N_("Completed successfully."),
+    "failed": N_("The last attempt failed."),
+    "cancelled": N_("This job was cancelled."),
+    "needs_attention": N_("The previous attempt may have completed outside Virgil."),
 }
 
 
@@ -61,13 +68,13 @@ def build_job_view(row: dict[str, Any]) -> dict[str, Any]:
     return {
         "id": row["id"],
         "kind": row["kind"],
-        "kind_label": _KIND_LABELS.get(row["kind"], row["kind"].replace("_", " ").title()),
+        "kind_label": _kind_label(row["kind"]),
         "status": status,
-        "status_label": "Partial" if partial else _STATUS_LABELS[status],
+        "status_label": _("Partial") if partial else _(_STATUS_LABELS[status]),
         "description": (
-            "Sync completed with partial data; existing data from failed sources was preserved."
+            _("Sync completed with partial data; existing data from failed sources was preserved.")
             if partial
-            else _STATUS_DESCRIPTIONS[status]
+            else _(_STATUS_DESCRIPTIONS[status])
         ),
         "display_status": "partial" if partial else status,
         "attempts": row["attempts"],
@@ -123,7 +130,7 @@ def _render_job(request: Request, row: dict[str, Any], *, status_code: int = 200
 
 
 def _not_found() -> HTMLResponse:
-    return HTMLResponse("Job not found.", status_code=404, headers=_NO_STORE)
+    return HTMLResponse(_("Job not found."), status_code=404, headers=_NO_STORE)
 
 
 @router.get("/active", response_class=HTMLResponse)
@@ -180,10 +187,10 @@ async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str 
     if row is None:
         if _is_htmx(request):
             return _not_found()
-        return error_redirect(request, redirect_path, "Job not found.")
+        return error_redirect(request, redirect_path, _("Job not found."))
 
     if row["status"] == "needs_attention" and confirm_ambiguous != "yes":
-        message = "Confirm that you checked the external service before retrying this job."
+        message = _("Confirm that you checked the external service before retrying this job.")
         if _is_htmx(request):
             return _render_job(
                 request,
@@ -195,7 +202,7 @@ async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str 
 
     if row["status"] not in _RETRYABLE_STATUSES or not await retry_job(db, job_id, row["status"], row["attempts"]):
         current = await get_job_status(db, job_id)
-        message = "This job is no longer available for retry."
+        message = _("This job is no longer available for retry.")
         if _is_htmx(request) and current is not None:
             return _render_job(
                 request,
@@ -212,6 +219,6 @@ async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str 
         return _render_job(
             request,
             updated,
-            headers=feedback_headers("Job queued for retry."),
+            headers=feedback_headers(_("Job queued for retry.")),
         )
-    return success_redirect(request, redirect_path, "Job queued for retry.")
+    return success_redirect(request, redirect_path, _("Job queued for retry."))

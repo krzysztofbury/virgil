@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Settings{% endblock %}
+{% block title %}{{ _("Virgil - Settings") }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Settings</h1>
+    <h1>{{ _("Settings") }}</h1>
 </div>
 
 <div id="settings-content">
 <!-- Tab Navigation -->
 <nav class="tabs" style="margin-bottom: 1.5rem;">
-    {% set tab_labels = {'general': 'General', 'configuration': 'App Config', 'integrations': 'Integrations', 'data': 'Data', 'automation': 'Automation', 'security': 'Security'} %}
+    {% set tab_labels = {'general': _('General'), 'configuration': _('App Config'), 'integrations': _('Integrations'), 'data': _('Data'), 'automation': _('Automation'), 'security': _('Security')} %}
     {% for t in tabs %}
     <a href="/settings?tab={{ t }}" id="settings-tab-{{ t }}"
        hx-get="/settings?tab={{ t }}"
@@ -24,12 +24,12 @@
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>LLM Providers</h3></div>
+    <div class="card-header"><h3>{{ _("LLM Providers") }}</h3></div>
 
     {% if llm_providers %}
     <div class="overflow-x" style="margin-bottom: 1rem;">
         <table>
-            <thead><tr><th>Provider</th><th>Model</th><th>API Key</th><th>Status</th><th>Actions</th></tr></thead>
+            <thead><tr><th>{{ _("Provider") }}</th><th>{{ _("Model") }}</th><th>{{ _("API Key") }}</th><th>{{ _("Status") }}</th><th>{{ _("Actions") }}</th></tr></thead>
             <tbody>
                 {% for p in llm_providers %}
                 <tr>
@@ -38,7 +38,7 @@
                     <td><code>{{ p.api_key_masked }}</code></td>
                     <td>
                         {% if p.is_active %}
-                        <span class="flag-normal" style="font-weight:600;">Active</span>
+                        <span class="flag-normal" style="font-weight:600;">{{ _("Active") }}</span>
                         {% else %}
                         <span class="text-muted">-</span>
                         {% endif %}
@@ -47,12 +47,12 @@
                         {% if not p.is_active %}
                         <form method="POST" action="/settings/llm/activate" style="margin:0;">
                             <input type="hidden" name="provider_id" value="{{ p.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline">Activate</button>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Activate") }}</button>
                         </form>
                         {% endif %}
                         <form method="POST" action="/settings/llm/delete" style="margin:0;">
                             <input type="hidden" name="provider_id" value="{{ p.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--flag-h);">Delete</button>
+                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--flag-h);">{{ _("Delete") }}</button>
                         </form>
                     </td>
                 </tr>
@@ -62,12 +62,12 @@
     </div>
     {% else %}
     <p class="text-muted" style="margin-bottom: 0.75rem;">
-        No providers configured.
-        {% if server_llm %}This server's own key is used until you add one.{% else %}Add one to use the AI features.{% endif %}
+        {{ _("No providers configured.") }}
+        {% if server_llm %}{{ _("This server's own key is used until you add one.") }}{% else %}{{ _("Add one to use the AI features.") }}{% endif %}
     </p>
     {% endif %}
     <p class="text-muted" style="margin-bottom: 0.75rem;font-size:0.85rem;">
-        Keys are stored encrypted with this server's key, so whoever runs the server can read them.
+        {{ _("Keys are stored encrypted with this server's key, so whoever runs the server can read them.") }}
     </p>
 
     {# An ordered scale, so it reads as one: pick a level and it saves. A select
@@ -76,8 +76,8 @@
        there is no client state to drift and this still works without scripts. #}
     <form method="POST" action="/settings/llm/reasoning" class="thinking-level">
         <div class="thinking-level-head">
-            <span class="thinking-level-title" id="thinking-level-title">Thinking level</span>
-            <small class="text-muted">How much the model may think before answering. Higher levels cost more and take longer.</small>
+            <span class="thinking-level-title" id="thinking-level-title">{{ _("Thinking level") }}</span>
+            <small class="text-muted">{{ _("How much the model may think before answering. Higher levels cost more and take longer.") }}</small>
         </div>
         <div class="thinking-level-scale" role="group" aria-labelledby="thinking-level-title">
             {% for effort in reasoning_efforts %}
@@ -89,51 +89,51 @@
     </form>
 
     <details>
-        <summary style="cursor:pointer;font-weight:500;margin-bottom:0.75rem;">Add provider</summary>
+        <summary style="cursor:pointer;font-weight:500;margin-bottom:0.75rem;">{{ _("Add provider") }}</summary>
         <form method="POST" action="/settings/llm/add" x-data="llmProviderForm">
             <div class="grid" style="margin-bottom:0.5rem;">
                 <div>
-                    <label>Provider
+                    <label>{{ _("Provider") }}
                         <select name="provider" required x-model="provider" @change="setProvider">
-                            <option value="anthropic">Anthropic</option>
-                            <option value="openai">OpenAI</option>
-                            <option value="gemini">Google Gemini</option>
-                            <option value="mistral">Mistral</option>
-                            <option value="groq">Groq</option>
-                            <option value="ollama">Ollama (local)</option>
-                            <option value="other">Other (LiteLLM)</option>
+                            <option value="anthropic">{{ _("Anthropic") }}</option>
+                            <option value="openai">{{ _("OpenAI") }}</option>
+                            <option value="gemini">{{ _("Google Gemini") }}</option>
+                            <option value="mistral">{{ _("Mistral") }}</option>
+                            <option value="groq">{{ _("Groq") }}</option>
+                            <option value="ollama">{{ _("Ollama (local)") }}</option>
+                            <option value="other">{{ _("Other (LiteLLM)") }}</option>
                         </select>
                     </label>
                 </div>
                 <div>
-                    <label>Model
+                    <label>{{ _("Model") }}
                         <input type="text" name="model" x-model="model" required
-                               :placeholder="isOther ? 'e.g. together_ai/meta-llama/Llama-3-70b' : ''">
+                               :placeholder='isOther ? {{ _("e.g. together_ai/meta-llama/Llama-3-70b")|tojson }} : ""'>
                     </label>
                 </div>
             </div>
-            <label>API Key
-                <input type="password" name="api_key" placeholder="sk-..." required>
+            <label>{{ _("API Key") }}
+                <input type="password" name="api_key" placeholder="{{ _("sk-...") }}" required>
             </label>
-            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Add</button>
+            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">{{ _("Add") }}</button>
         </form>
     </details>
 </div>
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Modules</h3></div>
+    <div class="card-header"><h3>{{ _("Modules") }}</h3></div>
     <form method="POST" action="/settings/features"
           x-data="{ freedom: {{ 'true' if feature_flags.freedom else 'false' }} }">
         <label class="module-toggle">
             <input type="checkbox" name="feature_freedom" x-model="freedom" {% if feature_flags.freedom %}checked{% endif %}>
             <span>
-                <strong>Freedom</strong>
-                <span class="module-desc">Break free from habits that hold you back. Each habit you choose gets a daily check-in, a log of the urges you survive and its own streak. Only you see it.</span>
+                <strong>{{ _("Freedom") }}</strong>
+                <span class="module-desc">{{ _("Break free from habits that hold you back. Each habit you choose gets a daily check-in, a log of the urges you survive and its own streak. Only you see it.") }}</span>
             </span>
         </label>
         {# The habits under the switch that governs them, shown as soon as it is on. #}
         <fieldset class="module-habits" x-show="freedom" x-cloak>
-            <legend>Habits you're working on</legend>
+            <legend>{{ _("Habits you're working on") }}</legend>
             <input type="hidden" name="freedom_habits_shown" value="1">
             <div class="module-habit-list">
                 {% for h in freedom_choices %}
@@ -143,26 +143,26 @@
                 </label>
                 {% endfor %}
             </div>
-            <label class="module-custom">Something else
-                <input type="text" name="custom_habit" maxlength="40" placeholder="In your words">
+            <label class="module-custom">{{ _("Something else") }}
+                <input type="text" name="custom_habit" maxlength="40" placeholder="{{ _("In your words") }}">
             </label>
-            <small class="text-muted">Unchecking a habit stops tracking it. Its history is kept and returns if you check it again.</small>
+            <small class="text-muted">{{ _("Unchecking a habit stops tracking it. Its history is kept and returns if you check it again.") }}</small>
             <input type="hidden" name="freedom_dashboard_shown" value="1">
             <label class="module-habit module-dashboard-toggle">
                 <input type="checkbox" name="freedom_on_dashboard" value="1" {% if freedom_on_dashboard %}checked{% endif %}>
-                Show these habits on the dashboard
+                {{ _("Show these habits on the dashboard") }}
             </label>
-            <small class="text-muted">Off keeps their names and streaks on the Freedom page only, away from anyone glancing at the home screen.</small>
+            <small class="text-muted">{{ _("Off keeps their names and streaks on the Freedom page only, away from anyone glancing at the home screen.") }}</small>
         </fieldset>
         <label class="module-toggle">
             <input type="checkbox" name="feature_finance" value="1" {% if feature_flags.finance %}checked{% endif %}>
             <span>
-                <strong>Finance</strong>
-                <span class="module-desc">Your financial fortress: the layers you define, your accounts and their balances once a month, how many months your cushion covers and a score. No bank connection; you enter the numbers.</span>
+                <strong>{{ _("Finance") }}</strong>
+                <span class="module-desc">{{ _("Your financial fortress: the layers you define, your accounts and their balances once a month, how many months your cushion covers and a score. No bank connection; you enter the numbers.") }}</span>
             </span>
         </label>
         <div class="form-actions module-actions">
-            <button type="submit" class="btn btn-primary btn-sm">Save modules</button>
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Save modules") }}</button>
         </div>
     </form>
 </div>
@@ -170,43 +170,42 @@
 {# Reference, not a setting: where the data lives. Last, so the general tab
    opens on what can be changed. #}
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Storage</h3></div>
-    <p class="settings-path"><strong>Database:</strong> <span class="text-muted">{{ db_path }}</span></p>
+    <div class="card-header"><h3>{{ _("Storage") }}</h3></div>
+    <p class="settings-path"><strong>{{ _("Database:") }}</strong> <span class="text-muted">{{ db_path }}</span></p>
 </div>
 
 {% elif active_tab == 'configuration' %}
 <!-- ═══ APP CONFIG TAB: dictionary tables ═══ -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Training Schedule</h3>
-        <small class="text-muted">What the A.N.D.Y. planner assumes about your week. It only decides whether today is a training day — it never prescribes movements.</small>
+    <div class="card-header"><h3>{{ _("Training Schedule") }}</h3>
+        <small class="text-muted">{{ _("What the A.N.D.Y. planner assumes about your week. It only decides whether today is a training day — it never prescribes movements.") }}</small>
     </div>
     <form action="/settings/training-schedule" method="post"
           style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
         <fieldset class="day-chips">
-            <legend>Training days</legend>
+            <legend>{{ _("Training days") }}</legend>
             <input type="hidden" name="training_day_chips" value="1">
-            {% for key, label in [('mon', 'Mon'), ('tue', 'Tue'), ('wed', 'Wed'), ('thu', 'Thu'), ('fri', 'Fri'), ('sat', 'Sat'), ('sun', 'Sun')] %}
+            {% for key, label in [('mon', _('Mon')), ('tue', _('Tue')), ('wed', _('Wed')), ('thu', _('Thu')), ('fri', _('Fri')), ('sat', _('Sat')), ('sun', _('Sun'))] %}
             <label class="day-chip">
                 <input type="checkbox" name="training_day" value="{{ key }}" {{ 'checked' if key in training_day_keys else '' }}>
                 <span>{{ label }}</span>
             </label>
             {% endfor %}
         </fieldset>
-        <label style="margin:0;">Swim sessions / week
+        <label style="margin:0;">{{ _("Swim sessions / week") }}
             <input type="number" name="training_swim_per_week" value="{{ training_swim_per_week }}"
                    min="0" max="7" style="width: 6rem; margin: 0;">
         </label>
-        <button type="submit" class="btn btn-primary btn-sm">Save</button>
+        <button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button>
     </form>
     <p class="text-muted" style="margin-top:0.5rem;"><small>
-        Swim has no fixed day - set 0 to drop it from the plan. With no day chosen, the planner is told no fixed
-        days are set, rather than assuming a week you never chose.
+        {{ _("Swim has no fixed day - set 0 to drop it from the plan. With no day chosen, the planner is told no fixed days are set, rather than assuming a week you never chose.") }}
     </small></p>
 </div>
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Exercise Library</h3>
-        <small class="text-muted">The vocabulary the workout parser resolves your notes against. Add your own entries; built-in ones can be archived (hidden from the parser) but not edited or deleted.</small>
+    <div class="card-header"><h3>{{ _("Exercise Library") }}</h3>
+        <small class="text-muted">{{ _("The vocabulary the workout parser resolves your notes against. Add your own entries; built-in ones can be archived (hidden from the parser) but not edited or deleted.") }}</small>
     </div>
 
     <datalist id="lib-tags">
@@ -217,10 +216,10 @@
        endpoint. Progressive enhancement - with Alpine absent every row stays
        visible, because nothing starts hidden. #}
     <div class="library-controls" x-data="libraryFilter">
-        <input type="search" placeholder="search name or tag" x-model="query" @input="apply()"
-               aria-label="Search the exercise library">
-        <select x-model="section" @change="apply()" aria-label="Section">
-            <option value="">All sections</option>
+        <input type="search" placeholder="{{ _("search name or tag") }}" x-model="query" @input="apply()"
+               aria-label="{{ _("Search the exercise library") }}">
+        <select x-model="section" @change="apply()" aria-label="{{ _("Section") }}">
+            <option value="">{{ _("All sections") }}</option>
             {% for s in section_order %}<option value="{{ s }}">{{ s }}</option>{% endfor %}
         </select>
     </div>
@@ -228,22 +227,22 @@
     {# The add form was permanently open above a long table. It is one action
        among several now, so it sits behind its own disclosure. #}
     <details style="margin-bottom: 1.25rem;">
-        <summary style="cursor:pointer;font-weight:600;">Add exercise</summary>
+        <summary style="cursor:pointer;font-weight:600;">{{ _("Add exercise") }}</summary>
     <form action="/settings/library/add" method="post"
           style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
-        <input type="text" name="name" placeholder="Exercise name" required style="width: 12rem; margin: 0;">
+        <input type="text" name="name" placeholder="{{ _("Exercise name") }}" required style="width: 12rem; margin: 0;">
         <select name="section" style="width: auto; margin: 0;">
-            {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == 'Core' else '' }}>{{ s }}</option>{% endfor %}
+            {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == 'Core' else '' }}>{{ s|label }}</option>{% endfor %}
         </select>
-        <input type="number" name="sets" placeholder="Sets" min="1" max="20" style="width: 4.5rem; margin: 0;">
-        <input type="text" name="reps" placeholder="Reps (e.g. 10-12)" style="width: 8rem; margin: 0;">
+        <input type="number" name="sets" placeholder="{{ _("Sets") }}" min="1" max="20" style="width: 4.5rem; margin: 0;">
+        <input type="text" name="reps" placeholder="{{ _("Reps (e.g. 10-12)") }}" style="width: 8rem; margin: 0;">
         <select name="metric" style="width: auto; margin: 0;">
-            <option value="reps" selected>Reps</option>
-            <option value="time">Time</option>
+            <option value="reps" selected>{{ _("Reps") }}</option>
+            <option value="time">{{ _("Time") }}</option>
         </select>
-        <input type="text" name="notes" placeholder="Cue / notes" style="flex: 1; min-width: 10rem; margin: 0;">
-        <input type="text" name="tags" placeholder="Tags (comma-separated)" list="lib-tags" style="width: 10rem; margin: 0;">
-        <button type="submit" class="btn btn-primary btn-sm">+ Add</button>
+        <input type="text" name="notes" placeholder="{{ _("Cue / notes") }}" style="flex: 1; min-width: 10rem; margin: 0;">
+        <input type="text" name="tags" placeholder="{{ _("Tags (comma-separated)") }}" list="lib-tags" style="width: 10rem; margin: 0;">
+        <button type="submit" class="btn btn-primary btn-sm">{{ _("+ Add") }}</button>
     </form>
     </details>
 
@@ -255,19 +254,19 @@
         </summary>
         <div class="overflow-x">
         <table class="exp-metric-table library-table" style="width: 100%;">
-            <thead><tr><th>Name</th><th>Section</th><th>Sets</th><th>Reps</th><th>Metric</th><th>Notes</th><th>Tags</th><th></th></tr></thead>
+            <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Section") }}</th><th>{{ _("Sets") }}</th><th>{{ _("Reps") }}</th><th>{{ _("Metric") }}</th><th>{{ _("Notes") }}</th><th>{{ _("Tags") }}</th><th></th></tr></thead>
             <tbody>
                 {% for ex in library_by_section[section] %}
                 <tr {% if ex.archived %}style="opacity: 0.45;"{% endif %}
                     data-library-name="{{ ex.name }}" data-library-tags="{{ ex.tags | join(' ') }}"
                     data-library-section="{{ ex.section }}">
                     {% if ex.builtin %}
-                    <td class="library-name">{{ ex.name }} <span class="badge" style="opacity: 0.7;">built-in</span></td>
-                    <td data-label="Section">{{ ex.section }}</td>
-                    <td data-label="Sets">{{ ex.sets if ex.sets is not none else '' }}</td>
-                    <td data-label="Reps">{{ ex.reps }}</td>
-                    <td data-label="Metric">{{ ex.metric }}</td>
-                    <td data-label="Notes" class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
+                    <td class="library-name">{{ ex.name }} <span class="badge" style="opacity: 0.7;">{{ _("built-in") }}</span></td>
+                    <td data-label="{{ _("Section") }}">{{ ex.section }}</td>
+                    <td data-label="{{ _("Sets") }}">{{ ex.sets if ex.sets is not none else '' }}</td>
+                    <td data-label="{{ _("Reps") }}">{{ ex.reps }}</td>
+                    <td data-label="{{ _("Metric") }}">{{ ex.metric }}</td>
+                    <td data-label="{{ _("Notes") }}" class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
                     <td class="library-actions">
                         <!-- Tags are user metadata, not part of a builtin row's frozen
                              identity (name/section/metric) — this form only ever posts
@@ -276,15 +275,15 @@
                               style="display: flex; gap: 0.3rem; align-items: center; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <input type="text" name="tags" value="{{ ex.tags | join(', ') }}" list="lib-tags"
-                                   placeholder="Tags" style="width: 8rem; margin: 0; font-size: var(--text-xs);">
-                            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+                                   placeholder="{{ _("Tags") }}" style="width: 8rem; margin: 0; font-size: var(--text-xs);">
+                            <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save") }}</button>
                         </form>
                     </td>
                     <td class="library-actions" style="white-space: nowrap;">
                         <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
-                            <button type="submit" class="btn btn-secondary btn-sm">{{ 'Restore' if ex.archived else 'Archive' }}</button>
+                            <button type="submit" class="btn btn-secondary btn-sm">{{ _('Restore') if ex.archived else _('Archive') }}</button>
                         </form>
                     </td>
                     {% else %}
@@ -299,23 +298,23 @@
                             <input type="number" name="sets" value="{{ ex.sets if ex.sets is not none else '' }}" min="1" max="20" style="width: 4rem; margin: 0; font-size: var(--text-xs);">
                             <input type="text" name="reps" value="{{ ex.reps }}" style="width: 6rem; margin: 0; font-size: var(--text-xs);">
                             <select name="metric" style="width: auto; margin: 0; font-size: var(--text-xs);">
-                                <option value="reps" {{ 'selected' if ex.metric == 'reps' else '' }}>Reps</option>
-                                <option value="time" {{ 'selected' if ex.metric == 'time' else '' }}>Time</option>
+                                <option value="reps" {{ 'selected' if ex.metric == 'reps' else '' }}>{{ _("Reps") }}</option>
+                                <option value="time" {{ 'selected' if ex.metric == 'time' else '' }}>{{ _("Time") }}</option>
                             </select>
                             <input type="text" name="notes" value="{{ ex.notes }}" style="flex: 1; min-width: 8rem; margin: 0; font-size: var(--text-xs);">
                             <input type="text" name="tags" value="{{ ex.tags | join(', ') }}" list="lib-tags"
-                                   placeholder="Tags" style="width: 8rem; margin: 0; font-size: var(--text-xs);">
-                            <button type="submit" class="btn btn-secondary btn-sm">Save</button>
+                                   placeholder="{{ _("Tags") }}" style="width: 8rem; margin: 0; font-size: var(--text-xs);">
+                            <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save") }}</button>
                         </form>
                     </td>
                     <td class="library-actions" style="white-space: nowrap;">
                         <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
-                            <button type="submit" class="btn btn-secondary btn-sm">{{ 'Restore' if ex.archived else 'Archive' }}</button>
+                            <button type="submit" class="btn btn-secondary btn-sm">{{ _('Restore') if ex.archived else _('Archive') }}</button>
                         </form>
                         <form action="/settings/library/delete" method="post" style="display: inline; margin: 0;"
-                              data-confirm="Delete {{ ex.name }} from the library?">
+                              data-confirm="{% trans name=ex.name %}Delete {{ name }} from the library?{% endtrans %}">
                             <input type="hidden" name="entry_id" value="{{ ex.id }}">
                             <button type="submit" class="btn btn-danger btn-sm">&times;</button>
                         </form>
@@ -336,67 +335,67 @@
 <!-- Oura Ring -->
 <div class="card integration-card" style="margin-bottom: 1rem;">
     <div class="card-header">
-        <h3>Oura Ring</h3>
+        <h3>{{ _("Oura Ring") }}</h3>
         {% if oura_integration and oura_integration.status == 'connected' %}
-        <span class="flag-normal" style="font-weight:600;">Connected</span>
+        <span class="flag-normal" style="font-weight:600;">{{ _("Connected") }}</span>
         {% elif oura_integration and oura_integration.status == 'error' %}
-        <span class="flag-h" style="font-weight:600;">Error</span>
+        <span class="flag-h" style="font-weight:600;">{{ _("Error") }}</span>
         {% elif oura_integration %}
-        <span class="text-muted">Configured</span>
+        <span class="text-muted">{{ _("Configured") }}</span>
         {% else %}
-        <span class="text-muted">Not configured</span>
+        <span class="text-muted">{{ _("Not configured") }}</span>
         {% endif %}
     </div>
 
     {% if oura_integration and oura_integration.status == 'connected' %}
     <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;">
         {% if oura_integration.last_sync_at %}
-        <small class="text-muted">Last sync: {{ oura_integration.last_sync_at[:16] }}</small>
+        <small class="text-muted">{% trans when=oura_integration.last_sync_at[:16] %}Last sync: {{ when }}{% endtrans %}</small>
         {% endif %}
         {% if oura_integration.token_expires_at %}
-        <small class="text-muted">Token expires: {{ oura_integration.token_expires_at[:16] }}</small>
+        <small class="text-muted">{% trans when=oura_integration.token_expires_at[:16] %}Token expires: {{ when }}{% endtrans %}</small>
         {% endif %}
         {% if oura_sync_enabled %}
-        <small class="flag-normal">Auto-sync enabled</small>
+        <small class="flag-normal">{{ _("Auto-sync enabled") }}</small>
         {% endif %}
     </div>
     {% if oura_integration.scopes and 'workout' not in oura_integration.scopes %}
     <div style="margin-bottom:0.75rem;padding:0.5rem;background:var(--flag-h-bg, rgba(239,68,68,0.1));border-radius:4px;font-size:var(--text-sm);">
-        New scopes available &mdash; <a href="/settings/oura/connect" style="color:var(--accent);font-weight:600;text-decoration:underline;">re-connect</a> to enable workout import.
+        {% trans %}New scopes available: <a href="/settings/oura/connect" style="color:var(--accent);font-weight:600;text-decoration:underline;">re-connect</a> to enable workout import.{% endtrans %}
     </div>
     {% endif %}
-    <p style="margin-bottom:0.5rem;"><strong>Client ID:</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
+    <p style="margin-bottom:0.5rem;"><strong>{{ _("Client ID:") }}</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
     <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
         <form method="POST" action="/settings/oura/sync" style="margin:0;">
             <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
-            <button type="submit" class="btn btn-primary btn-sm">Sync Now</button>
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Sync Now") }}</button>
         </form>
         <form method="POST" action="/settings/oura/disconnect" style="margin:0;">
-            <button type="submit" class="btn btn-outline btn-sm" style="color:var(--flag-h);">Disconnect</button>
+            <button type="submit" class="btn btn-outline btn-sm" style="color:var(--flag-h);">{{ _("Disconnect") }}</button>
         </form>
     </div>
 
     <!-- Webhook -->
     <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
-            <h4 style="margin:0;font-size:0.9rem;">Webhook (Real-time sync)</h4>
+            <h4 style="margin:0;font-size:0.9rem;">{{ _("Webhook (Real-time sync)") }}</h4>
             {% if webhook_registration and webhook_registration.desired_state == 'disabled' %}
-            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">Disabling</span>
+            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">{{ _("Disabling") }}</span>
             {% elif webhook_registration and webhook_registration.status == 'active' %}
-            <span class="flag-normal" style="font-weight:600;font-size:0.75rem;">Active</span>
+            <span class="flag-normal" style="font-weight:600;font-size:0.75rem;">{{ _("Active") }}</span>
             {% elif webhook_registration and webhook_registration.status == 'degraded' %}
-            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">Partial</span>
+            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">{{ _("Partial") }}</span>
             {% elif webhook_registration and webhook_registration.status == 'error' %}
-            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">Retrying</span>
+            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">{{ _("Retrying") }}</span>
             {% elif webhook_enabled %}
-            <span class="text-muted" style="font-weight:600;font-size:0.75rem;">Pending</span>
+            <span class="text-muted" style="font-weight:600;font-size:0.75rem;">{{ _("Pending") }}</span>
             {% endif %}
         </div>
         {% if webhook_enabled %}
         <div style="margin-bottom:0.5rem;">
-            <small class="text-muted">Listening at <code style="font-size:0.75rem;">{{ webhook_url }}</code></small>
+            <small class="text-muted">{{ _("Listening at") }} <code style="font-size:0.75rem;">{{ webhook_url }}</code></small>
             {% if webhook_registration.renewal_due_at %}
-            <small class="text-muted" style="display:block;">Next subscription renewal: {{ webhook_registration.renewal_due_at[:16] }}</small>
+            <small class="text-muted" style="display:block;">{% trans when=webhook_registration.renewal_due_at[:16] %}Next subscription renewal: {{ when }}{% endtrans %}</small>
             {% endif %}
             {% if webhook_registration.last_error %}
             <small class="flag-h" style="display:block;">{{ webhook_registration.last_error }}</small>
@@ -404,15 +403,15 @@
         </div>
         <form method="POST" action="/settings/oura/webhook/disable" style="margin:0;">
             <button type="submit" class="btn btn-outline btn-sm">
-                {% if webhook_registration.desired_state == 'disabled' %}Retry Disable{% else %}Disable Webhook{% endif %}
+                {% if webhook_registration.desired_state == 'disabled' %}{{ _("Retry Disable") }}{% else %}{{ _("Disable Webhook") }}{% endif %}
             </button>
         </form>
         {% else %}
         <p class="text-muted" style="font-size:0.75rem;margin-bottom:0.5rem;">
-            Registers a webhook subscription with Oura to receive real-time data pushes.
+            {{ _("Registers a webhook subscription with Oura to receive real-time data pushes.") }}
         </p>
         <form method="POST" action="/settings/oura/webhook/enable" style="margin:0;">
-            <button type="submit" class="btn btn-secondary btn-sm">Enable Webhook</button>
+            <button type="submit" class="btn btn-secondary btn-sm">{{ _("Enable Webhook") }}</button>
         </form>
         {% endif %}
     </div>
@@ -420,38 +419,38 @@
     {% elif oura_integration and oura_integration.status in ('configured', 'error') %}
     {% if oura_integration.status == 'error' %}
     <div style="margin-bottom:0.5rem;">
-        <small class="text-muted">Token expired or invalid. Please re-connect.</small>
+        <small class="text-muted">{{ _("Token expired or invalid. Please re-connect.") }}</small>
     </div>
     {% endif %}
-    <p style="margin-bottom:0.5rem;"><strong>Client ID:</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
+    <p style="margin-bottom:0.5rem;"><strong>{{ _("Client ID:") }}</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
     <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
-        <a href="/settings/oura/connect" class="btn btn-primary btn-sm">Connect to Oura</a>
+        <a href="/settings/oura/connect" class="btn btn-primary btn-sm">{{ _("Connect to Oura") }}</a>
     </div>
     <details>
-        <summary style="cursor:pointer;font-size:var(--text-sm);">Change credentials</summary>
+        <summary style="cursor:pointer;font-size:var(--text-sm);">{{ _("Change credentials") }}</summary>
         <form method="POST" action="/settings/oura/save" style="margin-top:0.5rem;">
             <div class="grid">
-                <div><label>Client ID <input type="text" name="client_id" value="{{ oura_integration.client_id }}" required></label></div>
-                <div><label>Client Secret <input type="password" name="client_secret" placeholder="(encrypted)" required></label></div>
+                <div><label>{{ _("Client ID") }} <input type="text" name="client_id" value="{{ oura_integration.client_id }}" required></label></div>
+                <div><label>{{ _("Client Secret") }} <input type="password" name="client_secret" placeholder="{{ _("(encrypted)") }}" required></label></div>
             </div>
-            <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">Save</button>
+            <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">{{ _("Save") }}</button>
         </form>
     </details>
 
     {% else %}
     <ol class="text-muted oura-setup" style="margin-bottom:0.75rem;font-size:var(--text-sm);">
-        <li>Create an application at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank" rel="noopener">cloud.ouraring.com/oauth/applications</a>.</li>
-        <li>As its redirect URI, paste
+        <li>{% trans %}Create an application at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank" rel="noopener">cloud.ouraring.com/oauth/applications</a>.{% endtrans %}</li>
+        <li>{{ _("As its redirect URI, paste") }}
             <code id="oura-redirect-uri">{{ oura_redirect_uri }}</code>
-            <button type="button" class="btn btn-outline btn-sm" data-copy="#oura-redirect-uri">Copy</button></li>
-        <li>Enter the application's client ID and secret below and save, then choose Connect to Oura.</li>
+            <button type="button" class="btn btn-outline btn-sm" data-copy="#oura-redirect-uri">{{ _("Copy") }}</button></li>
+        <li>{{ _("Enter the application's client ID and secret below and save, then choose Connect to Oura.") }}</li>
     </ol>
     <form method="POST" action="/settings/oura/save">
         <div class="grid">
-            <div><label>Client ID <input type="text" name="client_id" placeholder="XXXXXXXX" required></label></div>
-            <div><label>Client Secret <input type="password" name="client_secret" placeholder="XXXXXXXX" required></label></div>
+            <div><label>{{ _("Client ID") }} <input type="text" name="client_id" placeholder="{{ _("XXXXXXXX") }}" required></label></div>
+            <div><label>{{ _("Client Secret") }} <input type="password" name="client_secret" placeholder="{{ _("XXXXXXXX") }}" required></label></div>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">Save</button>
+        <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">{{ _("Save") }}</button>
     </form>
     {% endif %}
 </div>
@@ -459,19 +458,19 @@
 <!-- Garmin placeholder -->
 <div class="card integration-card" style="margin-bottom: 1rem; opacity: 0.5;">
     <div class="card-header">
-        <h3>Garmin Connect</h3>
-        <small class="text-muted">Coming soon</small>
+        <h3>{{ _("Garmin Connect") }}</h3>
+        <small class="text-muted">{{ _("Coming soon") }}</small>
     </div>
-    <p class="text-muted" style="font-size:var(--text-sm);">Garmin wearable integration for activity and sleep data.</p>
+    <p class="text-muted" style="font-size:var(--text-sm);">{{ _("Garmin wearable integration for activity and sleep data.") }}</p>
 </div>
 
 <!-- Apple Health placeholder -->
 <div class="card integration-card" style="opacity: 0.5;">
     <div class="card-header">
-        <h3>Apple Health</h3>
-        <small class="text-muted">Coming soon</small>
+        <h3>{{ _("Apple Health") }}</h3>
+        <small class="text-muted">{{ _("Coming soon") }}</small>
     </div>
-    <p class="text-muted" style="font-size:var(--text-sm);">Apple Health integration for workouts, heart rate, and more.</p>
+    <p class="text-muted" style="font-size:var(--text-sm);">{{ _("Apple Health integration for workouts, heart rate, and more.") }}</p>
 </div>
 
 {% elif active_tab == 'data' %}
@@ -479,13 +478,13 @@
 
 <!-- Export to Markdown -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Export to Markdown</h3></div>
-    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">Download a readable summary of a period, for reading or pasting into an AI assistant.</p>
+    <div class="card-header"><h3>{{ _("Export to Markdown") }}</h3></div>
+    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">{{ _("Download a readable summary of a period, for reading or pasting into an AI assistant.") }}</p>
     <form method="POST" action="/settings/export">
         <div style="margin-bottom: 0.75rem;">
-            <label style="font-weight:600;margin-bottom:0.5rem;">Scope</label>
+            <label style="font-weight:600;margin-bottom:0.5rem;">{{ _("Scope") }}</label>
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
-                {% for scope, label in [('weekly', 'Weekly'), ('monthly', 'Monthly'), ('yearly', 'Yearly'), ('all', 'All')] %}
+                {% for scope, label in [('weekly', _('Weekly')), ('monthly', _('Monthly')), ('yearly', _('Yearly')), ('all', _('All'))] %}
                 <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
                     <input type="radio" name="scope" value="{{ scope }}" {{ 'checked' if scope == 'weekly' else '' }}
                            style="width:auto;margin:0;">
@@ -495,22 +494,22 @@
             </div>
         </div>
         <div style="margin-bottom: 0.75rem;">
-            <label style="font-weight:600;margin-bottom:0.5rem;">Sections</label>
+            <label style="font-weight:600;margin-bottom:0.5rem;">{{ _("Sections") }}</label>
             <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:0.35rem;">
                 {% set export_sections = [
-                    ('daily_logs', 'Daily Logs'),
-                    ('training', 'Training'),
-                    ('body_measurements', 'Body Measurements'),
+                    ('daily_logs', _('Daily Logs')),
+                    ('training', _('Training')),
+                    ('body_measurements', _('Body Measurements')),
                 ] %}
                 {% if request.state.features.freedom %}
-                    {% set export_sections = export_sections + [('feniks', 'Freedom')] %}
+                    {% set export_sections = export_sections + [('feniks', _('Freedom'))] %}
                 {% endif %}
                 {% set export_sections = export_sections + [
-                    ('oura', 'Oura Ring'),
-                    ('life_scores', 'Life Scores'),
-                    ('experiments', 'Experiments'),
-                    ('bloodwork', 'Blood Work'),
-                    ('goals', 'Goals')
+                    ('oura', _('Oura Ring')),
+                    ('life_scores', _('Life Scores')),
+                    ('experiments', _('Experiments')),
+                    ('bloodwork', _('Blood Work')),
+                    ('goals', _('Goals'))
                 ] %}
                 {% for key, label in export_sections %}
                 <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
@@ -521,33 +520,31 @@
                 {% endfor %}
             </div>
         </div>
-        <button type="submit" class="btn btn-primary">Download Markdown</button>
+        <button type="submit" class="btn btn-primary">{{ _("Download Markdown") }}</button>
     </form>
 </div>
 
 <!-- Download & Export -->
 <div class="card">
-    <div class="card-header"><h3>Download</h3></div>
+    <div class="card-header"><h3>{{ _("Download") }}</h3></div>
     <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-        <a href="/settings/backup" class="btn btn-outline">Download virgil.db</a>
-        <a href="/settings/export/json" class="btn btn-outline">Export JSON</a>
-        <a href="/settings/export/csv" class="btn btn-outline">Export CSV</a>
+        <a href="/settings/backup" class="btn btn-outline">{{ _("Download virgil.db") }}</a>
+        <a href="/settings/export/json" class="btn btn-outline">{{ _("Export JSON") }}</a>
+        <a href="/settings/export/csv" class="btn btn-outline">{{ _("Export CSV") }}</a>
     </div>
 </div>
 
 <!-- Restore from a JSON export -->
 <div class="card" style="margin-top: 1rem;">
-    <div class="card-header"><h3>Restore from JSON</h3></div>
+    <div class="card-header"><h3>{{ _("Restore from JSON") }}</h3></div>
     <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-        Replace your data with an Export JSON file, from this server or another one.
-        The file is checked first and you see what would change before anything is replaced.
-        LLM keys, the Oura connection and your login are not part of an export and stay as they are.
+        {{ _("Replace your data with an Export JSON file, from this server or another one. The file is checked first and you see what would change before anything is replaced. LLM keys, the Oura connection and your login are not part of an export and stay as they are.") }}
     </p>
     <form method="POST" action="/settings/import" enctype="multipart/form-data">
-        <label>Export file
+        <label>{{ _("Export file") }}
             <input type="file" name="file" accept=".json,application/json" required class="file-input">
         </label>
-        <button type="submit" class="btn btn-outline" style="margin-top: 0.75rem;">Check file</button>
+        <button type="submit" class="btn btn-outline" style="margin-top: 0.75rem;">{{ _("Check file") }}</button>
     </form>
 </div>
 
@@ -558,49 +555,48 @@
     <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
     <!-- Backup -->
     <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Automated Backup</h3></div>
+        <div class="card-header"><h3>{{ _("Automated Backup") }}</h3></div>
         <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            Creates scheduled SQLite backups on the server with rolling retention.
-            A factory reset or deleting the account deletes them.
+            {{ _("Creates scheduled SQLite backups on the server with rolling retention. A factory reset or deleting the account deletes them.") }}
         </p>
         {% set backup = backup_status %}
         <p data-backup-state="{{ backup.state }}"
            style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.75rem;font-size:var(--text-sm);">
             {% if backup.state == 'failed' %}
-            <span class="job-status-badge job-status-badge-failed">Failed</span>
-            <span>The last backup attempt failed {{ backup.failed_age }}{% if backup.failed_error %}: {{ backup.failed_error }}{% else %}.{% endif %}</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Failed") }}</span>
+            <span>{% if backup.failed_error %}{% trans age=backup.failed_age, error=backup.failed_error %}The last backup attempt failed {{ age }}: {{ error }}{% endtrans %}{% else %}{% trans age=backup.failed_age %}The last backup attempt failed {{ age }}.{% endtrans %}{% endif %}</span>
             {% elif backup.state == 'running' %}
-            <span class="job-status-badge job-status-badge-running">Running</span>
-            <span>A backup is queued or running.</span>
+            <span class="job-status-badge job-status-badge-running">{{ _("Running") }}</span>
+            <span>{{ _("A backup is queued or running.") }}</span>
             {% elif backup.state == 'overdue' %}
-            <span class="job-status-badge job-status-badge-failed">Overdue</span>
-            <span>No backup in more than two intervals.</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Overdue") }}</span>
+            <span>{{ _("No backup in more than two intervals.") }}</span>
             {% elif backup.state == 'off' %}
-            <span class="job-status-badge job-status-badge-cancelled">Off</span>
-            <span>Automated backup is off.</span>
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
+            <span>{{ _("Automated backup is off.") }}</span>
             {% elif backup.state == 'none' %}
-            <span class="job-status-badge job-status-badge-cancelled">None yet</span>
-            <span>No backup has been made yet.</span>
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("None yet") }}</span>
+            <span>{{ _("No backup has been made yet.") }}</span>
             {% else %}
             <span class="job-status-badge job-status-badge-succeeded">OK</span>
             {% endif %}
             {% if backup.latest_age %}
-            <span>Latest backup: {{ backup.latest_age }} ({{ backup.latest_local }}).</span>
+            <span>{% trans age=backup.latest_age, local=backup.latest_local %}Latest backup: {{ age }} ({{ local }}).{% endtrans %}</span>
             {% endif %}
         </p>
         <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
             <input type="checkbox" name="backup_enabled" {{ 'checked' if backup_enabled else '' }}
                    style="width:auto;margin:0;">
-            Enable automated backup
+            {{ _("Enable automated backup") }}
         </label>
         <div class="grid">
             <div>
-                <label>Interval (hours)
+                <label>{{ _("Interval (hours)") }}
                     <input type="number" name="backup_interval_hours" value="{{ backup_interval_hours }}" min="1" max="168">
                 </label>
             </div>
             <div>
-                <label>Max copies
+                <label>{{ _("Max copies") }}
                     <input type="number" name="backup_max_copies" value="{{ backup_max_copies }}" min="1" max="30">
                 </label>
             </div>
@@ -612,44 +608,42 @@
                  real msg/err outcome. The old HTMX hx-swap="none" version showed
                  "Backup started..." and discarded the response — failures
                  looked like successes. -->
-            <button type="submit" formaction="/settings/backup/now" class="btn btn-outline btn-sm">Backup Now</button>
+            <button type="submit" formaction="/settings/backup/now" class="btn btn-outline btn-sm">{{ _("Backup Now") }}</button>
         </div>
     </div>
 
     {% if offsite %}
     <!-- Off-site copies: administrators only, they cover every account -->
     <div class="card" style="margin-bottom: 1rem;" id="offsite-status">
-        <div class="card-header"><h3>Off-site Copies</h3></div>
+        <div class="card-header"><h3>{{ _("Off-site Copies") }}</h3></div>
         <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            Once a day every account's database, the registry and the encryption key are
-            encrypted and uploaded{% if offsite.bucket %} to the <code>{{ offsite.bucket }}</code> bucket{% endif %}.
-            Deleting or resetting an account deletes its copies there too.
+            {% if offsite.bucket %}{% trans bucket=offsite.bucket %}Once a day every account's database, the registry and the encryption key are encrypted and uploaded to the <code>{{ bucket }}</code> bucket. Deleting or resetting an account deletes its copies there too.{% endtrans %}{% else %}{{ _("Once a day every account's database, the registry and the encryption key are encrypted and uploaded. Deleting or resetting an account deletes its copies there too.") }}{% endif %}
         </p>
         <p data-offsite-state="{{ offsite.state }}"
            style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;font-size:var(--text-sm);">
             {% if offsite.state == 'off' %}
-            <span class="job-status-badge job-status-badge-cancelled">Off</span>
-            <span>Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings.</span>
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
+            <span>{{ _("Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings.") }}</span>
             {% elif offsite.state == 'misconfigured' %}
-            <span class="job-status-badge job-status-badge-failed">Not running</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Not running") }}</span>
             <span>{{ offsite.problem }}.</span>
             {% elif offsite.state == 'failed' %}
-            <span class="job-status-badge job-status-badge-failed">Failed</span>
-            <span>The last attempt failed: {{ offsite.problem }}. It retries every hour.</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Failed") }}</span>
+            <span>{% trans problem=offsite.problem %}The last attempt failed: {{ problem }}. It retries every hour.{% endtrans %}</span>
             {% elif offsite.state == 'overdue' %}
-            <span class="job-status-badge job-status-badge-failed">Overdue</span>
-            <span>No off-site copy in more than two days.</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Overdue") }}</span>
+            <span>{{ _("No off-site copy in more than two days.") }}</span>
             {% elif offsite.state == 'none' %}
-            <span class="job-status-badge job-status-badge-cancelled">None yet</span>
-            <span>The first copy is made within a minute or two of starting.</span>
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("None yet") }}</span>
+            <span>{{ _("The first copy is made within a minute or two of starting.") }}</span>
             {% else %}
             <span class="job-status-badge job-status-badge-succeeded">OK</span>
             {% endif %}
             {% if offsite.latest_age %}
-            <span>Latest copy: {{ offsite.latest_age }}, {{ offsite.latest_files }} files, {{ offsite.latest_megabytes }} MB.</span>
+            <span>{% trans age=offsite.latest_age, count=offsite.latest_files, size=offsite.latest_megabytes %}Latest copy: {{ age }}, {{ count }} file, {{ size }} MB.{% pluralize %}Latest copy: {{ age }}, {{ count }} files, {{ size }} MB.{% endtrans %}</span>
             {% endif %}
             {% if offsite.pending_deletions %}
-            <span>{{ offsite.pending_deletions }} account deletion(s) waiting to reach it.</span>
+            <span>{% trans count=offsite.pending_deletions %}{{ count }} account deletion waiting to reach it.{% pluralize %}{{ count }} account deletions waiting to reach it.{% endtrans %}</span>
             {% endif %}
         </p>
     </div>
@@ -657,48 +651,48 @@
 
     <!-- Oura Auto-Sync -->
     <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Oura Auto-Sync</h3></div>
+        <div class="card-header"><h3>{{ _("Oura Auto-Sync") }}</h3></div>
         {% if oura_connected %}
         <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
             <input type="checkbox" name="oura_sync_enabled" {{ 'checked' if oura_sync_enabled else '' }}
                    style="width:auto;margin:0;">
-            Enable automatic Oura sync
+            {{ _("Enable automatic Oura sync") }}
         </label>
         <div class="grid">
             <div>
-                <label>Sync interval (hours)
+                <label>{{ _("Sync interval (hours)") }}
                     <input type="number" name="oura_sync_interval_hours" value="{{ oura_sync_interval_hours }}" min="1" max="24">
                 </label>
             </div>
         </div>
         {% else %}
         <p class="text-muted" style="font-size:var(--text-sm);">
-            Connect Oura Ring in the <a href="/settings?tab=integrations" style="color:var(--accent);">Integrations</a> tab first.
+            {% trans %}Connect Oura Ring in the <a href="/settings?tab=integrations" style="color:var(--accent);">Integrations</a> tab first.{% endtrans %}
         </p>
         {% endif %}
     </div>
 
     <!-- Morning Briefing -->
     <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Morning Briefing</h3></div>
+        <div class="card-header"><h3>{{ _("Morning Briefing") }}</h3></div>
         <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            AI-generated daily briefing shown on the dashboard. Requires an active LLM provider.
+            {{ _("AI-generated daily briefing shown on the dashboard. Requires an active LLM provider.") }}
         </p>
         <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
             <input type="checkbox" name="briefing_enabled" {{ 'checked' if briefing_enabled else '' }}
                    style="width:auto;margin:0;">
-            Enable morning briefing
+            {{ _("Enable morning briefing") }}
         </label>
     </div>
 
-    <button type="submit" class="btn btn-primary">Save Automation Settings</button>
+    <button type="submit" class="btn btn-primary">{{ _("Save Automation Settings") }}</button>
 </form>
 
 <section class="card job-activity-card" aria-labelledby="recent-jobs-heading">
     <div class="card-header">
         <div>
-            <h3 id="recent-jobs-heading">Recent Jobs</h3>
-            <p class="text-muted job-activity-intro">Background work and actions that may need your review.</p>
+            <h3 id="recent-jobs-heading">{{ _("Recent Jobs") }}</h3>
+            <p class="text-muted job-activity-intro">{{ _("Background work and actions that may need your review.") }}</p>
         </div>
     </div>
     {% if recent_jobs %}
@@ -708,7 +702,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <p class="text-muted">No background jobs yet.</p>
+    <p class="text-muted">{{ _("No background jobs yet.") }}</p>
     {% endif %}
 </section>
 
@@ -716,49 +710,48 @@
 <!-- ═══ SECURITY TAB ═══ -->
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Password</h3></div>
+    <div class="card-header"><h3>{{ _("Password") }}</h3></div>
     <details>
-        <summary style="cursor:pointer;">Change password</summary>
+        <summary style="cursor:pointer;">{{ _("Change password") }}</summary>
         <form method="POST" action="/settings/password" style="margin-top:0.5rem;">
-            <label>Current password
+            <label>{{ _("Current password") }}
                 <input type="password" name="current_password" autocomplete="current-password" required>
             </label>
             <div class="grid">
-                <div><label>New password
+                <div><label>{{ _("New password") }}
                     <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
                 </label></div>
-                <div><label>Repeat new password
+                <div><label>{{ _("Repeat new password") }}
                     <input type="password" name="new_password_confirm" autocomplete="new-password" minlength="8" required>
                 </label></div>
             </div>
-            <p class="text-muted" style="font-size:0.85rem;">Every other device signed in to this account is signed out.</p>
-            <button type="submit" class="btn btn-primary btn-sm">Change password</button>
+            <p class="text-muted" style="font-size:0.85rem;">{{ _("Every other device signed in to this account is signed out.") }}</p>
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Change password") }}</button>
         </form>
     </details>
 </div>
 
 <div class="card" style="margin-bottom: 1rem;" id="tokens">
-    <div class="card-header"><h3>API tokens</h3></div>
+    <div class="card-header"><h3>{{ _("API tokens") }}</h3></div>
     <p class="text-muted" style="font-size:0.85rem;">
-        A token lets a tool such as an AI agent or a script read or change your data through the API and MCP.
-        It acts only for your account, and only within the scopes you give it.
+        {{ _("A token lets a tool such as an AI agent or a script read or change your data through the API and MCP. It acts only for your account, and only within the scopes you give it.") }}
     </p>
     {% if api_tokens %}
     <div class="overflow-x">
         <table>
-            <thead><tr><th>Name</th><th>Token</th><th>Scopes</th><th>Last used</th><th>Expires</th><th></th></tr></thead>
+            <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Token") }}</th><th>{{ _("Scopes") }}</th><th>{{ _("Last used") }}</th><th>{{ _("Expires") }}</th><th></th></tr></thead>
             <tbody>
                 {% for t in api_tokens %}
                 <tr>
                     <td>{{ t.name }}</td>
                     <td><code>{{ t.token_prefix }}...</code></td>
                     <td><small>{{ t.scopes }}</small></td>
-                    <td><small>{{ t.last_used_at[:16] | replace('T', ' ') if t.last_used_at else 'Never' }}</small></td>
-                    <td><small>{% if t.expired %}Expired{% elif t.expires_at %}{{ t.expires_at[:10] }}{% else %}Never{% endif %}</small></td>
+                    <td><small>{{ t.last_used_at[:16] | replace('T', ' ') if t.last_used_at else _('Never') }}</small></td>
+                    <td><small>{% if t.expired %}{{ _("Expired") }}{% elif t.expires_at %}{{ t.expires_at[:10] }}{% else %}{{ _("Never") }}{% endif %}</small></td>
                     <td>
                         <form method="POST" action="/settings/tokens/{{ t.id }}/revoke" style="margin:0;"
-                              data-confirm="Revoke {{ t.name }}? Tools using it stop working at once.">
-                            <button type="submit" class="btn btn-sm btn-outline">Revoke</button>
+                              data-confirm="{% trans name=t.name %}Revoke {{ name }}? Tools using it stop working at once.{% endtrans %}">
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Revoke") }}</button>
                         </form>
                     </td>
                 </tr>
@@ -768,52 +761,52 @@
     </div>
     {% endif %}
     <details {% if not api_tokens %}open{% endif %}>
-        <summary style="cursor:pointer;">Create a token</summary>
+        <summary style="cursor:pointer;">{{ _("Create a token") }}</summary>
         <form method="POST" action="/settings/tokens" class="invite-form">
             <div class="grid">
-                <div><label>Name <input type="text" name="name" maxlength="60" placeholder="e.g. Claude Code" required></label></div>
-                <div><label>Expires
+                <div><label>{{ _("Name") }} <input type="text" name="name" maxlength="60" placeholder="{{ _("e.g. Claude Code") }}" required></label></div>
+                <div><label>{{ _("Expires") }}
                     <select name="expires">
-                        <option value="30">In 30 days</option>
-                        <option value="90" selected>In 90 days</option>
-                        <option value="365">In a year</option>
-                        <option value="never">Never</option>
+                        <option value="30">{{ _("In 30 days") }}</option>
+                        <option value="90" selected>{{ _("In 90 days") }}</option>
+                        <option value="365">{{ _("In a year") }}</option>
+                        <option value="never">{{ _("Never") }}</option>
                     </select>
                 </label></div>
             </div>
             <fieldset class="token-scopes">
-                <legend>Scopes</legend>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="read" checked> Read: see your data (Freedom and finance also need their own scope)</label>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="write" checked> Write: log days, training, goals and the rest</label>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="sensitive"> Freedom: habits, slips and journal entries</label>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="finance"> Finance: balances, the fortress and its settings</label>
+                <legend>{{ _("Scopes") }}</legend>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="read" checked> {{ _("Read: see your data (Freedom and finance also need their own scope)") }}</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="write" checked> {{ _("Write: log days, training, goals and the rest") }}</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="sensitive"> {{ _("Freedom: habits, slips and journal entries") }}</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="finance"> {{ _("Finance: balances, the fortress and its settings") }}</label>
             </fieldset>
-            <label>Your password
+            <label>{{ _("Your password") }}
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
-            <button type="submit" class="btn btn-primary btn-sm">Create token</button>
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Create token") }}</button>
         </form>
     </details>
 </div>
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Two-Factor Authentication</h3></div>
+    <div class="card-header"><h3>{{ _("Two-Factor Authentication") }}</h3></div>
     <div style="display:flex;align-items:center;gap:0.75rem;">
-        <a href="/settings/mfa" class="btn btn-outline">Configure MFA</a>
+        <a href="/settings/mfa" class="btn btn-outline">{{ _("Configure MFA") }}</a>
         {% if mfa_enabled %}
-        <span class="flag-normal" style="font-weight:600;">Enabled</span>
+        <span class="flag-normal" style="font-weight:600;">{{ _("Enabled") }}</span>
         {% else %}
-        <span class="text-muted">Disabled</span>
+        <span class="text-muted">{{ _("Disabled") }}</span>
         {% endif %}
     </div>
 </div>
 
 <div class="card">
-    <div class="card-header"><h3>Sync Log</h3></div>
+    <div class="card-header"><h3>{{ _("Sync Log") }}</h3></div>
     {% if sync_logs %}
     <div class="overflow-x">
         <table>
-            <thead><tr><th>Time</th><th>File</th><th>Status</th><th>Message</th></tr></thead>
+            <thead><tr><th>{{ _("Time") }}</th><th>{{ _("File") }}</th><th>{{ _("Status") }}</th><th>{{ _("Message") }}</th></tr></thead>
             <tbody>
                 {% for l in sync_logs %}
                 <tr>
@@ -827,7 +820,7 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted">No entries</p>
+    <p class="text-muted">{{ _("No entries") }}</p>
     {% endif %}
 </div>
 
@@ -836,31 +829,29 @@
 <!-- Factory Reset (always visible on security tab) -->
 {% if active_tab == 'security' %}
 <div class="card" style="margin-top:1rem;border:1px solid rgba(229,84,75,0.2);">
-    <div class="card-header"><h3 style="color:var(--red);">Factory Reset</h3></div>
+    <div class="card-header"><h3 style="color:var(--red);">{{ _("Factory Reset") }}</h3></div>
     <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">
-        Wipe all data and start fresh. Your account and login are kept; profile, goals, training,
-        experiments, health data and settings are deleted, and you'll go through onboarding again.
-        The server's backups of your data, off-site copies included, are deleted too.
+        {{ _("Wipe all data and start fresh. Your account and login are kept; profile, goals, training, experiments, health data and settings are deleted, and you'll go through onboarding again. The server's backups of your data, off-site copies included, are deleted too.") }}
     </p>
     <details>
-        <summary style="color:var(--red);">I understand, show the reset button</summary>
+        <summary style="color:var(--red);">{{ _("I understand, show the reset button") }}</summary>
         <div data-reset-backup style="margin-top:0.75rem;">
             <p style="margin-bottom:0.5rem;font-size:0.85rem;">
-                <strong>First, keep a copy.</strong>
+                <strong>{{ _("First, keep a copy.") }}</strong>
                 {% if backup_status.latest_age %}
-                The newest server backup ({{ backup_status.latest_age }}) goes with the reset.
+                {% trans age=backup_status.latest_age %}The newest server backup ({{ age }}) goes with the reset.{% endtrans %}
                 {% else %}
-                There is no server backup to restore from.
+                {{ _("There is no server backup to restore from.") }}
                 {% endif %}
-                The download is the only way back.
+                {{ _("The download is the only way back.") }}
             </p>
-            <a href="/settings/backup" class="btn btn-outline">Download virgil.db</a>
+            <a href="/settings/backup" class="btn btn-outline">{{ _("Download virgil.db") }}</a>
         </div>
-        <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;" data-confirm="Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.">
-            <label>Your password
+        <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;" data-confirm="{{ _("Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.") }}">
+            <label>{{ _("Your password") }}
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
-            <button type="submit" class="btn btn-danger">Reset All Data</button>
+            <button type="submit" class="btn btn-danger">{{ _("Reset All Data") }}</button>
         </form>
     </details>
 </div>

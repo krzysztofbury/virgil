@@ -20,45 +20,24 @@ from app.main import app
 APP = Path(__file__).resolve().parents[1] / "app"
 TEMPLATES = APP / "templates"
 
-PENDING_TEMPLATES = {
-    "admin_users.html",
-    "onboarding.html",
-    "partials/job_notifications.html",
-    "partials/job_status.html",
-    "settings.html",
-    "settings_import.html",
-    "settings_token_created.html",
-}
+PENDING_TEMPLATES = {}
 # The service worker caches one offline page for everyone, so it carries both
 # languages itself instead of going through the catalog.
 BILINGUAL_TEMPLATES = {"offline.html"}
 # Pages whose leftover-English check waits for their area's conversion: until
 # then they legitimately show phrases another area already translated.
-PENDING_PAGES = {
-    "/admin/users",
-    "/api/jobs/active",
-    "/onboarding",
-    "/settings?tab=general",
-    "/settings?tab=configuration",
-    "/settings?tab=integrations",
-    "/settings?tab=data",
-    "/settings?tab=automation",
-    "/settings?tab=security",
-}
-PENDING_MODULES = {
-    "routers/admin.py",
-    "routers/jobs.py",
-    "routers/onboarding.py",
-    "routers/settings.py",
-    "csrf.py",
-}
+PENDING_PAGES = {}
+PENDING_MODULES = {}
 
 # Words that are the same in both languages: product names and units.
 SAME_IN_BOTH = re.compile(r"\b(Virgil|A\.N\.D\.Y\.|Oura|WOD|MCP|API|AI|OK|kg|cm|bpm|ms|h|min|kcal|PLN)\b")
 WORD = re.compile(r"[^\W\d_]{2,}")
 _JINJA_TRANS = re.compile(r"{%-?\s*trans\b.*?{%-?\s*endtrans\s*-?%}", re.S)
 _JINJA = re.compile(r"{{.*?}}|{%.*?%}|{#.*?#}", re.S)
-_HIDDEN = re.compile(r"<script\b.*?</script>|<style\b.*?</style>|<!--.*?-->", re.S | re.I)
+# Code samples (commands to paste) are not translated.
+_HIDDEN = re.compile(
+    r"<script\b.*?</script>|<style\b.*?</style>|<!--.*?-->|<pre\b.*?</pre>|<code\b.*?</code>", re.S | re.I
+)
 _TEXT_ATTRIBUTES = re.compile(
     r'\b(?:placeholder|title|aria-label|alt|data-confirm|data-label|data-pending-label)="([^"]*)"'
 )
@@ -69,7 +48,7 @@ _SCRIPT = re.compile(r"<script\b.*?</script>", re.S | re.I)
 # Alpine expressions that render text: an English literal inside one is shown as is.
 _ALPINE_TEXT = re.compile(r"""\b(?:x-text|x-html|:aria-label|:title|:placeholder)=(["'])(.*?)\1""", re.S)
 # A quoted literal inside a Jinja tag that reads like a sentence or a label.
-_JINJA_LITERAL = re.compile(r"""(?<![\w(])(['"])([A-Z][a-z]+(?: [^'"]*)?|[a-z]+ [a-z][^'"]*)\1""")
+_JINJA_LITERAL = re.compile(r"""(?<![\w(])(?<!== )(?<!!= )(['"])([A-Z][a-z]+(?: [^'"]*)?|[a-z]+ [a-z][^'"]*)\1""")
 _MARKED_CALL = re.compile(r"""\b(?:_|gettext|ngettext)\(\s*(['"]).*?\1""", re.S)
 
 
@@ -120,6 +99,7 @@ UI_MODULES = [
     "services/goal_data.py",
     "services/freedom_log.py",
     "services/finance.py",
+    "services/data_transfer.py",
 ]
 NOT_UI = {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}
 
@@ -182,6 +162,12 @@ def _translated_ids() -> list[str]:
         for message in catalog
         if isinstance(message.id, str) and len(message.id) >= 12 and message.string and message.string != message.id
     ]
+
+
+def _leftover_english(text: str) -> list[str]:
+    """Translated English ids still on the page, as whole phrases: "Virgil - Admin"
+    inside "Virgil - Administracja" is the translation, not a leftover."""
+    return [message for message in _translated_ids() if re.search(rf"(?<!\w){re.escape(message)}(?!\w)", text)]
 
 
 def _visible_text(html: str) -> str:
@@ -272,7 +258,7 @@ def test_polish_pages_render(polish, modules_on, path):
         for (area,) in conn.execute("SELECT name FROM goal_areas"):
             text = text.replace(area, " ")
         conn.close()
-        assert [message for message in _translated_ids() if message in text] == []
+        assert _leftover_english(text) == []
 
 
 def test_htmx_partial_is_polish(polish):
@@ -345,7 +331,7 @@ def test_polish_sign_in_pages_render(client, path):
     response = browser.get(path)
     assert response.status_code in (200, 429)
     assert '<html lang="pl"' in response.text
-    assert [message for message in _translated_ids() if message in _visible_text(response.text)] == []
+    assert _leftover_english(_visible_text(response.text)) == []
 
 
 def test_service_errors_follow_the_page_but_the_api_stays_english(polish):
@@ -414,3 +400,23 @@ def test_every_template_compiles():
 
     for path in sorted(TEMPLATES.rglob("*.html")):
         templates.env.get_template(path.relative_to(TEMPLATES).as_posix())
+
+
+def test_nothing_is_translated_at_import_time():
+    """_() outside a function runs once, at import, in English. Constants use N_()
+    and are translated with _() where they are shown."""
+    offenders = []
+    for path in sorted(APP.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        inside = set()
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda):
+                inside.update(id(child) for child in ast.walk(node))
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Call)
+                and getattr(node.func, "id", None) in {"_", "ngettext"}
+                and id(node) not in inside
+            ):
+                offenders.append(f"{path.relative_to(APP)}:{node.lineno}")
+    assert offenders == []

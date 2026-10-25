@@ -14,6 +14,7 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Resp
 from app.config import BASE_URL
 from app.db import get_feature_flags, get_setting, set_setting
 from app.feedback import error_redirect, success_redirect
+from app.i18n import N_, _, localized
 from app.main import templates
 from app.services.backup import backup_status
 from app.services.encryption import decrypt, encrypt
@@ -197,17 +198,19 @@ async def create_token(
     user = request.state.user
     # verify_password raises on empty input, so an empty one is a wrong password.
     if not password or not await verify_password_async(password, user["password_hash"]):
-        return error_redirect(request, "/settings?tab=security#tokens", "Password is incorrect. No token was created.")
+        return error_redirect(
+            request, "/settings?tab=security#tokens", _("Password is incorrect. No token was created.")
+        )
     name = name.strip()
     if not name:
         return error_redirect(
-            request, "/settings?tab=security#tokens", "Give the token a name, such as the tool it is for."
+            request, "/settings?tab=security#tokens", _("Give the token a name, such as the tool it is for.")
         )
     if expires not in _TOKEN_EXPIRY_DAYS:
-        return error_redirect(request, "/settings?tab=security#tokens", "Choose when the token expires.")
+        return error_redirect(request, "/settings?tab=security#tokens", _("Choose when the token expires."))
     scopes = [s for s in API_SCOPES if s in scope]
     if not scopes:
-        return error_redirect(request, "/settings?tab=security#tokens", "Choose at least one scope.")
+        return error_redirect(request, "/settings?tab=security#tokens", _("Choose at least one scope."))
     secret = await create_api_token(user["id"], name, scopes, _TOKEN_EXPIRY_DAYS[expires])
     await record_auth_event(
         "token_create", user_id=user["id"], ip=client_ip(request), detail=f"{name[:60]}: {' '.join(scopes)}"
@@ -228,9 +231,9 @@ async def revoke_token(request: Request, token_id: str):
 
     user = request.state.user
     if not await revoke_api_token(user["id"], token_id):
-        return error_redirect(request, "/settings?tab=security#tokens", "That token was already revoked.")
+        return error_redirect(request, "/settings?tab=security#tokens", _("That token was already revoked."))
     await record_auth_event("token_revoke", user_id=user["id"], ip=client_ip(request))
-    return success_redirect(request, "/settings?tab=security#tokens", "Token revoked. It stops working now.")
+    return success_redirect(request, "/settings?tab=security#tokens", _("Token revoked. It stops working now."))
 
 
 # --- App Configuration: dictionary tables ---
@@ -255,7 +258,7 @@ async def library_add(
     try:
         sets_val = int(sets) if sets.strip() else None
     except ValueError:
-        return error_redirect(request, "/settings?tab=configuration", "Sets must be a whole number.")
+        return error_redirect(request, "/settings?tab=configuration", _("Sets must be a whole number."))
     try:
         await write_library(
             get_user_db_from_request(request),
@@ -264,8 +267,8 @@ async def library_add(
             fields={"name": name, "section": section, "sets": sets_val, "reps": reps, "notes": notes, "metric": metric},
         )
     except LibraryWriteError as exc:
-        return error_redirect(request, "/settings?tab=configuration", exc.message)
-    return success_redirect(request, "/settings?tab=configuration", "Exercise added to the library.")
+        return error_redirect(request, "/settings?tab=configuration", localized(exc))
+    return success_redirect(request, "/settings?tab=configuration", _("Exercise added to the library."))
 
 
 @router.post("/settings/library/update")
@@ -308,16 +311,16 @@ async def library_update(
         try:
             fields["sets"] = int(sets) if sets.strip() else None
         except ValueError:
-            return error_redirect(request, "/settings?tab=configuration", "Sets must be a whole number.")
+            return error_redirect(request, "/settings?tab=configuration", _("Sets must be a whole number."))
     try:
         result = await write_library(
             get_user_db_from_request(request), op="update", entry_id=entry_id, fields=fields, tags=tags
         )
     except LibraryWriteError as exc:
-        return error_redirect(request, "/settings?tab=configuration", exc.message)
+        return error_redirect(request, "/settings?tab=configuration", localized(exc))
     if not result["updated"]:
-        return error_redirect(request, "/settings?tab=configuration", "No library changes were submitted.")
-    return success_redirect(request, "/settings?tab=configuration", "Library entry updated.")
+        return error_redirect(request, "/settings?tab=configuration", _("No library changes were submitted."))
+    return success_redirect(request, "/settings?tab=configuration", _("Library entry updated."))
 
 
 @router.post("/settings/library/delete")
@@ -328,8 +331,8 @@ async def library_delete(request: Request, entry_id: int = Form(...)):
     try:
         await write_library(get_user_db_from_request(request), op="delete", entry_id=entry_id)
     except LibraryWriteError as exc:
-        return error_redirect(request, "/settings?tab=configuration", exc.message)
-    return success_redirect(request, "/settings?tab=configuration", "Exercise deleted from the library.")
+        return error_redirect(request, "/settings?tab=configuration", localized(exc))
+    return success_redirect(request, "/settings?tab=configuration", _("Exercise deleted from the library."))
 
 
 @router.post("/settings/library/archive")
@@ -342,9 +345,9 @@ async def library_archive(request: Request, entry_id: int = Form(...), archived:
             get_user_db_from_request(request), op="archive", entry_id=entry_id, fields={"archived": archived}
         )
     except LibraryWriteError as exc:
-        return error_redirect(request, "/settings?tab=configuration", exc.message)
-    action = "archived" if archived else "restored"
-    return success_redirect(request, "/settings?tab=configuration", f"Exercise {action}.")
+        return error_redirect(request, "/settings?tab=configuration", localized(exc))
+    message = _("Exercise archived.") if archived else _("Exercise restored.")
+    return success_redirect(request, "/settings?tab=configuration", message)
 
 
 # --- Training schedule ---
@@ -422,7 +425,7 @@ async def save_training_schedule(request: Request):
     # from here.
     await set_setting(db, SETTING_SWIM, str(swim))
 
-    return success_redirect(request, "/settings?tab=configuration", "Training schedule saved.")
+    return success_redirect(request, "/settings?tab=configuration", _("Training schedule saved."))
 
 
 # --- Automation settings ---
@@ -439,27 +442,31 @@ async def save_automation(request: Request):
     try:
         backup_interval = float(form.get("backup_interval_hours", "24"))
     except (TypeError, ValueError):
-        return error_redirect(request, "/settings?tab=automation", "Backup interval must be a number from 1 to 168.")
+        return error_redirect(request, "/settings?tab=automation", _("Backup interval must be a number from 1 to 168."))
     if not isfinite(backup_interval) or not 1 <= backup_interval <= 168:
-        return error_redirect(request, "/settings?tab=automation", "Backup interval must be a number from 1 to 168.")
+        return error_redirect(request, "/settings?tab=automation", _("Backup interval must be a number from 1 to 168."))
 
     try:
         backup_max = int(form.get("backup_max_copies", "7"))
     except (TypeError, ValueError):
         return error_redirect(
-            request, "/settings?tab=automation", "Backup copies must be a whole number from 1 to 100."
+            request, "/settings?tab=automation", _("Backup copies must be a whole number from 1 to 100.")
         )
     if not 1 <= backup_max <= 100:
         return error_redirect(
-            request, "/settings?tab=automation", "Backup copies must be a whole number from 1 to 100."
+            request, "/settings?tab=automation", _("Backup copies must be a whole number from 1 to 100.")
         )
 
     try:
         oura_interval = float(form.get("oura_sync_interval_hours", "6"))
     except (TypeError, ValueError):
-        return error_redirect(request, "/settings?tab=automation", "Oura sync interval must be a number from 1 to 168.")
+        return error_redirect(
+            request, "/settings?tab=automation", _("Oura sync interval must be a number from 1 to 168.")
+        )
     if not isfinite(oura_interval) or not 1 <= oura_interval <= 168:
-        return error_redirect(request, "/settings?tab=automation", "Oura sync interval must be a number from 1 to 168.")
+        return error_redirect(
+            request, "/settings?tab=automation", _("Oura sync interval must be a number from 1 to 168.")
+        )
 
     await set_setting(db, "backup_enabled", "1" if form.get("backup_enabled") else "0")
     await set_setting(db, "backup_interval_hours", str(backup_interval))
@@ -468,7 +475,7 @@ async def save_automation(request: Request):
     await set_setting(db, "oura_sync_interval_hours", str(oura_interval))
     await set_setting(db, "briefing_enabled", "1" if form.get("briefing_enabled") else "0")
 
-    return success_redirect(request, "/settings?tab=automation", "Automation settings saved.")
+    return success_redirect(request, "/settings?tab=automation", _("Automation settings saved."))
 
 
 # --- Feature Flags ---
@@ -518,9 +525,9 @@ async def save_features(request: Request):
             try:
                 await add_custom(db, custom)
             except HabitError as exc:
-                return error_redirect(request, "/settings?tab=general", str(exc))
+                return error_redirect(request, "/settings?tab=general", localized(exc))
 
-    return success_redirect(request, "/settings?tab=general", "Feature settings updated.")
+    return success_redirect(request, "/settings?tab=general", _("Feature settings updated."))
 
 
 # --- Backup ---
@@ -539,7 +546,7 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
         )
     except Exception:
         logger.exception("Manual backup enqueue failed")
-        return error_redirect(request, "/settings?tab=automation", "Backup could not be queued. Try again.")
+        return error_redirect(request, "/settings?tab=automation", _("Backup could not be queued. Try again."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
@@ -547,7 +554,7 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
     return success_redirect(
         request,
         f"/settings?tab=automation&job_id={result.job_id}",
-        "Backup queued.",
+        _("Backup queued."),
     )
 
 
@@ -565,12 +572,12 @@ async def export_markdown_download(request: Request):
     form = await request.form()
     scope = form.get("scope", "weekly")
     if scope not in EXPORT_SCOPES:
-        return error_redirect(request, "/settings?tab=data", "Choose a valid export scope.")
+        return error_redirect(request, "/settings?tab=data", _("Choose a valid export scope."))
     sections = form.getlist("sections")
     if any(section not in EXPORT_SECTIONS for section in sections):
-        return error_redirect(request, "/settings?tab=data", "Choose only valid export sections.")
+        return error_redirect(request, "/settings?tab=data", _("Choose only valid export sections."))
     if not sections:
-        return error_redirect(request, "/settings?tab=data", "Choose at least one export section.")
+        return error_redirect(request, "/settings?tab=data", _("Choose at least one export section."))
     content = await export_markdown(get_user_db_from_request(request), scope, sections=set(sections))
     filename = f"virgil-{scope}-{date.today().isoformat()}.md"
     return Response(
@@ -640,7 +647,7 @@ async def import_upload(request: Request):
     form = await request.form()
     upload = form.get("file")
     if not isinstance(upload, UploadFile) or not upload.filename:
-        return error_redirect(request, "/settings?tab=data", "Choose a Virgil JSON export to restore.")
+        return error_redirect(request, "/settings?tab=data", _("Choose a Virgil JSON export to restore."))
     stem = _db_stem(request)
     token, path = new_upload(stem)
     size = 0
@@ -649,17 +656,19 @@ async def import_upload(request: Request):
             while chunk := await upload.read(1024 * 1024):
                 size += len(chunk)
                 if size > IMPORT_MAX_BYTES:
-                    raise ImportRefused(f"The file is larger than {IMPORT_MAX_BYTES // (1024 * 1024)} MB.")
+                    raise ImportRefused(
+                        N_("The file is larger than {size} MB."), size=IMPORT_MAX_BYTES // (1024 * 1024)
+                    )
                 await asyncio.to_thread(handle.write, chunk)
         await stage_upload(stem, token)
     except ImportRefused as refused:
         path.unlink(missing_ok=True)
-        return error_redirect(request, "/settings?tab=data", str(refused))
+        return error_redirect(request, "/settings?tab=data", localized(refused))
     except Exception:
         path.unlink(missing_ok=True)
         logger.exception("Import check failed")
-        return error_redirect(request, "/settings?tab=data", "The file could not be checked. Nothing was changed.")
-    return success_redirect(request, f"/settings/import/{token}", "File checked. Nothing has changed yet.")
+        return error_redirect(request, "/settings?tab=data", _("The file could not be checked. Nothing was changed."))
+    return success_redirect(request, f"/settings/import/{token}", _("File checked. Nothing has changed yet."))
 
 
 @router.get("/settings/import/{token}", response_class=HTMLResponse)
@@ -672,7 +681,7 @@ async def import_review(request: Request, token: str):
     except ImportRefused:
         report = None
     if report is None:
-        return error_redirect(request, "/settings?tab=data", "That import has expired. Upload the file again.")
+        return error_redirect(request, "/settings?tab=data", _("That import has expired. Upload the file again."))
     current = await current_counts(get_user_db_from_request(request))
     rows = [
         {"label": table_label(table), "current": current.get(table, 0), "incoming": report["counts"].get(table, 0)}
@@ -696,32 +705,36 @@ async def import_apply(request: Request, token: str):
     stem = _db_stem(request)
     try:
         if staged_report(stem, token) is None:
-            raise ImportRefused("That import has expired. Upload the file again.")
+            raise ImportRefused(_("That import has expired. Upload the file again."))
     except ImportRefused as refused:
-        return error_redirect(request, "/settings?tab=data", str(refused))
+        return error_redirect(request, "/settings?tab=data", localized(refused))
     db = get_user_db_from_request(request)
     async with user_lifecycle_operation(request.state.user["id"], "data-import") as lifecycle_claim:
         if lifecycle_claim is None:
-            return error_redirect(request, "/settings?tab=data", "Another account operation is already in progress.")
+            return error_redirect(request, "/settings?tab=data", _("Another account operation is already in progress."))
         try:
             await snapshot_before_import(db)
         except Exception:
             logger.exception("Pre-import snapshot failed")
             return error_redirect(
-                request, "/settings?tab=data", "No copy of your current data could be saved, so nothing was imported."
+                request,
+                "/settings?tab=data",
+                _("No copy of your current data could be saved, so nothing was imported."),
             )
         try:
             await apply_staged(db, stem, token)
         except ImportRefused as refused:
-            return error_redirect(request, "/settings?tab=data", str(refused))
+            return error_redirect(request, "/settings?tab=data", localized(refused))
         except Exception:
             # Rolled back; the checked file stays, so trying again needs no upload.
             logger.exception("Import apply failed")
             return error_redirect(
-                request, f"/settings/import/{token}", "The restore did not finish and nothing was changed. Try again."
+                request,
+                f"/settings/import/{token}",
+                _("The restore did not finish and nothing was changed. Try again."),
             )
     logger.info("JSON import applied for user %s", request.state.user["id"])
-    return success_redirect(request, "/settings?tab=data", "Data restored from the export.")
+    return success_redirect(request, "/settings?tab=data", _("Data restored from the export."))
 
 
 @router.post("/settings/import/{token}/cancel")
@@ -730,7 +743,7 @@ async def import_cancel(request: Request, token: str):
 
     with contextlib.suppress(ImportRefused):
         discard(_db_stem(request), token)
-    return success_redirect(request, "/settings?tab=data", "Import cancelled. Nothing was changed.")
+    return success_redirect(request, "/settings?tab=data", _("Import cancelled. Nothing was changed."))
 
 
 @router.get("/settings/export/csv")
@@ -777,13 +790,13 @@ async def add_llm_provider(
     provider = truncate(provider.strip(), 50)
     model = truncate(model.strip(), 200)
     if not provider or not model or not api_key.strip():
-        return error_redirect(request, "/settings?tab=general", "Provider, model, and API key are required.")
+        return error_redirect(request, "/settings?tab=general", _("Provider, model, and API key are required."))
     await db.execute(
         "INSERT INTO llm_providers (provider, api_key_enc, model, is_active) VALUES (?, ?, ?, 0)",
         (provider, encrypt(api_key), model),
     )
     await db.commit()
-    return success_redirect(request, "/settings?tab=general", "LLM provider added.")
+    return success_redirect(request, "/settings?tab=general", _("LLM provider added."))
 
 
 @router.post("/settings/llm/activate")
@@ -791,23 +804,23 @@ async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT id FROM llm_providers WHERE id = ?", (provider_id,))
     if not rows:
-        return error_redirect(request, "/settings?tab=general", "LLM provider not found.")
+        return error_redirect(request, "/settings?tab=general", _("LLM provider not found."))
     await db.execute("UPDATE llm_providers SET is_active = 0")
     cursor = await db.execute("UPDATE llm_providers SET is_active = 1 WHERE id = ?", (provider_id,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/settings?tab=general", "LLM provider was not activated.")
+        return error_redirect(request, "/settings?tab=general", _("LLM provider was not activated."))
     await db.commit()
-    return success_redirect(request, "/settings?tab=general", "LLM provider activated.")
+    return success_redirect(request, "/settings?tab=general", _("LLM provider activated."))
 
 
 @router.post("/settings/llm/reasoning")
 async def save_llm_reasoning(request: Request, reasoning_effort: str = Form(...)):
     if reasoning_effort not in REASONING_EFFORTS:
-        return error_redirect(request, "/settings?tab=general", "Choose one of the listed thinking levels.")
+        return error_redirect(request, "/settings?tab=general", _("Choose one of the listed thinking levels."))
     db = get_user_db_from_request(request)
     await set_setting(db, REASONING_EFFORT_SETTING, reasoning_effort)
-    return success_redirect(request, "/settings?tab=general", "Thinking level saved.")
+    return success_redirect(request, "/settings?tab=general", _("Thinking level saved."))
 
 
 @router.post("/settings/llm/delete")
@@ -816,9 +829,9 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
     cursor = await db.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/settings?tab=general", "LLM provider not found.")
+        return error_redirect(request, "/settings?tab=general", _("LLM provider not found."))
     await db.commit()
-    return success_redirect(request, "/settings?tab=general", "LLM provider deleted.")
+    return success_redirect(request, "/settings?tab=general", _("LLM provider deleted."))
 
 
 # --- Factory Reset ---
@@ -846,23 +859,23 @@ async def factory_reset(request: Request, password: str = Form("")):
 
     user = getattr(request.state, "user", None)
     if not user or not user.get("db_filename"):
-        return error_redirect(request, "/login", "Sign in again before resetting data.")
+        return error_redirect(request, "/login", _("Sign in again before resetting data."))
     # A session left open on a shared screen must not be enough to wipe everything.
     # verify_password raises on empty input, so an empty one is a wrong password.
     if not password or not await verify_password_async(password, user["password_hash"]):
-        return error_redirect(request, "/settings?tab=security", "Password is incorrect. Nothing was reset.")
+        return error_redirect(request, "/settings?tab=security", _("Password is incorrect. Nothing was reset."))
 
     db = get_user_db_from_request(request)
     async with user_lifecycle_operation(user["id"], "factory-reset") as lifecycle_claim:
         if lifecycle_claim is None:
             return error_redirect(
-                request, "/settings?tab=security", "Another account operation is already in progress."
+                request, "/settings?tab=security", _("Another account operation is already in progress.")
             )
         if not await _disable_subscription_now(db, user["id"], "factory-reset"):
             return error_redirect(
                 request,
                 "/settings?tab=security",
-                "Factory reset stopped because remote subscriptions could not be removed. Try again later.",
+                _("Factory reset stopped because remote subscriptions could not be removed. Try again later."),
             )
         if not await heartbeat_user_lifecycle(user["id"], lifecycle_claim):
             raise RuntimeError("Factory reset lifecycle lease was lost before database replacement")
@@ -876,7 +889,7 @@ async def factory_reset(request: Request, password: str = Form("")):
 
         logger.info("Factory reset completed for user %s", user["email"])
         await record_auth_event("factory_reset", user_id=user["id"], ip=client_ip(request))
-        return success_redirect(request, "/onboarding", "Factory reset completed. Start onboarding again.")
+        return success_redirect(request, "/onboarding", _("Factory reset completed. Start onboarding again."))
 
 
 # --- Oura Integration ---
@@ -891,7 +904,9 @@ async def save_oura_credentials(
     client_id = client_id.strip()
     client_secret = client_secret.strip()
     if not client_id or not client_secret:
-        return error_redirect(request, "/settings?tab=integrations", "Oura client ID and client secret are required.")
+        return error_redirect(
+            request, "/settings?tab=integrations", _("Oura client ID and client secret are required.")
+        )
 
     from app.central_db import get_subscription_registration, user_lifecycle_operation
 
@@ -899,13 +914,13 @@ async def save_oura_credentials(
     async with user_lifecycle_operation(user_id, "oura-credentials") as lifecycle_claim:
         if lifecycle_claim is None:
             return error_redirect(
-                request, "/settings?tab=integrations", "Another account operation is already in progress."
+                request, "/settings?tab=integrations", _("Another account operation is already in progress.")
             )
         if await get_subscription_registration(user_id, "oura"):
             return error_redirect(
                 request,
                 "/settings?tab=integrations",
-                "Disable the Oura webhook before changing application credentials.",
+                _("Disable the Oura webhook before changing application credentials."),
             )
 
         db = get_user_db_from_request(request)
@@ -919,7 +934,7 @@ async def save_oura_credentials(
             (client_id, encrypt(client_secret), "daily heartrate session spo2 sleep workout"),
         )
         await db.commit()
-        return success_redirect(request, "/settings?tab=integrations", "Oura credentials saved.")
+        return success_redirect(request, "/settings?tab=integrations", _("Oura credentials saved."))
 
 
 @router.get("/settings/oura/connect")
@@ -996,19 +1011,19 @@ async def oura_disconnect(request: Request):
     async with user_lifecycle_operation(user_id, "oura-disconnect") as lifecycle_claim:
         if lifecycle_claim is None:
             return error_redirect(
-                request, "/settings?tab=integrations", "Another account operation is already in progress."
+                request, "/settings?tab=integrations", _("Another account operation is already in progress.")
             )
         db = get_user_db_from_request(request)
         rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
         if not rows:
-            return error_redirect(request, "/settings?tab=integrations", "Oura integration is not configured.")
+            return error_redirect(request, "/settings?tab=integrations", _("Oura integration is not configured."))
         if rows[0]["status"] != "connected":
-            return error_redirect(request, "/settings?tab=integrations", "Oura is not connected.")
+            return error_redirect(request, "/settings?tab=integrations", _("Oura is not connected."))
         if not await _disable_subscription_now(db, user_id, "disconnect"):
             return error_redirect(
                 request,
                 "/settings?tab=integrations",
-                "Oura was not disconnected because remote subscriptions could not be removed.",
+                _("Oura was not disconnected because remote subscriptions could not be removed."),
             )
         if not await heartbeat_user_lifecycle(user_id, lifecycle_claim):
             raise RuntimeError("Oura disconnect lifecycle lease was lost")
@@ -1019,9 +1034,9 @@ async def oura_disconnect(request: Request):
         )
         if cursor.rowcount != 1:
             await db.rollback()
-            return error_redirect(request, "/settings?tab=integrations", "Oura was not disconnected.")
+            return error_redirect(request, "/settings?tab=integrations", _("Oura was not disconnected."))
         await db.commit()
-        return success_redirect(request, "/settings?tab=integrations", "Oura disconnected.")
+        return success_redirect(request, "/settings?tab=integrations", _("Oura disconnected."))
 
 
 @router.post("/settings/oura/sync")
@@ -1031,7 +1046,7 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     if not rows or rows[0]["status"] != "connected":
-        return error_redirect(request, "/settings?tab=integrations", "Oura is not connected.")
+        return error_redirect(request, "/settings?tab=integrations", _("Oura is not connected."))
     try:
         result = await enqueue_oura_sync_job(
             db,
@@ -1041,7 +1056,7 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
         )
     except Exception:
         logger.exception("Oura sync enqueue failed")
-        return error_redirect(request, "/settings?tab=integrations", "Oura sync could not be queued.")
+        return error_redirect(request, "/settings?tab=integrations", _("Oura sync could not be queued."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
@@ -1049,7 +1064,7 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
     return success_redirect(
         request,
         f"/settings?tab=integrations&job_id={result.job_id}",
-        "Oura sync queued.",
+        _("Oura sync queued."),
     )
 
 
@@ -1098,7 +1113,7 @@ async def enable_oura_webhook(request: Request):
     async with user_lifecycle_operation(user["id"], "oura-webhook-enable") as lifecycle_claim:
         if lifecycle_claim is None:
             return error_redirect(
-                request, "/settings?tab=integrations", "Another account operation is already in progress."
+                request, "/settings?tab=integrations", _("Another account operation is already in progress.")
             )
         # Events can only be synced with a live token, so require a connected
         # integration even though subscription management uses app credentials.
@@ -1106,11 +1121,11 @@ async def enable_oura_webhook(request: Request):
         creds = await _oura_client_credentials(db)
         if not token or not creds:
             return error_redirect(
-                request, "/settings?tab=integrations", "Connect Oura again before enabling the webhook."
+                request, "/settings?tab=integrations", _("Connect Oura again before enabling the webhook.")
             )
 
         if await get_subscription_registration(user["id"], "oura"):
-            return error_redirect(request, "/settings?tab=integrations", "Oura webhook is already enabled.")
+            return error_redirect(request, "/settings?tab=integrations", _("Oura webhook is already enabled."))
         client_id, _client_secret = creds
         verification_token = secrets.token_urlsafe(32)
         webhook_id = await create_webhook_route(user["id"], "oura", lifecycle_claim=lifecycle_claim)
@@ -1140,14 +1155,14 @@ async def enable_oura_webhook(request: Request):
             return error_redirect(
                 request,
                 "/settings?tab=integrations",
-                "Webhook setup is pending and will retry automatically.",
+                _("Webhook setup is pending and will retry automatically."),
             )
         if result is None:
-            return success_redirect(request, "/settings?tab=integrations", "Webhook setup queued.")
+            return success_redirect(request, "/settings?tab=integrations", _("Webhook setup queued."))
         if result.status == "active":
-            return success_redirect(request, "/settings?tab=integrations", "Oura webhook enabled.")
+            return success_redirect(request, "/settings?tab=integrations", _("Oura webhook enabled."))
         return error_redirect(
-            request, "/settings?tab=integrations", "Webhook is partially active and will retry automatically."
+            request, "/settings?tab=integrations", _("Webhook is partially active and will retry automatically.")
         )
 
 
@@ -1160,14 +1175,14 @@ async def disable_oura_webhook(request: Request):
     async with user_lifecycle_operation(user["id"], "oura-webhook-disable") as lifecycle_claim:
         if lifecycle_claim is None:
             return error_redirect(
-                request, "/settings?tab=integrations", "Another account operation is already in progress."
+                request, "/settings?tab=integrations", _("Another account operation is already in progress.")
             )
         if not await get_subscription_registration(user["id"], "oura"):
-            return error_redirect(request, "/settings?tab=integrations", "Oura webhook is not enabled.")
+            return error_redirect(request, "/settings?tab=integrations", _("Oura webhook is not enabled."))
         if await _disable_subscription_now(db, user["id"], "manual"):
-            return success_redirect(request, "/settings?tab=integrations", "Oura webhook disabled.")
+            return success_redirect(request, "/settings?tab=integrations", _("Oura webhook disabled."))
         return error_redirect(
             request,
             "/settings?tab=integrations",
-            "Webhook disable is pending and will retry automatically.",
+            _("Webhook disable is pending and will retry automatically."),
         )
