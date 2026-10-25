@@ -47,7 +47,9 @@ class FakeOura:
             return httpx.Response(200, json={"data": [], "next_token": None})
         start = datetime.fromisoformat(params["start_datetime"])
         end = datetime.fromisoformat(params["end_datetime"])
-        if end - start > timedelta(days=7):
+        # The stand-in bound is a week of calendar days: a local week that holds
+        # a daylight-saving change is 167 or 169 hours, and still one week.
+        if (end.date() - start.date()).days > 7:
             return httpx.Response(400, json={"detail": "range too long"})
         # Two samples a night, at 23:30 and 23:45 UTC: 01:30 and 01:45 the next
         # day in Warsaw.
