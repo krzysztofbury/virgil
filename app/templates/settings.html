@@ -23,6 +23,20 @@
 
 {% if active_tab == 'general' %}
 <!-- ═══ GENERAL TAB ═══ -->
+<div class="card" style="margin-bottom: 1rem;" id="language">
+    <div class="card-header"><h3>{{ _("Language") }}</h3></div>
+    {# Kept on the account, so it follows you to another device (#152). #}
+    <form method="POST" action="/language" class="language-setting">
+        <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+        <input type="hidden" name="next" value="/settings?tab=general">
+        <label for="language-choice" class="sr-only">{{ _("Language") }}</label>
+        <select id="language-choice" name="language">
+            <option value="en"{% if current_language() == 'en' %} selected{% endif %}>English</option>
+            <option value="pl"{% if current_language() == 'pl' %} selected{% endif %}>Polski</option>
+        </select>
+        <button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button>
+    </form>
+</div>
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>{{ _("LLM Providers") }}</h3></div>
 

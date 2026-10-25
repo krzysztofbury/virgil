@@ -27,8 +27,9 @@ def _set_account_language(language: str) -> None:
 
 
 @pytest.fixture
-def anonymous(client):
-    """A browser with no session, on the app the shared client already started."""
+def anonymous(auth_client):
+    """A browser with no session, on the app the shared client already started
+    (auth_client makes sure the test account exists)."""
     return TestClient(app)
 
 
@@ -138,3 +139,54 @@ def test_signup_keeps_the_language_chosen_before_it(anonymous, monkeypatch):
             for suffix in ("", "-wal", "-shm"):
                 Path(_TMP, "users", row[2] + suffix).unlink(missing_ok=True)
         central.close()
+
+
+@pytest.mark.parametrize("path", ["/login", "/signup", "/reset?token=unknown"])
+def test_the_switch_is_on_the_pages_before_sign_in(anonymous, path):
+    page = anonymous.get(path).text
+    assert 'action="/language"' in page
+    assert 'name="language" value="pl"' in page and 'name="language" value="en"' in page
+
+
+def test_settings_offers_the_language_with_the_current_one_selected(auth_client):
+    page = auth_client.get("/settings?tab=general").text
+    assert 'action="/language"' in page
+    assert '<option value="en" selected>English</option>' in page
+    assert '<option value="pl">Polski</option>' in page
+
+
+def test_a_choice_made_before_sign_in_is_kept_by_the_account(anonymous):
+    """Choosing Polski on the sign-in page, then signing in to an account still on
+    English, keeps Polski: it is the latest thing this person asked for."""
+    token = csrf_token(anonymous, "/login")
+    anonymous.post("/language", data={"language": "pl", "next": "/login", "_csrf_token": token})
+    try:
+        token = csrf_token(anonymous, "/login")
+        response = anonymous.post(
+            "/login",
+            data={"username": TEST_EMAIL, "password": TEST_PASSWORD, "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert response.status_code == 303
+        assert _account_language() == "pl"
+        assert response.cookies.get(LANGUAGE_COOKIE) == "pl"
+    finally:
+        _set_account_language("en")
+
+
+def test_a_cookie_left_by_an_earlier_sign_in_does_not_override_the_account(anonymous):
+    """A cookie set at an earlier sign-in is not a choice: another device may have
+    changed the account's language since."""
+    _set_account_language("pl")
+    anonymous.cookies.set(LANGUAGE_COOKIE, "en")
+    try:
+        token = csrf_token(anonymous, "/login")
+        response = anonymous.post(
+            "/login",
+            data={"username": TEST_EMAIL, "password": TEST_PASSWORD, "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert _account_language() == "pl"
+        assert response.cookies.get(LANGUAGE_COOKIE) == "pl"
+    finally:
+        _set_account_language("en")

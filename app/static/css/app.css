@@ -3267,3 +3267,13 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .token-scopes { border: 0; padding: 0; margin: 0; display: grid; gap: 0.35rem; }
 .token-scopes legend { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 0.25rem; }
 .token-snippet { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 0.8rem; background: var(--bg-elevated, rgba(255,255,255,0.04)); padding: 0.6rem 0.75rem; border-radius: 6px; margin: 0 0 0.75rem; }
+
+/* English or Polish (#152). */
+.language-switch { display: flex; justify-content: center; gap: 0.5rem; margin-top: 1rem; }
+.language-switch button {
+    background: none; border: 1px solid var(--border); border-radius: 999px; color: var(--text-muted);
+    font-size: var(--text-sm); padding: 0.25rem 0.75rem; cursor: pointer;
+}
+.language-switch button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
+.language-setting { display: flex; gap: 0.5rem; align-items: center; }
+.language-setting select { width: auto; margin: 0; }

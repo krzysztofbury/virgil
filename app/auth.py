@@ -189,6 +189,20 @@ def language_cookie_header(language: str) -> str:
     return f"{LANGUAGE_COOKIE}={language}; HttpOnly; SameSite=Lax{secure}; Max-Age={365 * 24 * 3600}; Path=/"
 
 
+LANGUAGE_CHOSEN_COOKIE = "virgil_lang_chosen"
+
+
+def language_chosen_cookie_header(*, clear: bool = False) -> str:
+    """Marks a language picked while signed out, for the next sign-in to keep.
+
+    A language cookie alone cannot say that: sign-in also sets it, from the
+    account, and another device may have changed the account since.
+    """
+    secure = "; Secure" if BASE_URL.startswith("https") else ""
+    value, age = ("", "; Max-Age=0") if clear else ("1", "")
+    return f"{LANGUAGE_CHOSEN_COOKIE}={value}; HttpOnly; SameSite=Lax{secure}{age}; Path=/"
+
+
 def clear_session_cookie() -> str:
     """Build Set-Cookie header value that clears the session."""
     secure = "; Secure" if BASE_URL.startswith("https") else ""

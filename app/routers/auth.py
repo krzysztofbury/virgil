@@ -9,12 +9,14 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.auth import (
+    LANGUAGE_CHOSEN_COOKIE,
     SESSION_COOKIE,
     clear_session_cookie,
     create_mfa_pending_session,
     create_session,
     hash_password,  # noqa: F401 — re-exported for use in tests
     hash_password_async,
+    language_chosen_cookie_header,
     language_cookie_header,
     mfa_pending_user_id,
     session_cookie_header,
@@ -39,7 +41,7 @@ from app.central_db import (
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
-from app.i18n import N_, _, current_language, ngettext, normalize_language, set_language
+from app.i18n import LANGUAGE_COOKIE, N_, _, current_language, ngettext, normalize_language, set_language
 from app.main import templates
 from app.rate_limit import client_ip
 from app.user_db import create_user_db
@@ -240,6 +242,7 @@ async def signup_submit(
     target = feedback_url("/onboarding", msg=_("Account created."))
     response = RedirectResponse(target, status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
+    response.headers.append("set-cookie", language_chosen_cookie_header(clear=True))
     return response
 
 
@@ -364,10 +367,12 @@ async def login_submit(
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"])
     token = create_session(user["id"], user["session_epoch"])
-    set_language(user["language"])
+    language = await _signed_in_language(request, user)
+    set_language(language)
     response = RedirectResponse(feedback_url("/", msg=_("Signed in.")), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
-    response.headers.append("set-cookie", language_cookie_header(user["language"]))
+    response.headers.append("set-cookie", language_cookie_header(language))
+    response.headers.append("set-cookie", language_chosen_cookie_header(clear=True))
     return response
 
 
@@ -531,14 +536,27 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"], "with MFA")
     token = create_session(user["id"], user["session_epoch"])
-    set_language(user["language"])
+    language = await _signed_in_language(request, user)
+    set_language(language)
     response = RedirectResponse(feedback_url("/", msg=_("Signed in.")), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
-    response.headers.append("set-cookie", language_cookie_header(user["language"]))
+    response.headers.append("set-cookie", language_cookie_header(language))
+    response.headers.append("set-cookie", language_chosen_cookie_header(clear=True))
     return response
 
 
 # --- Interface language (#152) ---
+
+
+async def _signed_in_language(request: Request, user: dict) -> str:
+    """The language a sign-in continues in: one picked on the sign-in pages wins
+    and the account keeps it; otherwise the account's own."""
+    if request.cookies.get(LANGUAGE_CHOSEN_COOKIE):
+        chosen = normalize_language(request.cookies.get(LANGUAGE_COOKIE))
+        if chosen != user["language"]:
+            await update_user(user["id"], language=chosen)
+        return chosen
+    return normalize_language(user["language"])
 
 
 @router.post("/language")
@@ -557,6 +575,7 @@ async def choose_language(request: Request, language: str = Form(""), next: str 
     except ValueError:
         response = success_redirect(request, "/", _("Language changed."))
     response.headers.append("set-cookie", language_cookie_header(chosen))
+    response.headers.append("set-cookie", language_chosen_cookie_header(clear=bool(user)))
     return response
 
 

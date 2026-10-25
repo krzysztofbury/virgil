@@ -1,8 +1,8 @@
-"""Polish coverage guards (#152): converted areas cannot regress to English.
+"""Polish coverage guards (#152): no screen can regress to English.
 
-PENDING_TEMPLATES and PENDING_MODULES list what is not converted yet. Each area's
-conversion removes its entries; the lists end empty and are deleted with the
-language selector, so no one can choose a half-translated Polish.
+Templates may not carry unmarked text, page modules may not carry unmarked
+sentences, and every HTML page is rendered for a Polish account and checked
+for English that has a translation.
 """
 
 import ast
@@ -20,17 +20,16 @@ from app.main import app
 APP = Path(__file__).resolve().parents[1] / "app"
 TEMPLATES = APP / "templates"
 
-PENDING_TEMPLATES = {}
-# The service worker caches one offline page for everyone, so it carries both
-# languages itself instead of going through the catalog.
-BILINGUAL_TEMPLATES = {"offline.html"}
+# The service worker caches one offline page for everyone, and the language
+# switch names itself so either reader finds it: both carry both languages.
+BILINGUAL_TEMPLATES = {"offline.html", "partials/language_switch.html"}
 # Pages whose leftover-English check waits for their area's conversion: until
 # then they legitimately show phrases another area already translated.
-PENDING_PAGES = {}
-PENDING_MODULES = {}
 
 # Words that are the same in both languages: product names and units.
-SAME_IN_BOTH = re.compile(r"\b(Virgil|A\.N\.D\.Y\.|Oura|WOD|MCP|API|AI|OK|kg|cm|bpm|ms|h|min|kcal|PLN)\b")
+SAME_IN_BOTH = re.compile(
+    r"\b(English|Polski|Virgil|A\.N\.D\.Y\.|Oura|WOD|MCP|API|AI|OK|kg|cm|bpm|ms|h|min|kcal|PLN)\b"
+)
 WORD = re.compile(r"[^\W\d_]{2,}")
 _JINJA_TRANS = re.compile(r"{%-?\s*trans\b.*?{%-?\s*endtrans\s*-?%}", re.S)
 _JINJA = re.compile(r"{{.*?}}|{%.*?%}|{#.*?#}", re.S)
@@ -74,7 +73,7 @@ def test_templates_have_no_untranslated_text():
     offenders = {}
     for path in sorted(TEMPLATES.rglob("*.html")):
         name = path.relative_to(TEMPLATES).as_posix()
-        if name in PENDING_TEMPLATES or name in BILINGUAL_TEMPLATES:
+        if name in BILINGUAL_TEMPLATES:
             continue
         found = _untranslated_template_text(path.read_text(encoding="utf-8"))
         if found:
@@ -144,14 +143,9 @@ def test_messages_are_marked():
     for pattern in UI_MODULES:
         for path in sorted(APP.glob(pattern)):
             name = path.relative_to(APP).as_posix()
-            if name not in PENDING_MODULES and name not in NOT_UI:
+            if name not in NOT_UI:
                 offenders += _unmarked_messages(path)
     assert offenders == []
-
-
-def test_pending_lists_only_name_real_files():
-    assert {name for name in PENDING_TEMPLATES if not (TEMPLATES / name).exists()} == set()
-    assert {name for name in PENDING_MODULES if not (APP / name).exists()} == set()
 
 
 def _translated_ids() -> list[str]:
@@ -248,17 +242,16 @@ def test_polish_pages_render(polish, modules_on, path):
     # The service worker caches one offline page for everyone; it carries both languages.
     if path != "/offline":
         assert '<html lang="pl"' in response.text or "<html" not in response.text
-    if path not in PENDING_PAGES:
-        text = _visible_text(response.text)
-        # The account's own goal areas are its data (English starter content),
-        # even where one shares a word with a translated label.
-        from conftest import user_db_path
+    text = _visible_text(response.text)
+    # The account's own goal areas are its data (English starter content),
+    # even where one shares a word with a translated label.
+    from conftest import user_db_path
 
-        conn = sqlite3.connect(user_db_path())
-        for (area,) in conn.execute("SELECT name FROM goal_areas"):
-            text = text.replace(area, " ")
-        conn.close()
-        assert _leftover_english(text) == []
+    conn = sqlite3.connect(user_db_path())
+    for (area,) in conn.execute("SELECT name FROM goal_areas"):
+        text = text.replace(area, " ")
+    conn.close()
+    assert _leftover_english(text) == []
 
 
 def test_htmx_partial_is_polish(polish):

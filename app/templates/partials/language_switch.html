@@ -1,0 +1,9 @@
+{# English or Polish (#152), before sign-in. Each name is in its own language,
+   so it is found whichever one the page is in. Two buttons in one form: the
+   choice needs no script. #}
+<form method="POST" action="/language" class="language-switch" aria-label="Language / Język">
+    <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+    <input type="hidden" name="next" value="{{ request.url.path }}{{ '?' ~ request.url.query if request.url.query else '' }}">
+    <button type="submit" name="language" value="en" lang="en" aria-pressed="{{ 'true' if current_language() == 'en' else 'false' }}">English</button>
+    <button type="submit" name="language" value="pl" lang="pl" aria-pressed="{{ 'true' if current_language() == 'pl' else 'false' }}">Polski</button>
+</form>

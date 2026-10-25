@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- The interface in Polish (#152). English stays the default; choose Polski
+  on the sign-in pages or under Settings > General, and the choice is kept on
+  the account so it follows you to another device. Every page, form, message,
+  chart label and script string has a Polish version, with Polish plural
+  forms. Dates stay ISO. Your own data, the starter content of a new account,
+  the REST API, MCP and exports stay as they are.
+
+### Changed
+- The UI is no longer English only (reverses #40). A validation error from a
+  shared service, such as an out-of-range measurement, reads in the page's
+  language; the API keeps its English wording.
+- Messages that htmx receives in a response header are percent-encoded, so
+  they can carry Polish letters.
+
+### Fixed
+- Goal rep messages read "Execution rep skipd" and "carryd"; they now say
+  skipped and carried over.
+
 ## [0.9.0] - 2026-10-23
 
 ### Added
