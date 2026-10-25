@@ -28,20 +28,19 @@ def catalog_path() -> Path:
     return Path(__file__).resolve().parent / "locale" / "pl" / "LC_MESSAGES" / "messages.po"
 
 
-def _load() -> tuple[gettext.NullTranslations, dict[str, str]]:
+def _load() -> tuple[gettext.NullTranslations, dict[str, str | list[str]]]:
     with catalog_path().open("rb") as handle:
         catalog = read_po(handle)
     buffer = BytesIO()
     write_mo(buffer, catalog)
     buffer.seek(0)
-    js = {
-        message.id: message.string
-        for message in catalog
-        if message.id
-        and isinstance(message.id, str)
-        and message.string
-        and any(filename.startswith(_JS_SOURCE) for filename, _line in message.locations)
-    }
+    js: dict[str, str | list[str]] = {}
+    for message in catalog:
+        if message.id and message.string and any(name.startswith(_JS_SOURCE) for name, _line in message.locations):
+            if isinstance(message.id, str):
+                js[message.id] = message.string
+            else:
+                js[message.id[0]] = list(message.string)
     return gettext.GNUTranslations(buffer), js
 
 
@@ -83,7 +82,63 @@ def N_(message: str) -> str:  # noqa: N802 - the conventional gettext marker nam
     return message
 
 
-def js_catalog(language: str) -> dict[str, str]:
+WEEKDAYS_SHORT = (N_("Mon"), N_("Tue"), N_("Wed"), N_("Thu"), N_("Fri"), N_("Sat"), N_("Sun"))
+WEEKDAYS = (N_("Monday"), N_("Tuesday"), N_("Wednesday"), N_("Thursday"), N_("Friday"), N_("Saturday"), N_("Sunday"))
+MONTHS_SHORT = (
+    N_("Jan"),
+    N_("Feb"),
+    N_("Mar"),
+    N_("Apr"),
+    N_("May"),
+    N_("Jun"),
+    N_("Jul"),
+    N_("Aug"),
+    N_("Sep"),
+    N_("Oct"),
+    N_("Nov"),
+    N_("Dec"),
+)
+
+
+def weekday_short(index: int) -> str:
+    """Monday is 0, as date.weekday() counts."""
+    return _(WEEKDAYS_SHORT[index])
+
+
+def weekday_name(index: int) -> str:
+    return _(WEEKDAYS[index])
+
+
+def month_short(month: int) -> str:
+    """January is 1, as date.month counts."""
+    return _(MONTHS_SHORT[month - 1])
+
+
+class LocalizedError(ValueError):
+    """A service error the API reports in English and a page in the reader's language.
+
+    str() is the English API message, unchanged. localized() is for pages: the
+    template goes through the catalog, and parameters named in `labels` (field
+    names such as "weight") are shown as their translated label.
+    """
+
+    labels: dict[str, str] = {}
+
+    def __init__(self, message: str, **params) -> None:
+        self.message, self.params = message, params
+        super().__init__(message.format(**params))
+
+    def localized(self) -> str:
+        if current_language() == DEFAULT_LANGUAGE:
+            return str(self)
+        params = {
+            key: _(self.labels.get(value, value)) if isinstance(value, str) else value
+            for key, value in self.params.items()
+        }
+        return _(self.message).format(**params)
+
+
+def js_catalog(language: str) -> dict[str, str | list[str]]:
     """Polish strings our own scripts use; English needs none."""
     return dict(_POLISH_JS) if normalize_language(language) == "pl" else {}
 

@@ -23,8 +23,6 @@ TEMPLATES = APP / "templates"
 PENDING_TEMPLATES = {
     "admin_users.html",
     "bloodwork.html",
-    "daily.html",
-    "dashboard.html",
     "experiment_detail.html",
     "experiment_edit.html",
     "experiment_new.html",
@@ -39,9 +37,6 @@ PENDING_TEMPLATES = {
     "partials/freedom_today.html",
     "partials/job_notifications.html",
     "partials/job_status.html",
-    "partials/oura_freshness.html",
-    "partials/range_picker.html",
-    "partials/today_block.html",
     "partials/wod_row.html",
     "settings.html",
     "settings_import.html",
@@ -55,11 +50,9 @@ BILINGUAL_TEMPLATES = {"offline.html"}
 # Pages whose leftover-English check waits for their area's conversion: until
 # then they legitimately show phrases another area already translated.
 PENDING_PAGES = {
-    "/",
     "/admin/users",
     "/api/jobs/active",
     "/bloodwork",
-    "/daily",
     "/experiments",
     "/experiments/new",
     "/finance",
@@ -79,14 +72,11 @@ PENDING_PAGES = {
 PENDING_MODULES = {
     "routers/admin.py",
     "routers/bloodwork.py",
-    "routers/daily.py",
-    "routers/dashboard.py",
     "routers/experiments.py",
     "routers/finance.py",
     "routers/freedom.py",
     "routers/goals.py",
     "routers/jobs.py",
-    "routers/life_scores.py",
     "routers/onboarding.py",
     "routers/oura.py",
     "routers/settings.py",
@@ -106,6 +96,8 @@ _TEXT_ATTRIBUTES = re.compile(
     r'\b(?:placeholder|title|aria-label|alt|data-confirm|data-label|data-pending-label)="([^"]*)"'
 )
 _TEXT_NODE = re.compile(r">([^<>]+)<")
+# Alpine expressions that render text: an English literal inside one is shown as is.
+_ALPINE_TEXT = re.compile(r"""\b(?:x-text|x-html|:aria-label|:title|:placeholder)=(["'])(.*?)\1""", re.S)
 # A quoted literal inside a Jinja tag that reads like a sentence or a label.
 _JINJA_LITERAL = re.compile(r"""(?<![\w(])(['"])([A-Z][a-z]+(?: [^'"]*)?|[a-z]+ [a-z][^'"]*)\1""")
 _MARKED_CALL = re.compile(r"""\b(?:_|gettext|ngettext)\(\s*(['"]).*?\1""", re.S)
@@ -113,10 +105,12 @@ _MARKED_CALL = re.compile(r"""\b(?:_|gettext|ngettext)\(\s*(['"]).*?\1""", re.S)
 
 def _untranslated_template_text(source: str) -> list[str]:
     found = []
-    tags = _JINJA.findall(_JINJA_TRANS.sub("", source))
+    tags = [tag for tag in _JINJA.findall(_JINJA_TRANS.sub("", source)) if not tag.startswith("{#")]
     for tag in tags:
         unmarked = _MARKED_CALL.sub("", tag)
         found += [literal for _quote, literal in _JINJA_LITERAL.findall(unmarked)]
+    for _quote, expression in _ALPINE_TEXT.findall(_JINJA.sub("", source)):
+        found += [literal for _q, literal in _JINJA_LITERAL.findall(expression)]
     markup = _HIDDEN.sub("", _JINJA.sub("", _JINJA_TRANS.sub("", source)))
     markup = re.sub(r"&\w+;|&#\d+;", " ", markup)
     for text in [*_TEXT_NODE.findall(markup), *_TEXT_ATTRIBUTES.findall(markup)]:
@@ -138,7 +132,7 @@ def test_templates_have_no_untranslated_text():
 
 
 # A literal a person could read: starts with a capital, has a space, ends a sentence.
-SENTENCE = re.compile(r"^[A-Z][^\n]*\s[^\n]*[.!?:]$")
+SENTENCE = re.compile(r"^(?!(?:SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|ALTER|PRAGMA)\b)[A-Z][^\n]*\s[^\n]*[.!?:]$")
 MARKERS = {"_", "N_", "ngettext"}
 UI_MODULES = ["routers/*.py", "validation.py", "library_validation.py", "csrf.py"]
 NOT_UI = {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}
@@ -287,7 +281,6 @@ def test_polish_pages_render(polish, modules_on, path):
         assert [message for message in _translated_ids() if message in text] == []
 
 
-@pytest.mark.xfail(strict=True, reason="the daily log is converted with the dashboard area")
 def test_htmx_partial_is_polish(polish):
     from conftest import csrf_token
 
@@ -359,3 +352,25 @@ def test_polish_sign_in_pages_render(client, path):
     assert response.status_code in (200, 429)
     assert '<html lang="pl"' in response.text
     assert [message for message in _translated_ids() if message in _visible_text(response.text)] == []
+
+
+def test_service_errors_follow_the_page_but_the_api_stays_english(polish):
+    from urllib.parse import parse_qs, urlsplit
+
+    from conftest import csrf_token
+
+    from app.services.measurements import MeasurementError, upsert_measurements  # noqa: F401
+
+    token = csrf_token(polish, "/daily")
+    response = polish.post(
+        "/daily/measurements",
+        data={"date": "2026-07-06", "weight": "999", "_csrf_token": token},
+        follow_redirects=False,
+    )
+    error = parse_qs(urlsplit(response.headers["location"]).query)["err"][0]
+    assert error == "Waga musi mieścić się między 20 a 400."
+
+    try:
+        raise MeasurementError("{field} must be between {low} and {high}", field="weight", low=20, high=400)
+    except MeasurementError as exc:
+        assert str(exc) == "weight must be between 20 and 400"

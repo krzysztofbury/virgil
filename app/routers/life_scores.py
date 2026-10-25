@@ -2,6 +2,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import RedirectResponse
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormFloat, OptionalFormInt, clamp, truncate, valid_date
 
@@ -38,7 +39,7 @@ async def save_life_score(
 ):
     date = valid_date(date)
     if not date:
-        return error_redirect(request, "/", "Choose a valid life-score date.")
+        return error_redirect(request, "/", _("Choose a valid life-score date."))
     planning = clamp(planning, 1, 10)
     spirituality = clamp(spirituality, 1, 10)
     health = clamp(health, 1, 10)
@@ -89,4 +90,4 @@ async def save_life_score(
         ),
     )
     await db.commit()
-    return success_redirect(request, "/", "Life scores saved.")
+    return success_redirect(request, "/", _("Life scores saved."))

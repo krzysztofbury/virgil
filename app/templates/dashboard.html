@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Dashboard{% endblock %}
+{% block title %}{{ _("Virgil - Dashboard") }}{% endblock %}
 
 {% block content %}
 
@@ -11,8 +11,8 @@
      instead of three taps away. -->
 <div class="section" id="focus-block">
     <div class="section-title today-head">
-        <span>Focus</span>
-        <a href="/goals" class="section-link">{{ 'Manage goals' if focus_goals else 'Choose goals' }}</a>
+        <span>{{ _("Focus") }}</span>
+        <a href="/goals" class="section-link">{{ _('Manage goals') if focus_goals else _('Choose goals') }}</a>
     </div>
     <div class="card focus-card">
         {% if focus_goals %}
@@ -26,7 +26,7 @@
             {% endfor %}
         </ul>
         {% else %}
-        <p class="text-muted">Star up to 3 goals on the Goals page and they stay here, in view.</p>
+        <p class="text-muted">{{ _("Star up to 3 goals on the Goals page and they stay here, in view.") }}</p>
         {% endif %}
     </div>
 </div>
@@ -35,7 +35,7 @@
 {% if briefing_enabled %}
 <div class="card" style="margin-bottom: 1.5rem;">
     <div class="card-header">
-        <h3>Morning Briefing</h3>
+        <h3>{{ _("Morning Briefing") }}</h3>
     </div>
     <div id="briefing-body">
         {% if briefing_text %}
@@ -43,14 +43,14 @@
             {{ briefing_text | md_block }}
         </div>
         {% else %}
-        <p class="text-muted" style="margin-bottom:0.75rem;">No briefing generated yet for today.</p>
+        <p class="text-muted" style="margin-bottom:0.75rem;">{{ _("No briefing generated yet for today.") }}</p>
         {% endif %}
         <form method="POST" action="/api/briefing/generate" hx-post="/api/briefing/generate" hx-swap="none"
               style="margin-top:0.75rem;">
             <input type="hidden" name="job_nonce" value="{{ briefing_nonce }}">
             <button type="submit" class="btn {{ 'btn-outline' if briefing_text else 'btn-primary' }} btn-sm"
-                    data-pending-label="Queueing...">
-                {{ 'Regenerate' if briefing_text else 'Generate Briefing' }}
+                    data-pending-label="{{ _("Queueing...") }}">
+                {{ _('Regenerate') if briefing_text else _('Generate Briefing') }}
             </button>
         </form>
     </div>
@@ -59,14 +59,15 @@
 
 <!-- Week Overview -->
 <div class="section">
-    <div class="section-title">Week</div>
+    <div class="section-title">{{ _("Week") }}</div>
     <div class="card">
         <div class="week-grid">
             {% for i in range(7) %}
             {% set done = (week_logs[i].completion * 7 / 100)|round|int %}
             <a href="/daily/{{ week_dates[i] }}" class="day-cell {{ 'today' if week_dates[i] == today else '' }}"
-               title="{{ day_names[i] }}: energy {{ week_logs[i].energy or 'not logged' }}, {{ done }} of 7 habits done"
-               aria-label="{{ day_names[i] }} {{ week_dates[i] }}: energy {{ week_logs[i].energy or 'not logged' }}, {{ done }} of 7 habits done">
+               {% set energy = week_logs[i].energy or _("not logged") %}
+               title="{% trans day=day_names[i] %}{{ day }}: energy {{ energy }}, {{ done }} of 7 habits done{% endtrans %}"
+               aria-label="{% trans day=day_names[i], date=week_dates[i] %}{{ day }} {{ date }}: energy {{ energy }}, {{ done }} of 7 habits done{% endtrans %}">
                 <div class="day-name">{{ day_names[i] }}</div>
                 <div class="day-energy">{% if week_logs[i].energy %}<i data-lucide="zap" class="day-energy-icon" aria-hidden="true"></i>{{ week_logs[i].energy }}{% else %}-{% endif %}</div>
                 <div class="progress-bar" style="height: 4px;">
@@ -75,14 +76,14 @@
             </a>
             {% endfor %}
         </div>
-        <p class="week-legend"><i data-lucide="zap" class="day-energy-icon" aria-hidden="true"></i> Energy, 1-10. The bar is habits done, of 7. Tap a day to open it.</p>
+        <p class="week-legend"><i data-lucide="zap" class="day-energy-icon" aria-hidden="true"></i> {{ _("Energy, 1-10. The bar is habits done, of 7. Tap a day to open it.") }}</p>
     </div>
 </div>
 
 <!-- Active Experiments -->
 {% if active_experiments %}
 <div class="section">
-    <div class="section-title">Active Experiments</div>
+    <div class="section-title">{{ _("Active Experiments") }}</div>
     {% for exp in active_experiments %}
     {% include "partials/experiment_card.html" %}
     {% endfor %}
@@ -94,9 +95,9 @@
 {# A number against its previous seven scored days. #}
 {% macro versus(column) -%}
 {%- set b = oura_versus.get(column) -%}
-{%- if b and b.delta is not none %}<div class="stat-delta">{{ '%+d' % b.delta }} vs {{ b.days }}-day avg</div>{% endif -%}
+{%- if b and b.delta is not none %}<div class="stat-delta">{% trans delta='%+d' % b.delta, days=b.days %}{{ delta }} vs {{ days }}-day avg{% endtrans %}</div>{% endif -%}
 {%- endmacro %}
-<h2 class="section-title section-group-title">Insights</h2>
+<h2 class="section-title section-group-title">{{ _("Insights") }}</h2>
 
 <!-- Oura -->
 <div class="section">
@@ -106,32 +107,32 @@
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.sleep_score or '-' }}</div>
-                <div class="stat-label">Sleep</div>
+                <div class="stat-label">{{ _("Sleep") }}</div>
                 {{ versus('sleep_score') }}
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.readiness_score or '-' }}</div>
-                <div class="stat-label">Readiness</div>
+                <div class="stat-label">{{ _("Readiness") }}</div>
                 {{ versus('readiness_score') }}
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.avg_hrv|round|int if oura_today.avg_hrv else '-' }}</div>
-                <div class="stat-label">HRV</div>
+                <div class="stat-label">{{ _("HRV") }}</div>
                 {{ versus('avg_hrv') }}
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ oura_today.resting_hr|round|int if oura_today.resting_hr else '-' }}</div>
-                <div class="stat-label">RHR</div>
+                <div class="stat-label">{{ _("RHR") }}</div>
                 {{ versus('resting_hr') }}
             </div>
             {% if oura_today.activity_score is not none or yesterday_fallback.activity_score is defined %}
             <div class="stat-card">
                 {% if oura_today.activity_score is not none %}
                 <div class="stat-value">{{ oura_today.activity_score }}</div>
-                <div class="stat-label">Activity</div>
+                <div class="stat-label">{{ _("Activity") }}</div>
                 {% else %}
                 <div class="stat-value">{{ yesterday_fallback.activity_score }}</div>
-                <div class="stat-label">Activity <small class="text-muted">(yesterday)</small></div>
+                <div class="stat-label">{{ _("Activity") }} <small class="text-muted">{{ _("(yesterday)") }}</small></div>
                 {% endif %}
             </div>
             {% endif %}
@@ -139,43 +140,43 @@
             <div class="stat-card">
                 {% if oura_today.steps is not none %}
                 <div class="stat-value">{{ oura_today.steps|thousands }}</div>
-                <div class="stat-label">Steps</div>
+                <div class="stat-label">{{ _("Steps") }}</div>
                 {% else %}
                 <div class="stat-value">{{ yesterday_fallback.steps|thousands }}</div>
-                <div class="stat-label">Steps <small class="text-muted">(yesterday)</small></div>
+                <div class="stat-label">{{ _("Steps") }} <small class="text-muted">{{ _("(yesterday)") }}</small></div>
                 {% endif %}
             </div>
             {% endif %}
         </div>
         {% if oura_today.stress_high is not none or oura_today.stress_rest is not none %}
         <div style="margin-top:0.5rem;display:flex;gap:1rem;flex-wrap:wrap;">
-            {% if oura_today.stress_high %}<small>Stress: <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
-            {% if oura_today.stress_rest %}<small>Recovery: <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
+            {% if oura_today.stress_high %}<small>{{ _("Stress:") }} <strong>{{ (oura_today.stress_high / 60)|round|int }}min</strong></small>{% endif %}
+            {% if oura_today.stress_rest %}<small>{{ _("Recovery:") }} <strong>{{ (oura_today.stress_rest / 60)|round|int }}min</strong></small>{% endif %}
         </div>
         {% endif %}
-        <small>Today{% if oura_freshness %} &middot;{% endif %}</small> {% include "partials/oura_freshness.html" %}
+        <small>{{ _("Today") }}{% if oura_freshness %} &middot;{% endif %}</small> {% include "partials/oura_freshness.html" %}
         {% elif latest_oura %}
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-value">{{ latest_oura.sleep_score|int if latest_oura.sleep_score else '-' }}</div>
-                <div class="stat-label">Sleep</div>
+                <div class="stat-label">{{ _("Sleep") }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ latest_oura.readiness|int if latest_oura.readiness else '-' }}</div>
-                <div class="stat-label">Readiness</div>
+                <div class="stat-label">{{ _("Readiness") }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ latest_oura.hrv|int if latest_oura.hrv else '-' }}</div>
-                <div class="stat-label">HRV</div>
+                <div class="stat-label">{{ _("HRV") }}</div>
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ latest_oura.steps|int if latest_oura.steps else '-' }}</div>
-                <div class="stat-label">Steps</div>
+                <div class="stat-label">{{ _("Steps") }}</div>
             </div>
         </div>
         <small>{{ latest_oura.month }}{% if oura_freshness %} &middot;{% endif %}</small> {% include "partials/oura_freshness.html" %}
         {% else %}
-        <p class="text-muted empty-next">No Oura data yet. <a href="/settings?tab=integrations">Connect Oura</a> to see sleep, readiness and activity here.</p>
+        <p class="text-muted empty-next">{{ _("No Oura data yet.") }} <a href="/settings?tab=integrations">{{ _("Connect Oura") }}</a> {{ _("to see sleep, readiness and activity here.") }}</p>
         {% include "partials/oura_freshness.html" %}
         {% endif %}
     </div>
@@ -183,13 +184,13 @@
 
 <!-- Measurements -->
 <div class="section">
-    <div class="section-title">Measurements</div>
+    <div class="section-title">{{ _("Measurements") }}</div>
     <div class="card">
         {% if latest_meas %}
         <div class="stat-grid">
             <div class="stat-card">
                 <div class="stat-value">{{ latest_meas.weight or '-' }}</div>
-                <div class="stat-label">Weight (kg)</div>
+                <div class="stat-label">{{ _("Weight (kg)") }}</div>
                 {% if prev_meas and latest_meas.weight and prev_meas.weight %}
                 <small class="{{ 'text-green' if latest_meas.weight <= prev_meas.weight else 'text-red' }}">
                     {{ '%+.1f' | format(latest_meas.weight - prev_meas.weight) }}
@@ -198,30 +199,30 @@
             </div>
             <div class="stat-card">
                 <div class="stat-value">{{ latest_meas.waist or '-' }}</div>
-                <div class="stat-label">Waist (cm)</div>
+                <div class="stat-label">{{ _("Waist (cm)") }}</div>
             </div>
             {% if latest_meas.arm is defined and latest_meas.arm %}
             <div class="stat-card">
                 <div class="stat-value">{{ latest_meas.arm }}</div>
-                <div class="stat-label">Arm (cm)</div>
+                <div class="stat-label">{{ _("Arm (cm)") }}</div>
             </div>
             {% endif %}
             {% if latest_meas.hips is defined and latest_meas.hips %}
             <div class="stat-card">
                 <div class="stat-value">{{ latest_meas.hips }}</div>
-                <div class="stat-label">Hips (cm)</div>
+                <div class="stat-label">{{ _("Hips (cm)") }}</div>
             </div>
             {% endif %}
             {% if latest_meas.thighs is defined and latest_meas.thighs %}
             <div class="stat-card">
                 <div class="stat-value">{{ latest_meas.thighs }}</div>
-                <div class="stat-label">Thighs (cm)</div>
+                <div class="stat-label">{{ _("Thighs (cm)") }}</div>
             </div>
             {% endif %}
         </div>
         <small class="text-muted">{{ latest_meas.date }}</small>
         {% else %}
-        <p class="text-muted empty-next">No measurements yet. <a href="/daily/{{ measurement_day }}#measurements">Add them on Daily</a>, which asks for weight and body measurements on Saturdays.</p>
+        <p class="text-muted empty-next">{{ _("No measurements yet.") }} <a href="/daily/{{ measurement_day }}#measurements">{{ _("Add them on Daily") }}</a>{{ _(", which asks for weight and body measurements on Saturdays.") }}</p>
         {% endif %}
     </div>
 </div>
@@ -229,8 +230,8 @@
 <!-- Life Scores -->
 <div class="section" id="life-scores">
     <div class="flex-between section-title-row">
-        <div class="section-title">Life Scores</div>
-        {% with range_label = "Life score history window" %}{% include "partials/range_picker.html" %}{% endwith %}
+        <div class="section-title">{{ _("Life Scores") }}</div>
+        {% with range_label = _("Life score history window") %}{% include "partials/range_picker.html" %}{% endwith %}
     </div>
 
     {# Radar beside its power-level history on wide screens, stacked on phones. #}
@@ -240,7 +241,7 @@
         <div class="chart-container" style="max-width: 500px; margin: 0 auto;">
             <canvas id="radarChart" role="img" aria-label="
                 {%- for dataset in chart_datasets -%}
-                Life scores out of 10 on {{ dataset.label }}:
+                {% trans label=dataset.label %}Life scores out of 10 on {{ label }}:{% endtrans %}
                 {%- for label in area_labels %} {{ label }} {{ dataset.data[loop.index0] }}{{ ',' if not loop.last else '.' }}{% endfor %}
                 {%- if not loop.last %} {% endif %}
                 {%- endfor -%}"></canvas>
@@ -253,7 +254,7 @@
         {% for s in scores[:3] %}
         <div class="stat-card">
             <div class="stat-value">{{ s.power_level or '-' }}</div>
-            <div class="stat-label">Power level</div>
+            <div class="stat-label">{{ _("Power level") }}</div>
             <small class="text-muted">{{ s.date }}</small>
         </div>
         {% endfor %}
@@ -265,24 +266,24 @@
        table under History is the same data as text. #}
     {% if life_history | length >= 2 %}
     <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Over time</h3></div>
+        <div class="card-header"><h3>{{ _("Over time") }}</h3></div>
         <div class="chart-container">
             <canvas id="lifeHistoryChart" height="200" role="img"
-                    aria-label="Life scores over the last {{ range_weeks }} weeks; the History table below lists the same assessments"></canvas>
+                    aria-label="{% trans %}Life scores over the last {{ range_weeks }} weeks; the History table below lists the same assessments{% endtrans %}"></canvas>
         </div>
     </div>
     {% else %}
-    <p class="text-muted">{{ life_history | length }} assessment{{ '' if life_history | length == 1 else 's' }} in the last {{ range_weeks }} weeks: a line needs two.</p>
+    <p class="text-muted">{% trans count=life_history | length %}{{ count }} assessment in the last {{ range_weeks }} weeks: a line needs two.{% pluralize %}{{ count }} assessments in the last {{ range_weeks }} weeks: a line needs two.{% endtrans %}</p>
     {% endif %}
 
     <details style="margin-bottom: 1rem;">
-        <summary>New assessment</summary>
+        <summary>{{ _("New assessment") }}</summary>
         <form method="POST" action="/life-scores/save">
             <div style="margin-bottom: 0.75rem;">
-                <label>Date <input type="date" name="date" required></label>
+                <label>{{ _("Date") }} <input type="date" name="date" required></label>
             </div>
 
-            <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">Areas (1-10)</h4>
+            <h4 style="margin-bottom: 0.5rem; color: var(--text-secondary);">{{ _("Areas (1-10)") }}</h4>
             <div class="grid">
                 {% for i in range(areas|length) %}
                 <div>
@@ -294,44 +295,44 @@
             </div>
 
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>Power Level <input type="number" name="power_level" step="0.1" min="0" max="10"></label></div>
-                <div><label>Energy Avg <input type="number" name="energy_avg" step="0.1"></label></div>
+                <div><label>{{ _("Power Level") }} <input type="number" name="power_level" step="0.1" min="0" max="10"></label></div>
+                <div><label>{{ _("Energy Avg") }} <input type="number" name="energy_avg" step="0.1"></label></div>
             </div>
 
-            <h4 style="margin: 0.75rem 0 0.5rem; color: var(--text-secondary);">Metrics</h4>
+            <h4 style="margin: 0.75rem 0 0.5rem; color: var(--text-secondary);">{{ _("Metrics") }}</h4>
             <div class="grid">
-                <div><label>Weight (kg) <input type="number" name="weight" step="0.1"></label></div>
-                <div><label>Waist (cm) <input type="number" name="waist" step="0.1"></label></div>
-                <div><label>PMO Status <input type="text" name="pmo_status"></label></div>
+                <div><label>{{ _("Weight (kg)") }} <input type="number" name="weight" step="0.1"></label></div>
+                <div><label>{{ _("Waist (cm)") }} <input type="number" name="waist" step="0.1"></label></div>
+                <div><label>{{ _("PMO Status") }} <input type="text" name="pmo_status"></label></div>
             </div>
             <div class="grid" style="margin-top: 0.75rem;">
-                <div><label>LinkedIn <input type="number" name="linkedin_followers"></label></div>
-                <div><label>YouTube Views <input type="number" name="youtube_views"></label></div>
-                <div><label>Revenue (PLN) <input type="number" name="revenue" step="0.01"></label></div>
+                <div><label>{{ _("LinkedIn") }} <input type="number" name="linkedin_followers"></label></div>
+                <div><label>{{ _("YouTube Views") }} <input type="number" name="youtube_views"></label></div>
+                <div><label>{{ _("Revenue (PLN)") }} <input type="number" name="revenue" step="0.01"></label></div>
             </div>
 
             <div style="margin-top: 0.75rem;">
-                <label>Diagnostics <textarea name="diagnostic" rows="3"></textarea></label>
+                <label>{{ _("Diagnostics") }} <textarea name="diagnostic" rows="3"></textarea></label>
             </div>
             <div style="margin-top: 0.75rem;">
-                <label>Priorities <textarea name="priorities" rows="3"></textarea></label>
+                <label>{{ _("Priorities") }} <textarea name="priorities" rows="3"></textarea></label>
             </div>
 
-            <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">Save</button>
+            <button type="submit" class="btn btn-primary" style="margin-top: 0.75rem;">{{ _("Save") }}</button>
         </form>
     </details>
 
     {% if life_history %}
     <details>
-        <summary>History <small class="text-muted">(last {{ range_weeks }} weeks)</small></summary>
+        <summary>{{ _("History") }} <small class="text-muted">{% trans count=range_weeks %}(last {{ count }} week){% pluralize %}(last {{ count }} weeks){% endtrans %}</small></summary>
         <div class="card">
             <div class="overflow-x">
                 <table>
                     <thead>
                         <tr>
-                            <th>Date</th>
+                            <th>{{ _("Date") }}</th>
                             {% for label in area_labels %}<th>{{ label }}</th>{% endfor %}
-                            <th>Power</th>
+                            <th>{{ _("Power") }}</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -356,27 +357,27 @@
      something to act on. Safe to collapse - it holds spans, no canvas. A
      Chart.js canvas inside a closed details renders at zero size. -->
 <details class="card" id="year-calendar">
-    <summary>{{ current_year }} at a glance</summary>
+    <summary>{% trans %}{{ current_year }} at a glance{% endtrans %}</summary>
     <div class="year-cal-grid">
         {% for month in year_months %}
         <div class="year-cal-month">
             <div class="year-cal-month-name">{{ month.name }}</div>
             <div class="year-cal-dots">
-                {% for _ in range(month.first_weekday) %}
+                {% for _blank in range(month.first_weekday) %}
                 <span class="year-cal-dot year-cal-dot-empty"></span>
                 {% endfor %}
                 {% for d in month.days %}
                 <span class="year-cal-dot year-cal-dot-{{ d.status }}"
                       {#- Read by a screen reader, not a tab stop each: a year of
                           logged days would be hundreds of stops. -#}
-                      {% if d.pct > 0 %}role="img" aria-label="{{ d.date }}: {{ d.pct }}%, ANDY {{ d.andy }} of 4, Routines {{ d.routines }} of 3" data-calendar-tip="{{ d.date }}: {{ d.pct }}% - ANDY {{ d.andy }}/4, Routines {{ d.routines }}/3"{% endif %}></span>
+                      {% if d.pct > 0 %}role="img" aria-label="{% trans date=d.date, pct=d.pct, andy=d.andy, routines=d.routines %}{{ date }}: {{ pct }}%, A.N.D.Y. {{ andy }} of 4, Routines {{ routines }} of 3{% endtrans %}" data-calendar-tip="{% trans date=d.date, pct=d.pct, andy=d.andy, routines=d.routines %}{{ date }}: {{ pct }}% - A.N.D.Y. {{ andy }}/4, Routines {{ routines }}/3{% endtrans %}"{% endif %}></span>
                 {% endfor %}
             </div>
         </div>
         {% endfor %}
     </div>
     <div class="year-cal-footer">
-        <span class="year-cal-today-marker"></span> today &nbsp;&middot;&nbsp; {{ days_left }}d left &middot; {{ year_pct }}%
+        <span class="year-cal-today-marker"></span> {{ _("today") }} &nbsp;&middot;&nbsp; {% trans %}{{ days_left }}d left{% endtrans %} &middot; {{ year_pct }}%
     </div>
 </details>
 

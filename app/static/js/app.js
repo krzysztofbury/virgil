@@ -8,6 +8,23 @@ document.addEventListener('DOMContentLoaded', function() {
     updateThemeIcon();
 });
 
+// Month and weekday names for the date picker, in the page's language.
+function datePickerLocale() {
+    var days = [gettext('Sun'), gettext('Mon'), gettext('Tue'), gettext('Wed'), gettext('Thu'), gettext('Fri'), gettext('Sat')];
+    var longDays = [gettext('Sunday'), gettext('Monday'), gettext('Tuesday'), gettext('Wednesday'),
+        gettext('Thursday'), gettext('Friday'), gettext('Saturday')];
+    var months = [gettext('Jan'), gettext('Feb'), gettext('Mar'), gettext('Apr'), gettext('May'), gettext('Jun'),
+        gettext('Jul'), gettext('Aug'), gettext('Sep'), gettext('Oct'), gettext('Nov'), gettext('Dec')];
+    var longMonths = [gettext('January'), gettext('February'), gettext('March'), gettext('April'), gettext('May'),
+        gettext('June'), gettext('July'), gettext('August'), gettext('September'), gettext('October'),
+        gettext('November'), gettext('December')];
+    return {
+        firstDayOfWeek: 1,
+        weekdays: { shorthand: days, longhand: longDays },
+        months: { shorthand: months, longhand: longMonths }
+    };
+}
+
 // Flatpickr datepicker for all date inputs
 function initDatePickers(root) {
     if (typeof window.flatpickr !== 'function') return;
@@ -19,7 +36,7 @@ function initDatePickers(root) {
             defaultDate: el.value || undefined,
             allowInput: true,
             disableMobile: true,
-            locale: { firstDayOfWeek: 1 },
+            locale: datePickerLocale(),
             prevArrow: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>',
             nextArrow: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>',
             onReady: function(_, __, fp) {
@@ -219,7 +236,7 @@ function refreshAndySuggestions(jobNode) {
         })
         .catch(function() {
             refreshedAndyJobs.delete(jobId);
-            showFeedback('Suggestions are ready, but the daily card could not refresh.', 'error');
+            showFeedback(gettext('Suggestions are ready, but the daily card could not refresh.'), 'error');
         });
 }
 
@@ -236,7 +253,7 @@ function renderFeedback(region, message, className, dismissible) {
         dismiss.type = 'button';
         dismiss.className = 'feedback-dismiss';
         dismiss.dataset.feedbackDismiss = '';
-        dismiss.setAttribute('aria-label', 'Dismiss error');
+        dismiss.setAttribute('aria-label', gettext('Dismiss error'));
         dismiss.textContent = '\u00d7';
         box.appendChild(dismiss);
     }
@@ -261,7 +278,7 @@ function showFeedback(message, kind) {
 }
 
 function flashSaved() {
-    showFeedback('Saved', 'success');
+    showFeedback(gettext('Saved'), 'success');
 }
 
 function draftStorageKey(form) {
@@ -363,7 +380,7 @@ function restoreNetworkDrafts() {
                 total += value.length;
             });
             form.dataset.draftRestored = 'true';
-            showFeedback('A draft from a failed network request was restored.', 'error');
+            showFeedback(gettext('A draft from a failed network request was restored.'), 'error');
         } catch (_) {
             clearDraft(form.dataset.draftKey);
         }
@@ -394,7 +411,7 @@ function markPending(form, control) {
     form.dataset.feedbackPending = 'true';
     form.setAttribute('aria-busy', 'true');
     if (!control) {
-        showFeedback('Saving...', 'pending');
+        showFeedback(gettext('Saving...'), 'pending');
         return;
     }
     form._feedbackSubmitter = control;
@@ -403,7 +420,7 @@ function markPending(form, control) {
     control.dataset.feedbackWasDisabled = control.disabled ? 'true' : 'false';
     control.disabled = true;
     control.setAttribute('aria-disabled', 'true');
-    control.textContent = control.dataset.pendingLabel || 'Working...';
+    control.textContent = control.dataset.pendingLabel || gettext('Working...');
     showFeedback(control.textContent, 'pending');
 }
 
@@ -500,8 +517,8 @@ document.addEventListener('htmx:responseError', function(event) {
     // A failed read lost nothing; the offline banner reports an unreachable Virgil.
     if (event.detail.requestConfig.verb === 'get' && isProxyUnreachable(xhr.status)) return;
     if (message) showFeedback(message, xhr.getResponseHeader('X-Feedback-Kind') || 'error');
-    else if (xhr.status === 422) showFeedback('Check the submitted values and try again.', 'error');
-    else showFeedback('Server error. Your changes were not confirmed.', 'error');
+    else if (xhr.status === 422) showFeedback(gettext('Check the submitted values and try again.'), 'error');
+    else showFeedback(gettext('Server error. Your changes were not confirmed.'), 'error');
 });
 
 document.addEventListener('htmx:beforeSwap', function(event) {
@@ -515,7 +532,7 @@ document.addEventListener('htmx:sendError', function(event) {
     clearDraftPending(form);
     // A failed read lost nothing; the offline banner reports the connection.
     if (event.detail.requestConfig && event.detail.requestConfig.verb === 'get') return;
-    showFeedback('Network error. Your changes were not confirmed.', 'error');
+    showFeedback(gettext('Network error. Your changes were not confirmed.'), 'error');
 });
 
 document.addEventListener('htmx:timeout', function(event) {
@@ -523,7 +540,7 @@ document.addEventListener('htmx:timeout', function(event) {
     saveNetworkDraft(form);
     restorePending(form);
     clearDraftPending(form);
-    showFeedback('Request timed out. Your changes were not confirmed.', 'error');
+    showFeedback(gettext('Request timed out. Your changes were not confirmed.'), 'error');
 });
 
 document.addEventListener('input', updateRestoredDraft);
@@ -568,7 +585,7 @@ function cycleStatus(btn) {
     btn.innerHTML = icons[next];
     btn.setAttribute('aria-pressed', next === 'done' ? 'true' : 'false');
     var stateLabel = btn.parentElement.querySelector('.toggle-state');
-    if (stateLabel) stateLabel.textContent = {pending: 'Pending', done: 'Done', skipped: 'Skipped'}[next];
+    if (stateLabel) stateLabel.textContent = {pending: gettext('Pending'), done: gettext('Done'), skipped: gettext('Skipped')}[next];
     // Keep the stated count in step with the toggles, or it reads as stale until
     // the page is saved. Read el.value (the live property), never the value
     // ATTRIBUTE, which still holds whatever the server rendered.
@@ -644,8 +661,8 @@ function toggleTheme() {
 var OFFLINE_PROBE_MS = 10000;
 var OFFLINE_PROBE_TIMEOUT_MS = 5000;
 var WRITE_CONTROL = /^(BUTTON|INPUT|SELECT|TEXTAREA|FIELDSET)$/;
-var OFFLINE_TEXT = 'Offline. Read-only until Virgil is back.';
-var SIGNED_OUT_TEXT = 'Signed out. Reload the page to sign in.';
+var OFFLINE_TEXT = gettext('Offline. Read-only until Virgil is back.');
+var SIGNED_OUT_TEXT = gettext('Signed out. Reload the page to sign in.');
 var offlineProbe = null;
 var probeRunning = false;
 
@@ -707,7 +724,7 @@ function setOffline(offline) {
     });
     clearInterval(offlineProbe);
     offlineProbe = null;
-    showFeedback('Connection is back.', 'success');
+    showFeedback(gettext('Connection is back.'), 'success');
 }
 
 // Only Virgil's own answer means it is back: a proxy in front of it answers
@@ -752,13 +769,13 @@ document.addEventListener('htmx:afterRequest', function(event) {
 document.addEventListener('htmx:confirm', function(event) {
     if (!isOffline() || event.detail.verb === 'get') return;
     event.preventDefault();
-    showFeedback('No connection. Nothing was saved.', 'error');
+    showFeedback(gettext('No connection. Nothing was saved.'), 'error');
 });
 document.addEventListener('submit', function(event) {
     if (!isOffline() || event.target.tagName !== 'FORM' || !isWriteForm(event.target)) return;
     event.preventDefault();
     event.stopImmediatePropagation();
-    showFeedback('No connection. Nothing was saved.', 'error');
+    showFeedback(gettext('No connection. Nothing was saved.'), 'error');
 }, true);
 document.addEventListener('DOMContentLoaded', function() {
     if (!navigator.onLine) setOffline(true);
@@ -857,31 +874,31 @@ function toggleShortcutOverlay() {
         if (e.key === 'Tab') e.preventDefault();
     });
     var feat = JSON.parse(document.body.getAttribute('data-features') || '{}');
-    var freedomRow = feat.freedom ? '<div class="shortcut-row"><span>Freedom</span><span class="kbd-combo"><kbd>g</kbd><kbd>f</kbd></span></div>' : '';
+    var freedomRow = feat.freedom ? '<div class="shortcut-row"><span>' + gettext('Freedom') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>f</kbd></span></div>' : '';
     overlay.innerHTML =
         '<div class="shortcut-card" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" tabindex="-1">' +
-        '<h3 id="shortcut-title">Keyboard Shortcuts</h3>' +
+        '<h3 id="shortcut-title">' + gettext('Keyboard Shortcuts') + '</h3>' +
         '<div class="shortcut-section">' +
-        '<div class="shortcut-section-title">Navigation (press g then...)</div>' +
-        '<div class="shortcut-row"><span>Dashboard</span><span class="kbd-combo"><kbd>g</kbd><kbd>d</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Daily</span><span class="kbd-combo"><kbd>g</kbd><kbd>l</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Training</span><span class="kbd-combo"><kbd>g</kbd><kbd>t</kbd></span></div>' +
+        '<div class="shortcut-section-title">' + gettext('Navigation (press g then...)') + '</div>' +
+        '<div class="shortcut-row"><span>' + gettext('Dashboard') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>d</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Daily') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>l</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Training') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>t</kbd></span></div>' +
         freedomRow +
-        '<div class="shortcut-row"><span>Oura</span><span class="kbd-combo"><kbd>g</kbd><kbd>o</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Bloodwork</span><span class="kbd-combo"><kbd>g</kbd><kbd>b</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Experiments</span><span class="kbd-combo"><kbd>g</kbd><kbd>e</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Goals</span><span class="kbd-combo"><kbd>g</kbd><kbd>g</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Settings</span><span class="kbd-combo"><kbd>g</kbd><kbd>s</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Oura') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>o</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Bloodwork') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>b</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Experiments') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>e</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Goals') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>g</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Settings') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>s</kbd></span></div>' +
         '</div>' +
         '<div class="shortcut-section">' +
-        '<div class="shortcut-section-title">Daily Page</div>' +
-        '<div class="shortcut-row"><span>Previous day</span><span class="kbd-combo"><kbd>&larr;</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Next day</span><span class="kbd-combo"><kbd>&rarr;</kbd></span></div>' +
+        '<div class="shortcut-section-title">' + gettext('Daily Page') + '</div>' +
+        '<div class="shortcut-row"><span>' + gettext('Previous day') + '</span><span class="kbd-combo"><kbd>&larr;</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Next day') + '</span><span class="kbd-combo"><kbd>&rarr;</kbd></span></div>' +
         '</div>' +
         '<div class="shortcut-section">' +
-        '<div class="shortcut-section-title">General</div>' +
-        '<div class="shortcut-row"><span>Show shortcuts</span><span class="kbd-combo"><kbd>?</kbd></span></div>' +
-        '<div class="shortcut-row"><span>Close overlay</span><span class="kbd-combo"><kbd>Esc</kbd></span></div>' +
+        '<div class="shortcut-section-title">' + gettext('General') + '</div>' +
+        '<div class="shortcut-row"><span>' + gettext('Show shortcuts') + '</span><span class="kbd-combo"><kbd>?</kbd></span></div>' +
+        '<div class="shortcut-row"><span>' + gettext('Close overlay') + '</span><span class="kbd-combo"><kbd>Esc</kbd></span></div>' +
         '</div>' +
         '</div>';
     document.body.appendChild(overlay);
@@ -1087,9 +1104,9 @@ document.addEventListener('click', function(event) {
     var source = document.querySelector(button.dataset.copy);
     if (!source || !navigator.clipboard) return;
     navigator.clipboard.writeText(source.textContent.trim()).then(function() {
-        showFeedback('Copied.', 'success');
+        showFeedback(gettext('Copied.'), 'success');
     }, function() {
-        showFeedback('Could not copy; select the text instead.', 'error');
+        showFeedback(gettext('Could not copy; select the text instead.'), 'error');
     });
 });
 
@@ -1131,9 +1148,8 @@ document.addEventListener('submit', function(event) {
     });
     var summary = form.querySelector('[data-form-errors]');
     if (summary) {
-        summary.textContent = invalid.length === 1
-            ? 'One field needs attention.'
-            : invalid.length + ' fields need attention.';
+        summary.textContent = ngettext('{num} field needs attention.', '{num} fields need attention.', invalid.length)
+            .replace('{num}', invalid.length);
     }
     invalid[0].focus();
 }, true);

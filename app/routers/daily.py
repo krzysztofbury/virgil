@@ -7,6 +7,7 @@ from fastapi import APIRouter, Form, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, feedback_headers, success_redirect
+from app.i18n import _, weekday_name, weekday_short
 from app.main import templates
 from app.services.daily_log import (
     STATUS_FIELDS,
@@ -27,9 +28,6 @@ logger = logging.getLogger(__name__)
 ANDY_JOB_KIND = "andy_generation"
 
 HEATMAP_WEEKS = 12
-
-DAYS_PL = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-
 
 # Three routines and four A.N.D.Y. tasks. The page stated neither a count nor a
 # total, so "how much of today is left" had to be read off the icons.
@@ -63,7 +61,7 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
 
     prev_day = (target - timedelta(days=1)).isoformat()
     next_day = (target + timedelta(days=1)).isoformat()
-    day_name = DAYS_PL[target.weekday()]
+    day_name = weekday_name(target.weekday())
 
     llm_configured = await llm_available(db)
 
@@ -73,13 +71,13 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
 
     # Per-habit current streaks
     habit_fields = [
-        ("morning_routine", "Morning Routine"),
-        ("evening_routine", "Evening Routine"),
-        ("water", "Water"),
-        ("andy_body_status", "Body"),
-        ("andy_spirit_status", "Spirit"),
-        ("andy_account_status", "Self"),
-        ("andy_relations_status", "Relations"),
+        ("morning_routine", _("Morning Routine")),
+        ("evening_routine", _("Evening Routine")),
+        ("water", _("Water")),
+        ("andy_body_status", _("Body")),
+        ("andy_spirit_status", _("Spirit")),
+        ("andy_account_status", _("Self")),
+        ("andy_relations_status", _("Relations")),
     ]
     all_logs = await db.execute_fetchall(
         "SELECT date, morning_routine, evening_routine, water, "
@@ -112,7 +110,7 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
     # The 12 weeks always hold the last 7 days, so one query serves both.
     weeks = await completion_weeks(db, target, HEATMAP_WEEKS)
     done_by_day = {day["date"]: day["done"] or 0 for week in weeks for day in week["days"]}
-    day_short_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    day_short_names = [weekday_short(index) for index in range(7)]
     heatmap_data = []
     for i in range(7):
         d = target - timedelta(days=6 - i)
@@ -159,11 +157,11 @@ async def cycle_daily_status(request: Request, day: str, field: str = Form(...))
     """
     day = valid_date(day)
     if not day:
-        return Response(status_code=422, headers=feedback_headers("Invalid daily-log date.", kind="error"))
+        return Response(status_code=422, headers=feedback_headers(_("Invalid daily-log date."), kind="error"))
     try:
         log = await cycle_status(get_user_db_from_request(request), day, field)
     except DailyLogError as exc:
-        return Response(status_code=422, headers=feedback_headers(str(exc), kind="error"))
+        return Response(status_code=422, headers=feedback_headers(exc.localized(), kind="error"))
     return templates.TemplateResponse(
         request,
         "partials/today_block.html",
@@ -191,7 +189,7 @@ async def save_daily(
 ):
     date = valid_date(date)
     if not date:
-        return error_redirect(request, "/daily", "Invalid daily-log date.")
+        return error_redirect(request, "/daily", _("Invalid daily-log date."))
     # Blank means the day was not rated. A number is still clamped into 1-10.
     if energy is not None:
         energy = max(1, min(10, energy))
@@ -232,9 +230,9 @@ async def save_daily(
     if request.headers.get("HX-Request"):
         return Response(
             status_code=200,
-            headers={**feedback_headers("Saved"), "X-Draft-Clear": f"daily:{date}"},
+            headers={**feedback_headers(_("Saved")), "X-Draft-Clear": f"daily:{date}"},
         )
-    return success_redirect(request, f"/daily/{date}", "Daily log saved.", clear_draft=f"daily:{date}")
+    return success_redirect(request, f"/daily/{date}", _("Daily log saved."), clear_draft=f"daily:{date}")
 
 
 @router.post("/daily/generate-andy")
@@ -245,15 +243,15 @@ async def generate_andy(request: Request, date: str = Form(...), job_nonce: str 
 
     day = valid_date(date)
     if not day:
-        return error_redirect(request, "/daily", "Invalid planning date.")
+        return error_redirect(request, "/daily", _("Invalid planning date."))
 
     db = get_user_db_from_request(request)
     if not await llm_available(db):
-        return error_redirect(request, f"/daily/{day}", "No AI provider is configured. Add one in Settings.")
+        return error_redirect(request, f"/daily/{day}", _("No AI provider is configured. Add one in Settings."))
     try:
         key = paid_llm_job_key(ANDY_JOB_KIND, day, job_nonce)
     except ValueError:
-        return error_redirect(request, f"/daily/{day}", "Reload the page and try again.")
+        return error_redirect(request, f"/daily/{day}", _("Reload the page and try again."))
     try:
         result = await enqueue_paid_llm_job(
             db,
@@ -262,15 +260,15 @@ async def generate_andy(request: Request, date: str = Form(...), job_nonce: str 
             idempotency_key=key,
         )
     except ActiveWorkloadConflictError:
-        return error_redirect(request, f"/daily/{day}", "A.N.D.Y. suggestions are already queued.")
+        return error_redirect(request, f"/daily/{day}", _("A.N.D.Y. suggestions are already queued."))
     except Exception:
         logger.exception("A.N.D.Y. enqueue failed")
-        return error_redirect(request, f"/daily/{day}", "The suggestions could not be queued. Try again.")
+        return error_redirect(request, f"/daily/{day}", _("The suggestions could not be queued. Try again."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
 
-    return success_redirect(request, f"/daily/{day}?job_id={result.job_id}", "A.N.D.Y. suggestions queued.")
+    return success_redirect(request, f"/daily/{day}?job_id={result.job_id}", _("A.N.D.Y. suggestions queued."))
 
 
 @router.post("/daily/measurements")
@@ -285,7 +283,7 @@ async def save_measurements(
 ):
     date = valid_date(date)
     if not date:
-        return error_redirect(request, "/daily", "Invalid measurement date.")
+        return error_redirect(request, "/daily", _("Invalid measurement date."))
 
     def to_float(v: str) -> float | None:
         try:
@@ -298,10 +296,10 @@ async def save_measurements(
     try:
         await upsert_measurements(db, date, {key: to_float(value) for key, value in values.items()})
     except MeasurementError as exc:
-        return error_redirect(request, f"/daily/{date}", str(exc))
+        return error_redirect(request, f"/daily/{date}", exc.localized())
     if request.headers.get("HX-Request"):
         return Response(
             status_code=200,
-            headers=feedback_headers("Measurements saved"),
+            headers=feedback_headers(_("Measurements saved")),
         )
-    return success_redirect(request, f"/daily/{date}", "Measurements saved.")
+    return success_redirect(request, f"/daily/{date}", _("Measurements saved."))

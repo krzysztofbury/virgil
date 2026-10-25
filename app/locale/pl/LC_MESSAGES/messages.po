@@ -19,6 +19,170 @@ msgstr ""
 msgid "CSRF validation failed. Reload the page and try again."
 msgstr "Weryfikacja formularza nie powiodła się. Odśwież stronę i spróbuj ponownie."
 
+#: app/db.py
+msgid "Planning"
+msgstr "Planowanie"
+
+#: app/db.py
+msgid "Spirituality"
+msgstr "Duchowość"
+
+#: app/db.py
+msgid "Health"
+msgstr "Zdrowie"
+
+#: app/db.py
+msgid "Work"
+msgstr "Praca"
+
+#: app/db.py
+msgid "Social"
+msgstr "Relacje społeczne"
+
+#: app/db.py
+msgid "Growth"
+msgstr "Rozwój"
+
+#: app/db.py
+msgid "Relaxation"
+msgstr "Odpoczynek"
+
+#: app/db.py
+msgid "Family"
+msgstr "Rodzina"
+
+#: app/formatting.py
+#, python-brace-format
+msgid "{num} day ago"
+msgid_plural "{num} days ago"
+msgstr[0] "{num} dzień temu"
+msgstr[1] "{num} dni temu"
+msgstr[2] "{num} dni temu"
+
+#: app/formatting.py
+#, python-brace-format
+msgid "{num} hour ago"
+msgid_plural "{num} hours ago"
+msgstr[0] "{num} godzinę temu"
+msgstr[1] "{num} godziny temu"
+msgstr[2] "{num} godzin temu"
+
+#: app/formatting.py
+#, python-brace-format
+msgid "{num} minute ago"
+msgid_plural "{num} minutes ago"
+msgstr[0] "{num} minutę temu"
+msgstr[1] "{num} minuty temu"
+msgstr[2] "{num} minut temu"
+
+#: app/formatting.py
+msgid "just now"
+msgstr "przed chwilą"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Mon"
+msgstr "Pon"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Tue"
+msgstr "Wt"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Wed"
+msgstr "Śr"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Thu"
+msgstr "Czw"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Fri"
+msgstr "Pt"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Sat"
+msgstr "Sob"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Sun"
+msgstr "Niedz"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Monday"
+msgstr "Poniedziałek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Tuesday"
+msgstr "Wtorek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Wednesday"
+msgstr "Środa"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Sunday"
+msgstr "Niedziela"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Thursday"
+msgstr "Czwartek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Friday"
+msgstr "Piątek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Saturday"
+msgstr "Sobota"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Jan"
+msgstr "Sty"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Feb"
+msgstr "Lut"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Mar"
+msgstr "Mar"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Apr"
+msgstr "Kwi"
+
+#: app/i18n.py app/static/js/app.js
+msgid "May"
+msgstr "Maj"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Jun"
+msgstr "Cze"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Jul"
+msgstr "Lip"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Aug"
+msgstr "Sie"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Sep"
+msgstr "Wrz"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Oct"
+msgstr "Paź"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Nov"
+msgstr "Lis"
+
+#: app/i18n.py app/static/js/app.js
+msgid "Dec"
+msgstr "Gru"
+
 #: app/routers/auth.py
 msgid "This invite link is invalid, used or expired. Ask for a new one."
 msgstr "Ten link z zaproszeniem jest nieprawidłowy, wykorzystany albo wygasł. Poproś o nowy."
@@ -143,6 +307,364 @@ msgstr[2] "Zbyt wiele błędnych kodów. Spróbuj ponownie za {num} minut."
 msgid "Language changed."
 msgstr "Zmieniono język."
 
+#: app/routers/daily.py app/templates/daily.html
+msgid "Morning Routine"
+msgstr "Poranna rutyna"
+
+#: app/routers/daily.py app/templates/daily.html
+msgid "Evening Routine"
+msgstr "Wieczorna rutyna"
+
+#: app/routers/daily.py app/templates/partials/today_block.html
+msgid "Water"
+msgstr "Woda"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Body"
+msgstr "Ciało"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Spirit"
+msgstr "Duch"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Self"
+msgstr "Konto"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Relations"
+msgstr "Relacje"
+
+#: app/routers/daily.py
+msgid "Invalid daily-log date."
+msgstr "Nieprawidłowa data dziennika."
+
+#: app/routers/daily.py app/static/js/app.js
+msgid "Saved"
+msgstr "Zapisano"
+
+#: app/routers/daily.py
+msgid "Daily log saved."
+msgstr "Dziennik zapisany."
+
+#: app/routers/daily.py
+msgid "Invalid planning date."
+msgstr "Nieprawidłowa data planowania."
+
+#: app/routers/daily.py app/routers/dashboard.py
+msgid "No AI provider is configured. Add one in Settings."
+msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
+
+#: app/routers/daily.py app/routers/dashboard.py
+msgid "Reload the page and try again."
+msgstr "Odśwież stronę i spróbuj ponownie."
+
+#: app/routers/daily.py
+msgid "A.N.D.Y. suggestions are already queued."
+msgstr "Propozycje A.N.D.Y. są już w kolejce."
+
+#: app/routers/daily.py
+msgid "The suggestions could not be queued. Try again."
+msgstr "Nie udało się dodać propozycji do kolejki. Spróbuj ponownie."
+
+#: app/routers/daily.py
+msgid "A.N.D.Y. suggestions queued."
+msgstr "Propozycje A.N.D.Y. dodane do kolejki."
+
+#: app/routers/daily.py
+msgid "Invalid measurement date."
+msgstr "Nieprawidłowa data pomiaru."
+
+#: app/routers/daily.py
+msgid "Measurements saved"
+msgstr "Zapisano pomiary"
+
+#: app/routers/daily.py
+msgid "Measurements saved."
+msgstr "Pomiary zapisane."
+
+#: app/routers/dashboard.py app/templates/dashboard.html
+msgid "Power level"
+msgstr "Poziom mocy"
+
+#: app/routers/dashboard.py
+msgid "A briefing is already queued."
+msgstr "Briefing jest już w kolejce."
+
+#: app/routers/dashboard.py
+msgid "The briefing could not be queued. Try again."
+msgstr "Nie udało się dodać briefingu do kolejki. Spróbuj ponownie."
+
+#: app/routers/dashboard.py
+msgid "Briefing queued."
+msgstr "Briefing dodany do kolejki."
+
+#: app/routers/life_scores.py
+msgid "Choose a valid life-score date."
+msgstr "Wybierz prawidłową datę oceny."
+
+#: app/routers/life_scores.py
+msgid "Life scores saved."
+msgstr "Oceny życia zapisane."
+
+#: app/services/daily_log.py
+#, python-brace-format
+msgid "Unknown daily-log fields: {fields}"
+msgstr "Nieznane pola dziennika: {fields}"
+
+#: app/services/daily_log.py
+msgid "energy must be an integer from 1 to 10, or null"
+msgstr "Energia musi być liczbą całkowitą od 1 do 10 albo pusta"
+
+#: app/services/daily_log.py
+#, python-brace-format
+msgid "{field} must be one of: {choices}"
+msgstr "{field} musi mieć jedną z wartości: {choices}"
+
+#: app/services/daily_log.py
+#, python-brace-format
+msgid "{field} must be text"
+msgstr "{field} musi być tekstem"
+
+#: app/services/daily_log.py
+#, python-brace-format
+msgid "{field} must be at most {limit} characters"
+msgstr "{field} może mieć najwyżej {limit} znaków"
+
+#: app/services/daily_log.py
+#, python-brace-format
+msgid "{field} is not a daily-log status"
+msgstr "{field} nie jest statusem dziennika"
+
+#: app/services/measurements.py
+msgid "Weight"
+msgstr "Waga"
+
+#: app/services/measurements.py
+msgid "Arm"
+msgstr "Ramię"
+
+#: app/services/measurements.py
+msgid "Waist"
+msgstr "Talia"
+
+#: app/services/measurements.py
+msgid "Hips"
+msgstr "Biodra"
+
+#: app/services/measurements.py
+msgid "Thighs"
+msgstr "Uda"
+
+#: app/services/measurements.py
+#, python-brace-format
+msgid "Unknown measurement fields: {fields}"
+msgstr "Nieznane pola pomiarów: {fields}"
+
+#: app/services/measurements.py
+#, python-brace-format
+msgid "{field} must be between {low} and {high}"
+msgstr "{field} musi mieścić się między {low} a {high}."
+
+#: app/static/js/app.js
+msgid "January"
+msgstr "Styczeń"
+
+#: app/static/js/app.js
+msgid "February"
+msgstr "Luty"
+
+#: app/static/js/app.js
+msgid "March"
+msgstr "Marzec"
+
+#: app/static/js/app.js
+msgid "April"
+msgstr "Kwiecień"
+
+#: app/static/js/app.js
+msgid "June"
+msgstr "Czerwiec"
+
+#: app/static/js/app.js
+msgid "July"
+msgstr "Lipiec"
+
+#: app/static/js/app.js
+msgid "August"
+msgstr "Sierpień"
+
+#: app/static/js/app.js
+msgid "September"
+msgstr "Wrzesień"
+
+#: app/static/js/app.js
+msgid "October"
+msgstr "Październik"
+
+#: app/static/js/app.js
+msgid "November"
+msgstr "Listopad"
+
+#: app/static/js/app.js
+msgid "December"
+msgstr "Grudzień"
+
+#: app/static/js/app.js
+msgid "Suggestions are ready, but the daily card could not refresh."
+msgstr "Propozycje są gotowe, ale nie udało się odświeżyć karty dnia."
+
+#: app/static/js/app.js app/templates/partials/feedback.html
+msgid "Dismiss error"
+msgstr "Zamknij błąd"
+
+#: app/static/js/app.js
+msgid "A draft from a failed network request was restored."
+msgstr "Przywrócono szkic z nieudanego żądania sieciowego."
+
+#: app/static/js/app.js
+msgid "Saving..."
+msgstr "Zapisywanie..."
+
+#: app/static/js/app.js
+msgid "Working..."
+msgstr "Pracuję..."
+
+#: app/static/js/app.js
+msgid "Check the submitted values and try again."
+msgstr "Sprawdź wpisane wartości i spróbuj ponownie."
+
+#: app/static/js/app.js
+msgid "Server error. Your changes were not confirmed."
+msgstr "Błąd serwera. Zmiany nie zostały potwierdzone."
+
+#: app/static/js/app.js
+msgid "Network error. Your changes were not confirmed."
+msgstr "Błąd sieci. Zmiany nie zostały potwierdzone."
+
+#: app/static/js/app.js
+msgid "Request timed out. Your changes were not confirmed."
+msgstr "Przekroczono czas żądania. Zmiany nie zostały potwierdzone."
+
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Pending"
+msgstr "Do zrobienia"
+
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Done"
+msgstr "Zrobione"
+
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Skipped"
+msgstr "Pominięte"
+
+#: app/static/js/app.js
+msgid "Offline. Read-only until Virgil is back."
+msgstr "Offline. Tylko odczyt, dopóki Virgil nie wróci."
+
+#: app/static/js/app.js
+msgid "Signed out. Reload the page to sign in."
+msgstr "Wylogowano. Odśwież stronę, żeby się zalogować."
+
+#: app/static/js/app.js
+msgid "Connection is back."
+msgstr "Połączenie wróciło."
+
+#: app/static/js/app.js
+msgid "No connection. Nothing was saved."
+msgstr "Brak połączenia. Nic nie zostało zapisane."
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Freedom"
+msgstr "Freedom"
+
+#: app/static/js/app.js
+msgid "Keyboard Shortcuts"
+msgstr "Skróty klawiszowe"
+
+#: app/static/js/app.js
+msgid "Navigation (press g then...)"
+msgstr "Nawigacja (naciśnij g, a potem...)"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Dashboard"
+msgstr "Pulpit"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Daily"
+msgstr "Dziennik"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Training"
+msgstr "Trening"
+
+#: app/static/js/app.js
+msgid "Oura"
+msgstr "Oura"
+
+#: app/static/js/app.js
+msgid "Bloodwork"
+msgstr "Badania krwi"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Experiments"
+msgstr "Eksperymenty"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Goals"
+msgstr "Cele"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Settings"
+msgstr "Ustawienia"
+
+#: app/static/js/app.js
+msgid "Daily Page"
+msgstr "Strona dziennika"
+
+#: app/static/js/app.js app/templates/daily.html
+msgid "Previous day"
+msgstr "Poprzedni dzień"
+
+#: app/static/js/app.js app/templates/daily.html
+msgid "Next day"
+msgstr "Następny dzień"
+
+#: app/static/js/app.js
+msgid "General"
+msgstr "Ogólne"
+
+#: app/static/js/app.js
+msgid "Show shortcuts"
+msgstr "Pokaż skróty"
+
+#: app/static/js/app.js
+msgid "Close overlay"
+msgstr "Zamknij okno"
+
+#: app/static/js/app.js
+msgid "Copied."
+msgstr "Skopiowano."
+
+#: app/static/js/app.js
+msgid "Could not copy; select the text instead."
+msgstr "Nie udało się skopiować. Zaznacz tekst ręcznie."
+
+#: app/static/js/app.js
+#, python-brace-format
+msgid "{num} field needs attention."
+msgid_plural "{num} fields need attention."
+msgstr[0] "{num} pole wymaga uwagi."
+msgstr[1] "{num} pola wymagają uwagi."
+msgstr[2] "{num} pól wymaga uwagi."
+
 #: app/static/js/components.js
 msgid "Recently used"
 msgstr "Ostatnio używane"
@@ -155,6 +677,14 @@ msgstr "Virgil - Logowanie"
 msgid "Sign in to continue."
 msgstr "Zaloguj się, żeby kontynuować."
 
+#: app/templates/auth_login.html app/templates/auth_signup.html
+msgid "Email"
+msgstr "E-mail"
+
+#: app/templates/auth_login.html app/templates/auth_signup.html
+msgid "Password"
+msgstr "Hasło"
+
 #: app/templates/auth_login.html
 msgid "Sign In"
 msgstr "Zaloguj się"
@@ -166,14 +696,6 @@ msgstr "Nie masz konta?"
 #: app/templates/auth_login.html
 msgid "Sign up"
 msgstr "Zarejestruj się"
-
-#: app/templates/auth_login.html app/templates/auth_signup.html
-msgid "Email"
-msgstr "E-mail"
-
-#: app/templates/auth_login.html app/templates/auth_signup.html
-msgid "Password"
-msgstr "Hasło"
 
 #: app/templates/auth_mfa_setup.html
 msgid "Virgil - MFA Setup"
@@ -305,32 +827,8 @@ msgid "Skip to content"
 msgstr "Przejdź do treści"
 
 #: app/templates/base.html
-msgid "Dashboard"
-msgstr "Pulpit"
-
-#: app/templates/base.html
-msgid "Daily"
-msgstr "Dziennik"
-
-#: app/templates/base.html
-msgid "Training"
-msgstr "Trening"
-
-#: app/templates/base.html
-msgid "Freedom"
-msgstr "Freedom"
-
-#: app/templates/base.html
 msgid "Blood"
 msgstr "Badania"
-
-#: app/templates/base.html
-msgid "Goals"
-msgstr "Cele"
-
-#: app/templates/base.html
-msgid "Experiments"
-msgstr "Eksperymenty"
 
 #: app/templates/base.html
 msgid "Finance"
@@ -349,10 +847,6 @@ msgid "Admin: users"
 msgstr "Admin: użytkownicy"
 
 #: app/templates/base.html
-msgid "Settings"
-msgstr "Ustawienia"
-
-#: app/templates/base.html
 msgid "Log out"
 msgstr "Wyloguj"
 
@@ -364,14 +858,468 @@ msgstr "Start"
 msgid "More"
 msgstr "Więcej"
 
+#: app/templates/daily.html
+msgid "Virgil - Daily Log"
+msgstr "Virgil - Dziennik"
+
+#: app/templates/daily.html
+msgid "Routines & Energy"
+msgstr "Rutyny i energia"
+
+#: app/templates/daily.html
+msgid "complete today"
+msgstr "ukończone dzisiaj"
+
+#: app/templates/daily.html
+msgid "Energy, 1 to 10"
+msgstr "Energia, od 1 do 10"
+
+#: app/templates/daily.html
+msgid "Low"
+msgstr "Niska"
+
+#: app/templates/daily.html
+msgid "High"
+msgstr "Wysoka"
+
+#: app/templates/daily.html
+msgid "Water Intake (>2500ml)"
+msgstr "Woda (>2500 ml)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Queueing..."
+msgstr "Dodawanie do kolejki..."
+
+#: app/templates/daily.html
+msgid "Generate with AI"
+msgstr "Wygeneruj z AI"
+
+#: app/templates/daily.html
+msgid "Edit"
+msgstr "Edytuj"
+
+#: app/templates/daily.html
+#, python-format
+msgid "%(label)s task"
+msgstr "%(label)s: zadanie"
+
+#: app/templates/daily.html
+msgid "What will you do?"
+msgstr "Co zrobisz?"
+
+#: app/templates/daily.html
+msgid "Notes"
+msgstr "Notatki"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Save"
+msgstr "Zapisz"
+
+#: app/templates/daily.html
+msgid "Notes for the day..."
+msgstr "Notatki na dziś..."
+
+#: app/templates/daily.html
+msgid "No notes yet."
+msgstr "Brak notatek."
+
+#: app/templates/daily.html
+msgid "Your trends"
+msgstr "Twoje trendy"
+
+#: app/templates/daily.html
+msgid "Habit Streaks"
+msgstr "Serie nawyków"
+
+#: app/templates/daily.html
+msgid "Completion Heatmap"
+msgstr "Mapa wykonania"
+
+#: app/templates/daily.html
+msgid "Last 12 Weeks"
+msgstr "Ostatnie 12 tygodni"
+
+#: app/templates/daily.html
+#, python-format
+msgid "Habits done per day out of %(habit_total)s, in the 12 weeks up to %(date)s"
+msgstr "Nawyki wykonane każdego dnia (z %(habit_total)s) w 12 tygodniach do %(date)s"
+
+#: app/templates/daily.html
+#, python-format
+msgid "Week of %(start)s"
+msgstr "Tydzień od %(start)s"
+
+#: app/templates/daily.html
+msgid "After this day"
+msgstr "Po tym dniu"
+
+#: app/templates/daily.html
+msgid "Not logged"
+msgstr "Brak wpisu"
+
+#: app/templates/daily.html
+#, python-format
+msgid "%(date)s: %(done)s of %(habit_total)s done"
+msgstr "%(date)s: %(done)s z %(habit_total)s zrobione"
+
+#: app/templates/daily.html
+#, python-format
+msgid "%(done)s of %(habit_total)s"
+msgstr "%(done)s z %(habit_total)s"
+
+#: app/templates/daily.html
+msgid "Week average, percent"
+msgstr "Średnia tygodnia, procent"
+
+#: app/templates/daily.html
+msgid "Measurements (Saturday)"
+msgstr "Pomiary (sobota)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Weight (kg)"
+msgstr "Waga (kg)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Arm (cm)"
+msgstr "Ramię (cm)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Waist (cm)"
+msgstr "Talia (cm)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Hips (cm)"
+msgstr "Biodra (cm)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Thighs (cm)"
+msgstr "Uda (cm)"
+
+#: app/templates/dashboard.html
+msgid "Virgil - Dashboard"
+msgstr "Virgil - Pulpit"
+
+#: app/templates/dashboard.html
+msgid "Focus"
+msgstr "Fokus"
+
+#: app/templates/dashboard.html
+msgid "Manage goals"
+msgstr "Zarządzaj celami"
+
+#: app/templates/dashboard.html
+msgid "Choose goals"
+msgstr "Wybierz cele"
+
+#: app/templates/dashboard.html
+msgid "Star up to 3 goals on the Goals page and they stay here, in view."
+msgstr "Oznacz gwiazdką do 3 celów na stronie Cele, a zostaną tutaj, na widoku."
+
+#: app/templates/dashboard.html
+msgid "Morning Briefing"
+msgstr "Poranny briefing"
+
+#: app/templates/dashboard.html
+msgid "No briefing generated yet for today."
+msgstr "Dzisiejszy briefing nie został jeszcze wygenerowany."
+
+#: app/templates/dashboard.html
+msgid "Regenerate"
+msgstr "Wygeneruj ponownie"
+
+#: app/templates/dashboard.html
+msgid "Generate Briefing"
+msgstr "Wygeneruj briefing"
+
+#: app/templates/dashboard.html
+msgid "Week"
+msgstr "Tydzień"
+
+#: app/templates/dashboard.html
+msgid "not logged"
+msgstr "brak wpisu"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(day)s: energy %(energy)s, %(done)s of 7 habits done"
+msgstr "%(day)s: energia %(energy)s, zrobione nawyki: %(done)s z 7"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(day)s %(date)s: energy %(energy)s, %(done)s of 7 habits done"
+msgstr "%(day)s %(date)s: energia %(energy)s, zrobione nawyki: %(done)s z 7"
+
+#: app/templates/dashboard.html
+msgid "Energy, 1-10. The bar is habits done, of 7. Tap a day to open it."
+msgstr "Energia, 1-10. Pasek to zrobione nawyki, z 7. Dotknij dnia, żeby go otworzyć."
+
+#: app/templates/dashboard.html
+msgid "Active Experiments"
+msgstr "Aktywne eksperymenty"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(delta)s vs %(days)s-day avg"
+msgstr "%(delta)s względem średniej z %(days)s dni"
+
+#: app/templates/dashboard.html
+msgid "Insights"
+msgstr "Wnioski"
+
+#: app/templates/dashboard.html
+msgid "Sleep"
+msgstr "Sen"
+
+#: app/templates/dashboard.html
+msgid "Readiness"
+msgstr "Gotowość"
+
+#: app/templates/dashboard.html
+msgid "HRV"
+msgstr "HRV"
+
+#: app/templates/dashboard.html
+msgid "RHR"
+msgstr "Tętno spoczynkowe"
+
+#: app/templates/dashboard.html
+msgid "Activity"
+msgstr "Aktywność"
+
+#: app/templates/dashboard.html
+msgid "(yesterday)"
+msgstr "(wczoraj)"
+
+#: app/templates/dashboard.html
+msgid "Steps"
+msgstr "Kroki"
+
+#: app/templates/dashboard.html
+msgid "Stress:"
+msgstr "Stres:"
+
+#: app/templates/dashboard.html
+msgid "Recovery:"
+msgstr "Regeneracja:"
+
+#: app/templates/dashboard.html
+msgid "Today"
+msgstr "Dzisiaj"
+
+#: app/templates/dashboard.html
+msgid "No Oura data yet."
+msgstr "Brak danych z Oura."
+
+#: app/templates/dashboard.html
+msgid "Connect Oura"
+msgstr "Połącz Oura"
+
+#: app/templates/dashboard.html
+msgid "to see sleep, readiness and activity here."
+msgstr "żeby widzieć tu sen, gotowość i aktywność."
+
+#: app/templates/dashboard.html
+msgid "Measurements"
+msgstr "Pomiary"
+
+#: app/templates/dashboard.html
+msgid "No measurements yet."
+msgstr "Brak pomiarów."
+
+#: app/templates/dashboard.html
+msgid "Add them on Daily"
+msgstr "Dodaj je w Dzienniku"
+
+#: app/templates/dashboard.html
+msgid ", which asks for weight and body measurements on Saturdays."
+msgstr ", który w soboty prosi o wagę i obwody ciała."
+
+#: app/templates/dashboard.html
+msgid "Life Scores"
+msgstr "Oceny życia"
+
+#: app/templates/dashboard.html
+msgid "Life score history window"
+msgstr "Zakres historii ocen życia"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "Life scores out of 10 on %(label)s:"
+msgstr "Oceny życia (na 10) z %(label)s:"
+
+#: app/templates/dashboard.html
+msgid "Over time"
+msgstr "W czasie"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "Life scores over the last %(range_weeks)s weeks; the History table below lists the same assessments"
+msgstr "Oceny życia z ostatnich tygodni (%(range_weeks)s); tabela Historia poniżej pokazuje te same oceny"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(count)s assessment in the last %(range_weeks)s weeks: a line needs two."
+msgid_plural "%(count)s assessments in the last %(range_weeks)s weeks: a line needs two."
+msgstr[0] "%(count)s ocena w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
+msgstr[1] "%(count)s oceny w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
+msgstr[2] "%(count)s ocen w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
+
+#: app/templates/dashboard.html
+msgid "New assessment"
+msgstr "Nowa ocena"
+
+#: app/templates/dashboard.html
+msgid "Date"
+msgstr "Data"
+
+#: app/templates/dashboard.html
+msgid "Areas (1-10)"
+msgstr "Obszary (1-10)"
+
+#: app/templates/dashboard.html
+msgid "Power Level"
+msgstr "Poziom mocy"
+
+#: app/templates/dashboard.html
+msgid "Energy Avg"
+msgstr "Średnia energia"
+
+#: app/templates/dashboard.html
+msgid "Metrics"
+msgstr "Wskaźniki"
+
+#: app/templates/dashboard.html
+msgid "PMO Status"
+msgstr "Status PMO"
+
+#: app/templates/dashboard.html
+msgid "LinkedIn"
+msgstr "LinkedIn"
+
+#: app/templates/dashboard.html
+msgid "YouTube Views"
+msgstr "Wyświetlenia YouTube"
+
+#: app/templates/dashboard.html
+msgid "Revenue (PLN)"
+msgstr "Przychód (PLN)"
+
+#: app/templates/dashboard.html
+msgid "Diagnostics"
+msgstr "Diagnoza"
+
+#: app/templates/dashboard.html
+msgid "Priorities"
+msgstr "Priorytety"
+
+#: app/templates/dashboard.html
+msgid "History"
+msgstr "Historia"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "(last %(count)s week)"
+msgid_plural "(last %(count)s weeks)"
+msgstr[0] "(ostatni %(count)s tydzień)"
+msgstr[1] "(ostatnie %(count)s tygodnie)"
+msgstr[2] "(ostatnich %(count)s tygodni)"
+
+#: app/templates/dashboard.html
+msgid "Power"
+msgstr "Moc"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(current_year)s at a glance"
+msgstr "%(current_year)s w skrócie"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(date)s: %(pct)s%%, A.N.D.Y. %(andy)s of 4, Routines %(routines)s of 3"
+msgstr "%(date)s: %(pct)s%%, A.N.D.Y. %(andy)s z 4, rutyny %(routines)s z 3"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(date)s: %(pct)s%% - A.N.D.Y. %(andy)s/4, Routines %(routines)s/3"
+msgstr "%(date)s: %(pct)s%% - A.N.D.Y. %(andy)s/4, rutyny %(routines)s/3"
+
+#: app/templates/dashboard.html
+msgid "today"
+msgstr "dzisiaj"
+
+#: app/templates/dashboard.html
+#, python-format
+msgid "%(days_left)sd left"
+msgstr "zostało %(days_left)s dni"
+
 #: app/templates/partials/feedback.html
 msgid "Action feedback"
 msgstr "Komunikaty o działaniach"
 
 #: app/templates/partials/feedback.html
-msgid "Dismiss error"
-msgstr "Zamknij błąd"
-
-#: app/templates/partials/feedback.html
 msgid "Background work"
 msgstr "Zadania w tle"
+
+#: app/templates/partials/oura_freshness.html
+msgid "Last synced"
+msgstr "Ostatnia synchronizacja"
+
+#: app/templates/partials/oura_freshness.html
+msgid "Synced"
+msgstr "Zsynchronizowano"
+
+#: app/templates/partials/oura_freshness.html
+msgid "Not synced yet"
+msgstr "Jeszcze nie zsynchronizowano"
+
+#: app/templates/partials/range_picker.html
+#, python-format
+msgid "%(count)s week"
+msgid_plural "%(count)s weeks"
+msgstr[0] "%(count)s tydzień"
+msgstr[1] "%(count)s tygodnie"
+msgstr[2] "%(count)s tygodni"
+
+#: app/templates/partials/today_block.html
+#, python-format
+msgid "%(label)s: %(state)s. Change status"
+msgstr "%(label)s: %(state)s. Zmień status"
+
+#: app/templates/partials/today_block.html
+#, python-format
+msgid "%(state)s. Tap to change"
+msgstr "%(state)s. Dotknij, żeby zmienić"
+
+#: app/templates/partials/today_block.html
+#, python-format
+msgid "Today's A.N.D.Y. · %(andy_done)s/%(andy_total)s done"
+msgstr "Dzisiejsze A.N.D.Y. · zrobione %(andy_done)s/%(andy_total)s"
+
+#: app/templates/partials/today_block.html
+msgid "Edit today's log"
+msgstr "Edytuj dzisiejszy wpis"
+
+#: app/templates/partials/today_block.html
+msgid "Finish today's check-in"
+msgstr "Dokończ dzisiejszy check-in"
+
+#: app/templates/partials/today_block.html
+msgid "Add a task"
+msgstr "Dodaj zadanie"
+
+#: app/templates/partials/today_block.html
+msgid "Routines"
+msgstr "Rutyny"
+
+#: app/templates/partials/today_block.html
+#, python-format
+msgid "Routines %(routines_done)s/%(routines_total)s"
+msgstr "Rutyny %(routines_done)s/%(routines_total)s"
+
+#: app/templates/partials/today_block.html
+msgid "Morning"
+msgstr "Rano"
+
+#: app/templates/partials/today_block.html
+msgid "Evening"
+msgstr "Wieczór"

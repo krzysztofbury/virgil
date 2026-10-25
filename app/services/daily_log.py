@@ -8,6 +8,8 @@ does not exist yet starts from the schema defaults.
 
 from datetime import date, timedelta
 
+from app.i18n import N_, LocalizedError, month_short
+
 STATUSES = ("done", "skipped", "pending")
 NEXT_STATUS = {"pending": "done", "done": "skipped", "skipped": "pending"}
 STATUS_FIELDS = (
@@ -29,28 +31,28 @@ FIELDS = ("energy", *STATUS_FIELDS, *DESC_FIELDS, "notes")
 _DEFAULTS = {"energy": None, **dict.fromkeys(STATUS_FIELDS, "pending"), **dict.fromkeys(DESC_FIELDS, ""), "notes": ""}
 
 
-class DailyLogError(ValueError):
+class DailyLogError(LocalizedError):
     pass
 
 
 def _validate(changes: dict) -> dict:
     unknown = set(changes) - set(FIELDS)
     if unknown:
-        raise DailyLogError(f"Unknown daily-log fields: {', '.join(sorted(unknown))}")
+        raise DailyLogError(N_("Unknown daily-log fields: {fields}"), fields=", ".join(sorted(unknown)))
     clean: dict = {}
     for field, value in changes.items():
         if field == "energy":
             if value is not None and (isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= 10):
-                raise DailyLogError("energy must be an integer from 1 to 10, or null")
+                raise DailyLogError(N_("energy must be an integer from 1 to 10, or null"))
         elif field in STATUS_FIELDS:
             if value not in STATUSES:
-                raise DailyLogError(f"{field} must be one of: {', '.join(STATUSES)}")
+                raise DailyLogError(N_("{field} must be one of: {choices}"), field=field, choices=", ".join(STATUSES))
         else:
             limit = NOTES_MAX if field == "notes" else DESC_MAX
             if not isinstance(value, str):
-                raise DailyLogError(f"{field} must be text")
+                raise DailyLogError(N_("{field} must be text"), field=field)
             if len(value) > limit:
-                raise DailyLogError(f"{field} must be at most {limit} characters")
+                raise DailyLogError(N_("{field} must be at most {limit} characters"), field=field, limit=limit)
         clean[field] = value
     return clean
 
@@ -69,7 +71,7 @@ async def cycle_status(db, day: str, field: str) -> dict:
     twice instead of both reading the same state.
     """
     if field not in STATUS_FIELDS:
-        raise DailyLogError(f"{field} is not a daily-log status")
+        raise DailyLogError(N_("{field} is not a daily-log status"), field=field)
 
     def advance(current: dict) -> None:
         current[field] = NEXT_STATUS.get(current[field], "done")
@@ -139,7 +141,7 @@ async def completion_weeks(db, last: date, weeks: int) -> list[dict]:
             {
                 "start": start.isoformat(),
                 # Label a column only where a month starts, as a calendar does.
-                "month": start.strftime("%b") if index == 0 or start.day <= 7 else "",
+                "month": month_short(start.month) if index == 0 or start.day <= 7 else "",
                 "days": [
                     {"date": day.isoformat(), "done": done_by_day.get(day.isoformat()), "future": day > last}
                     for day in days

@@ -14,7 +14,18 @@ function gettext(message) {
             i18nCatalog = {};
         }
     }
-    return i18nCatalog[message] || message;
+    var translated = i18nCatalog[message];
+    return typeof translated === 'string' && translated ? translated : message;
+}
+
+// Plural forms: English has two; a Polish entry is a list of three.
+function ngettext(singular, plural, n) {
+    gettext(singular);
+    var forms = i18nCatalog[singular];
+    if (!Array.isArray(forms)) return n === 1 ? singular : plural;
+    var tens = n % 100, units = n % 10;
+    var index = n === 1 ? 0 : units >= 2 && units <= 4 && (tens < 10 || tens >= 20) ? 1 : 2;
+    return forms[index] || (n === 1 ? singular : plural);
 }
 
 // The phone tab bar's More menu.

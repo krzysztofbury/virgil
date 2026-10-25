@@ -81,3 +81,14 @@ def test_unknown_language_is_english(value):
 
 def test_polish_is_polish():
     assert normalize_language("pl") == "pl"
+
+
+def test_weekday_and_month_names_follow_the_language():
+    from app.i18n import month_short, reset_language, set_language, weekday_name, weekday_short
+
+    assert (weekday_short(0), weekday_name(6), month_short(5)) == ("Mon", "Sunday", "May")
+    token = set_language("pl")
+    try:
+        assert (weekday_short(0), weekday_name(6), month_short(5)) == ("Pon", "Niedziela", "Maj")
+    finally:
+        reset_language(token)

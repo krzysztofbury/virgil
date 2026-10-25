@@ -2,6 +2,6 @@
    can be bookmarked, and the page needs no script to switch. #}
 <nav class="tabs range-picker" aria-label="{{ range_label }}">
     {% for link in range_links %}
-    <a href="{{ link.href }}"{% if link.active %} class="active" aria-current="true"{% endif %}>{{ link.weeks }} weeks</a>
+    <a href="{{ link.href }}"{% if link.active %} class="active" aria-current="true"{% endif %}>{% trans count=link.weeks %}{{ count }} week{% pluralize %}{{ count }} weeks{% endtrans %}</a>
     {% endfor %}
 </nav>

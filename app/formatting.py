@@ -7,6 +7,8 @@ rendered as "4140.0 min" while the same session's header (from
 `training_sessions.duration_minutes`, typed by hand) correctly said "69 min".
 """
 
+from app.i18n import _, ngettext
+
 
 def format_duration_seconds(value) -> str:
     """Render a duration stored in seconds.
@@ -66,8 +68,10 @@ def format_ref_range(low, high) -> str:
 def time_ago(then, now) -> str:
     """How long ago `then` was, in the largest whole unit: "3 hours ago"."""
     minutes = max(0, int((now - then).total_seconds() // 60))
-    for size, unit in ((1440, "day"), (60, "hour"), (1, "minute")):
-        if minutes >= size:
-            count = minutes // size
-            return f"{count} {unit}{'' if count == 1 else 's'} ago"
-    return "just now"
+    if minutes >= 1440:
+        return ngettext("{num} day ago", "{num} days ago", minutes // 1440).format(num=minutes // 1440)
+    if minutes >= 60:
+        return ngettext("{num} hour ago", "{num} hours ago", minutes // 60).format(num=minutes // 60)
+    if minutes >= 1:
+        return ngettext("{num} minute ago", "{num} minutes ago", minutes).format(num=minutes)
+    return _("just now")

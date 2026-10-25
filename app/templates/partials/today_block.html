@@ -6,7 +6,7 @@
    Rendered by the dashboard and, redrawn after each tap, by
    POST /daily/{day}/cycle. #}
 {% macro status_toggle(field, label, status) %}
-{% set state = 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' %}
+{% set state = _('Done') if status == 'done' else _('Skipped') if status == 'skipped' else _('Pending') %}
 {# The id is what lets htmx put keyboard focus back on this button after the
    block is redrawn; without one focus falls to the top of the page. #}
 <button type="button" id="today-{{ field }}"
@@ -14,8 +14,8 @@
         hx-post="/daily/{{ today }}/cycle" hx-vals='{"field": "{{ field }}"}'
         hx-target="#today-block" hx-swap="outerHTML" hx-sync="#today-block:drop"
         aria-pressed="{{ 'true' if status == 'done' else 'false' }}"
-        aria-label="{{ label }}: {{ state }}. Change status"
-        title="{{ state }}. Tap to change">
+        aria-label="{% trans %}{{ label }}: {{ state }}. Change status{% endtrans %}"
+        title="{% trans %}{{ state }}. Tap to change{% endtrans %}">
     {% if status == 'done' %}<i data-lucide="check" style="width:16px;height:16px;"></i>
     {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>{% endif %}
 </button>
@@ -24,16 +24,16 @@
 <div class="section" id="today-block">
     <div class="section-title today-head">
         {# A.N.D.Y.'s four daily practices, not the life areas Goals and Life Scores use. #}
-        <span>Today's A.N.D.Y. &middot; {{ andy_done }}/{{ andy_total }} done</span>
+        <span>{% trans %}Today's A.N.D.Y. · {{ andy_done }}/{{ andy_total }} done{% endtrans %}</span>
         <a href="/daily/{{ today }}" class="btn btn-sm btn-primary">
-            {% if today_log %}Edit today's log{% else %}Finish today's check-in{% endif %}
+            {% if today_log %}{{ _("Edit today's log") }}{% else %}{{ _("Finish today's check-in") }}{% endif %}
             <i data-lucide="arrow-right" style="width:14px;height:14px;"></i>
         </a>
     </div>
     <div class="card today-card">
         {% set andy_icons = {'body': 'andy-body', 'spirit': 'andy-spirit', 'account': 'andy-self', 'relations': 'andy-relations'} %}
         <div class="andy-grid">
-            {% for name, label in [('body', 'Body'), ('spirit', 'Spirit'), ('account', 'Self'), ('relations', 'Relations')] %}
+            {% for name, label in [('body', _('Body')), ('spirit', _('Spirit')), ('account', _('Self')), ('relations', _('Relations'))] %}
             {% set status = today_log['andy_' ~ name ~ '_status'] if today_log else 'pending' %}
             {% set desc = today_log['andy_' ~ name ~ '_desc'] if today_log else '' %}
             <div class="andy-item andy-item--task">
@@ -45,15 +45,15 @@
                 {% if desc %}
                 <small class="today-task">{{ desc }}</small>
                 {% else %}
-                <a href="/daily/{{ today }}#andy-card" class="today-task today-task--empty">Add a task</a>
+                <a href="/daily/{{ today }}#andy-card" class="today-task today-task--empty">{{ _("Add a task") }}</a>
                 {% endif %}
             </div>
             {% endfor %}
         </div>
 
-        <div class="today-routines" role="group" aria-label="Routines">
-            <span class="today-routines-label">Routines {{ routines_done }}/{{ routines_total }}</span>
-            {% for field, label in [('morning_routine', 'Morning'), ('evening_routine', 'Evening'), ('water', 'Water')] %}
+        <div class="today-routines" role="group" aria-label="{{ _("Routines") }}">
+            <span class="today-routines-label">{% trans %}Routines {{ routines_done }}/{{ routines_total }}{% endtrans %}</span>
+            {% for field, label in [('morning_routine', _('Morning')), ('evening_routine', _('Evening')), ('water', _('Water'))] %}
             {% set status = today_log[field] if today_log else 'pending' %}
             <span class="today-routine">
                 {{ status_toggle(field, label, status) }}
