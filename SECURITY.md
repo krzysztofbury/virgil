@@ -5,7 +5,8 @@
 > Do not open issues that might have security implications!
 > It is critical that security related issues are reported privately so we have time to address them before they become public knowledge.
 
-Vulnerabilities can be reported by emailing:
+Report a vulnerability privately through the repository's Security tab
+(Report a vulnerability), or by emailing:
 
 - virgil maintainer: [contact@datacraze.io](mailto:contact@datacraze.io)
 
@@ -47,6 +48,14 @@ Virgil is a **multi-user, self-hosted** application. The threat model assumes:
 - **Privacy-safe PWA**: the service worker never caches authenticated HTML — only static assets and the public offline page
 - **Webhook verification**: HMAC-SHA256 signature verification on Oura webhook payloads
 - **Input validation**: Server-side validation with length limits on all text fields
+
+## Repository Protections
+
+The default branch requires a pull request, the `ci` and `image` checks and
+signed commits, and refuses force pushes and deletion. Secret scanning with push
+protection, Dependabot alerts and security updates, CodeQL default setup and
+private vulnerability reporting are enabled. Workflows default to a read-only
+token and need approval before running for outside contributors.
 
 ## Preferred Languages
 

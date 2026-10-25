@@ -8,6 +8,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Dependabot version updates for GitHub Actions, the Dockerfile base image and
+  the Compose images, weekly on Monday with a 7-day cooldown. Python packages
+  stay on the `exclude-newer` cutoff. `SECURITY.md` names the private
+  vulnerability report route and the repository protections.
 - An evaluation of the WOD parser (#155): 30 synthetic notes in English,
   Polish and both, with the exact entries and unmatched names each should
   produce; a deterministic scorer (per-field accuracy, exact matches,
