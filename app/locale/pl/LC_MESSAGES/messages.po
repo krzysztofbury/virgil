@@ -107,34 +107,6 @@ msgstr "Sob"
 msgid "Sun"
 msgstr "Niedz"
 
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Monday"
-msgstr "Poniedziałek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Tuesday"
-msgstr "Wtorek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Wednesday"
-msgstr "Środa"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Sunday"
-msgstr "Niedziela"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Thursday"
-msgstr "Czwartek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Friday"
-msgstr "Piątek"
-
-#: app/i18n.py app/static/js/app.js app/templates/daily.html
-msgid "Saturday"
-msgstr "Sobota"
-
 #: app/i18n.py app/static/js/app.js
 msgid "Jan"
 msgstr "Sty"
@@ -182,6 +154,87 @@ msgstr "Lis"
 #: app/i18n.py app/static/js/app.js
 msgid "Dec"
 msgstr "Gru"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Monday"
+msgstr "Poniedziałek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Tuesday"
+msgstr "Wtorek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Wednesday"
+msgstr "Środa"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Sunday"
+msgstr "Niedziela"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Thursday"
+msgstr "Czwartek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Friday"
+msgstr "Piątek"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+msgid "Saturday"
+msgstr "Sobota"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "tag {tag} normalises to nothing"
+msgstr "tag {tag} po normalizacji jest pusty"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "tag {tag} exceeds {limit} characters"
+msgstr "tag {tag} ma więcej niż {limit} znaków"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "at most {limit} tags allowed per entry, got {count}"
+msgstr "pozycja może mieć najwyżej {limit} tagów, podano {count}"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "library entry {entry_id} is builtin — archive it instead"
+msgstr "pozycja biblioteki {entry_id} jest wbudowana, możesz ją tylko zarchiwizować"
+
+#: app/library_validation.py
+msgid "name is required"
+msgstr "nazwa jest wymagana"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "section must be one of {choices}, got {value}"
+msgstr "sekcja musi być jedną z: {choices}, podano {value}"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "metric must be one of {choices}, got {value}"
+msgstr "miara musi być jedną z: {choices}, podano {value}"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "{name} already exists"
+msgstr "{name} już istnieje"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "library entry {entry_id} is builtin — only 'archived' can change"
+msgstr "pozycja biblioteki {entry_id} jest wbudowana, można zmienić tylko jej archiwizację"
+
+#: app/library_validation.py
+msgid "name cannot be blank"
+msgstr "nazwa nie może być pusta"
+
+#: app/library_validation.py
+#, python-brace-format
+msgid "cannot rename {name} — training history exists under that name; archive this entry and create a new one instead"
+msgstr "nie można zmienić nazwy {name}, bo pod tą nazwą jest historia treningów; zarchiwizuj tę pozycję i utwórz nową"
 
 #: app/routers/auth.py
 msgid "This invite link is invalid, used or expired. Ask for a new one."
@@ -307,45 +360,9 @@ msgstr[2] "Zbyt wiele błędnych kodów. Spróbuj ponownie za {num} minut."
 msgid "Language changed."
 msgstr "Zmieniono język."
 
-#: app/routers/daily.py app/templates/daily.html
-msgid "Morning Routine"
-msgstr "Poranna rutyna"
-
-#: app/routers/daily.py app/templates/daily.html
-msgid "Evening Routine"
-msgstr "Wieczorna rutyna"
-
-#: app/routers/daily.py app/templates/partials/today_block.html
-msgid "Water"
-msgstr "Woda"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Body"
-msgstr "Ciało"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Spirit"
-msgstr "Duch"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Self"
-msgstr "Konto"
-
-#: app/routers/daily.py app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Relations"
-msgstr "Relacje"
-
 #: app/routers/daily.py
 msgid "Invalid daily-log date."
 msgstr "Nieprawidłowa data dziennika."
-
-#: app/routers/daily.py app/static/js/app.js
-msgid "Saved"
-msgstr "Zapisano"
 
 #: app/routers/daily.py
 msgid "Daily log saved."
@@ -354,14 +371,6 @@ msgstr "Dziennik zapisany."
 #: app/routers/daily.py
 msgid "Invalid planning date."
 msgstr "Nieprawidłowa data planowania."
-
-#: app/routers/daily.py app/routers/dashboard.py
-msgid "No AI provider is configured. Add one in Settings."
-msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
-
-#: app/routers/daily.py app/routers/dashboard.py
-msgid "Reload the page and try again."
-msgstr "Odśwież stronę i spróbuj ponownie."
 
 #: app/routers/daily.py
 msgid "A.N.D.Y. suggestions are already queued."
@@ -387,9 +396,49 @@ msgstr "Zapisano pomiary"
 msgid "Measurements saved."
 msgstr "Pomiary zapisane."
 
-#: app/routers/dashboard.py app/templates/dashboard.html
-msgid "Power level"
-msgstr "Poziom mocy"
+#: app/routers/daily.py app/routers/dashboard.py
+msgid "No AI provider is configured. Add one in Settings."
+msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
+
+#: app/routers/daily.py app/routers/dashboard.py
+msgid "Reload the page and try again."
+msgstr "Odśwież stronę i spróbuj ponownie."
+
+#: app/routers/daily.py app/static/js/app.js
+msgid "Saved"
+msgstr "Zapisano"
+
+#: app/routers/daily.py app/templates/daily.html
+msgid "Morning Routine"
+msgstr "Poranna rutyna"
+
+#: app/routers/daily.py app/templates/daily.html
+msgid "Evening Routine"
+msgstr "Wieczorna rutyna"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Body"
+msgstr "Ciało"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Spirit"
+msgstr "Duch"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Self"
+msgstr "Konto"
+
+#: app/routers/daily.py app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Relations"
+msgstr "Relacje"
+
+#: app/routers/daily.py app/templates/partials/today_block.html
+msgid "Water"
+msgstr "Woda"
 
 #: app/routers/dashboard.py
 msgid "A briefing is already queued."
@@ -403,6 +452,10 @@ msgstr "Nie udało się dodać briefingu do kolejki. Spróbuj ponownie."
 msgid "Briefing queued."
 msgstr "Briefing dodany do kolejki."
 
+#: app/routers/dashboard.py app/templates/dashboard.html
+msgid "Power level"
+msgstr "Poziom mocy"
+
 #: app/routers/life_scores.py
 msgid "Choose a valid life-score date."
 msgstr "Wybierz prawidłową datę oceny."
@@ -410,6 +463,174 @@ msgstr "Wybierz prawidłową datę oceny."
 #: app/routers/life_scores.py
 msgid "Life scores saved."
 msgstr "Oceny życia zapisane."
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "row {row}: {field} \"{raw}\" is not a whole number"
+msgstr "wiersz {row}: {field} \"{raw}\" nie jest liczbą całkowitą"
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "row {row}: {field}={value} is outside [{low}, {high}]"
+msgstr "wiersz {row}: {field}={value} jest poza zakresem [{low}, {high}]"
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "row {row}: {field} \"{raw}\" is not a number"
+msgstr "wiersz {row}: {field} \"{raw}\" nie jest liczbą"
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "{date}: {num} session"
+msgid_plural "{date}: {num} sessions"
+msgstr[0] "{date}: {num} sesja"
+msgstr[1] "{date}: {num} sesje"
+msgstr[2] "{date}: {num} sesji"
+
+#: app/routers/training.py
+msgid "That training date is not valid."
+msgstr "Ta data treningu jest nieprawidłowa."
+
+#: app/routers/training.py
+msgid "Write a training note."
+msgstr "Napisz notatkę z treningu."
+
+#: app/routers/training.py
+msgid "Training note saved. Check the entries before you save them."
+msgstr "Notatka z treningu zapisana. Sprawdź pozycje, zanim je zapiszesz."
+
+#: app/routers/training.py
+msgid "The training note could not be saved."
+msgstr "Nie udało się zapisać notatki z treningu."
+
+#: app/routers/training.py
+msgid "Note saved, but reading it could not be queued. Enter the sets by hand."
+msgstr "Notatka zapisana, ale nie udało się dodać jej odczytu do kolejki. Wpisz serie ręcznie."
+
+#: app/routers/training.py
+msgid "Training note saved. Reading its entries."
+msgstr "Notatka z treningu zapisana. Odczytuję jej pozycje."
+
+#: app/routers/training.py
+msgid "That training session id is not valid."
+msgstr "Ten identyfikator sesji treningowej jest nieprawidłowy."
+
+#: app/routers/training.py
+msgid "Entries not discarded: the session is unknown or out of date."
+msgstr "Pozycje nie zostały odrzucone: sesja jest nieznana albo nieaktualna."
+
+#: app/routers/training.py
+msgid "Entries discarded. The training note is kept."
+msgstr "Pozycje odrzucone. Notatka z treningu zostaje."
+
+#: app/routers/training.py
+msgid "The form arrived incomplete - reload the page and try again. The note is saved."
+msgstr "Formularz dotarł niekompletny. Odśwież stronę i spróbuj ponownie. Notatka jest zapisana."
+
+#: app/routers/training.py
+msgid "Too many entries at once - try again."
+msgstr "Za dużo pozycji naraz. Spróbuj ponownie."
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "row {row}: unknown equipment \"{equipment}\""
+msgstr "wiersz {row}: nieznany sprzęt \"{equipment}\""
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "{reason}. The rest of the form is kept - fix that one field and save again."
+msgstr "{reason}. Reszta formularza została zachowana. Popraw to jedno pole i zapisz ponownie."
+
+#: app/routers/training.py
+msgid "Entries not saved: the session is unknown or out of date."
+msgstr "Pozycje nie zostały zapisane: sesja jest nieznana albo nieaktualna."
+
+#: app/routers/training.py
+msgid "No row named a known movement, so nothing was saved. Pick a movement from the list, or use \"Discard entries\" if the note is enough."
+msgstr "Żaden wiersz nie wskazał znanego ćwiczenia, więc nic nie zapisano. Wybierz ćwiczenie z listy albo użyj \"Odrzuć pozycje\", jeśli notatka wystarczy."
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "Saved {saved} of {total} row. Skipped movements that are not in the library: {names}. Add them in Settings and log them with another note."
+msgid_plural "Saved {saved} of {total} rows. Skipped movements that are not in the library: {names}. Add them in Settings and log them with another note."
+msgstr[0] "Zapisano {saved} z {total} wiersza. Pominięto ćwiczenia spoza biblioteki: {names}. Dodaj je w Ustawieniach i zapisz je kolejną notatką."
+msgstr[1] "Zapisano {saved} z {total} wierszy. Pominięto ćwiczenia spoza biblioteki: {names}. Dodaj je w Ustawieniach i zapisz je kolejną notatką."
+msgstr[2] "Zapisano {saved} z {total} wierszy. Pominięto ćwiczenia spoza biblioteki: {names}. Dodaj je w Ustawieniach i zapisz je kolejną notatką."
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "Saved {num} training entry."
+msgid_plural "Saved {num} training entries."
+msgstr[0] "Zapisano {num} pozycję treningu."
+msgstr[1] "Zapisano {num} pozycje treningu."
+msgstr[2] "Zapisano {num} pozycji treningu."
+
+#: app/routers/training.py
+msgid "Manual entry cannot be opened for this session."
+msgstr "Nie można otworzyć ręcznego wpisu dla tej sesji."
+
+#: app/routers/training.py
+msgid "The session changed before manual entry opened."
+msgstr "Sesja zmieniła się, zanim otworzył się ręczny wpis."
+
+#: app/routers/training.py
+msgid "Manual entry is ready. Fill in the exercises and save."
+msgstr "Ręczny wpis gotowy. Uzupełnij ćwiczenia i zapisz."
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "{field} must be a number"
+msgstr "{field} musi być liczbą"
+
+#: app/routers/training.py
+msgid "That set no longer exists."
+msgstr "Ta seria już nie istnieje."
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "time must be between 0 and {high} minutes"
+msgstr "czas musi mieścić się między 0 a {high} minut"
+
+#: app/routers/training.py
+#, python-brace-format
+msgid "Set not saved: {reason}."
+msgstr "Seria nie została zapisana: {reason}."
+
+#: app/routers/training.py
+msgid "Set corrected."
+msgstr "Seria poprawiona."
+
+#: app/routers/training.py
+msgid "Set deleted."
+msgstr "Seria usunięta."
+
+#: app/routers/training.py
+msgid "Session not deleted: it does not exist."
+msgstr "Sesja nie została usunięta: nie istnieje."
+
+#: app/routers/training.py
+msgid "Training session deleted."
+msgstr "Sesja treningowa usunięta."
+
+#: app/routers/training.py app/services/measurements.py
+#: app/services/training_log.py app/templates/training.html
+msgid "Weight"
+msgstr "Waga"
+
+#: app/routers/training.py app/services/training_log.py
+msgid "Set number"
+msgstr "Numer serii"
+
+#: app/routers/training.py app/services/training_log.py
+#: app/templates/partials/wod_row.html app/templates/training.html
+#: app/templates/wod_confirm.html
+msgid "Reps"
+msgstr "Powtórzenia"
+
+#: app/routers/training.py app/services/training_log.py
+#: app/templates/training.html
+msgid "Duration"
+msgstr "Czas trwania"
 
 #: app/services/daily_log.py
 #, python-brace-format
@@ -441,10 +662,6 @@ msgid "{field} is not a daily-log status"
 msgstr "{field} nie jest statusem dziennika"
 
 #: app/services/measurements.py
-msgid "Weight"
-msgstr "Waga"
-
-#: app/services/measurements.py
 msgid "Arm"
 msgstr "Ramię"
 
@@ -469,6 +686,67 @@ msgstr "Nieznane pola pomiarów: {fields}"
 #, python-brace-format
 msgid "{field} must be between {low} and {high}"
 msgstr "{field} musi mieścić się między {low} a {high}."
+
+#: app/services/training_log.py
+msgid "movement is required"
+msgstr "ćwiczenie jest wymagane"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "equipment must be one of: {choices}"
+msgstr "sprzęt musi być jednym z: {choices}"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "entries[{row}].{field} must be between {low} and {high}"
+msgstr "entries[{row}].{field} musi mieścić się między {low} a {high}"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "At most {limit} entries per session"
+msgstr "Najwyżej {limit} pozycji na sesję"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "entries[{row}].movement is required"
+msgstr "entries[{row}].movement jest wymagane"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "entries[{row}].equipment must be one of: {choices}"
+msgstr "entries[{row}].equipment musi być jednym z: {choices}"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "Movements outside the exercise library: {names}. Add them to the library, then retry."
+msgstr "Ćwiczenia spoza biblioteki: {names}. Dodaj je do biblioteki i spróbuj ponownie."
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "duration_minutes must be between 1 and {high}"
+msgstr "duration_minutes musi mieścić się między 1 a {high}"
+
+#: app/services/training_log.py
+msgid "idempotency_key was already used for a different session"
+msgstr "idempotency_key został już użyty dla innej sesji"
+
+#: app/services/training_log.py
+msgid "Training session not found"
+msgstr "Nie znaleziono sesji treningowej"
+
+#: app/services/training_log.py
+msgid "That set no longer exists"
+msgstr "Ta seria już nie istnieje"
+
+#: app/services/training_log.py
+#, python-brace-format
+msgid "{movement} is not in the exercise library. Add it there, then correct the set."
+msgstr "{movement} nie ma w bibliotece ćwiczeń. Dodaj je tam, a potem popraw serię."
+
+#: app/services/training_log.py app/templates/partials/wod_row.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Equipment"
+msgstr "Sprzęt"
 
 #: app/static/js/app.js
 msgid "January"
@@ -518,17 +796,9 @@ msgstr "Grudzień"
 msgid "Suggestions are ready, but the daily card could not refresh."
 msgstr "Propozycje są gotowe, ale nie udało się odświeżyć karty dnia."
 
-#: app/static/js/app.js app/templates/partials/feedback.html
-msgid "Dismiss error"
-msgstr "Zamknij błąd"
-
 #: app/static/js/app.js
 msgid "A draft from a failed network request was restored."
 msgstr "Przywrócono szkic z nieudanego żądania sieciowego."
-
-#: app/static/js/app.js
-msgid "Saving..."
-msgstr "Zapisywanie..."
 
 #: app/static/js/app.js
 msgid "Working..."
@@ -550,21 +820,6 @@ msgstr "Błąd sieci. Zmiany nie zostały potwierdzone."
 msgid "Request timed out. Your changes were not confirmed."
 msgstr "Przekroczono czas żądania. Zmiany nie zostały potwierdzone."
 
-#: app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Pending"
-msgstr "Do zrobienia"
-
-#: app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Done"
-msgstr "Zrobione"
-
-#: app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Skipped"
-msgstr "Pominięte"
-
 #: app/static/js/app.js
 msgid "Offline. Read-only until Virgil is back."
 msgstr "Offline. Tylko odczyt, dopóki Virgil nie wróci."
@@ -581,10 +836,6 @@ msgstr "Połączenie wróciło."
 msgid "No connection. Nothing was saved."
 msgstr "Brak połączenia. Nic nie zostało zapisane."
 
-#: app/static/js/app.js app/templates/base.html
-msgid "Freedom"
-msgstr "Freedom"
-
 #: app/static/js/app.js
 msgid "Keyboard Shortcuts"
 msgstr "Skróty klawiszowe"
@@ -592,18 +843,6 @@ msgstr "Skróty klawiszowe"
 #: app/static/js/app.js
 msgid "Navigation (press g then...)"
 msgstr "Nawigacja (naciśnij g, a potem...)"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Dashboard"
-msgstr "Pulpit"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Daily"
-msgstr "Dziennik"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Training"
-msgstr "Trening"
 
 #: app/static/js/app.js
 msgid "Oura"
@@ -613,29 +852,9 @@ msgstr "Oura"
 msgid "Bloodwork"
 msgstr "Badania krwi"
 
-#: app/static/js/app.js app/templates/base.html
-msgid "Experiments"
-msgstr "Eksperymenty"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Goals"
-msgstr "Cele"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Settings"
-msgstr "Ustawienia"
-
 #: app/static/js/app.js
 msgid "Daily Page"
 msgstr "Strona dziennika"
-
-#: app/static/js/app.js app/templates/daily.html
-msgid "Previous day"
-msgstr "Poprzedni dzień"
-
-#: app/static/js/app.js app/templates/daily.html
-msgid "Next day"
-msgstr "Następny dzień"
 
 #: app/static/js/app.js
 msgid "General"
@@ -665,6 +884,65 @@ msgstr[0] "{num} pole wymaga uwagi."
 msgstr[1] "{num} pola wymagają uwagi."
 msgstr[2] "{num} pól wymaga uwagi."
 
+#: app/static/js/app.js app/templates/base.html
+msgid "Freedom"
+msgstr "Freedom"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Dashboard"
+msgstr "Pulpit"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Daily"
+msgstr "Dziennik"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Experiments"
+msgstr "Eksperymenty"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Goals"
+msgstr "Cele"
+
+#: app/static/js/app.js app/templates/base.html
+msgid "Settings"
+msgstr "Ustawienia"
+
+#: app/static/js/app.js app/templates/base.html app/templates/training.html
+msgid "Training"
+msgstr "Trening"
+
+#: app/static/js/app.js app/templates/daily.html
+msgid "Previous day"
+msgstr "Poprzedni dzień"
+
+#: app/static/js/app.js app/templates/daily.html
+msgid "Next day"
+msgstr "Następny dzień"
+
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Pending"
+msgstr "Do zrobienia"
+
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Done"
+msgstr "Zrobione"
+
+#: app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Skipped"
+msgstr "Pominięte"
+
+#: app/static/js/app.js app/templates/partials/feedback.html
+msgid "Dismiss error"
+msgstr "Zamknij błąd"
+
+#: app/static/js/app.js app/templates/training.html
+msgid "Saving..."
+msgstr "Zapisywanie..."
+
 #: app/static/js/components.js
 msgid "Recently used"
 msgstr "Ostatnio używane"
@@ -677,14 +955,6 @@ msgstr "Virgil - Logowanie"
 msgid "Sign in to continue."
 msgstr "Zaloguj się, żeby kontynuować."
 
-#: app/templates/auth_login.html app/templates/auth_signup.html
-msgid "Email"
-msgstr "E-mail"
-
-#: app/templates/auth_login.html app/templates/auth_signup.html
-msgid "Password"
-msgstr "Hasło"
-
 #: app/templates/auth_login.html
 msgid "Sign In"
 msgstr "Zaloguj się"
@@ -696,6 +966,14 @@ msgstr "Nie masz konta?"
 #: app/templates/auth_login.html
 msgid "Sign up"
 msgstr "Zarejestruj się"
+
+#: app/templates/auth_login.html app/templates/auth_signup.html
+msgid "Email"
+msgstr "E-mail"
+
+#: app/templates/auth_login.html app/templates/auth_signup.html
+msgid "Password"
+msgstr "Hasło"
 
 #: app/templates/auth_mfa_setup.html
 msgid "Virgil - MFA Setup"
@@ -886,17 +1164,9 @@ msgstr "Wysoka"
 msgid "Water Intake (>2500ml)"
 msgstr "Woda (>2500 ml)"
 
-#: app/templates/daily.html app/templates/dashboard.html
-msgid "Queueing..."
-msgstr "Dodawanie do kolejki..."
-
 #: app/templates/daily.html
 msgid "Generate with AI"
 msgstr "Wygeneruj z AI"
-
-#: app/templates/daily.html
-msgid "Edit"
-msgstr "Edytuj"
 
 #: app/templates/daily.html
 #, python-format
@@ -910,10 +1180,6 @@ msgstr "Co zrobisz?"
 #: app/templates/daily.html
 msgid "Notes"
 msgstr "Notatki"
-
-#: app/templates/daily.html app/templates/dashboard.html
-msgid "Save"
-msgstr "Zapisz"
 
 #: app/templates/daily.html
 msgid "Notes for the day..."
@@ -976,8 +1242,12 @@ msgid "Measurements (Saturday)"
 msgstr "Pomiary (sobota)"
 
 #: app/templates/daily.html app/templates/dashboard.html
-msgid "Weight (kg)"
-msgstr "Waga (kg)"
+msgid "Queueing..."
+msgstr "Dodawanie do kolejki..."
+
+#: app/templates/daily.html app/templates/dashboard.html
+msgid "Save"
+msgstr "Zapisz"
 
 #: app/templates/daily.html app/templates/dashboard.html
 msgid "Arm (cm)"
@@ -994,6 +1264,16 @@ msgstr "Biodra (cm)"
 #: app/templates/daily.html app/templates/dashboard.html
 msgid "Thighs (cm)"
 msgstr "Uda (cm)"
+
+#: app/templates/daily.html app/templates/dashboard.html
+#: app/templates/partials/wod_row.html app/templates/training.html
+#: app/templates/wod_confirm.html
+msgid "Weight (kg)"
+msgstr "Waga (kg)"
+
+#: app/templates/daily.html app/templates/training.html
+msgid "Edit"
+msgstr "Edytuj"
 
 #: app/templates/dashboard.html
 msgid "Virgil - Dashboard"
@@ -1111,12 +1391,8 @@ msgid "No Oura data yet."
 msgstr "Brak danych z Oura."
 
 #: app/templates/dashboard.html
-msgid "Connect Oura"
-msgstr "Połącz Oura"
-
-#: app/templates/dashboard.html
-msgid "to see sleep, readiness and activity here."
-msgstr "żeby widzieć tu sen, gotowość i aktywność."
+msgid "<a href=\"/settings?tab=integrations\">Connect Oura</a> to see sleep, readiness and activity here."
+msgstr "<a href=\"/settings?tab=integrations\">Połącz Oura</a>, żeby widzieć tu sen, gotowość i aktywność."
 
 #: app/templates/dashboard.html
 msgid "Measurements"
@@ -1127,12 +1403,9 @@ msgid "No measurements yet."
 msgstr "Brak pomiarów."
 
 #: app/templates/dashboard.html
-msgid "Add them on Daily"
-msgstr "Dodaj je w Dzienniku"
-
-#: app/templates/dashboard.html
-msgid ", which asks for weight and body measurements on Saturdays."
-msgstr ", który w soboty prosi o wagę i obwody ciała."
+#, python-format
+msgid "<a href=\"/daily/%(measurement_day)s#measurements\">Add them on Daily</a>, which asks for weight and body measurements on Saturdays."
+msgstr "<a href=\"/daily/%(measurement_day)s#measurements\">Dodaj je w Dzienniku</a>, który w soboty prosi o wagę i obwody ciała."
 
 #: app/templates/dashboard.html
 msgid "Life Scores"
@@ -1167,10 +1440,6 @@ msgstr[2] "%(count)s ocen w ostatnich tygodniach (%(range_weeks)s): linia potrze
 #: app/templates/dashboard.html
 msgid "New assessment"
 msgstr "Nowa ocena"
-
-#: app/templates/dashboard.html
-msgid "Date"
-msgstr "Data"
 
 #: app/templates/dashboard.html
 msgid "Areas (1-10)"
@@ -1252,6 +1521,10 @@ msgstr "dzisiaj"
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
+#: app/templates/dashboard.html app/templates/training.html
+msgid "Date"
+msgstr "Data"
+
 #: app/templates/partials/feedback.html
 msgid "Action feedback"
 msgstr "Komunikaty o działaniach"
@@ -1323,3 +1596,352 @@ msgstr "Rano"
 #: app/templates/partials/today_block.html
 msgid "Evening"
 msgstr "Wieczór"
+
+#: app/templates/partials/wod_row.html
+#, python-format
+msgid "%(skip_label)s - skip"
+msgstr "%(skip_label)s - pomiń"
+
+#: app/templates/partials/wod_row.html
+msgid "- skip"
+msgstr "- pomiń"
+
+#: app/templates/partials/wod_row.html
+msgid "default"
+msgstr "domyślny"
+
+#: app/templates/partials/wod_row.html
+msgid "search movement or tag"
+msgstr "szukaj ćwiczenia lub tagu"
+
+#: app/templates/partials/wod_row.html
+msgid "Search movements"
+msgstr "Szukaj ćwiczeń"
+
+#: app/templates/partials/wod_row.html
+#, python-format
+msgid "Not recognised: \"%(label)s\". Pick the movement it means, or leave it to skip."
+msgstr "Nie rozpoznano: \"%(label)s\". Wybierz ćwiczenie, o które chodzi, albo zostaw, żeby pominąć."
+
+#: app/templates/partials/wod_row.html
+msgid "+ add set"
+msgstr "+ dodaj serię"
+
+#: app/templates/partials/wod_row.html app/templates/training.html
+#: app/templates/wod_confirm.html
+msgid "Movement"
+msgstr "Ćwiczenie"
+
+#: app/templates/partials/wod_row.html app/templates/training.html
+#: app/templates/wod_confirm.html
+msgid "Set"
+msgstr "Seria"
+
+#: app/templates/partials/wod_row.html app/templates/training.html
+#: app/templates/wod_confirm.html
+msgid "Note"
+msgstr "Notatka"
+
+#: app/templates/partials/wod_row.html app/templates/wod_confirm.html
+msgid "Time (s)"
+msgstr "Czas (s)"
+
+#: app/templates/training.html
+msgid "Virgil - Training"
+msgstr "Virgil - Trening"
+
+#: app/templates/training.html
+msgid "Log a workout"
+msgstr "Zapisz trening"
+
+#: app/templates/training.html
+msgid "Duration (min, optional)"
+msgstr "Czas trwania (min, opcjonalnie)"
+
+#: app/templates/training.html
+msgid "minutes"
+msgstr "minuty"
+
+#: app/templates/training.html
+msgid "e.g. back squat 5x5 70 kg, then 21-15-9 thruster 43 / pull-up, 8:42 or simply: swim 40 min"
+msgstr "np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42 albo po prostu: pływanie 40 min"
+
+#: app/templates/training.html
+msgid "The note is saved before it is read, so even a failed read never loses what you wrote."
+msgstr "Notatka zapisuje się, zanim zostanie odczytana, więc nawet nieudany odczyt nie gubi tego, co napisałeś."
+
+#: app/templates/training.html
+msgid "Log workout"
+msgstr "Zapisz trening"
+
+#: app/templates/training.html
+msgid "This Week"
+msgstr "Ten tydzień"
+
+#: app/templates/training.html
+msgid "Sessions"
+msgstr "Sesje"
+
+#: app/templates/training.html
+msgid "Volume (Core)"
+msgstr "Objętość (Core)"
+
+#: app/templates/training.html
+msgid "Total Reps"
+msgstr "Wszystkie powtórzenia"
+
+#: app/templates/training.html
+msgid "Personal Bests"
+msgstr "Rekordy"
+
+#: app/templates/training.html
+msgid "Personal Bests window"
+msgstr "Zakres rekordów"
+
+#: app/templates/training.html
+#, python-format
+msgid "No loaded Core sets in the last %(count)s week."
+msgid_plural "No loaded Core sets in the last %(count)s weeks."
+msgstr[0] "Brak serii Core z obciążeniem w ostatnim %(count)s tygodniu."
+msgstr[1] "Brak serii Core z obciążeniem w ostatnich %(count)s tygodniach."
+msgstr[2] "Brak serii Core z obciążeniem w ostatnich %(count)s tygodniach."
+
+#: app/templates/training.html
+#, python-format
+msgid "%(count)s rep"
+msgid_plural "%(count)s reps"
+msgstr[0] "%(count)s powtórzenie"
+msgstr[1] "%(count)s powtórzenia"
+msgstr[2] "%(count)s powtórzeń"
+
+#: app/templates/training.html
+#, python-format
+msgid "Other records for %(name)s"
+msgstr "Inne rekordy: %(name)s"
+
+#: app/templates/training.html
+msgid "timed"
+msgstr "na czas"
+
+#: app/templates/training.html
+msgid "weighted"
+msgstr "z obciążeniem"
+
+#: app/templates/training.html
+msgid "Showing a bounded recent selection of Personal Best records."
+msgstr "Pokazuję ograniczony wybór ostatnich rekordów."
+
+#: app/templates/training.html
+msgid "Unfinished"
+msgstr "Niedokończone"
+
+#: app/templates/training.html
+msgid "Finish"
+msgstr "Dokończ"
+
+#: app/templates/training.html
+#, python-format
+msgid "Showing the first %(count)s. There are more unfinished sessions - finish these to see the next ones."
+msgstr "Pokazuję pierwsze %(count)s. Jest więcej niedokończonych sesji. Dokończ te, żeby zobaczyć kolejne."
+
+#: app/templates/training.html
+msgid "Workout History"
+msgstr "Historia treningów"
+
+#: app/templates/training.html
+msgid "Hover for a summary."
+msgstr "Najedź, żeby zobaczyć podsumowanie."
+
+#: app/templates/training.html
+msgid "Select a training day for full details."
+msgstr "Wybierz dzień treningowy, żeby zobaczyć szczegóły."
+
+#: app/templates/training.html
+msgid "Training history year"
+msgstr "Rok historii treningów"
+
+#: app/templates/training.html
+#, python-format
+msgid "Show %(year)s"
+msgstr "Pokaż %(year)s"
+
+#: app/templates/training.html
+msgid "Open training day"
+msgstr "Otwórz dzień treningowy"
+
+#: app/templates/training.html
+#, python-format
+msgid "%(date)s - %(count)s session"
+msgid_plural "%(date)s - %(count)s sessions"
+msgstr[0] "%(date)s - %(count)s sesja"
+msgstr[1] "%(date)s - %(count)s sesje"
+msgstr[2] "%(date)s - %(count)s sesji"
+
+#: app/templates/training.html
+msgid "Open"
+msgstr "Otwórz"
+
+#: app/templates/training.html
+#, python-format
+msgid "%(summary)s. Open details."
+msgstr "%(summary)s. Otwórz szczegóły."
+
+#: app/templates/training.html
+msgid "Training duration legend"
+msgstr "Legenda czasu treningu"
+
+#: app/templates/training.html
+msgid "short"
+msgstr "krótki"
+
+#: app/templates/training.html
+#, python-format
+msgid "%(count)s session"
+msgid_plural "%(count)s sessions"
+msgstr[0] "%(count)s sesja"
+msgstr[1] "%(count)s sesje"
+msgstr[2] "%(count)s sesji"
+
+#: app/templates/training.html
+#, python-format
+msgid "Close %(open_day)s training details"
+msgstr "Zamknij szczegóły treningu z %(open_day)s"
+
+#: app/templates/training.html
+#, python-format
+msgid "Session %(number)s"
+msgstr "Sesja %(number)s"
+
+#: app/templates/training.html
+#, python-format
+msgid "Reading your note - <a href=\"/training/wod/confirm/%(id)s\">wait for the entries</a>."
+msgstr "Odczytuję notatkę. <a href=\"/training/wod/confirm/%(id)s\">Poczekaj na pozycje</a>."
+
+#: app/templates/training.html
+msgid "Enter sets by hand"
+msgstr "Wpisz serie ręcznie"
+
+#: app/templates/training.html
+msgid "Exercise"
+msgstr "Ćwiczenie"
+
+#: app/templates/training.html
+msgid "Correct"
+msgstr "Popraw"
+
+#: app/templates/training.html
+#, python-format
+msgid "Edit %(name)s set %(number)s"
+msgstr "Edytuj %(name)s, seria %(number)s"
+
+#: app/templates/training.html
+msgid "Time (min)"
+msgstr "Czas (min)"
+
+#: app/templates/training.html
+msgid "Save set"
+msgstr "Zapisz serię"
+
+#: app/templates/training.html
+#, python-format
+msgid "Delete %(name)s set %(number)s? The rest of the workout stays."
+msgstr "Usunąć %(name)s, serię %(number)s? Reszta treningu zostaje."
+
+#: app/templates/training.html
+#, python-format
+msgid "Delete %(name)s set %(number)s"
+msgstr "Usuń %(name)s, serię %(number)s"
+
+#: app/templates/training.html
+msgid "Stored entries could not be rendered."
+msgstr "Nie udało się wyświetlić zapisanych pozycji."
+
+#: app/templates/training.html
+msgid "No entries"
+msgstr "Brak pozycji"
+
+#: app/templates/training.html
+#, python-format
+msgid "Showing the first %(shown)s of %(count)s set."
+msgid_plural "Showing the first %(shown)s of %(count)s sets."
+msgstr[0] "Pokazuję pierwsze %(shown)s z %(count)s serii."
+msgstr[1] "Pokazuję pierwsze %(shown)s z %(count)s serii."
+msgstr[2] "Pokazuję pierwsze %(shown)s z %(count)s serii."
+
+#: app/templates/training.html
+msgid "Delete workout"
+msgstr "Usuń trening"
+
+#: app/templates/training.html
+msgid "Confirm delete"
+msgstr "Potwierdź usunięcie"
+
+#: app/templates/training.html
+#, python-format
+msgid "%(open_day)s session pages"
+msgstr "Strony sesji z %(open_day)s"
+
+#: app/templates/training.html
+msgid "newer sessions"
+msgstr "nowsze sesje"
+
+#: app/templates/training.html
+msgid "older sessions"
+msgstr "starsze sesje"
+
+#: app/templates/wod_confirm.html
+msgid "Reading your note. Stay here - the entries will appear on their own."
+msgstr "Odczytuję notatkę. Zostań tutaj, pozycje pojawią się same."
+
+#: app/templates/wod_confirm.html
+msgid "The note is already saved. If reading it fails, this session in the history on the <a href=\"/training\">training page</a> lets you enter the sets by hand."
+msgstr "Notatka jest już zapisana. Jeśli odczyt się nie powiedzie, ta sesja w historii na <a href=\"/training\">stronie treningów</a> pozwoli wpisać serie ręcznie."
+
+#: app/templates/wod_confirm.html
+#, python-format
+msgid "The note could not be read: %(parse_error)s. It is saved and shown in the training history on /training - do not delete this session."
+msgstr "Nie udało się odczytać notatki: %(parse_error)s. Jest zapisana i widoczna w historii treningów na /training. Nie usuwaj tej sesji."
+
+#: app/templates/wod_confirm.html
+msgid "You can enter the movements and sets by hand in the table below."
+msgstr "Ćwiczenia i serie możesz wpisać ręcznie w tabeli poniżej."
+
+#: app/templates/wod_confirm.html
+#, python-format
+msgid "The note produced more than %(max_entries)s rows. The first %(max_entries)s are shown; %(dropped)s were left out. Save these entries and add the rest with another note."
+msgstr "Notatka dała więcej niż %(max_entries)s wierszy. Pokazuję pierwsze %(max_entries)s, pominięto %(dropped)s. Zapisz te pozycje, a resztę dodaj kolejną notatką."
+
+#: app/templates/wod_confirm.html
+#, python-format
+msgid "The movement list is unavailable right now (%(library_error)s). The note is saved and shown in the training history on /training."
+msgstr "Lista ćwiczeń jest teraz niedostępna (%(library_error)s). Notatka jest zapisana i widoczna w historii treningów na /training."
+
+#: app/templates/wod_confirm.html
+msgid "+ add exercise"
+msgstr "+ dodaj ćwiczenie"
+
+#: app/templates/wod_confirm.html
+#, python-format
+msgid "One save takes at most %(max_entries)s rows. Save these entries and add the rest in the next step."
+msgstr "Jednym zapisem możesz dodać najwyżej %(max_entries)s wierszy. Zapisz te pozycje, a resztę dodaj w następnym kroku."
+
+#: app/templates/wod_confirm.html
+msgid "Save entries"
+msgstr "Zapisz pozycje"
+
+#: app/templates/wod_confirm.html
+msgid "Discard the parsed entries? The note stays in your training history."
+msgstr "Odrzucić odczytane pozycje? Notatka zostanie w historii treningów."
+
+#: app/templates/wod_confirm.html
+msgid "Discard entries"
+msgstr "Odrzuć pozycje"
+
+#: app/templates/wod_confirm.html
+#, python-format
+msgid "Nothing could be read from the note - above are %(seed_rows)s empty rows to fill in by hand. \"+ add exercise\" adds another movement, and \"+ add set\" in a row adds the next set of the same movement. Empty rows are skipped when you save, so you do not have to fill them. If the note is enough on its own, use \"Discard entries\" - <a href=\"/training\">going back to training</a> leaves this session marked as unfinished."
+msgstr "Z notatki nie udało się nic odczytać. Powyżej jest %(seed_rows)s pustych wierszy do ręcznego wypełnienia. \"+ dodaj ćwiczenie\" dodaje kolejne ćwiczenie, a \"+ dodaj serię\" w wierszu dodaje następną serię tego samego ćwiczenia. Puste wiersze są pomijane przy zapisie, więc nie musisz ich wypełniać. Jeśli sama notatka wystarczy, użyj \"Odrzuć pozycje\". <a href=\"/training\">Powrót do treningu</a> zostawia tę sesję jako niedokończoną."
+
+#: app/templates/wod_confirm.html
+msgid "Nothing could be read from the note, and the movement list is unavailable right now - without it there is nothing to pick from, so entering sets by hand has to wait. The note is saved. In the history on the <a href=\"/training\">training page</a> this session has a \"Finish\" link - come back here with it when the list is available again."
+msgstr "Z notatki nie udało się nic odczytać, a lista ćwiczeń jest teraz niedostępna. Bez niej nie ma z czego wybierać, więc ręczny wpis serii musi poczekać. Notatka jest zapisana. W historii na <a href=\"/training\">stronie treningów</a> ta sesja ma link \"Dokończ\". Wróć nim tutaj, gdy lista znów będzie dostępna."

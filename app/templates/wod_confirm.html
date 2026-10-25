@@ -16,10 +16,9 @@
   <div class="card-body">
     <p role="status" aria-live="polite">
       <span class="spinner" aria-hidden="true"></span>
-      Reading your note. Stay here - the entries will appear on their own.
+      {{ _("Reading your note. Stay here - the entries will appear on their own.") }}
     </p>
-    <p class="text-muted">The note is already saved. If reading it fails, this session in the
-      history on the <a href="/training">training page</a> lets you enter the sets by hand.</p>
+    <p class="text-muted">{% trans %}The note is already saved. If reading it fails, this session in the history on the <a href="/training">training page</a> lets you enter the sets by hand.{% endtrans %}</p>
   </div>
 </div>
 {% else %}
@@ -38,20 +37,16 @@
     {% set seed_row = parsed_row_count == 0 and movements %}
 
     {% if parse_error %}
-      <p class="text-muted">The note could not be read: {{ parse_error }}.
-      It is saved and shown in the training history on /training - do not delete this session.
-      {% if rows %}You can enter the movements and sets by hand in the table below.{% endif %}</p>
+      <p class="text-muted">{% trans %}The note could not be read: {{ parse_error }}. It is saved and shown in the training history on /training - do not delete this session.{% endtrans %}
+      {% if rows %}{{ _("You can enter the movements and sets by hand in the table below.") }}{% endif %}</p>
     {% endif %}
 
     {% if dropped %}
-      <p class="text-muted">The note produced more than {{ max_entries }} rows.
-      The first {{ max_entries }} are shown; {{ dropped }} were left out. Save these entries
-      and add the rest with another note.</p>
+      <p class="text-muted">{% trans %}The note produced more than {{ max_entries }} rows. The first {{ max_entries }} are shown; {{ dropped }} were left out. Save these entries and add the rest with another note.{% endtrans %}</p>
     {% endif %}
 
     {% if library_error %}
-      <p class="text-muted">The movement list is unavailable right now ({{ library_error }}).
-      The note is saved and shown in the training history on /training.</p>
+      <p class="text-muted">{% trans %}The movement list is unavailable right now ({{ library_error }}). The note is saved and shown in the training history on /training.{% endtrans %}</p>
     {% endif %}
 
     {# The form renders whenever there is a row to render. It used to be gated on
@@ -77,7 +72,7 @@
       <input type="hidden" name="session_id" value="{{ session_id }}">
       <div class="overflow-x">
       <table class="wod-table">
-        <thead><tr><th>Movement</th><th>Set</th><th>Reps</th><th>Weight (kg)</th><th>Time (s)</th><th>Equipment</th><th>Note</th><th></th></tr></thead>
+        <thead><tr><th>{{ _("Movement") }}</th><th>{{ _("Set") }}</th><th>{{ _("Reps") }}</th><th>{{ _("Weight (kg)") }}</th><th>{{ _("Time (s)") }}</th><th>{{ _("Equipment") }}</th><th>{{ _("Note") }}</th><th></th></tr></thead>
         <tbody>
         {# One numbered list for every row type: a parsed entry, an unmatched
            name, and the blank seed rows a failed parse gets. The router owns the
@@ -108,36 +103,25 @@
          Reaching a second movement used to mean adding a "set" and then changing
          its select, so the only labelled way in described the wrong action. #}
       <button type="button" class="btn btn-outline" @click="addExercise()"
-              x-show="!atLimit" style="margin-bottom:0.75rem;">+ add exercise</button>
+              x-show="!atLimit" style="margin-bottom:0.75rem;">{{ _("+ add exercise") }}</button>
       <p class="text-muted" x-show="atLimit" x-cloak style="margin-bottom:0.75rem;">
-        One save takes at most {{ max_entries }} rows. Save these entries
-        and add the rest in the next step.</p>
+        {% trans %}One save takes at most {{ max_entries }} rows. Save these entries and add the rest in the next step.{% endtrans %}</p>
       <div>
-      <button type="submit" class="btn btn-primary">Save entries</button>
+      <button type="submit" class="btn btn-primary">{{ _("Save entries") }}</button>
       {# The supported way to end with the note and no entries. formnovalidate so
          a half-filled row cannot block the exit. #}
       <button type="submit" name="action" value="discard" formnovalidate
-              class="btn btn-outline" style="margin-left:0.5rem;" data-confirm="Discard the parsed entries? The note stays in your training history.">
-        Discard entries
+              class="btn btn-outline" style="margin-left:0.5rem;" data-confirm="{{ _("Discard the parsed entries? The note stays in your training history.") }}">
+        {{ _("Discard entries") }}
       </button>
       </div>
     </form>
     {% endif %}
     {% if parsed_row_count == 0 %}
       {% if seed_row %}
-      <p class="text-muted" style="margin-top:0.5rem;">Nothing could be read from the note -
-      above are {{ seed_rows }} empty rows to fill in by hand. "+ add exercise" adds another
-      movement, and "+ add set" in a row adds the next set of the same movement.
-      Empty rows are skipped when you save, so you do not have to fill them.
-      If the note is enough on its own, use "Discard entries" -
-      <a href="/training">going back to training</a> leaves this session marked as
-      unfinished.</p>
+      <p class="text-muted" style="margin-top:0.5rem;">{% trans %}Nothing could be read from the note - above are {{ seed_rows }} empty rows to fill in by hand. "+ add exercise" adds another movement, and "+ add set" in a row adds the next set of the same movement. Empty rows are skipped when you save, so you do not have to fill them. If the note is enough on its own, use "Discard entries" - <a href="/training">going back to training</a> leaves this session marked as unfinished.{% endtrans %}</p>
       {% else %}
-      <p class="text-muted" style="margin-top:0.5rem;">Nothing could be read from the note, and the
-      movement list is unavailable right now - without it there is nothing to pick from, so entering
-      sets by hand has to wait. The note is saved. In the history on the
-      <a href="/training">training page</a> this session has a "Finish" link - come back here with it
-      when the list is available again.</p>
+      <p class="text-muted" style="margin-top:0.5rem;">{% trans %}Nothing could be read from the note, and the movement list is unavailable right now - without it there is nothing to pick from, so entering sets by hand has to wait. The note is saved. In the history on the <a href="/training">training page</a> this session has a "Finish" link - come back here with it when the list is available again.{% endtrans %}</p>
       {% endif %}
     {% endif %}
 

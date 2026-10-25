@@ -27,6 +27,7 @@ name, for both surfaces.
 import re
 import unicodedata
 
+from app.i18n import N_, LocalizedError
 from app.validation import truncate
 
 LIBRARY_METRICS = ("reps", "time")
@@ -99,7 +100,7 @@ def valid_library_metric(metric: str) -> bool:
     return metric in LIBRARY_METRICS
 
 
-class LibraryWriteError(Exception):
+class LibraryWriteError(LocalizedError):
     """A library write that must be refused, not silently coerced or dropped.
 
     `status` is the HTTP status both surfaces agree this failure deserves
@@ -110,10 +111,11 @@ class LibraryWriteError(Exception):
     or don't, together, on the same input.
     """
 
-    def __init__(self, status: int, message: str):
+    def __init__(self, status: int, message: str, **params):
+        super().__init__(message, **params)
         self.status = status
-        self.message = message
-        super().__init__(message)
+        # The English text, for the API; pages use localized().
+        self.message = str(self)
 
 
 def normalize_tag(raw: str) -> str:
@@ -135,9 +137,9 @@ def normalize_tag(raw: str) -> str:
     text = _TAG_INVALID_CHARS.sub("", text)
     text = _TAG_DASHES.sub("-", text).strip("-")
     if not text:
-        raise LibraryWriteError(422, f"tag {raw!r} normalises to nothing")
+        raise LibraryWriteError(422, N_("tag {tag} normalises to nothing"), tag=repr(raw))
     if len(text) > MAX_TAG_LEN:
-        raise LibraryWriteError(422, f"tag {text!r} exceeds {MAX_TAG_LEN} characters")
+        raise LibraryWriteError(422, N_("tag {tag} exceeds {limit} characters"), tag=repr(text), limit=MAX_TAG_LEN)
     return text
 
 
@@ -167,7 +169,9 @@ def normalize_tags(raw: list[str] | str | None) -> list[str]:
     # actually matters here. Raising here means both callers reject before
     # their INSERT loop ever runs a single statement.
     if len(out) > MAX_TAGS_PER_ENTRY:
-        raise LibraryWriteError(422, f"at most {MAX_TAGS_PER_ENTRY} tags allowed per entry, got {len(out)}")
+        raise LibraryWriteError(
+            422, N_("at most {limit} tags allowed per entry, got {count}"), limit=MAX_TAGS_PER_ENTRY, count=len(out)
+        )
     return sorted(out)
 
 
@@ -246,24 +250,36 @@ async def validate_library_write(
     if op == "delete":
         assert existing is not None, "delete requires the current row"
         if existing["builtin"]:
-            raise LibraryWriteError(409, f"library entry {entry_id} is builtin — archive it instead")
+            raise LibraryWriteError(
+                409, N_("library entry {entry_id} is builtin — archive it instead"), entry_id=entry_id
+            )
         return None
 
     if op == "create":
         name = normalize_library_text(fields.get("name", ""), 100)
         if not name:
-            raise LibraryWriteError(422, "name is required")
+            raise LibraryWriteError(422, N_("name is required"))
 
         section = fields.get("section", "Core")
         if section not in LIBRARY_SECTIONS:
-            raise LibraryWriteError(422, f"section must be one of {'/'.join(LIBRARY_SECTIONS)}, got {section!r}")
+            raise LibraryWriteError(
+                422,
+                N_("section must be one of {choices}, got {value}"),
+                choices="/".join(LIBRARY_SECTIONS),
+                value=repr(section),
+            )
 
         metric = fields.get("metric", "reps")
         if not valid_library_metric(metric):
-            raise LibraryWriteError(422, f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}")
+            raise LibraryWriteError(
+                422,
+                N_("metric must be one of {choices}, got {value}"),
+                choices="/".join(LIBRARY_METRICS),
+                value=repr(metric),
+            )
 
         if await _name_taken(db, name):
-            raise LibraryWriteError(409, f"{name!r} already exists")
+            raise LibraryWriteError(409, N_("{name} already exists"), name=repr(name))
 
         return {
             "section": section,
@@ -277,14 +293,16 @@ async def validate_library_write(
     if op == "update":
         assert existing is not None, "update requires the current row"
         if existing["builtin"] and set(fields) - {"archived"}:
-            raise LibraryWriteError(409, f"library entry {entry_id} is builtin — only 'archived' can change")
+            raise LibraryWriteError(
+                409, N_("library entry {entry_id} is builtin — only 'archived' can change"), entry_id=entry_id
+            )
 
         result: dict = {}
 
         if "name" in fields:
             name = normalize_library_text(fields["name"], 100)
             if not name:
-                raise LibraryWriteError(422, "name cannot be blank")
+                raise LibraryWriteError(422, N_("name cannot be blank"))
             # B2 (2026-07-31 review): this decides "is this a rename at all" --
             # a DIFFERENT question from "is this the same movement", which is
             # what _name_taken/_training_history_exists_for below decide (both
@@ -310,7 +328,7 @@ async def validate_library_write(
             # a different movement.
             if name != existing["name"]:
                 if await _name_taken(db, name, exclude_id=entry_id):
-                    raise LibraryWriteError(409, f"{name!r} already exists")
+                    raise LibraryWriteError(409, N_("{name} already exists"), name=repr(name))
                 # I2: a rename must not orphan training_exercises rows still
                 # holding history under the OLD name — resolve_movement()
                 # matches training_exercises by name, so the next WOD
@@ -319,21 +337,34 @@ async def validate_library_write(
                 if await _training_history_exists_for(db, existing["name"]):
                     raise LibraryWriteError(
                         409,
-                        f"cannot rename {existing['name']!r} — training history exists under "
-                        "that name; archive this entry and create a new one instead",
+                        N_(
+                            "cannot rename {name} — training history exists under "
+                            "that name; archive this entry and create a new one instead"
+                        ),
+                        name=repr(existing["name"]),
                     )
             result["name"] = name
 
         if "section" in fields:
             section = fields["section"]
             if section not in LIBRARY_SECTIONS:
-                raise LibraryWriteError(422, f"section must be one of {'/'.join(LIBRARY_SECTIONS)}, got {section!r}")
+                raise LibraryWriteError(
+                    422,
+                    N_("section must be one of {choices}, got {value}"),
+                    choices="/".join(LIBRARY_SECTIONS),
+                    value=repr(section),
+                )
             result["section"] = section
 
         if "metric" in fields:
             metric = fields["metric"]
             if not valid_library_metric(metric):
-                raise LibraryWriteError(422, f"metric must be one of {'/'.join(LIBRARY_METRICS)}, got {metric!r}")
+                raise LibraryWriteError(
+                    422,
+                    N_("metric must be one of {choices}, got {value}"),
+                    choices="/".join(LIBRARY_METRICS),
+                    value=repr(metric),
+                )
             result["metric"] = metric
 
         if "sets" in fields:

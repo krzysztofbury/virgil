@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import N_, LocalizedError, _, month_short, ngettext
 from app.main import templates
 from app.services.job_producers import ActiveWorkloadConflictError
 from app.services.llm_jobs import enqueue_paid_llm_job, paid_llm_job_key
@@ -195,7 +196,7 @@ def _parse_int_in_range(raw, minimum: int, maximum: int) -> int | None:
     return value
 
 
-class _ConfirmRejected(Exception):
+class _ConfirmRejected(LocalizedError):
     """A /training/wod/confirm field was present but failed validation.
 
     Distinct from "absent/blank", which is a normal unset value (e.g. no
@@ -206,6 +207,8 @@ class _ConfirmRejected(Exception):
     trace. Raising here aborts the whole submission instead, loudly, before
     anything is written.
     """
+
+    labels = {"reps": N_("Reps"), "weight": N_("Weight"), "duration": N_("Duration"), "set_number": N_("Set number")}
 
 
 def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int | None:
@@ -221,9 +224,18 @@ def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int |
     try:
         value = int(raw)
     except (TypeError, ValueError):
-        raise _ConfirmRejected(f'row {row + 1}: {field} "{raw}" is not a whole number') from None
+        raise _ConfirmRejected(
+            N_('row {row}: {field} "{raw}" is not a whole number'), row=row + 1, field=field, raw=raw
+        ) from None
     if value < minimum or value > maximum:
-        raise _ConfirmRejected(f"row {row + 1}: {field}={value} is outside [{minimum}, {maximum}]")
+        raise _ConfirmRejected(
+            N_("row {row}: {field}={value} is outside [{low}, {high}]"),
+            row=row + 1,
+            field=field,
+            value=value,
+            low=minimum,
+            high=maximum,
+        )
     return value
 
 
@@ -234,9 +246,18 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
     try:
         value = float(raw)
     except (TypeError, ValueError):
-        raise _ConfirmRejected(f'row {row + 1}: {field} "{raw}" is not a number') from None
+        raise _ConfirmRejected(
+            N_('row {row}: {field} "{raw}" is not a number'), row=row + 1, field=field, raw=raw
+        ) from None
     if value < minimum or value > maximum:
-        raise _ConfirmRejected(f"row {row + 1}: {field}={value} is outside [{minimum}, {maximum}]")
+        raise _ConfirmRejected(
+            N_("row {row}: {field}={value} is outside [{low}, {high}]"),
+            row=row + 1,
+            field=field,
+            value=value,
+            low=minimum,
+            high=maximum,
+        )
     return value
 
 
@@ -266,7 +287,9 @@ def _training_calendar(selected_year: int, summaries_by_date: dict[str, dict], t
                 else:
                     intensity = 1
 
-            summary = f"{day_iso}: {session_count} session{'s' if session_count != 1 else ''}"
+            summary = ngettext("{date}: {num} session", "{date}: {num} sessions", session_count).format(
+                date=day_iso, num=session_count
+            )
             if total_minutes:
                 summary += f", {total_minutes} min"
 
@@ -283,7 +306,7 @@ def _training_calendar(selected_year: int, summaries_by_date: dict[str, dict], t
             )
         months.append(
             {
-                "name": calendar.month_abbr[month],
+                "name": month_short(month),
                 "first_weekday": date(selected_year, month, 1).weekday(),
                 "days": days,
             }
@@ -627,11 +650,11 @@ async def capture_wod(request: Request):
     session_date = form.get("date", date.today().isoformat())
     session_date = valid_date(session_date)
     if not session_date:
-        return error_redirect(request, "/training", "That training date is not valid.")
+        return error_redirect(request, "/training", _("That training date is not valid."))
 
     wod_text = truncate(form.get("wod_text", "").strip(), 4000)
     if not wod_text:
-        return error_redirect(request, "/training", "Write a training note.")
+        return error_redirect(request, "/training", _("Write a training note."))
 
     duration_int = _parse_int_in_range(form.get("duration_minutes"), 1, int(DURATION_MINUTES_MAX))
 
@@ -655,10 +678,10 @@ async def capture_wod(request: Request):
             return success_redirect(
                 request,
                 f"/training/wod/confirm/{replay_id}",
-                "Training note saved. Check the entries before you save them.",
+                _("Training note saved. Check the entries before you save them."),
             )
         if session_id is None:
-            return error_redirect(request, "/training", "The training note could not be saved.")
+            return error_redirect(request, "/training", _("The training note could not be saved."))
 
     # The paid parse belongs to the worker. The note is already committed, so a
     # parse that never runs costs structure, never the record - and the confirm
@@ -676,14 +699,14 @@ async def capture_wod(request: Request):
         return error_redirect(
             request,
             "/training",
-            "Note saved, but reading it could not be queued. Enter the sets by hand.",
+            _("Note saved, but reading it could not be queued. Enter the sets by hand."),
         )
     except Exception:
         logger.exception("WOD parse enqueue failed for session %s", session_id)
         return error_redirect(
             request,
             "/training",
-            "Note saved, but reading it could not be queued. Enter the sets by hand.",
+            _("Note saved, but reading it could not be queued. Enter the sets by hand."),
         )
 
     from app.routers.jobs import wake_worker_for
@@ -693,7 +716,7 @@ async def capture_wod(request: Request):
     return success_redirect(
         request,
         f"/training/wod/confirm/{session_id}?job_id={result.job_id}",
-        "Training note saved. Reading its entries.",
+        _("Training note saved. Reading its entries."),
     )
 
 
@@ -924,7 +947,7 @@ async def confirm_wod(request: Request):
 
     session_id = _parse_int_in_range(form.get("session_id"), 1, 2**31 - 1)
     if session_id is None:
-        return error_redirect(request, "/training", "That training session id is not valid.")
+        return error_redirect(request, "/training", _("That training session id is not valid."))
 
     # "Discard this parse": the supported way to end up with the note and no
     # entries. Without an explicit exit, "I reviewed this and want none of it" is
@@ -954,9 +977,11 @@ async def confirm_wod(request: Request):
         if cursor.rowcount == 0:
             logger.warning("WOD discard for session %s matched nothing (unknown id or already settled)", session_id)
             await db.commit()
-            return error_redirect(request, "/training", "Entries not discarded: the session is unknown or out of date.")
+            return error_redirect(
+                request, "/training", _("Entries not discarded: the session is unknown or out of date.")
+            )
         await db.commit()
-        return success_redirect(request, "/training", "Entries discarded. The training note is kept.")
+        return success_redirect(request, "/training", _("Entries discarded. The training note is kept."))
 
     entry_count_raw = form.get("entry_count")
     entry_count = _parse_int_in_range(entry_count_raw, 0, MAX_CONFIRM_ENTRIES)
@@ -972,9 +997,9 @@ async def confirm_wod(request: Request):
         )
         blank = entry_count_raw is None or str(entry_count_raw).strip() == ""
         message = (
-            "The form arrived incomplete - reload the page and try again. The note is saved."
+            _("The form arrived incomplete - reload the page and try again. The note is saved.")
             if blank
-            else "Too many entries at once - try again."
+            else _("Too many entries at once - try again.")
         )
         return error_redirect(request, f"/training/wod/confirm/{session_id}", message)
 
@@ -989,7 +1014,7 @@ async def confirm_wod(request: Request):
             note = truncate(form.get(f"entry_{i}_note", ""), 200)
             equipment = (form.get(f"entry_{i}_equipment") or "").strip() or None
             if not valid_equipment(equipment):
-                raise _ConfirmRejected(f'row {i + 1}: unknown equipment "{equipment}"')
+                raise _ConfirmRejected(N_('row {row}: unknown equipment "{equipment}"'), row=i + 1, equipment=equipment)
             parsed_rows.append(
                 (movement, set_number if set_number is not None else 1, reps, weight, duration, note, equipment)
             )
@@ -1002,7 +1027,9 @@ async def confirm_wod(request: Request):
             session_id,
             session_date,
             rows=_rows_from_form(form, entry_count),
-            error=f"{exc}. The rest of the form is kept - fix that one field and save again.",
+            error=_("{reason}. The rest of the form is kept - fix that one field and save again.").format(
+                reason=exc.localized()
+            ),
         )
 
     # B1: atomically consume the pending parse result. rowcount != 1 means
@@ -1019,7 +1046,7 @@ async def confirm_wod(request: Request):
     )
     if cursor.rowcount != 1:
         await db.commit()
-        return error_redirect(request, "/training", "Entries not saved: the session is unknown or out of date.")
+        return error_redirect(request, "/training", _("Entries not saved: the session is unknown or out of date."))
 
     rows: list[tuple] = []
     skipped: list[str] = []
@@ -1070,8 +1097,10 @@ async def confirm_wod(request: Request):
         return error_redirect(
             request,
             f"/training/wod/confirm/{session_id}",
-            "No row named a known movement, so nothing was saved. "
-            'Pick a movement from the list, or use "Discard entries" if the note is enough.',
+            _(
+                "No row named a known movement, so nothing was saved. "
+                'Pick a movement from the list, or use "Discard entries" if the note is enough.'
+            ),
         )
 
     await db.executemany(
@@ -1083,14 +1112,20 @@ async def confirm_wod(request: Request):
 
     if skipped:
         names = ", ".join(sorted(set(skipped))[:MAX_SKIPPED_NAMED])
-        message = (
-            f"Saved {len(rows)} of {len(rows) + len(skipped)} rows. "
-            f"Skipped movements that are not in the library: {names}. "
-            "Add them in Settings and log them with another note."
-        )
+        message = ngettext(
+            "Saved {saved} of {total} row. Skipped movements that are not in the library: {names}. "
+            "Add them in Settings and log them with another note.",
+            "Saved {saved} of {total} rows. Skipped movements that are not in the library: {names}. "
+            "Add them in Settings and log them with another note.",
+            len(rows) + len(skipped),
+        ).format(saved=len(rows), total=len(rows) + len(skipped), names=names)
         logger.warning("WOD confirm skipped unresolved movements for session %s: %s", session_id, names)
         return success_redirect(request, "/training", message)
-    return success_redirect(request, "/training", f"Saved {len(rows)} training entries.")
+    return success_redirect(
+        request,
+        "/training",
+        ngettext("Saved {num} training entry.", "Saved {num} training entries.", len(rows)).format(num=len(rows)),
+    )
 
 
 @router.post("/training/session/{session_id}/manual")
@@ -1112,7 +1147,7 @@ async def arm_manual_entry(request: Request, session_id: int):
     )
     if not rows or rows[0]["entries"] or rows[0]["wod_parsed"] is not None:
         logger.warning("manual entry refused for session %s (unknown, has entries, or already armed)", session_id)
-        return error_redirect(request, "/training", "Manual entry cannot be opened for this session.")
+        return error_redirect(request, "/training", _("Manual entry cannot be opened for this session."))
 
     armed = json.dumps({"entries": [], "unmatched": [], "parse_error": "", "dropped": 0, "manual": True})
     cursor = await db.execute(
@@ -1123,11 +1158,11 @@ async def arm_manual_entry(request: Request, session_id: int):
     if cursor.rowcount != 1:
         # Another request armed it between the read and this write.
         logger.warning("manual entry for session %s lost the arming race", session_id)
-        return error_redirect(request, "/training", "The session changed before manual entry opened.")
+        return error_redirect(request, "/training", _("The session changed before manual entry opened."))
     return success_redirect(
         request,
         f"/training/wod/confirm/{session_id}",
-        "Manual entry is ready. Fill in the exercises and save.",
+        _("Manual entry is ready. Fill in the exercises and save."),
     )
 
 
@@ -1143,9 +1178,9 @@ def _optional_number(raw, cast, field: str):
     try:
         value = cast(raw)
     except ValueError as exc:
-        raise TrainingWriteError(422, f"{field} must be a number") from exc
+        raise TrainingWriteError(422, N_("{field} must be a number"), field=field) from exc
     if value != value or value in (float("inf"), float("-inf")):
-        raise TrainingWriteError(422, f"{field} must be a number")
+        raise TrainingWriteError(422, N_("{field} must be a number"), field=field)
     return value
 
 
@@ -1164,13 +1199,15 @@ async def edit_entry(request: Request, entry_id: int):
         (entry_id,),
     )
     if not rows:
-        return error_redirect(request, "/training", "That set no longer exists.")
+        return error_redirect(request, "/training", _("That set no longer exists."))
     destination = _training_day(rows[0]["date"])
     try:
         set_number = _optional_number(form.get("set_number"), int, "set")
         minutes = _optional_number(form.get("duration_minutes"), float, "time")
         if minutes is not None and not 0 <= minutes <= DURATION_MINUTES_MAX:
-            raise TrainingWriteError(422, f"time must be between 0 and {int(DURATION_MINUTES_MAX)} minutes")
+            raise TrainingWriteError(
+                422, N_("time must be between 0 and {high} minutes"), high=int(DURATION_MINUTES_MAX)
+            )
         stored = rows[0]["duration"]
         # The form shows minutes to two decimals. When that is what came back,
         # keep the stored seconds: converting 0.62 min back would turn 37 s into 37.2 s.
@@ -1186,8 +1223,8 @@ async def edit_entry(request: Request, entry_id: int):
         }
         await update_entry(db, entry_id, entry)
     except TrainingWriteError as exc:
-        return error_redirect(request, destination, f"Set not saved: {exc}.")
-    return success_redirect(request, destination, "Set corrected.")
+        return error_redirect(request, destination, _("Set not saved: {reason}.").format(reason=exc.localized()))
+    return success_redirect(request, destination, _("Set corrected."))
 
 
 @router.post("/training/entry/{entry_id}/delete")
@@ -1196,8 +1233,8 @@ async def delete_one_entry(request: Request, entry_id: int):
     try:
         day = await delete_entry(db, entry_id)
     except TrainingWriteError:
-        return error_redirect(request, "/training", "That set no longer exists.")
-    return success_redirect(request, _training_day(day), "Set deleted.")
+        return error_redirect(request, "/training", _("That set no longer exists."))
+    return success_redirect(request, _training_day(day), _("Set deleted."))
 
 
 @router.post("/training/session/{session_id}/delete")
@@ -1206,5 +1243,5 @@ async def delete_session(request: Request, session_id: int):
     cursor = await db.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
     await db.commit()
     if cursor.rowcount == 0:
-        return error_redirect(request, "/training", "Session not deleted: it does not exist.")
-    return success_redirect(request, "/training", "Training session deleted.")
+        return error_redirect(request, "/training", _("Session not deleted: it does not exist."))
+    return success_redirect(request, "/training", _("Training session deleted."))

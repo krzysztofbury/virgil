@@ -37,12 +37,9 @@ PENDING_TEMPLATES = {
     "partials/freedom_today.html",
     "partials/job_notifications.html",
     "partials/job_status.html",
-    "partials/wod_row.html",
     "settings.html",
     "settings_import.html",
     "settings_token_created.html",
-    "training.html",
-    "wod_confirm.html",
 }
 # The service worker caches one offline page for everyone, so it carries both
 # languages itself instead of going through the catalog.
@@ -61,7 +58,6 @@ PENDING_PAGES = {
     "/goals",
     "/onboarding",
     "/oura",
-    "/training",
     "/settings?tab=general",
     "/settings?tab=configuration",
     "/settings?tab=integrations",
@@ -80,10 +76,7 @@ PENDING_MODULES = {
     "routers/onboarding.py",
     "routers/oura.py",
     "routers/settings.py",
-    "routers/training.py",
     "csrf.py",
-    "library_validation.py",
-    "validation.py",
 }
 
 # Words that are the same in both languages: product names and units.
@@ -132,9 +125,19 @@ def test_templates_have_no_untranslated_text():
 
 
 # A literal a person could read: starts with a capital, has a space, ends a sentence.
-SENTENCE = re.compile(r"^(?!(?:SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|ALTER|PRAGMA)\b)[A-Z][^\n]*\s[^\n]*[.!?:]$")
+SENTENCE = re.compile(
+    r"^(?!(?:SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|ALTER|PRAGMA|WHERE|FROM|AND|OR)\b)[A-Z][^\n]*\s[^\n]*[.!?:]$"
+)
 MARKERS = {"_", "N_", "ngettext"}
-UI_MODULES = ["routers/*.py", "validation.py", "library_validation.py", "csrf.py"]
+UI_MODULES = [
+    "routers/*.py",
+    "validation.py",
+    "library_validation.py",
+    "csrf.py",
+    "services/daily_log.py",
+    "services/measurements.py",
+    "services/training_log.py",
+]
 NOT_UI = {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}
 
 

@@ -16,7 +16,7 @@
    match neither the name nor a tag, and it submits nothing itself. #}
 
 {% macro options(movements, tags, recent, sections, selected='', skip_label='') %}
-  <option value="">{% if skip_label %}{{ skip_label }} - skip{% else %}- skip{% endif %}</option>
+  <option value="">{% if skip_label %}{% trans %}{{ skip_label }} - skip{% endtrans %}{% else %}{{ _("- skip") }}{% endif %}</option>
   {% for section in sections %}
     <optgroup label="{{ section }}">
     {% for m in movements if m.section == section %}
@@ -30,7 +30,7 @@
 {# Blank means the movement's usual equipment, so a row only says something
    when the set differs from it (a dumbbell hang snatch). #}
 {% macro equipment_options_list(equipment_options, selected='') %}
-  <option value="">default</option>
+  <option value="">{{ _("default") }}</option>
   {% for value, label in equipment_options %}
   <option value="{{ value }}"{% if value == selected %} selected{% endif %}>{{ label }}</option>
   {% endfor %}
@@ -39,28 +39,28 @@
 {% macro search_box() %}
     {# x-show="ready" keeps this hidden until Alpine initialises the row. A
        search box that filters nothing is worse than no search box. #}
-    <input type="search" class="movement-search" placeholder="search movement or tag"
-           x-model="query" @input="filter()" x-show="ready" x-cloak aria-label="Search movements">
+    <input type="search" class="movement-search" placeholder="{{ _("search movement or tag") }}"
+           x-model="query" @input="filter()" x-show="ready" x-cloak aria-label="{{ _("Search movements") }}">
 {% endmacro %}
 
 {% macro server_row(r, movements, tags, recent, sections, equipment_options) %}
           <tr x-data="movementRow">
             <td>
               {% if r.unmatched_label %}
-              <div class="wod-unrecognised" role="note"><i data-lucide="triangle-alert" aria-hidden="true"></i> Not recognised: "{{ r.unmatched_label }}". Pick the movement it means, or leave it to skip.</div>
+              <div class="wod-unrecognised" role="note"><i data-lucide="triangle-alert" aria-hidden="true"></i> {% trans label=r.unmatched_label %}Not recognised: "{{ label }}". Pick the movement it means, or leave it to skip.{% endtrans %}</div>
               {% endif %}
               {{ search_box() }}
-              <select name="entry_{{ r.index }}_movement" x-ref="select" class="movement-select" aria-label="Movement">
+              <select name="entry_{{ r.index }}_movement" x-ref="select" class="movement-select" aria-label="{{ _("Movement") }}">
                 {{ options(movements, tags, recent, sections, selected=r.movement, skip_label=r.unmatched_label) }}
               </select>
             </td>
-            <td data-label="Set"><input type="number" name="entry_{{ r.index }}_set_number" value="{{ r.set_number }}" min="1"></td>
-            <td data-label="Reps"><input type="number" name="entry_{{ r.index }}_reps" value="{{ r.reps }}" min="0"></td>
-            <td data-label="Weight (kg)"><input type="number" step="0.5" name="entry_{{ r.index }}_weight" value="{{ r.weight }}" min="0"></td>
-            <td data-label="Time (s)"><input type="number" step="1" name="entry_{{ r.index }}_duration" value="{{ r.duration }}" min="0"></td>
-            <td data-label="Equipment"><select name="entry_{{ r.index }}_equipment" class="equipment-select" aria-label="Equipment">{{ equipment_options_list(equipment_options, r.equipment) }}</select></td>
-            <td data-label="Note"><input type="text" name="entry_{{ r.index }}_note" value="{{ r.note }}" maxlength="200"></td>
-            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ add set</button></td>
+            <td data-label="{{ _("Set") }}"><input type="number" name="entry_{{ r.index }}_set_number" value="{{ r.set_number }}" min="1"></td>
+            <td data-label="{{ _("Reps") }}"><input type="number" name="entry_{{ r.index }}_reps" value="{{ r.reps }}" min="0"></td>
+            <td data-label="{{ _("Weight (kg)") }}"><input type="number" step="0.5" name="entry_{{ r.index }}_weight" value="{{ r.weight }}" min="0"></td>
+            <td data-label="{{ _("Time (s)") }}"><input type="number" step="1" name="entry_{{ r.index }}_duration" value="{{ r.duration }}" min="0"></td>
+            <td data-label="{{ _("Equipment") }}"><select name="entry_{{ r.index }}_equipment" class="equipment-select" aria-label="{{ _("Equipment") }}">{{ equipment_options_list(equipment_options, r.equipment) }}</select></td>
+            <td data-label="{{ _("Note") }}"><input type="text" name="entry_{{ r.index }}_note" value="{{ r.note }}" maxlength="200"></td>
+            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">{{ _("+ add set") }}</button></td>
           </tr>
 {% endmacro %}
 
@@ -68,16 +68,16 @@
           <tr x-data="movementRow">
             <td>
               {{ search_box() }}
-              <select :name="'entry_' + row.index + '_movement'" :value="row.movement" x-ref="select" class="movement-select" aria-label="Movement">
+              <select :name="'entry_' + row.index + '_movement'" :value="row.movement" x-ref="select" class="movement-select" aria-label="{{ _("Movement") }}">
                 {{ options(movements, tags, recent, sections) }}
               </select>
             </td>
-            <td data-label="Set"><input type="number" :name="'entry_' + row.index + '_set_number'" :value="row.setNumber" min="1"></td>
-            <td data-label="Reps"><input type="number" :name="'entry_' + row.index + '_reps'" value="" min="0"></td>
-            <td data-label="Weight (kg)"><input type="number" step="0.5" :name="'entry_' + row.index + '_weight'" value="" min="0"></td>
-            <td data-label="Time (s)"><input type="number" step="1" :name="'entry_' + row.index + '_duration'" value="" min="0"></td>
-            <td data-label="Equipment"><select :name="'entry_' + row.index + '_equipment'" :value="row.equipment" class="equipment-select" aria-label="Equipment">{{ equipment_options_list(equipment_options) }}</select></td>
-            <td data-label="Note"><input type="text" :name="'entry_' + row.index + '_note'" value="" maxlength="200"></td>
-            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">+ add set</button></td>
+            <td data-label="{{ _("Set") }}"><input type="number" :name="'entry_' + row.index + '_set_number'" :value="row.setNumber" min="1"></td>
+            <td data-label="{{ _("Reps") }}"><input type="number" :name="'entry_' + row.index + '_reps'" value="" min="0"></td>
+            <td data-label="{{ _("Weight (kg)") }}"><input type="number" step="0.5" :name="'entry_' + row.index + '_weight'" value="" min="0"></td>
+            <td data-label="{{ _("Time (s)") }}"><input type="number" step="1" :name="'entry_' + row.index + '_duration'" value="" min="0"></td>
+            <td data-label="{{ _("Equipment") }}"><select :name="'entry_' + row.index + '_equipment'" :value="row.equipment" class="equipment-select" aria-label="{{ _("Equipment") }}">{{ equipment_options_list(equipment_options) }}</select></td>
+            <td data-label="{{ _("Note") }}"><input type="text" :name="'entry_' + row.index + '_note'" value="" maxlength="200"></td>
+            <td><button type="button" class="btn btn-sm btn-outline" @click="addSet($el)" style="white-space:nowrap;">{{ _("+ add set") }}</button></td>
           </tr>
 {% endmacro %}

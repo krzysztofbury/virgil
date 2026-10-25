@@ -92,3 +92,16 @@ def test_weekday_and_month_names_follow_the_language():
         assert (weekday_short(0), weekday_name(6), month_short(5)) == ("Pon", "Niedziela", "Maj")
     finally:
         reset_language(token)
+
+
+@pytest.mark.parametrize("count", [2, 2.0, "2"])
+def test_polish_plurals_accept_any_count_a_template_passes(count):
+    """Jinja hands counts from SQL rows and forms through as they are; English never
+    looked at the type, so Polish must not turn a string count into a 500."""
+    from app.i18n import ngettext, reset_language, set_language
+
+    token = set_language("pl")
+    try:
+        assert ngettext("%(num)s day", "%(num)s days", count) == "%(num)s days"
+    finally:
+        reset_language(token)

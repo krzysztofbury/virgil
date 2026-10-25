@@ -74,6 +74,12 @@ def _(message: str) -> str:
 
 
 def ngettext(singular: str, plural: str, n: int) -> str:
+    # A count can reach a template as text ("2" from a form or a joined row);
+    # the Polish plural rule needs a number where English never looked.
+    try:
+        n = int(float(n))
+    except (TypeError, ValueError):
+        n = 0
     return _translations().ngettext(singular, plural, n)
 
 
@@ -125,7 +131,7 @@ class LocalizedError(ValueError):
     labels: dict[str, str] = {}
 
     def __init__(self, message: str, **params) -> None:
-        self.message, self.params = message, params
+        self.template, self.params = message, params
         super().__init__(message.format(**params))
 
     def localized(self) -> str:
@@ -135,7 +141,7 @@ class LocalizedError(ValueError):
             key: _(self.labels.get(value, value)) if isinstance(value, str) else value
             for key, value in self.params.items()
         }
-        return _(self.message).format(**params)
+        return _(self.template).format(**params)
 
 
 def js_catalog(language: str) -> dict[str, str | list[str]]:
