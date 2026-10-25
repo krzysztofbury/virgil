@@ -48,8 +48,19 @@ def test_correct_answers_score_exact_and_reach_the_report(client, tmp_path):
     assert result["summary"]["json_valid"] == len(CASES)
     assert result["summary"]["cost_known_for"] == f"{len(CASES)}/{len(CASES)}" and spent > 0
 
-    path = write_report(results, {"date": "2026-01-01", "commit": "abc", "cases": len(CASES), "budget_usd": 1.0,
-                                  "spent_usd": spent, "cut_short": False, "configs": []}, tmp_path / "out")
+    path = write_report(
+        results,
+        {
+            "date": "2026-01-01",
+            "commit": "abc",
+            "cases": len(CASES),
+            "budget_usd": 1.0,
+            "spent_usd": spent,
+            "cut_short": False,
+            "configs": [],
+        },
+        tmp_path / "out",
+    )
     report = path.read_text()
     assert f"| {MODEL} | low | 100% |" in report
     assert ": 0 of 3" in report, "no failing cases listed"
@@ -72,8 +83,17 @@ def test_a_mapped_unknown_movement_shows_as_hallucinated(client, tmp_path):
             return text
         payload = json.loads(text)
         payload["unmatched"] = []
-        payload["entries"].append({"movement": "Push Press", "set_number": 1, "reps": None, "weight": None,
-                                   "duration": None, "equipment": None, "note": ""})
+        payload["entries"].append(
+            {
+                "movement": "Push Press",
+                "set_number": 1,
+                "reps": None,
+                "weight": None,
+                "duration": None,
+                "equipment": None,
+                "note": "",
+            }
+        )
         return json.dumps(payload)
 
     (result,), _cut, _spent = _run(tmp_path, _provider(map_sled))
@@ -92,8 +112,19 @@ def test_the_budget_stops_the_run_before_the_next_call(client, tmp_path):
     results, cut_short, spent = _run(tmp_path, counting, budget=1e-9, efforts=("low", "medium"))
     assert cut_short and len(calls) == 1
     assert len(results) == 1 and len(results[0]["cases"]) == 1
-    path = write_report(results, {"date": "2026-01-01", "commit": "abc", "cases": len(CASES), "budget_usd": 1e-9,
-                                  "spent_usd": spent, "cut_short": True, "configs": []}, tmp_path / "out")
+    path = write_report(
+        results,
+        {
+            "date": "2026-01-01",
+            "commit": "abc",
+            "cases": len(CASES),
+            "budget_usd": 1e-9,
+            "spent_usd": spent,
+            "cut_short": True,
+            "configs": [],
+        },
+        tmp_path / "out",
+    )
     assert "cut short by the budget" in path.read_text()
 
 

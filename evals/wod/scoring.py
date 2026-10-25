@@ -106,9 +106,7 @@ def score_case(case: dict, entries: list[dict], unmatched: list[str], error: str
 
     field_hits = {name: sum(1 for want, got in pairs if _same(want[name], got.get(name))) for name in FIELDS}
     exact = sum(1 for want, got in pairs if all(_same(want[name], got.get(name)) for name in FIELDS))
-    invented = sum(
-        1 for want, got in pairs for name in NUMERIC if want[name] is None and got.get(name) is not None
-    )
+    invented = sum(1 for want, got in pairs for name in NUMERIC if want[name] is None and got.get(name) is not None)
 
     returned_unmatched = {_norm(name) for name in unmatched}
     rejected = [name for name in expected_unmatched if _norm(name) in returned_unmatched]
@@ -146,7 +144,11 @@ def score_case(case: dict, entries: list[dict], unmatched: list[str], error: str
         oov_hallucinated=hallucinated,
         oov_dropped=len(not_rejected) - hallucinated,
         unexpected_unmatched=unexpected,
-        case_exact=error is None and not missed and not extra and exact == len(pairs) and not not_rejected
+        case_exact=error is None
+        and not missed
+        and not extra
+        and exact == len(pairs)
+        and not not_rejected
         and not unexpected,
         error=error,
         details=details,

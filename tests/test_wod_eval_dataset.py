@@ -48,7 +48,9 @@ def test_expected_movements_are_canonical_names(vocabulary):
 
 def test_expected_unmatched_names_are_outside_the_vocabulary(vocabulary):
     _names, spellings = vocabulary
-    inside = [(case["id"], name) for case in CASES for name in case["expected"]["unmatched"] if name.lower() in spellings]
+    inside = [
+        (case["id"], name) for case in CASES for name in case["expected"]["unmatched"] if name.lower() in spellings
+    ]
     assert inside == []
 
 
@@ -63,6 +65,14 @@ def test_sets_number_from_one_without_gaps():
 
 def test_the_cases_cover_what_the_parser_meets():
     tags = Counter(tag for case in CASES for tag in case["tags"])
-    for tag, least in {"polish": 4, "mixed": 2, "oov": 5, "alias": 4, "equipment": 3, "missing": 3, "duration": 4}.items():
+    for tag, least in {
+        "polish": 4,
+        "mixed": 2,
+        "oov": 5,
+        "alias": 4,
+        "equipment": 3,
+        "missing": 3,
+        "duration": 4,
+    }.items():
         assert tags[tag] >= least, tag
     assert any(len(case["expected"]["entries"]) >= 30 for case in CASES), "one note near the truncation risk"
