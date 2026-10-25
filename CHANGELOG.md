@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- An evaluation of the WOD parser (#155): 30 synthetic notes in English,
+  Polish and both, with the exact entries and unmatched names each should
+  produce; a deterministic scorer (per-field accuracy, exact matches,
+  out-of-vocabulary handling, invented values, JSON repair, latency and cost);
+  and a harness that runs them through the real parser across models and
+  reasoning efforts with a spending cap and writes a dated report to
+  `docs/evals/`. Live runs are opt-in and never part of the test suite.
 - The interface in Polish (#152). English stays the default; choose Polski
   on the sign-in pages or under Settings > General, and the choice is kept on
   the account so it follows you to another device. Every page, form, message,

@@ -34,16 +34,6 @@ isolated databases, synthetic credentials, and bundled LiteLLM capability
 metadata. Date-window fixtures must control the clock. Use the same locked
 Ruff and Bandit through pre-commit; avoid separate global tool installations.
 
-## English and Polish
-
-Every user-facing string in the web app has a Polish translation (#152). Mark
-text with `{{ _("...") }}` or `{% trans %}` in templates, `_()` (or `N_()` for a
-module-level constant, translated with `_()` where it is shown) in Python, and
-`gettext("...")` in our scripts. Then run
-`uv run --locked --extra dev python scripts/i18n.py update` and fill in the new
-entries in `app/locale/pl/LC_MESSAGES/messages.po`. The tests fail on an
-untranslated or stale catalog. The REST API, MCP, logs and exports stay English.
-
 For container or startup changes, also qualify the actual image:
 
 ```bash
@@ -56,6 +46,37 @@ completion or interruption. It has no external network access and uses synthetic
 account data. It also creates, verifies, and restores a recovery bundle, then
 checks login against the restored account. Dependency audit commands are in
 `.github/workflows/ci.yml`.
+
+## English and Polish
+
+Every user-facing string in the web app has a Polish translation (#152). Mark
+text with `{{ _("...") }}` or `{% trans %}` in templates, `_()` (or `N_()` for a
+module-level constant, translated with `_()` where it is shown) in Python, and
+`gettext("...")` in our scripts. Then run
+`uv run --locked --extra dev python scripts/i18n.py update` and fill in the new
+entries in `app/locale/pl/LC_MESSAGES/messages.po`. The tests fail on an
+untranslated or stale catalog. The REST API, MCP, logs and exports stay English.
+
+## Evaluating the WOD parser
+
+`evals/wod/` scores the WOD parser against synthetic notes with known answers
+(#155). The scorer, the cases and the harness are tested in the normal suite
+without any provider. A live run makes paid calls, so it never runs in `pytest`
+or CI; it needs the provider's usual key variable and a spending cap:
+
+```bash
+ANTHROPIC_API_KEY=... uv run --locked --extra dev python -m evals.wod.run \
+  --models anthropic/claude-haiku-4-5 --efforts low,medium --budget-usd 2
+```
+
+It stops at once on a model LiteLLM has no price for, since the cap could not
+stop it; `--allow-unpriced` runs one anyway. It writes
+`docs/evals/wod-YYYY-MM-DD.md` and `.json`. Commit both, then write the report's
+known failure modes from its failing cases.
+
+Cases tagged `ambiguous` have a defensible second reading and get their own
+rate. An equipment word in a note (barbell, sztanga, DB, KB, wall balls) sets
+that equipment, also when it is part of the movement's name.
 
 ## Dependency changes
 
