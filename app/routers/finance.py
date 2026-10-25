@@ -11,6 +11,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _, localized, ngettext
 from app.main import templates
 from app.services import finance
 from app.services.finance import FinanceError, FinanceNotFound
@@ -89,12 +90,18 @@ async def save_balances(request: Request):
         if key.startswith("balance_") and str(value).strip():
             entries.append({"account": int(key.removeprefix("balance_")), "amount": str(value)})
     if not entries:
-        return error_redirect(request, "/finance#record", "Fill in at least one balance.")
+        return error_redirect(request, "/finance#record", _("Fill in at least one balance."))
     try:
         result = await finance.record_balances(db, form.get("date", ""), entries, source="web")
     except (FinanceError, FinanceNotFound) as exc:
-        return error_redirect(request, "/finance#record", str(exc))
-    return success_redirect(request, "/finance", f"Recorded {result['recorded']} balances for {result['date']}.")
+        return error_redirect(request, "/finance#record", localized(exc))
+    return success_redirect(
+        request,
+        "/finance",
+        ngettext(
+            "Recorded {num} balance for {date}.", "Recorded {num} balances for {date}.", result["recorded"]
+        ).format(num=result["recorded"], date=result["date"]),
+    )
 
 
 @router.get("/finance/setup", response_class=HTMLResponse)
@@ -152,7 +159,7 @@ async def save_account(
     try:
         account = await finance.upsert_account(db, data)
     except (FinanceError, FinanceNotFound) as exc:
-        return error_redirect(request, f"{SETUP}#accounts", str(exc))
+        return error_redirect(request, f"{SETUP}#accounts", localized(exc))
     return success_redirect(request, f"{SETUP}#accounts", f"{account['name']} saved.")
 
 
@@ -164,8 +171,8 @@ async def save_cost(request: Request, essential_monthly_cost: str = Form(...), e
             db, {"essential_monthly_cost": essential_monthly_cost, "effective_from": effective_from or None}
         )
     except FinanceError as exc:
-        return error_redirect(request, f"{SETUP}#cost", str(exc))
-    return success_redirect(request, f"{SETUP}#cost", "Essential monthly cost saved.")
+        return error_redirect(request, f"{SETUP}#cost", localized(exc))
+    return success_redirect(request, f"{SETUP}#cost", _("Essential monthly cost saved."))
 
 
 async def _save_income(request: Request, sources: list[dict], message: str):
@@ -173,7 +180,7 @@ async def _save_income(request: Request, sources: list[dict], message: str):
     try:
         await finance.set_assumptions(db, {"income_sources": sources})
     except FinanceError as exc:
-        return error_redirect(request, f"{SETUP}#income", str(exc))
+        return error_redirect(request, f"{SETUP}#income", localized(exc))
     return success_redirect(request, f"{SETUP}#income", message)
 
 
@@ -214,8 +221,8 @@ async def delete_income(request: Request, source_id: int):
     sources = (await finance.assumptions(db))["income_sources"]
     kept = [_source_payload(source) for source in sources if source["id"] != source_id]
     if len(kept) == len(sources):
-        return error_redirect(request, f"{SETUP}#income", "That income source no longer exists.")
-    return await _save_income(request, kept, "Income source removed.")
+        return error_redirect(request, f"{SETUP}#income", _("That income source no longer exists."))
+    return await _save_income(request, kept, _("Income source removed."))
 
 
 @router.post("/finance/policies")
@@ -236,8 +243,8 @@ async def save_policies(request: Request):
     try:
         await finance.set_assumptions(db, {"policies": policies})
     except FinanceError as exc:
-        return error_redirect(request, f"{SETUP}#policies", str(exc))
-    return success_redirect(request, f"{SETUP}#policies", "Policies saved.")
+        return error_redirect(request, f"{SETUP}#policies", localized(exc))
+    return success_redirect(request, f"{SETUP}#policies", _("Policies saved."))
 
 
 @router.post("/finance/layers")
@@ -269,7 +276,7 @@ async def save_layer(
             item["rule"] = None
         await finance.set_scoring(db, [item])
     except (FinanceError, FinanceNotFound) as exc:
-        return error_redirect(request, f"{SETUP}#layers", str(exc))
+        return error_redirect(request, f"{SETUP}#layers", localized(exc))
     return success_redirect(request, f"{SETUP}#layers", f"{name.strip()} saved.")
 
 
@@ -279,5 +286,5 @@ async def delete_layer(request: Request, layer_id: int):
     try:
         await finance.set_scoring(db, remove=[layer_id])
     except (FinanceError, FinanceNotFound) as exc:
-        return error_redirect(request, f"{SETUP}#layers", str(exc))
-    return success_redirect(request, f"{SETUP}#layers", "Layer removed.")
+        return error_redirect(request, f"{SETUP}#layers", localized(exc))
+    return success_redirect(request, f"{SETUP}#layers", _("Layer removed."))

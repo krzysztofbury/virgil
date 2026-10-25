@@ -14,6 +14,8 @@ import re
 import unicodedata
 from datetime import date as calendar_date
 
+from app.i18n import N_, LocalizedError, LocalizedLookupError
+
 NAME_MAX = 40
 LABEL_MAX = 30
 DEFINITION_MAX = 600
@@ -118,7 +120,7 @@ EDITABLE = (
 )
 
 
-class HabitError(ValueError):
+class HabitError(LocalizedError):
     pass
 
 
@@ -162,11 +164,11 @@ async def resolve_habit(db, slug: str | None = None) -> dict:
     if slug:
         habit = await get_habit(db, slug)
         if habit is None:
-            raise LookupError(f"No habit named {slug!r}.")
+            raise LocalizedLookupError(N_("No habit named {slug!r}."), slug=slug)
         return habit
     tracked = await list_habits(db)
     if not tracked:
-        raise LookupError("No habit is being tracked. Choose one in Settings, Freedom.")
+        raise LocalizedLookupError(N_("No habit is being tracked. Choose one in Settings, Freedom."))
     return tracked[0]
 
 
@@ -184,7 +186,7 @@ async def track(db, slug: str) -> dict:
         return {**existing, "tracked": 1}
     preset = PRESETS_BY_SLUG.get(slug)
     if preset is None:
-        raise LookupError(f"No habit named {slug!r}.")
+        raise LocalizedLookupError(N_("No habit named {slug!r}."), slug=slug)
     await _insert(db, preset)
     return await get_habit(db, slug)
 
@@ -193,7 +195,7 @@ async def add_custom(db, name: str) -> dict:
     """Track a habit the catalog does not offer, under the person's own name for it."""
     name = (name or "").strip()[:NAME_MAX]
     if not name:
-        raise HabitError("Name the habit you want to break.")
+        raise HabitError(N_("Name the habit you want to break."))
     # "Alcohol" typed by hand is the catalog's Alcohol, and a name already in use
     # resumes that habit: either way its history stays in one place.
     slug = slugify(name)
@@ -267,7 +269,7 @@ async def sync_tracked(db, slugs: set[str]) -> None:
 def _text(changes: dict, key: str, limit: int, *, required: bool = False) -> str:
     value = (changes[key] or "").strip()
     if required and not value:
-        raise HabitError(f"{key.replace('_', ' ').capitalize()} cannot be empty.")
+        raise HabitError(N_("{value} cannot be empty."), value=key.replace("_", " ").capitalize())
     return value[:limit]
 
 
@@ -275,7 +277,7 @@ async def update_habit(db, slug: str, changes: dict) -> dict:
     """Change only the supplied fields of one habit."""
     unknown = set(changes) - set(EDITABLE)
     if unknown:
-        raise HabitError(f"Unknown habit fields: {', '.join(sorted(unknown))}")
+        raise HabitError(N_("Unknown habit fields: {choices}"), choices=", ".join(sorted(unknown)))
     if db.in_transaction:
         raise RuntimeError("Habit writes require a connection without pending writes")
     # Read, merge and write in one transaction: two concurrent edits of different
@@ -284,7 +286,7 @@ async def update_habit(db, slug: str, changes: dict) -> dict:
     try:
         habit = await get_habit(db, slug)
         if habit is None:
-            raise LookupError(f"No habit named {slug!r}.")
+            raise LocalizedLookupError(N_("No habit named {slug!r}."), slug=slug)
         _apply_changes(habit, changes)
         await db.execute(
             f"UPDATE habits SET {', '.join(f'{field} = ?' for field in EDITABLE)} WHERE id = ?",
@@ -314,7 +316,9 @@ def _apply_changes(habit: dict, changes: dict) -> None:
         if threshold is not None and (
             isinstance(threshold, bool) or not isinstance(threshold, int) or not 1 <= threshold <= THRESHOLD_MAX
         ):
-            raise HabitError(f"The slip threshold must be between 1 and {THRESHOLD_MAX}, or empty.")
+            raise HabitError(
+                N_("The slip threshold must be between 1 and {THRESHOLD_MAX}, or empty."), THRESHOLD_MAX=THRESHOLD_MAX
+            )
         habit["slip_threshold"] = threshold
     if not habit["amount_unit"]:
         habit["slip_threshold"] = None
@@ -322,14 +326,14 @@ def _apply_changes(habit: dict, changes: dict) -> None:
         try:
             start = calendar_date.fromisoformat(changes["start_date"] or "")
         except ValueError as exc:
-            raise HabitError("The start date must be a date.") from exc
+            raise HabitError(N_("The start date must be a date.")) from exc
         if start > calendar_date.today():
-            raise HabitError("The start date must be today or earlier.")
+            raise HabitError(N_("The start date must be today or earlier."))
         habit["start_date"] = start.isoformat()
     if "target_days" in changes:
         target = changes["target_days"]
         if isinstance(target, bool) or not isinstance(target, int) or not 1 <= target <= TARGET_MAX:
-            raise HabitError(f"The target must be between 1 and {TARGET_MAX} days.")
+            raise HabitError(N_("The target must be between 1 and {TARGET_MAX} days."), TARGET_MAX=TARGET_MAX)
         habit["target_days"] = target
     if "big_why" in changes:
         habit["big_why"] = (changes["big_why"] or "")[:WHY_MAX]

@@ -1,158 +1,156 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Finance setup{% endblock %}
+{% block title %}{{ _("Virgil - Finance setup") }}{% endblock %}
 
 {% set metric_labels = {
-    'cushion_months': 'Months of essential cost the cushion covers',
-    'independent_income_share': 'Percent of essential cost covered by independent income',
-    'policies': 'Insurance policies, points per type',
+    'cushion_months': _('Months of essential cost the cushion covers'),
+    'independent_income_share': _('Percent of essential cost covered by independent income'),
+    'policies': _('Insurance policies, points per type'),
 } %}
 
 {% block content %}
 <div class="page-header finance-header">
     <div>
-        <h1>Finance setup</h1>
-        <p class="page-subtitle">Your fortress: its layers, the accounts in them, and what they are measured against.</p>
+        <h1>{{ _("Finance setup") }}</h1>
+        <p class="page-subtitle">{{ _("Your fortress: its layers, the accounts in them, and what they are measured against.") }}</p>
     </div>
-    <a href="/finance" class="btn btn-outline btn-sm"><i data-lucide="arrow-left"></i> Finance</a>
+    <a href="/finance" class="btn btn-outline btn-sm"><i data-lucide="arrow-left"></i> {{ _("Finance") }}</a>
 </div>
 
 <div class="card" id="layers">
-    <div class="card-header"><h3>Layers</h3></div>
+    <div class="card-header"><h3>{{ _("Layers") }}</h3></div>
     <p class="text-muted">
-        Name the layers of your fortress the way you think of them. A layer that counts toward the cushion adds its
-        accounts to it. A rule turns a layer into points: write thresholds as <code>minimum:points</code>, highest first,
-        such as <code>12:40, 6:30, 3:20, 1:10</code>, or <code>type:points</code> for policies.
+        {% trans %}Name the layers of your fortress the way you think of them. A layer that counts toward the cushion adds its accounts to it. A rule turns a layer into points: write thresholds as <code>minimum:points</code>, highest first, such as <code>12:40, 6:30, 3:20, 1:10</code>, or <code>type:points</code> for policies.{% endtrans %}
     </p>
     {% for layer in layers %}
     <details class="finance-edit">
         <summary>
             <strong>{{ layer.name }}</strong>
             <small class="text-muted">
-                {% if layer.counts_toward_cushion %}counts toward the cushion{% endif %}
-                {% if layer.rule %}{{ ' · ' if layer.counts_toward_cushion }}{{ layer.rule.max_points }} points{% endif %}
+                {% if layer.counts_toward_cushion %}{{ _("counts toward the cushion") }}{% endif %}
+                {% if layer.rule %}{{ ' · ' if layer.counts_toward_cushion }}{% trans count=layer.rule.max_points %}{{ count }} point{% pluralize %}{{ count }} points{% endtrans %}{% endif %}
             </small>
         </summary>
         <form method="POST" action="/finance/layers" class="finance-form">
             <input type="hidden" name="layer_id" value="{{ layer.id }}">
-            <label>Name <input type="text" name="name" value="{{ layer.name }}" maxlength="60" required></label>
-            <label>Description <input type="text" name="description" value="{{ layer.description }}" maxlength="300"></label>
-            <label class="checkbox-label"><input type="checkbox" name="counts_toward_cushion" value="1" {% if layer.counts_toward_cushion %}checked{% endif %}> Counts toward the cushion</label>
-            <label>Scored by
+            <label>{{ _("Name") }} <input type="text" name="name" value="{{ layer.name }}" maxlength="60" required></label>
+            <label>{{ _("Description") }} <input type="text" name="description" value="{{ layer.description }}" maxlength="300"></label>
+            <label class="checkbox-label"><input type="checkbox" name="counts_toward_cushion" value="1" {% if layer.counts_toward_cushion %}checked{% endif %}> {{ _("Counts toward the cushion") }}</label>
+            <label>{{ _("Scored by") }}
                 <select name="metric">
-                    <option value="">Not scored</option>
+                    <option value="">{{ _("Not scored") }}</option>
                     {% for metric in metrics %}<option value="{{ metric }}" {% if layer.rule and layer.rule.metric == metric %}selected{% endif %}>{{ metric_labels[metric] }}</option>{% endfor %}
                 </select>
             </label>
-            <label>Maximum points <input type="number" name="max_points" min="0" max="100" value="{{ layer.rule.max_points if layer.rule else '' }}"></label>
-            <label>Thresholds <input type="text" name="thresholds" value="{{ layer.thresholds_text }}" maxlength="400"></label>
+            <label>{{ _("Maximum points") }} <input type="number" name="max_points" min="0" max="100" value="{{ layer.rule.max_points if layer.rule else '' }}"></label>
+            <label>{{ _("Thresholds") }} <input type="text" name="thresholds" value="{{ layer.thresholds_text }}" maxlength="400"></label>
             <div class="form-actions">
-                <button type="submit" class="btn btn-primary btn-sm">Save layer</button>
+                <button type="submit" class="btn btn-primary btn-sm">{{ _("Save layer") }}</button>
                 <button type="submit" class="btn btn-outline btn-sm" formaction="/finance/layers/{{ layer.id }}/delete"
-                        formnovalidate data-confirm="Remove the layer {{ layer.name }}?">Remove</button>
+                        formnovalidate data-confirm="{% trans name=layer.name %}Remove the layer {{ name }}?{% endtrans %}">{{ _("Remove") }}</button>
             </div>
         </form>
     </details>
     {% endfor %}
     <details class="finance-edit">
-        <summary><strong>Add a layer</strong></summary>
+        <summary><strong>{{ _("Add a layer") }}</strong></summary>
         <form method="POST" action="/finance/layers" class="finance-form">
-            <label>Name <input type="text" name="name" maxlength="60" required></label>
-            <label>Description <input type="text" name="description" maxlength="300"></label>
-            <label class="checkbox-label"><input type="checkbox" name="counts_toward_cushion" value="1"> Counts toward the cushion</label>
-            <label>Scored by
+            <label>{{ _("Name") }} <input type="text" name="name" maxlength="60" required></label>
+            <label>{{ _("Description") }} <input type="text" name="description" maxlength="300"></label>
+            <label class="checkbox-label"><input type="checkbox" name="counts_toward_cushion" value="1"> {{ _("Counts toward the cushion") }}</label>
+            <label>{{ _("Scored by") }}
                 <select name="metric">
-                    <option value="">Not scored</option>
+                    <option value="">{{ _("Not scored") }}</option>
                     {% for metric in metrics %}<option value="{{ metric }}">{{ metric_labels[metric] }}</option>{% endfor %}
                 </select>
             </label>
-            <label>Maximum points <input type="number" name="max_points" min="0" max="100"></label>
-            <label>Thresholds <input type="text" name="thresholds" maxlength="400"></label>
-            <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Add layer</button></div>
+            <label>{{ _("Maximum points") }} <input type="number" name="max_points" min="0" max="100"></label>
+            <label>{{ _("Thresholds") }} <input type="text" name="thresholds" maxlength="400"></label>
+            <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">{{ _("Add layer") }}</button></div>
         </form>
     </details>
 </div>
 
 {% macro account_fields(account) %}
-<label>Name <input type="text" name="name" value="{{ account.name if account else '' }}" maxlength="80" required></label>
-<label>Layer
+<label>{{ _("Name") }} <input type="text" name="name" value="{{ account.name if account else '' }}" maxlength="80" required></label>
+<label>{{ _("Layer") }}
     <select name="layer_id" required>
         {% for layer in layers %}<option value="{{ layer.id }}" {% if account and account.layer_id == layer.id %}selected{% endif %}>{{ layer.name }}</option>{% endfor %}
     </select>
 </label>
-<label>Kind
+<label>{{ _("Kind") }}
     <select name="kind">
-        {% for kind in kinds %}<option value="{{ kind }}" {% if account and account.kind == kind %}selected{% endif %}>{{ kind | capitalize }}</option>{% endfor %}
+        {% for kind in kinds %}<option value="{{ kind }}" {% if account and account.kind == kind %}selected{% endif %}>{{ kind | label }}</option>{% endfor %}
     </select>
 </label>
-<label>Ownership
+<label>{{ _("Ownership") }}
     <select name="ownership">
-        {% for value, label in [('own', 'Mine'), ('joint', 'Joint'), ('excluded', 'Not counted (someone else\'s)')] %}
+        {% for value, label in [('own', _('Mine')), ('joint', _('Joint')), ('excluded', _("Not counted (someone else's)"))] %}
         <option value="{{ value }}" {% if account and account.ownership == value %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
     </select>
 </label>
-<label>Institution <input type="text" name="institution" value="{{ account.institution if account else '' }}" maxlength="80"></label>
-<label>Held in currency <input type="text" name="currency" value="{{ account.currency if account else '' }}" maxlength="3" placeholder="Base currency"></label>
+<label>{{ _("Institution") }} <input type="text" name="institution" value="{{ account.institution if account else '' }}" maxlength="80"></label>
+<label>{{ _("Held in currency") }} <input type="text" name="currency" value="{{ account.currency if account else '' }}" maxlength="3" placeholder="{{ _("Base currency") }}"></label>
 {% endmacro %}
 
 <div class="card" id="accounts">
-    <div class="card-header"><h3>Accounts</h3></div>
-    <p class="text-muted">Balances are recorded in the base currency ({{ assumptions.base_currency }}). Archive an account you closed: it stops counting after its last balance.</p>
+    <div class="card-header"><h3>{{ _("Accounts") }}</h3></div>
+    <p class="text-muted">{% trans currency=assumptions.base_currency %}Balances are recorded in the base currency ({{ currency }}). Archive an account you closed: it stops counting after its last balance.{% endtrans %}</p>
     {% for account in accounts %}
     <details class="finance-edit">
         <summary>
             <strong>{{ account.name }}</strong>
-            <small class="text-muted">{{ account.layer }}{% if account.ownership == 'excluded' %} · not counted{% endif %}{% if account.archived %} · archived{% endif %}</small>
+            <small class="text-muted">{{ account.layer }}{% if account.ownership == 'excluded' %} {{ _("· not counted") }}{% endif %}{% if account.archived %} {{ _("· archived") }}{% endif %}</small>
         </summary>
         <form method="POST" action="/finance/accounts" class="finance-form">
             <input type="hidden" name="account_id" value="{{ account.id }}">
             {{ account_fields(account) }}
-            <label class="checkbox-label"><input type="checkbox" name="archived" value="1" {% if account.archived %}checked{% endif %}> Archived</label>
-            <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Save account</button></div>
+            <label class="checkbox-label"><input type="checkbox" name="archived" value="1" {% if account.archived %}checked{% endif %}> {{ _("Archived") }}</label>
+            <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">{{ _("Save account") }}</button></div>
         </form>
     </details>
     {% endfor %}
     <details class="finance-edit" {% if not accounts %}open{% endif %}>
-        <summary><strong>Add an account</strong></summary>
+        <summary><strong>{{ _("Add an account") }}</strong></summary>
         <form method="POST" action="/finance/accounts" class="finance-form">
             {{ account_fields(none) }}
-            <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Add account</button></div>
+            <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">{{ _("Add account") }}</button></div>
         </form>
     </details>
 </div>
 
 <div class="card" id="cost">
-    <div class="card-header"><h3>Essential monthly cost</h3></div>
-    <p class="text-muted">What a month costs without the extras. The cushion is measured in months of it; a new amount applies from its date, and earlier months keep theirs.</p>
+    <div class="card-header"><h3>{{ _("Essential monthly cost") }}</h3></div>
+    <p class="text-muted">{{ _("What a month costs without the extras. The cushion is measured in months of it; a new amount applies from its date, and earlier months keep theirs.") }}</p>
     {% if assumptions.essential_monthly_cost %}
     <table class="import-report">
         <tbody>
             {% for row in assumptions.essential_monthly_cost %}
-            <tr><td>From {{ row.effective_from }}</td><td>{{ "{:,.2f}".format(row.amount) }}</td></tr>
+            <tr><td>{% trans date=row.effective_from %}From {{ date }}{% endtrans %}</td><td>{{ "{:,.2f}".format(row.amount) }}</td></tr>
             {% endfor %}
         </tbody>
     </table>
     {% endif %}
     <form method="POST" action="/finance/cost" class="finance-form finance-inline">
-        <label>Amount <input type="text" inputmode="decimal" name="essential_monthly_cost" required></label>
-        <label>From <input type="date" name="effective_from" value="{{ today }}"></label>
-        <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Save cost</button></div>
+        <label>{{ _("Amount") }} <input type="text" inputmode="decimal" name="essential_monthly_cost" required></label>
+        <label>{{ _("From") }} <input type="date" name="effective_from" value="{{ today }}"></label>
+        <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">{{ _("Save cost") }}</button></div>
     </form>
 </div>
 
 <div class="card" id="income">
-    <div class="card-header"><h3>Income</h3></div>
-    <p class="text-muted">Monthly income you can count on. Mark what does not depend on your current work, such as rent: the score counts that, and also shows a second figure with all of it.</p>
+    <div class="card-header"><h3>{{ _("Income") }}</h3></div>
+    <p class="text-muted">{{ _("Monthly income you can count on. Mark what does not depend on your current work, such as rent: the score counts that, and also shows a second figure with all of it.") }}</p>
     {% if assumptions.income_sources %}
     <table class="import-report">
         <tbody>
             {% for source in assumptions.income_sources %}
             <tr>
-                <td>{{ source.name }}{% if source.independent_of_work %} <small class="text-muted">independent of work</small>{% endif %}</td>
+                <td>{{ source.name }}{% if source.independent_of_work %} <small class="text-muted">{{ _("independent of work") }}</small>{% endif %}</td>
                 <td>{{ "{:,.2f}".format(source.monthly_amount) }}</td>
                 <td>
-                    <form method="POST" action="/finance/income/{{ source.id }}/delete" data-confirm="Remove {{ source.name }}?">
-                        <button type="submit" class="btn btn-outline btn-sm">Remove</button>
+                    <form method="POST" action="/finance/income/{{ source.id }}/delete" data-confirm="{% trans name=source.name %}Remove {{ name }}?{% endtrans %}">
+                        <button type="submit" class="btn btn-outline btn-sm">{{ _("Remove") }}</button>
                     </form>
                 </td>
             </tr>
@@ -161,16 +159,16 @@
     </table>
     {% endif %}
     <form method="POST" action="/finance/income" class="finance-form finance-inline">
-        <label>Name <input type="text" name="name" maxlength="80" required></label>
-        <label>Per month <input type="text" inputmode="decimal" name="monthly_amount" required></label>
-        <label class="checkbox-label"><input type="checkbox" name="independent_of_work" value="1"> Independent of work</label>
-        <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Save income</button></div>
+        <label>{{ _("Name") }} <input type="text" name="name" maxlength="80" required></label>
+        <label>{{ _("Per month") }} <input type="text" inputmode="decimal" name="monthly_amount" required></label>
+        <label class="checkbox-label"><input type="checkbox" name="independent_of_work" value="1"> {{ _("Independent of work") }}</label>
+        <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">{{ _("Save income") }}</button></div>
     </form>
 </div>
 
 <div class="card" id="policies">
-    <div class="card-header"><h3>Insurance</h3></div>
-    <p class="text-muted">Whether each kind of protection is in place. Not applicable leaves it out of the score; an empty status makes the score unknown.</p>
+    <div class="card-header"><h3>{{ _("Insurance") }}</h3></div>
+    <p class="text-muted">{{ _("Whether each kind of protection is in place. Not applicable leaves it out of the score; an empty status makes the score unknown.") }}</p>
     <form method="POST" action="/finance/policies" class="finance-form">
         <table class="import-report">
             <tbody>
@@ -180,8 +178,8 @@
                     <td><label for="policy-{{ kind }}">{{ kind | replace('_', ' ') | capitalize }}</label></td>
                     <td>
                         <select id="policy-{{ kind }}" name="policy_{{ kind }}">
-                            <option value="">Not set</option>
-                            {% for status, label in [('present', 'In place'), ('absent', 'None'), ('not_applicable', 'Not applicable')] %}
+                            <option value="">{{ _("Not set") }}</option>
+                            {% for status, label in [('present', _('In place')), ('absent', _('None')), ('not_applicable', _('Not applicable'))] %}
                             <option value="{{ status }}" {% if current and current.status == status %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
@@ -192,16 +190,16 @@
             </tbody>
         </table>
         <div class="finance-inline">
-            <label>Another kind <input type="text" name="new_policy_type" maxlength="40" placeholder="e.g. liability"></label>
-            <label>Status
+            <label>{{ _("Another kind") }} <input type="text" name="new_policy_type" maxlength="40" placeholder="{{ _("e.g. liability") }}"></label>
+            <label>{{ _("Status") }}
                 <select name="new_policy_status">
-                    <option value="present">In place</option>
-                    <option value="absent">None</option>
-                    <option value="not_applicable">Not applicable</option>
+                    <option value="present">{{ _("In place") }}</option>
+                    <option value="absent">{{ _("None") }}</option>
+                    <option value="not_applicable">{{ _("Not applicable") }}</option>
                 </select>
             </label>
         </div>
-        <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">Save insurance</button></div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary btn-sm">{{ _("Save insurance") }}</button></div>
     </form>
 </div>
 {% endblock %}

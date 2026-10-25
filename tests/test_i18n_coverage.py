@@ -23,12 +23,8 @@ TEMPLATES = APP / "templates"
 PENDING_TEMPLATES = {
     "admin_users.html",
     "bloodwork.html",
-    "finance.html",
-    "finance_setup.html",
-    "freedom.html",
     "onboarding.html",
     "oura.html",
-    "partials/freedom_today.html",
     "partials/job_notifications.html",
     "partials/job_status.html",
     "settings.html",
@@ -44,9 +40,6 @@ PENDING_PAGES = {
     "/admin/users",
     "/api/jobs/active",
     "/bloodwork",
-    "/finance",
-    "/finance/setup",
-    "/freedom",
     "/onboarding",
     "/oura",
     "/settings?tab=general",
@@ -59,8 +52,6 @@ PENDING_PAGES = {
 PENDING_MODULES = {
     "routers/admin.py",
     "routers/bloodwork.py",
-    "routers/finance.py",
-    "routers/freedom.py",
     "routers/jobs.py",
     "routers/onboarding.py",
     "routers/oura.py",
@@ -123,6 +114,7 @@ SENTENCE = re.compile(
     r"^(?!(?:SELECT|INSERT|UPDATE|DELETE|WITH|CREATE|ALTER|PRAGMA|WHERE|FROM|AND|OR)\b)[A-Z][^\n]*\s[^\n]*[.!?:]$"
 )
 MARKERS = {"_", "N_", "ngettext"}
+# services/habits.py is left out: its presets are English starter content.
 UI_MODULES = [
     "routers/*.py",
     "validation.py",
@@ -132,6 +124,8 @@ UI_MODULES = [
     "services/measurements.py",
     "services/training_log.py",
     "services/goal_data.py",
+    "services/freedom_log.py",
+    "services/finance.py",
 ]
 NOT_UI = {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}
 
@@ -406,3 +400,23 @@ def test_no_module_shadows_the_translation_function():
             ):
                 offenders.append(f"{path.relative_to(APP)}:{node.lineno}")
     assert offenders == []
+
+
+def test_no_template_shadows_the_translation_function():
+    pattern = re.compile(r"{%-?\s*(?:set\s+_\s*=|for\s+_\s+in\b|for\s+_\s*,)")
+    offenders = [
+        f"{path.relative_to(TEMPLATES)}:{source[: match.start()].count(chr(10)) + 1}"
+        for path in sorted(TEMPLATES.rglob("*.html"))
+        for source in [path.read_text(encoding="utf-8")]
+        for match in pattern.finditer(source)
+    ]
+    assert offenders == []
+
+
+def test_every_template_compiles():
+    """A template Jinja cannot parse is skipped by extraction without an error,
+    so its strings would silently drop out of the catalog."""
+    from app.main import templates
+
+    for path in sorted(TEMPLATES.rglob("*.html")):
+        templates.env.get_template(path.relative_to(TEMPLATES).as_posix())

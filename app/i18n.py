@@ -120,6 +120,13 @@ _ENUM_LABELS = {
     "month": N_("Month"),
     "quarter": N_("Quarter"),
     "year": N_("Year"),
+    "cash": N_("Cash"),
+    "bonds": N_("Bonds"),
+    "retirement": N_("Retirement"),
+    "brokerage": N_("Brokerage"),
+    "crypto": N_("Crypto"),
+    "property": N_("Property"),
+    "other": N_("Other"),
     "1yr": N_("1 Year"),
     "3yr": N_("3 Years"),
     "10yr": N_("10 Years"),
@@ -168,6 +175,15 @@ class LocalizedError(ValueError):
             for key, value in self.params.items()
         }
         return _(self.template).format(**params)
+
+
+class LocalizedLookupError(LocalizedError, LookupError):
+    """A missing record, for code that catches LookupError, worded like LocalizedError."""
+
+
+def localized(exc: Exception) -> str:
+    """An exception's message for a page: translated when the exception supports it."""
+    return exc.localized() if isinstance(exc, LocalizedError) else str(exc)
 
 
 def js_catalog(language: str) -> dict[str, str | list[str]]:

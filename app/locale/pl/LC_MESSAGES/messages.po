@@ -116,6 +116,34 @@ msgid "Year"
 msgstr "Rok"
 
 #: app/i18n.py
+msgid "Cash"
+msgstr "Gotówka"
+
+#: app/i18n.py
+msgid "Bonds"
+msgstr "Obligacje"
+
+#: app/i18n.py
+msgid "Retirement"
+msgstr "Emerytalne"
+
+#: app/i18n.py
+msgid "Brokerage"
+msgstr "Maklerskie"
+
+#: app/i18n.py
+msgid "Crypto"
+msgstr "Kryptowaluty"
+
+#: app/i18n.py
+msgid "Property"
+msgstr "Nieruchomości"
+
+#: app/i18n.py
+msgid "Other"
+msgstr "Inne"
+
+#: app/i18n.py
 msgid "1 Year"
 msgstr "1 rok"
 
@@ -697,6 +725,80 @@ msgstr "Cele tygodnia {number} zaktualizowane."
 msgid "no target"
 msgstr "bez celu"
 
+#: app/routers/finance.py
+msgid "Fill in at least one balance."
+msgstr "Wpisz co najmniej jedno saldo."
+
+#: app/routers/finance.py
+#, python-brace-format
+msgid "Recorded {num} balance for {date}."
+msgid_plural "Recorded {num} balances for {date}."
+msgstr[0] "Zapisano {num} saldo z {date}."
+msgstr[1] "Zapisano {num} salda z {date}."
+msgstr[2] "Zapisano {num} sald z {date}."
+
+#: app/routers/finance.py
+msgid "Essential monthly cost saved."
+msgstr "Niezbędny miesięczny koszt zapisany."
+
+#: app/routers/finance.py
+msgid "That income source no longer exists."
+msgstr "To źródło dochodu już nie istnieje."
+
+#: app/routers/finance.py
+msgid "Income source removed."
+msgstr "Źródło dochodu usunięte."
+
+#: app/routers/finance.py
+msgid "Policies saved."
+msgstr "Ubezpieczenia zapisane."
+
+#: app/routers/finance.py
+msgid "Layer removed."
+msgstr "Warstwa usunięta."
+
+#: app/routers/freedom.py
+msgid "That habit was not found."
+msgstr "Nie znaleziono tego nawyku."
+
+#: app/routers/freedom.py
+#, python-brace-format
+msgid "Tracking {name}."
+msgstr "Śledzisz: {name}."
+
+#: app/routers/freedom.py
+#, python-brace-format
+msgid "Stopped tracking {name}. Its history is kept."
+msgstr "Przestajesz śledzić: {name}. Historia zostaje."
+
+#: app/routers/freedom.py
+msgid "Choose a valid date and day outcome."
+msgstr "Wybierz prawidłową datę i wynik dnia."
+
+#: app/routers/freedom.py
+msgid "Brick added."
+msgstr "Cegła dodana."
+
+#: app/routers/freedom.py
+msgid "Brick updated."
+msgstr "Cegła zaktualizowana."
+
+#: app/routers/freedom.py
+msgid "Brick removed from your history."
+msgstr "Cegła usunięta z historii."
+
+#: app/routers/freedom.py
+msgid "Choose a valid day."
+msgstr "Wybierz prawidłowy dzień."
+
+#: app/routers/freedom.py
+msgid "Record corrected."
+msgstr "Wpis poprawiony."
+
+#: app/routers/freedom.py
+msgid "Record deleted."
+msgstr "Wpis usunięty."
+
 #: app/routers/goals.py
 msgid "Goal was not found."
 msgstr "Nie znaleziono celu."
@@ -875,11 +977,6 @@ msgid "Manual entry is ready. Fill in the exercises and save."
 msgstr "Ręczny wpis gotowy. Uzupełnij ćwiczenia i zapisz."
 
 #: app/routers/training.py
-#, python-brace-format
-msgid "{field} must be a number"
-msgstr "{field} musi być liczbą"
-
-#: app/routers/training.py
 msgid "That set no longer exists."
 msgstr "Ta seria już nie istnieje."
 
@@ -908,6 +1005,11 @@ msgstr "Sesja nie została usunięta: nie istnieje."
 #: app/routers/training.py
 msgid "Training session deleted."
 msgstr "Sesja treningowa usunięta."
+
+#: app/routers/training.py app/services/finance.py
+#, python-brace-format
+msgid "{field} must be a number"
+msgstr "{field} musi być liczbą"
 
 #: app/routers/training.py app/services/measurements.py
 #: app/services/training_log.py app/templates/training.html
@@ -958,6 +1060,238 @@ msgstr "{field} nie jest statusem dziennika"
 msgid "{field} must be text"
 msgstr "{field} musi być tekstem"
 
+#: app/services/finance.py
+#, python-brace-format
+msgid "{field} is too large"
+msgstr "{field} jest za duże"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{field} must be a three-letter code such as PLN or EUR"
+msgstr "{field} musi być trzyliterowym kodem, np. PLN albo EUR"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{field} must be an ISO date (YYYY-MM-DD)"
+msgstr "{field} musi być datą ISO (RRRR-MM-DD)"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{field} is longer than {limit} characters"
+msgstr "{field} ma więcej niż {limit} znaków"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{what} is required"
+msgstr "{what}: pole wymagane"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "No {what} {ref!r}"
+msgstr "Brak: {what} {ref!r}"
+
+#: app/services/finance.py
+msgid "entries must list at least one account"
+msgstr "entries musi zawierać co najmniej jedno konto"
+
+#: app/services/finance.py
+msgid "entries can list at most 200 accounts"
+msgstr "entries może zawierać najwyżej 200 kont"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "entries[{index}] must be an object"
+msgstr "entries[{index}] musi być obiektem"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{value} is listed twice"
+msgstr "{value} występuje dwa razy"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "kind must be one of {choices}"
+msgstr "rodzaj musi być jednym z: {choices}"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "ownership must be one of {choices}"
+msgstr "własność musi być jedną z: {choices}"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "Another account is already called {name!r}"
+msgstr "Inne konto ma już nazwę {name!r}"
+
+#: app/services/finance.py
+msgid "essential_monthly_cost must be above zero"
+msgstr "Niezbędny miesięczny koszt musi być większy od zera"
+
+#: app/services/finance.py
+msgid "income_sources must be a list of at most 50 sources"
+msgstr "income_sources musi być listą najwyżej 50 źródeł"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "income_sources[{index}] must be an object"
+msgstr "income_sources[{index}] musi być obiektem"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{name} is listed twice"
+msgstr "{name} występuje dwa razy"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "income_sources[{index}].monthly_amount cannot be negative"
+msgstr "income_sources[{index}].monthly_amount nie może być ujemne"
+
+#: app/services/finance.py
+msgid "policies must be a list of at most 30 policies"
+msgstr "policies musi być listą najwyżej 30 ubezpieczeń"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "policies[{index}] must be an object"
+msgstr "policies[{index}] musi być obiektem"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "policies[{index}].status must be one of {choices}"
+msgstr "policies[{index}].status musi być jednym z: {choices}"
+
+#: app/services/finance.py
+msgid "base_currency must be a three-letter code such as PLN or EUR"
+msgstr "Waluta bazowa musi być trzyliterowym kodem, np. PLN albo EUR"
+
+#: app/services/finance.py
+msgid "Nothing to set: give essential_monthly_cost, income_sources, policies or base_currency"
+msgstr "Nie ma czego ustawić: podaj essential_monthly_cost, income_sources, policies albo base_currency"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: rule must be an object or null"
+msgstr "{layer}: reguła musi być obiektem albo null"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: metric must be one of {choices}"
+msgstr "{layer}: miara musi być jedną z: {choices}"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: max_points must be a whole number from 0 to 100"
+msgstr "{layer}: maksimum punktów musi być liczbą całkowitą od 0 do 100"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: thresholds must map 1 to 12 policy types to points"
+msgstr "{layer}: progi muszą przypisywać punkty od 1 do 12 rodzajom ubezpieczeń"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: points for {key} must be a whole number from 0 to {max_points}"
+msgstr "{layer}: punkty za {key} muszą być liczbą całkowitą od 0 do {max_points}"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: thresholds must list 1 to 10 [minimum, points] pairs"
+msgstr "{layer}: progi muszą zawierać od 1 do 10 par [minimum, punkty]"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: each threshold is a [minimum, points] pair"
+msgstr "{layer}: każdy próg to para [minimum, punkty]"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: a threshold minimum must be a number from 0 to 10000"
+msgstr "{layer}: minimum progu musi być liczbą od 0 do 10000"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{layer}: threshold points must be a whole number from 0 to {max_points}"
+msgstr "{layer}: punkty progu muszą być liczbą całkowitą od 0 do {max_points}"
+
+#: app/services/finance.py
+msgid "Give layers to set or names to remove"
+msgstr "Podaj warstwy do ustawienia albo nazwy do usunięcia"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{value} still has accounts; move them first"
+msgstr "{value} nadal ma konta; najpierw je przenieś"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "layers[{index}] must be an object"
+msgstr "layers[{index}] musi być obiektem"
+
+#: app/services/finance.py
+#, python-brace-format
+msgid "{label}: display_order must be a whole number"
+msgstr "{label}: kolejność musi być liczbą całkowitą"
+
+#: app/services/finance.py
+msgid "Two layers cannot share a name"
+msgstr "Dwie warstwy nie mogą mieć tej samej nazwy"
+
+#: app/services/finance.py app/services/goal_data.py
+#, python-brace-format
+msgid "{field} is required"
+msgstr "{field} jest wymagane"
+
+#: app/services/freedom_log.py
+msgid "Choose a date of today or earlier."
+msgstr "Wybierz dzisiejszą albo wcześniejszą datę."
+
+#: app/services/freedom_log.py
+#, python-brace-format
+msgid "A slip means at least {threshold} {unit}. Record less as a clean day and add it to the note."
+msgstr "Potknięcie to co najmniej {threshold} {unit}. Mniej zapisz jako czysty dzień i dodaj to do notatki."
+
+#: app/services/freedom_log.py
+msgid "No day entry for that date."
+msgstr "Brak wpisu dnia dla tej daty."
+
+#: app/services/freedom_log.py
+msgid "That record no longer exists."
+msgstr "Ten wpis już nie istnieje."
+
+#: app/services/freedom_log.py
+msgid "This record follows its slipped day: correct or delete the day instead."
+msgstr "Ten wpis wynika z dnia z potknięciem: popraw albo usuń ten dzień."
+
+#: app/services/freedom_log.py
+msgid "Choose relapse or reset."
+msgstr "Wybierz nawrót albo reset."
+
+#: app/services/freedom_log.py
+msgid "That note is reserved for records a day log writes."
+msgstr "Ta notatka jest zarezerwowana dla wpisów tworzonych z dziennika."
+
+#: app/services/freedom_log.py
+#, python-brace-format
+msgid "There is already a relapse on {event_date}."
+msgstr "Nawrót z {event_date} już istnieje."
+
+#: app/services/freedom_log.py
+#, python-brace-format
+msgid "{event_date} is logged as clean. Log that day as slipped instead."
+msgstr "{event_date} jest zapisany jako czysty. Zapisz ten dzień jako potknięcie."
+
+#: app/services/freedom_log.py
+msgid "Name the brick before saving it."
+msgstr "Nazwij cegłę, zanim ją zapiszesz."
+
+#: app/services/freedom_log.py
+msgid "Give the brick a date of today or earlier."
+msgstr "Daj cegle dzisiejszą albo wcześniejszą datę."
+
+#: app/services/freedom_log.py
+msgid "Brick was not found."
+msgstr "Nie znaleziono cegły."
+
 #: app/services/goal_data.py
 msgid "Content"
 msgstr "Treść"
@@ -973,11 +1307,6 @@ msgstr "Data końca"
 #: app/services/goal_data.py
 msgid "Due date"
 msgstr "Termin"
-
-#: app/services/goal_data.py
-#, python-brace-format
-msgid "{field} is required"
-msgstr "{field} jest wymagane"
 
 #: app/services/goal_data.py
 #, python-brace-format
@@ -1128,6 +1457,47 @@ msgstr "Przy przenoszeniu kroku termin jest wymagany"
 #: app/services/goal_data.py
 msgid "action must be complete, carry, or skip"
 msgstr "Akcja musi być jedną z: complete, carry, skip"
+
+#: app/services/habits.py
+#, python-brace-format
+msgid "No habit named {slug!r}."
+msgstr "Brak nawyku o nazwie {slug!r}."
+
+#: app/services/habits.py
+msgid "No habit is being tracked. Choose one in Settings, Freedom."
+msgstr "Nie śledzisz żadnego nawyku. Wybierz go w Ustawieniach, w sekcji Freedom."
+
+#: app/services/habits.py
+msgid "Name the habit you want to break."
+msgstr "Nazwij nawyk, z którego chcesz się uwolnić."
+
+#: app/services/habits.py
+#, python-brace-format
+msgid "{value} cannot be empty."
+msgstr "{value} nie może być puste."
+
+#: app/services/habits.py
+#, python-brace-format
+msgid "Unknown habit fields: {choices}"
+msgstr "Nieznane pola nawyku: {choices}"
+
+#: app/services/habits.py
+#, python-brace-format
+msgid "The slip threshold must be between 1 and {THRESHOLD_MAX}, or empty."
+msgstr "Próg potknięcia musi mieścić się między 1 a {THRESHOLD_MAX} albo być pusty."
+
+#: app/services/habits.py
+msgid "The start date must be a date."
+msgstr "Data startu musi być datą."
+
+#: app/services/habits.py
+msgid "The start date must be today or earlier."
+msgstr "Data startu musi być dzisiejsza albo wcześniejsza."
+
+#: app/services/habits.py
+#, python-brace-format
+msgid "The target must be between 1 and {TARGET_MAX} days."
+msgstr "Cel musi mieścić się między 1 a {TARGET_MAX} dni."
 
 #: app/services/measurements.py
 msgid "Arm"
@@ -1353,10 +1723,6 @@ msgstr[1] "{num} pola wymagają uwagi."
 msgstr[2] "{num} pól wymaga uwagi."
 
 #: app/static/js/app.js app/templates/base.html
-msgid "Freedom"
-msgstr "Freedom"
-
-#: app/static/js/app.js app/templates/base.html
 msgid "Daily"
 msgstr "Dziennik"
 
@@ -1376,6 +1742,11 @@ msgstr "Pulpit"
 #: app/static/js/app.js app/templates/base.html app/templates/experiments.html
 msgid "Experiments"
 msgstr "Eksperymenty"
+
+#: app/static/js/app.js app/templates/base.html app/templates/freedom.html
+#: app/templates/partials/freedom_today.html
+msgid "Freedom"
+msgstr "Freedom"
 
 #: app/static/js/app.js app/templates/base.html app/templates/training.html
 msgid "Training"
@@ -1568,10 +1939,6 @@ msgid "Blood"
 msgstr "Badania"
 
 #: app/templates/base.html
-msgid "Finance"
-msgstr "Finanse"
-
-#: app/templates/base.html
 msgid "Install App"
 msgstr "Zainstaluj aplikację"
 
@@ -1594,6 +1961,11 @@ msgstr "Start"
 #: app/templates/base.html
 msgid "More"
 msgstr "Więcej"
+
+#: app/templates/base.html app/templates/finance.html
+#: app/templates/finance_setup.html
+msgid "Finance"
+msgstr "Finanse"
 
 #: app/templates/daily.html
 msgid "Virgil - Daily Log"
@@ -1717,7 +2089,7 @@ msgid "Thighs (cm)"
 msgstr "Uda (cm)"
 
 #: app/templates/daily.html app/templates/dashboard.html
-#: app/templates/experiment_detail.html
+#: app/templates/experiment_detail.html app/templates/freedom.html
 msgid "Save"
 msgstr "Zapisz"
 
@@ -1732,7 +2104,7 @@ msgid "Notes"
 msgstr "Notatki"
 
 #: app/templates/daily.html app/templates/experiment_detail.html
-#: app/templates/training.html
+#: app/templates/freedom.html app/templates/training.html
 msgid "Edit"
 msgstr "Edytuj"
 
@@ -1971,13 +2343,15 @@ msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
 #: app/templates/dashboard.html app/templates/experiment_detail.html
-msgid "Today"
-msgstr "Dzisiaj"
-
-#: app/templates/dashboard.html app/templates/experiment_detail.html
+#: app/templates/finance.html app/templates/freedom.html
 #: app/templates/training.html
 msgid "Date"
 msgstr "Data"
+
+#: app/templates/dashboard.html app/templates/experiment_detail.html
+#: app/templates/freedom.html
+msgid "Today"
+msgstr "Dzisiaj"
 
 #: app/templates/dashboard.html app/templates/experiment_edit.html
 #: app/templates/experiment_new.html
@@ -2251,10 +2625,6 @@ msgstr[1] "Usunąć wskaźnik %(name)s i jego %(count)s wpisy? Niezapisane zmian
 msgstr[2] "Usunąć wskaźnik %(name)s i jego %(count)s wpisów? Niezapisane zmiany na tej stronie przepadną."
 
 #: app/templates/experiment_edit.html
-msgid "Save changes"
-msgstr "Zapisz zmiany"
-
-#: app/templates/experiment_edit.html
 msgid "Add a metric"
 msgstr "Dodaj wskaźnik"
 
@@ -2277,10 +2647,6 @@ msgstr "Podstawy"
 #: app/templates/experiment_edit.html app/templates/experiment_new.html
 msgid "Title"
 msgstr "Tytuł"
-
-#: app/templates/experiment_edit.html app/templates/experiment_new.html
-msgid "Description"
-msgstr "Opis"
 
 #: app/templates/experiment_edit.html app/templates/experiment_new.html
 msgid "Linked goal"
@@ -2322,9 +2688,19 @@ msgstr "Tak / Nie (codziennie)"
 msgid "+ Add Metric"
 msgstr "+ Dodaj wskaźnik"
 
-#: app/templates/experiment_edit.html app/templates/goals.html
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+#: app/templates/finance_setup.html
+msgid "Description"
+msgstr "Opis"
+
+#: app/templates/experiment_edit.html app/templates/finance_setup.html
+#: app/templates/goals.html
 msgid "Status"
 msgstr "Status"
+
+#: app/templates/experiment_edit.html app/templates/freedom.html
+msgid "Save changes"
+msgstr "Zapisz zmiany"
 
 #: app/templates/experiment_new.html
 msgid "Virgil - New Experiment"
@@ -2347,16 +2723,8 @@ msgid "What this experiment tracks: minutes of activity, event counts, daily yes
 msgstr "Co śledzi ten eksperyment: minuty aktywności, liczbę zdarzeń, codzienne odpowiedzi tak/nie albo oceny 0-10."
 
 #: app/templates/experiment_new.html
-msgid "Name"
-msgstr "Nazwa"
-
-#: app/templates/experiment_new.html
 msgid "Zone 2 / Meditation / Urge logged"
 msgstr "Strefa 2 / Medytacja / Zapisana pokusa"
-
-#: app/templates/experiment_new.html
-msgid "Type"
-msgstr "Typ"
 
 #: app/templates/experiment_new.html
 msgid "Color"
@@ -2430,6 +2798,15 @@ msgstr "Utwórz eksperyment"
 msgid "Cancel"
 msgstr "Anuluj"
 
+#: app/templates/experiment_new.html app/templates/finance_setup.html
+#: app/templates/freedom.html
+msgid "Name"
+msgstr "Nazwa"
+
+#: app/templates/experiment_new.html app/templates/freedom.html
+msgid "Type"
+msgstr "Typ"
+
 #: app/templates/experiments.html
 msgid "Virgil - Experiments"
 msgstr "Virgil - Eksperymenty"
@@ -2462,6 +2839,747 @@ msgstr "Prowadź uporządkowane eksperymenty zdrowotne z określonym czasem trwa
 #: app/templates/experiments.html
 msgid "Create Your First Experiment"
 msgstr "Utwórz pierwszy eksperyment"
+
+#: app/templates/finance.html
+msgid "Virgil - Finance"
+msgstr "Virgil - Finanse"
+
+#: app/templates/finance.html
+#, python-format
+msgid "Balances as of %(date)s, in %(currency)s."
+msgstr "Salda na %(date)s, w %(currency)s."
+
+#: app/templates/finance.html
+msgid "No balances recorded yet."
+msgstr "Brak zapisanych sald."
+
+#: app/templates/finance.html
+msgid "Set up"
+msgstr "Konfiguracja"
+
+#: app/templates/finance.html
+msgid "Your fortress has no accounts yet."
+msgstr "Twoja forteca nie ma jeszcze kont."
+
+#: app/templates/finance.html
+msgid "<a href=\"/finance/setup\">Set up your layers and accounts</a>, then record their balances once a month here."
+msgstr "<a href=\"/finance/setup\">Skonfiguruj warstwy i konta</a>, a potem raz w miesiącu zapisuj tu ich salda."
+
+#: app/templates/finance.html
+msgid "Cushion"
+msgstr "Poduszka"
+
+#: app/templates/finance.html
+msgid "Months of essential cost"
+msgstr "Miesiące niezbędnych kosztów"
+
+#: app/templates/finance.html
+msgid "Score"
+msgstr "Wynik"
+
+#: app/templates/finance.html
+#, python-format
+msgid "%(points)s with all stable income"
+msgstr "%(points)s ze wszystkimi stałymi dochodami"
+
+#: app/templates/finance.html
+msgid "Covered by independent income"
+msgstr "Pokryte niezależnym dochodem"
+
+#: app/templates/finance.html
+#, python-brace-format
+msgid "{name} needs {missing}"
+msgstr "{name}: brakuje {missing}"
+
+#: app/templates/finance.html
+msgid "Set it up"
+msgstr "Skonfiguruj"
+
+#: app/templates/finance.html
+#, python-format
+msgid "Not updated in the latest snapshot: %(accounts)s. Their last balance is still counted."
+msgstr "Nie zaktualizowano w ostatnim zestawieniu: %(accounts)s. Ich ostatnie saldo nadal się liczy."
+
+#: app/templates/finance.html
+msgid "Cushion over time"
+msgstr "Poduszka w czasie"
+
+#: app/templates/finance.html
+msgid "Months of essential cost the cushion covered at each recorded date"
+msgstr "Ile miesięcy niezbędnych kosztów pokrywała poduszka przy każdej zapisanej dacie"
+
+#: app/templates/finance.html
+#, python-format
+msgid "%(points)s of %(total)s points"
+msgstr "%(points)s z %(total)s punktów"
+
+#: app/templates/finance.html
+msgid "Score unknown"
+msgstr "Wynik nieznany"
+
+#: app/templates/finance.html
+msgid "not counted"
+msgstr "nie liczy się"
+
+#: app/templates/finance.html
+msgid "joint"
+msgstr "wspólne"
+
+#: app/templates/finance.html
+#, python-brace-format
+msgid "as of {date}"
+msgstr "na {date}"
+
+#: app/templates/finance.html
+msgid "no balance yet"
+msgstr "brak salda"
+
+#: app/templates/finance.html
+msgid "No policies set."
+msgstr "Brak ubezpieczeń."
+
+#: app/templates/finance.html
+msgid "Add them"
+msgstr "Dodaj je"
+
+#: app/templates/finance.html
+msgid "depends on work"
+msgstr "zależny od pracy"
+
+#: app/templates/finance.html
+msgid "per month"
+msgstr "miesięcznie"
+
+#: app/templates/finance.html
+msgid "No income sources set."
+msgstr "Brak źródeł dochodu."
+
+#: app/templates/finance.html
+msgid "No accounts in this layer."
+msgstr "Brak kont w tej warstwie."
+
+#: app/templates/finance.html
+#, python-format
+msgid "Not counted anywhere: %(amount)s in accounts marked as not counted."
+msgstr "Nie liczy się nigdzie: %(amount)s na kontach oznaczonych jako niewliczane."
+
+#: app/templates/finance.html
+msgid "Record balances"
+msgstr "Zapisz salda"
+
+#: app/templates/finance.html
+msgid "One date for the whole snapshot. Each field starts at the latest balance; change what moved. A blank field is skipped."
+msgstr "Jedna data dla całego zestawienia. Każde pole zaczyna od ostatniego salda; zmień to, co się zmieniło. Puste pole jest pomijane."
+
+#: app/templates/finance.html
+msgid "Save snapshot"
+msgstr "Zapisz zestawienie"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "Counts toward the cushion"
+msgstr "Liczy się do poduszki"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "In place"
+msgstr "Jest"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "None"
+msgstr "Brak"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "Not applicable"
+msgstr "Nie dotyczy"
+
+#: app/templates/finance.html app/templates/finance_setup.html
+msgid "independent of work"
+msgstr "niezależny od pracy"
+
+#: app/templates/finance_setup.html
+msgid "Virgil - Finance setup"
+msgstr "Virgil - Konfiguracja finansów"
+
+#: app/templates/finance_setup.html
+msgid "Months of essential cost the cushion covers"
+msgstr "Ile miesięcy niezbędnych kosztów pokrywa poduszka"
+
+#: app/templates/finance_setup.html
+msgid "Percent of essential cost covered by independent income"
+msgstr "Jaki procent niezbędnych kosztów pokrywa niezależny dochód"
+
+#: app/templates/finance_setup.html
+msgid "Insurance policies, points per type"
+msgstr "Ubezpieczenia, punkty za rodzaj"
+
+#: app/templates/finance_setup.html
+msgid "Finance setup"
+msgstr "Konfiguracja finansów"
+
+#: app/templates/finance_setup.html
+msgid "Your fortress: its layers, the accounts in them, and what they are measured against."
+msgstr "Twoja forteca: jej warstwy, konta w nich i to, do czego się je porównuje."
+
+#: app/templates/finance_setup.html
+msgid "Layers"
+msgstr "Warstwy"
+
+#: app/templates/finance_setup.html
+msgid "Name the layers of your fortress the way you think of them. A layer that counts toward the cushion adds its accounts to it. A rule turns a layer into points: write thresholds as <code>minimum:points</code>, highest first, such as <code>12:40, 6:30, 3:20, 1:10</code>, or <code>type:points</code> for policies."
+msgstr "Nazwij warstwy fortecy tak, jak o nich myślisz. Warstwa liczona do poduszki dodaje do niej swoje konta. Reguła zamienia warstwę na punkty: zapisz progi jako <code>minimum:punkty</code>, od najwyższego, np. <code>12:40, 6:30, 3:20, 1:10</code>, albo <code>rodzaj:punkty</code> dla ubezpieczeń."
+
+#: app/templates/finance_setup.html
+msgid "counts toward the cushion"
+msgstr "liczy się do poduszki"
+
+#: app/templates/finance_setup.html
+#, python-format
+msgid "%(count)s point"
+msgid_plural "%(count)s points"
+msgstr[0] "%(count)s punkt"
+msgstr[1] "%(count)s punkty"
+msgstr[2] "%(count)s punktów"
+
+#: app/templates/finance_setup.html
+msgid "Scored by"
+msgstr "Oceniane według"
+
+#: app/templates/finance_setup.html
+msgid "Not scored"
+msgstr "Bez oceny"
+
+#: app/templates/finance_setup.html
+msgid "Maximum points"
+msgstr "Maksimum punktów"
+
+#: app/templates/finance_setup.html
+msgid "Thresholds"
+msgstr "Progi"
+
+#: app/templates/finance_setup.html
+msgid "Save layer"
+msgstr "Zapisz warstwę"
+
+#: app/templates/finance_setup.html
+#, python-format
+msgid "Remove the layer %(name)s?"
+msgstr "Usunąć warstwę %(name)s?"
+
+#: app/templates/finance_setup.html
+msgid "Remove"
+msgstr "Usuń"
+
+#: app/templates/finance_setup.html
+msgid "Add a layer"
+msgstr "Dodaj warstwę"
+
+#: app/templates/finance_setup.html
+msgid "Add layer"
+msgstr "Dodaj warstwę"
+
+#: app/templates/finance_setup.html
+msgid "Layer"
+msgstr "Warstwa"
+
+#: app/templates/finance_setup.html
+msgid "Kind"
+msgstr "Rodzaj"
+
+#: app/templates/finance_setup.html
+msgid "Ownership"
+msgstr "Własność"
+
+#: app/templates/finance_setup.html
+msgid "Mine"
+msgstr "Moje"
+
+#: app/templates/finance_setup.html
+msgid "Joint"
+msgstr "Wspólne"
+
+#: app/templates/finance_setup.html
+msgid "Not counted (someone else's)"
+msgstr "Niewliczane (czyjeś)"
+
+#: app/templates/finance_setup.html
+msgid "Institution"
+msgstr "Instytucja"
+
+#: app/templates/finance_setup.html
+msgid "Held in currency"
+msgstr "Waluta konta"
+
+#: app/templates/finance_setup.html
+msgid "Base currency"
+msgstr "Waluta bazowa"
+
+#: app/templates/finance_setup.html
+msgid "Accounts"
+msgstr "Konta"
+
+#: app/templates/finance_setup.html
+#, python-format
+msgid "Balances are recorded in the base currency (%(currency)s). Archive an account you closed: it stops counting after its last balance."
+msgstr "Salda zapisuje się w walucie bazowej (%(currency)s). Zarchiwizuj zamknięte konto: przestanie się liczyć po ostatnim saldzie."
+
+#: app/templates/finance_setup.html
+msgid "· not counted"
+msgstr "· nie liczy się"
+
+#: app/templates/finance_setup.html
+msgid "· archived"
+msgstr "· zarchiwizowane"
+
+#: app/templates/finance_setup.html
+msgid "Archived"
+msgstr "Zarchiwizowane"
+
+#: app/templates/finance_setup.html
+msgid "Save account"
+msgstr "Zapisz konto"
+
+#: app/templates/finance_setup.html
+msgid "Add an account"
+msgstr "Dodaj konto"
+
+#: app/templates/finance_setup.html
+msgid "Add account"
+msgstr "Dodaj konto"
+
+#: app/templates/finance_setup.html
+msgid "Essential monthly cost"
+msgstr "Niezbędny miesięczny koszt"
+
+#: app/templates/finance_setup.html
+msgid "What a month costs without the extras. The cushion is measured in months of it; a new amount applies from its date, and earlier months keep theirs."
+msgstr "Ile kosztuje miesiąc bez dodatków. Poduszkę mierzy się w miesiącach tego kosztu; nowa kwota obowiązuje od swojej daty, a wcześniejsze miesiące zachowują swoją."
+
+#: app/templates/finance_setup.html
+#, python-format
+msgid "From %(date)s"
+msgstr "Od %(date)s"
+
+#: app/templates/finance_setup.html
+msgid "Amount"
+msgstr "Kwota"
+
+#: app/templates/finance_setup.html
+msgid "From"
+msgstr "Od"
+
+#: app/templates/finance_setup.html
+msgid "Save cost"
+msgstr "Zapisz koszt"
+
+#: app/templates/finance_setup.html
+msgid "Income"
+msgstr "Dochód"
+
+#: app/templates/finance_setup.html
+msgid "Monthly income you can count on. Mark what does not depend on your current work, such as rent: the score counts that, and also shows a second figure with all of it."
+msgstr "Miesięczny dochód, na który możesz liczyć. Oznacz to, co nie zależy od Twojej obecnej pracy, np. najem: wynik liczy tę część, a drugą liczbą pokazuje całość."
+
+#: app/templates/finance_setup.html
+#, python-format
+msgid "Remove %(name)s?"
+msgstr "Usunąć %(name)s?"
+
+#: app/templates/finance_setup.html
+msgid "Per month"
+msgstr "Miesięcznie"
+
+#: app/templates/finance_setup.html
+msgid "Independent of work"
+msgstr "Niezależny od pracy"
+
+#: app/templates/finance_setup.html
+msgid "Save income"
+msgstr "Zapisz dochód"
+
+#: app/templates/finance_setup.html
+msgid "Insurance"
+msgstr "Ubezpieczenia"
+
+#: app/templates/finance_setup.html
+msgid "Whether each kind of protection is in place. Not applicable leaves it out of the score; an empty status makes the score unknown."
+msgstr "Czy masz każdy rodzaj ochrony. Nie dotyczy pomija go w wyniku; pusty status sprawia, że wynik jest nieznany."
+
+#: app/templates/finance_setup.html
+msgid "Not set"
+msgstr "Nie ustawiono"
+
+#: app/templates/finance_setup.html
+msgid "Another kind"
+msgstr "Inny rodzaj"
+
+#: app/templates/finance_setup.html
+msgid "e.g. liability"
+msgstr "np. OC"
+
+#: app/templates/finance_setup.html
+msgid "Save insurance"
+msgstr "Zapisz ubezpieczenia"
+
+#: app/templates/freedom.html
+msgid "Virgil - Freedom"
+msgstr "Virgil - Freedom"
+
+#: app/templates/freedom.html
+msgid "Something else"
+msgstr "Coś innego"
+
+#: app/templates/freedom.html
+msgid "Something else, in your words"
+msgstr "Coś innego, Twoimi słowami"
+
+#: app/templates/freedom.html
+msgid "Add"
+msgstr "Dodaj"
+
+#: app/templates/freedom.html
+msgid "Habits you're breaking free from. Only you see this."
+msgstr "Nawyki, z których się uwalniasz. Widzisz to tylko Ty."
+
+#: app/templates/freedom.html
+msgid "What are you breaking free from?"
+msgstr "Od czego się uwalniasz?"
+
+#: app/templates/freedom.html
+msgid "Pick one or more. Each gets its own daily check-in, a log of the urges you survive and its own streak. You can change this any time in Settings."
+msgstr "Wybierz jeden lub więcej. Każdy dostaje własny codzienny check-in, dziennik przetrwanych pokus i własną serię. Możesz to zmienić w każdej chwili w Ustawieniach."
+
+#: app/templates/freedom.html
+msgid "bricks · urges survived"
+msgstr "cegły · przetrwane pokusy"
+
+#: app/templates/freedom.html
+msgid "this week, Monday to Sunday"
+msgstr "ten tydzień, od poniedziałku do niedzieli"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "This week: %(clean)s/%(elapsed)s clean · %(streak)s of %(target)s days"
+msgstr "Ten tydzień: czysto %(clean)s/%(elapsed)s · %(streak)s z %(target)s dni"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "target %(weekly_target)s%%"
+msgstr "cel %(weekly_target)s%%"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Target %(weekly_target)s%% a week. A slip lowers the rate; it never resets it to 0."
+msgstr "Cel %(weekly_target)s%% w tygodniu. Potknięcie obniża wynik, ale nigdy nie zeruje go do 0."
+
+#: app/templates/freedom.html
+msgid "Add details or log a slip for today"
+msgstr "Dodaj szczegóły albo zapisz dzisiejsze potknięcie"
+
+#: app/templates/freedom.html
+msgid "Clean above logs the day in one tap."
+msgstr "Przycisk Czysto powyżej zapisuje dzień jednym dotknięciem."
+
+#: app/templates/freedom.html
+msgid "How was today?"
+msgstr "Jak minął dzień?"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "How was %(date)s?"
+msgstr "Jak minął %(date)s?"
+
+#: app/templates/freedom.html
+msgid "Day to log"
+msgstr "Dzień do zapisania"
+
+#: app/templates/freedom.html
+msgid "What counts as a slip:"
+msgstr "Co liczy się jako potknięcie:"
+
+#: app/templates/freedom.html
+msgid "Clean day"
+msgstr "Czysty dzień"
+
+#: app/templates/freedom.html
+msgid "Day note"
+msgstr "Notatka dnia"
+
+#: app/templates/freedom.html
+msgid "trigger, a near miss, or context (optional)"
+msgstr "wyzwalacz, sytuacja na włosku albo kontekst (opcjonalnie)"
+
+#: app/templates/freedom.html
+msgid "Pick one above"
+msgstr "Wybierz jedną z opcji powyżej"
+
+#: app/templates/freedom.html
+msgid "Save today"
+msgstr "Zapisz dzisiaj"
+
+#: app/templates/freedom.html
+#, python-brace-format
+msgid "Save {date}"
+msgstr "Zapisz {date}"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Delete %(name)s on %(date)s?"
+msgstr "Usunąć %(name)s z %(date)s?"
+
+#: app/templates/freedom.html
+msgid "Its relapse record goes with it."
+msgstr "Jego wpis o nawrocie też zostanie usunięty."
+
+#: app/templates/freedom.html
+msgid "The day becomes unlogged."
+msgstr "Dzień stanie się niezapisany."
+
+#: app/templates/freedom.html
+msgid "Delete this day's entry"
+msgstr "Usuń wpis z tego dnia"
+
+#: app/templates/freedom.html
+msgid "Survived an urge?"
+msgstr "Przetrwałeś pokusę?"
+
+#: app/templates/freedom.html
+msgid "Lay a brick. That's the win that counts."
+msgstr "Połóż cegłę. To zwycięstwo, które się liczy."
+
+#: app/templates/freedom.html
+msgid "A brick is one distinct decision episode resolved before a slip. Background desire alone is not a brick, and no particular coping action is required."
+msgstr "Cegła to jeden wyraźny moment decyzji rozstrzygnięty przed potknięciem. Samo tło pragnienia nie jest cegłą i nie trzeba żadnego konkretnego sposobu radzenia sobie."
+
+#: app/templates/freedom.html
+msgid "When did you survive it?"
+msgstr "Kiedy ją przetrwałeś?"
+
+#: app/templates/freedom.html
+msgid "Name this brick"
+msgstr "Nazwij tę cegłę"
+
+#: app/templates/freedom.html
+msgid "the words you'll stand on next time"
+msgstr "słowa, na których staniesz następnym razem"
+
+#: app/templates/freedom.html
+msgid "e.g. Walked it off, urge gone in 20 min"
+msgstr "np. Wyszedłem na spacer, pokusa minęła w 20 min"
+
+#: app/templates/freedom.html
+msgid "How strong was it?"
+msgstr "Jak silna była?"
+
+#: app/templates/freedom.html
+msgid "What happened, and what did you learn?"
+msgstr "Co się stało i czego się nauczyłeś?"
+
+#: app/templates/freedom.html
+msgid "Where were you, what did you do instead, what does it prove about you?"
+msgstr "Gdzie byłeś, co zrobiłeś zamiast tego, co to o Tobie mówi?"
+
+#: app/templates/freedom.html
+msgid "Lay the brick"
+msgstr "Połóż cegłę"
+
+#: app/templates/freedom.html
+msgid "brick"
+msgstr "cegła"
+
+#: app/templates/freedom.html
+msgid "Edit record"
+msgstr "Edytuj wpis"
+
+#: app/templates/freedom.html
+msgid "Craving 0-10"
+msgstr "Pragnienie 0-10"
+
+#: app/templates/freedom.html
+msgid "Story"
+msgstr "Historia"
+
+#: app/templates/freedom.html
+msgid "Save correction"
+msgstr "Zapisz poprawkę"
+
+#: app/templates/freedom.html
+msgid "Remove this brick from your history? This only corrects your record."
+msgstr "Usunąć tę cegłę z historii? To tylko poprawia Twój zapis."
+
+#: app/templates/freedom.html
+msgid "Remove record"
+msgstr "Usuń wpis"
+
+#: app/templates/freedom.html
+msgid "slip"
+msgstr "potknięcie"
+
+#: app/templates/freedom.html
+msgid "clean"
+msgstr "czysto"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Relapse records (%(count)s%(more)s)"
+msgstr "Wpisy o nawrotach (%(count)s%(more)s)"
+
+#: app/templates/freedom.html
+msgid "relapse"
+msgstr "nawrót"
+
+#: app/templates/freedom.html
+msgid "reset"
+msgstr "reset"
+
+#: app/templates/freedom.html
+msgid "from the day log"
+msgstr "z dziennika"
+
+#: app/templates/freedom.html
+msgid "Correct the day"
+msgstr "Popraw dzień"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Edit the relapse record from %(date)s"
+msgstr "Edytuj wpis o nawrocie z %(date)s"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Edit the reset record from %(date)s"
+msgstr "Edytuj wpis o resecie z %(date)s"
+
+#: app/templates/freedom.html
+msgid "Relapse"
+msgstr "Nawrót"
+
+#: app/templates/freedom.html
+msgid "Reset"
+msgstr "Reset"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Delete the relapse record from %(date)s? The streak is counted again without it."
+msgstr "Usunąć wpis o nawrocie z %(date)s? Seria zostanie policzona od nowa bez niego."
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Delete the reset record from %(date)s? The streak is counted again without it."
+msgstr "Usunąć wpis o resecie z %(date)s? Seria zostanie policzona od nowa bez niego."
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Delete the relapse record from %(date)s"
+msgstr "Usuń wpis o nawrocie z %(date)s"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Delete the reset record from %(date)s"
+msgstr "Usuń wpis o resecie z %(date)s"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "Showing the newest %(count)s."
+msgstr "Pokazuję najnowsze: %(count)s."
+
+#: app/templates/freedom.html
+#, python-format
+msgid "%(name)s settings"
+msgstr "%(name)s: ustawienia"
+
+#: app/templates/freedom.html
+msgid "Slip button"
+msgstr "Przycisk potknięcia"
+
+#: app/templates/freedom.html
+msgid "What counts as a slip"
+msgstr "Co liczy się jako potknięcie"
+
+#: app/templates/freedom.html
+msgid "Amount unit"
+msgstr "Jednostka ilości"
+
+#: app/templates/freedom.html
+msgid "minutes, drinks"
+msgstr "minuty, drinki"
+
+#: app/templates/freedom.html
+msgid "Leave empty to skip asking for an amount."
+msgstr "Zostaw puste, żeby nie pytać o ilość."
+
+#: app/templates/freedom.html
+msgid "A slip starts at"
+msgstr "Potknięcie zaczyna się od"
+
+#: app/templates/freedom.html
+msgid "In the amount unit."
+msgstr "W jednostce ilości."
+
+#: app/templates/freedom.html
+msgid "Near miss"
+msgstr "Na włosku"
+
+#: app/templates/freedom.html
+msgid "Leave empty to skip asking about near misses."
+msgstr "Zostaw puste, żeby nie pytać o sytuacje na włosku."
+
+#: app/templates/freedom.html
+msgid "Started"
+msgstr "Start"
+
+#: app/templates/freedom.html
+msgid "Target, days"
+msgstr "Cel, dni"
+
+#: app/templates/freedom.html
+msgid "Your why"
+msgstr "Twoje dlaczego"
+
+#: app/templates/freedom.html
+msgid "shown at the top of this habit"
+msgstr "widoczne na górze tego nawyku"
+
+#: app/templates/freedom.html
+msgid "Stop tracking this habit? Its history is kept and comes back if you track it again."
+msgstr "Przestać śledzić ten nawyk? Historia zostanie i wróci, jeśli znów zaczniesz go śledzić."
+
+#: app/templates/freedom.html
+msgid "Stop tracking this habit"
+msgstr "Przestań śledzić ten nawyk"
+
+#: app/templates/freedom.html
+msgid "Track another habit"
+msgstr "Śledź kolejny nawyk"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+#, python-format
+msgid "%(count)s day clean · this week %(pct)s%%"
+msgid_plural "%(count)s days clean · this week %(pct)s%%"
+msgstr[0] "%(count)s czysty dzień · ten tydzień %(pct)s%%"
+msgstr[1] "%(count)s czyste dni · ten tydzień %(pct)s%%"
+msgstr[2] "%(count)s czystych dni · ten tydzień %(pct)s%%"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Clean"
+msgstr "Czysto"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Slipped"
+msgstr "Potknięcie"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+#, python-format
+msgid "%(name)s: clean today"
+msgstr "%(name)s: dziś czysto"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+#, python-format
+msgid "%(name)s: log a slip"
+msgstr "%(name)s: zapisz potknięcie"
+
+#: app/templates/freedom.html app/templates/partials/wod_row.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Note"
+msgstr "Notatka"
 
 #: app/templates/goals.html
 msgid "Virgil - Goals"
@@ -2741,6 +3859,10 @@ msgstr "Komunikaty o działaniach"
 msgid "Background work"
 msgstr "Zadania w tle"
 
+#: app/templates/partials/freedom_today.html
+msgid "Open Freedom"
+msgstr "Otwórz Freedom"
+
 #: app/templates/partials/oura_freshness.html
 msgid "Last synced"
 msgstr "Ostatnia synchronizacja"
@@ -2844,11 +3966,6 @@ msgstr "Ćwiczenie"
 #: app/templates/wod_confirm.html
 msgid "Set"
 msgstr "Seria"
-
-#: app/templates/partials/wod_row.html app/templates/training.html
-#: app/templates/wod_confirm.html
-msgid "Note"
-msgstr "Notatka"
 
 #: app/templates/partials/wod_row.html app/templates/wod_confirm.html
 msgid "Time (s)"
