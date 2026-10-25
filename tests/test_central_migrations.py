@@ -39,7 +39,7 @@ def test_pending_discovery_does_not_modify_unversioned_database(tmp_path):
 
         db = await _create_unversioned_registry(tmp_path / "central.db")
         try:
-            assert await count_pending_migrations(db) == 7
+            assert await count_pending_migrations(db) == 8
             tracking = await db.execute_fetchall(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'central_schema_migrations'"
             )
@@ -76,6 +76,7 @@ def test_fresh_database_gets_baseline_and_version_record(tmp_path):
                 (5, "005_invites.py"),
                 (6, "006_password_resets.py"),
                 (7, "007_api_tokens.py"),
+                (8, "008_user_language.py"),
             ]
         finally:
             await db.close()
@@ -100,7 +101,7 @@ def test_unversioned_registry_upgrades_without_losing_data(tmp_path):
                 }
             ]
             versions = await db.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7]
+            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8]
         finally:
             await db.close()
 
@@ -198,7 +199,7 @@ def test_failed_migration_rolls_back_schema_and_version_then_retries(tmp_path, m
         try:
             await run_migrations(reopened)
             versions = await reopened.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7]
+            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8]
         finally:
             await reopened.close()
 
@@ -470,6 +471,7 @@ def test_concurrent_central_initialization_serializes_snapshot_and_migration(tmp
                 (5, "005_invites.py"),
                 (6, "006_password_resets.py"),
                 (7, "007_api_tokens.py"),
+                (8, "008_user_language.py"),
             ]
         finally:
             await first.close()
@@ -576,7 +578,7 @@ def test_real_upgrade_failure_snapshots_rolls_back_and_quarantines_app(tmp_path,
         try:
             await central_db.migrate_central_db(recovered)
             versions = await recovered.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7]
+            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8]
         finally:
             await recovered.close()
 

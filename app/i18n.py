@@ -12,6 +12,9 @@ from pathlib import Path
 
 from babel.messages.mofile import write_mo
 from babel.messages.pofile import read_po
+from starlette.datastructures import MutableHeaders
+from starlette.requests import Request
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 LANGUAGES = ("en", "pl")
 DEFAULT_LANGUAGE = "en"
@@ -83,3 +86,33 @@ def N_(message: str) -> str:  # noqa: N802 - the conventional gettext marker nam
 def js_catalog(language: str) -> dict[str, str]:
     """Polish strings our own scripts use; English needs none."""
     return dict(_POLISH_JS) if normalize_language(language) == "pl" else {}
+
+
+class LanguageMiddleware:
+    """Resolve each request's language: the account's choice, then the cookie, then English.
+
+    Runs inside AuthMiddleware, so a signed-in request already carries its user row.
+    Accept-Language is deliberately ignored: Polish appears only when chosen.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        user = scope.get("state", {}).get("user")
+        chosen = user.get("language") if user else Request(scope).cookies.get(LANGUAGE_COOKIE)
+        language = normalize_language(chosen)
+
+        async def send_with_language(message: Message) -> None:
+            if message["type"] == "http.response.start":
+                MutableHeaders(scope=message)["Content-Language"] = language
+            await send(message)
+
+        token = set_language(language)
+        try:
+            await self.app(scope, receive, send_with_language)
+        finally:
+            reset_language(token)

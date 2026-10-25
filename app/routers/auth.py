@@ -15,6 +15,7 @@ from app.auth import (
     create_session,
     hash_password,  # noqa: F401 — re-exported for use in tests
     hash_password_async,
+    language_cookie_header,
     mfa_pending_user_id,
     session_cookie_header,
     signed_in_user,
@@ -38,6 +39,7 @@ from app.central_db import (
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
+from app.i18n import _, current_language, normalize_language, set_language
 from app.main import templates
 from app.rate_limit import client_ip
 from app.user_db import create_user_db
@@ -233,6 +235,7 @@ async def signup_submit(
         return _render_error("Could not create your account. Please try again.")
 
     await _event(request, "invite_consume" if invite else "signup", user["id"])
+    await update_user(user["id"], language=current_language())
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg="Account created.")
     response = RedirectResponse(target, status_code=303)
@@ -363,6 +366,7 @@ async def login_submit(
     token = create_session(user["id"], user["session_epoch"])
     response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
+    response.headers.append("set-cookie", language_cookie_header(user["language"]))
     return response
 
 
@@ -524,6 +528,29 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     token = create_session(user["id"], user["session_epoch"])
     response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
+    response.headers.append("set-cookie", language_cookie_header(user["language"]))
+    return response
+
+
+# --- Interface language (#152) ---
+
+
+@router.post("/language")
+async def choose_language(request: Request, language: str = Form(""), next: str = Form("/")):
+    """Switch between English and Polish, before or after sign-in.
+
+    A public path, so a signed-in account is found from its session cookie here.
+    """
+    chosen = normalize_language(language)
+    user = await signed_in_user(request.cookies.get(SESSION_COOKIE, ""))
+    if user:
+        await update_user(user["id"], language=chosen)
+    set_language(chosen)
+    try:
+        response = success_redirect(request, next, _("Language changed."))
+    except ValueError:
+        response = success_redirect(request, "/", _("Language changed."))
+    response.headers.append("set-cookie", language_cookie_header(chosen))
     return response
 
 
