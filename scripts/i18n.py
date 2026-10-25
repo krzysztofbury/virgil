@@ -18,11 +18,14 @@ from babel.messages.pofile import read_po, write_po
 
 ROOT = Path(__file__).resolve().parents[1]
 CATALOG = ROOT / "app" / "locale" / "pl" / "LC_MESSAGES" / "messages.po"
-HEADER = b"""# Polish translation of the Virgil UI (#152).
+HEADER = """# Polish translation of the Virgil UI (#152).
 #
 # Tone: informal second person ("Zapisz", "Twoje cele").
 # Glossary, kept as is: Virgil, A.N.D.Y., Freedom, Oura, WOD, MCP, API.
-# Fixed Polish renderings are listed here as they are chosen.
+# Fixed renderings: Dashboard = Pulpit, Daily = Dziennik, Training = Trening,
+# Blood = Badania, Goals = Cele, Experiments = Eksperymenty, Finance = Finanse,
+# Settings = Ustawienia. A.N.D.Y. areas: Body = Ciało, Spirit = Duch,
+# Self/Account = Konto, Relations = Relacje. Fortress = Forteca.
 msgid ""
 msgstr ""
 "Project-Id-Version: Virgil\\n"
@@ -31,7 +34,7 @@ msgstr ""
 "Content-Type: text/plain; charset=utf-8\\n"
 "Content-Transfer-Encoding: 8bit\\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\\n"
-"""
+""".encode()
 
 
 def extract(pot: Path) -> None:

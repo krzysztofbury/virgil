@@ -22,12 +22,6 @@ TEMPLATES = APP / "templates"
 
 PENDING_TEMPLATES = {
     "admin_users.html",
-    "auth_login.html",
-    "auth_mfa_setup.html",
-    "auth_mfa_verify.html",
-    "auth_reset.html",
-    "auth_signup.html",
-    "base.html",
     "bloodwork.html",
     "daily.html",
     "dashboard.html",
@@ -39,13 +33,10 @@ PENDING_TEMPLATES = {
     "finance_setup.html",
     "freedom.html",
     "goals.html",
-    "offline.html",
     "onboarding.html",
     "oura.html",
     "partials/experiment_card.html",
-    "partials/feedback.html",
     "partials/freedom_today.html",
-    "partials/head_assets.html",
     "partials/job_notifications.html",
     "partials/job_status.html",
     "partials/oura_freshness.html",
@@ -58,9 +49,35 @@ PENDING_TEMPLATES = {
     "training.html",
     "wod_confirm.html",
 }
+# The service worker caches one offline page for everyone, so it carries both
+# languages itself instead of going through the catalog.
+BILINGUAL_TEMPLATES = {"offline.html"}
+# Pages whose leftover-English check waits for their area's conversion: until
+# then they legitimately show phrases another area already translated.
+PENDING_PAGES = {
+    "/",
+    "/admin/users",
+    "/api/jobs/active",
+    "/bloodwork",
+    "/daily",
+    "/experiments",
+    "/experiments/new",
+    "/finance",
+    "/finance/setup",
+    "/freedom",
+    "/goals",
+    "/onboarding",
+    "/oura",
+    "/training",
+    "/settings?tab=general",
+    "/settings?tab=configuration",
+    "/settings?tab=integrations",
+    "/settings?tab=data",
+    "/settings?tab=automation",
+    "/settings?tab=security",
+}
 PENDING_MODULES = {
     "routers/admin.py",
-    "routers/auth.py",
     "routers/bloodwork.py",
     "routers/daily.py",
     "routers/dashboard.py",
@@ -74,6 +91,7 @@ PENDING_MODULES = {
     "routers/oura.py",
     "routers/settings.py",
     "routers/training.py",
+    "csrf.py",
     "library_validation.py",
     "validation.py",
 }
@@ -111,7 +129,7 @@ def test_templates_have_no_untranslated_text():
     offenders = {}
     for path in sorted(TEMPLATES.rglob("*.html")):
         name = path.relative_to(TEMPLATES).as_posix()
-        if name in PENDING_TEMPLATES:
+        if name in PENDING_TEMPLATES or name in BILINGUAL_TEMPLATES:
             continue
         found = _untranslated_template_text(path.read_text(encoding="utf-8"))
         if found:
@@ -119,39 +137,55 @@ def test_templates_have_no_untranslated_text():
     assert offenders == {}
 
 
-FEEDBACK_CALLS = {"success_redirect", "error_redirect", "feedback_redirect", "feedback_url", "feedback_headers"}
-
-
-def _is_marked(node: ast.expr) -> bool:
-    return isinstance(node, ast.Call) and getattr(node.func, "id", None) in {"_", "ngettext"} or (
-        isinstance(node, ast.Call)
-        and isinstance(node.func, ast.Attribute)
-        and node.func.attr == "format"
-        and _is_marked(node.func.value)
-    )
+# A literal a person could read: starts with a capital, has a space, ends a sentence.
+SENTENCE = re.compile(r"^[A-Z][^\n]*\s[^\n]*[.!?:]$")
+MARKERS = {"_", "N_", "ngettext"}
+UI_MODULES = ["routers/*.py", "validation.py", "library_validation.py", "csrf.py"]
+NOT_UI = {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}
 
 
 def _unmarked_messages(path: Path) -> list[str]:
+    """Sentence-like literals outside _()/N_()/ngettext(), docstrings and log calls.
+
+    A line commented `i18n: internal` is a message no person sees (an exception
+    caught and logged, an API detail) and is skipped.
+    """
+    source = path.read_text(encoding="utf-8")
+    lines = source.splitlines()
+    tree = ast.parse(source)
+    skipped: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Module | ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef) and node.body:
+            first = node.body[0]
+            if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant):
+                skipped.add(id(first.value))
+        if isinstance(node, ast.Call):
+            func = node.func
+            name = func.id if isinstance(func, ast.Name) else func.attr if isinstance(func, ast.Attribute) else ""
+            owner = func.value.id if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) else ""
+            if name in MARKERS or owner in {"logger", "logging", "log"}:
+                skipped.update(id(child) for child in ast.walk(node))
     found = []
-    for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-        if not isinstance(node, ast.Call) or getattr(node.func, "id", None) not in FEEDBACK_CALLS:
-            continue
-        candidates = [keyword.value for keyword in node.keywords if keyword.arg in {"msg", "err", "message"}]
-        candidates += node.args[2:3] if node.func.id.endswith("_redirect") else node.args[:1]
-        for value in candidates:
-            if isinstance(value, ast.Constant | ast.JoinedStr) and not _is_marked(value):
-                found.append(f"{path.relative_to(APP)}:{node.lineno}")
+    for node in ast.walk(tree):
+        if isinstance(node, ast.JoinedStr) and id(node) not in skipped:
+            skipped.update(id(part) for part in node.values)
+            text = "".join(part.value if isinstance(part, ast.Constant) else "{}" for part in node.values).strip()
+            if SENTENCE.match(text) and "i18n: internal" not in lines[node.lineno - 1]:
+                found.append(f"{path.relative_to(APP).as_posix()}:{node.lineno}: {text[:60]}")
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in skipped:
+            text = node.value.strip()
+            if SENTENCE.match(text) and "i18n: internal" not in lines[node.lineno - 1]:
+                found.append(f"{path.relative_to(APP).as_posix()}:{node.lineno}: {text[:60]}")
     return found
 
 
 def test_messages_are_marked():
-    modules = [*APP.glob("routers/*.py"), APP / "validation.py", APP / "library_validation.py"]
     offenders = []
-    for path in modules:
-        name = path.relative_to(APP).as_posix()
-        if name in PENDING_MODULES or name in {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}:
-            continue
-        offenders += _unmarked_messages(path)
+    for pattern in UI_MODULES:
+        for path in sorted(APP.glob(pattern)):
+            name = path.relative_to(APP).as_posix()
+            if name not in PENDING_MODULES and name not in NOT_UI:
+                offenders += _unmarked_messages(path)
     assert offenders == []
 
 
@@ -223,7 +257,9 @@ def modules_on():
     from conftest import user_db_path
 
     conn = sqlite3.connect(user_db_path())
-    before = dict(conn.execute("SELECT key, value FROM app_settings WHERE key IN ('feature_freedom', 'feature_finance')"))
+    before = dict(
+        conn.execute("SELECT key, value FROM app_settings WHERE key IN ('feature_freedom', 'feature_finance')")
+    )
     conn.executemany(
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, '1')", [("feature_freedom",), ("feature_finance",)]
     )
@@ -246,8 +282,9 @@ def test_polish_pages_render(polish, modules_on, path):
     # The service worker caches one offline page for everyone; it carries both languages.
     if path != "/offline":
         assert '<html lang="pl"' in response.text or "<html" not in response.text
-    text = _visible_text(response.text)
-    assert [message for message in _translated_ids() if message in text] == []
+    if path not in PENDING_PAGES:
+        text = _visible_text(response.text)
+        assert [message for message in _translated_ids() if message in text] == []
 
 
 @pytest.mark.xfail(strict=True, reason="the daily log is converted with the dashboard area")
@@ -307,3 +344,18 @@ def test_js_catalog_is_embedded_safely(polish, monkeypatch):
     block = re.search(r'<script type="application/json" id="i18n-catalog"[^>]*>(.*?)</script>', page, re.S)
     assert block, "the page carries the catalog for our scripts"
     assert json.loads(block.group(1)) == {"Saved": "</script><b>Zapisano</b>"}
+
+
+@pytest.mark.parametrize("path", ["/login", "/signup", "/mfa/verify", "/reset?token=unknown"])
+def test_polish_sign_in_pages_render(client, path):
+    """The pages before sign-in, as a browser that chose Polish sees them."""
+    from fastapi.testclient import TestClient
+
+    from app.i18n import LANGUAGE_COOKIE
+
+    browser = TestClient(app)
+    browser.cookies.set(LANGUAGE_COOKIE, "pl")
+    response = browser.get(path)
+    assert response.status_code in (200, 429)
+    assert '<html lang="pl"' in response.text
+    assert [message for message in _translated_ids() if message in _visible_text(response.text)] == []

@@ -31,38 +31,38 @@
 </head>
 <body hx-headers='{"X-CSRF-Token": "{{ request.state.csrf_token }}"}' data-features='{{ request.state.features | tojson }}'>
     {# First in the tab order: past the eight-link nav straight to the page. #}
-    <a href="#main-content" class="skip-link">Skip to content</a>
+    <a href="#main-content" class="skip-link">{{ _("Skip to content") }}</a>
     {% block top_nav %}
     <!-- Top Navigation -->
     <nav class="top-nav">
         <a href="/" class="nav-logo"><img src="/static/icons/logo.png" alt="Virgil" class="nav-logo-img">Virgil</a>
         <div class="nav-links">
-            <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">Dashboard</a>
-            <a href="/daily" class="{{ 'active' if '/daily' in request.url.path else '' }}">Daily</a>
-            <a href="/training" class="{{ 'active' if '/training' in request.url.path else '' }}">Training</a>
-            {% if request.state.features.freedom %}<a href="/freedom" class="{{ 'active' if '/freedom' in request.url.path else '' }}">Freedom</a>{% endif %}
+            <a href="/" class="{{ 'active' if request.url.path == '/' else '' }}">{{ _("Dashboard") }}</a>
+            <a href="/daily" class="{{ 'active' if '/daily' in request.url.path else '' }}">{{ _("Daily") }}</a>
+            <a href="/training" class="{{ 'active' if '/training' in request.url.path else '' }}">{{ _("Training") }}</a>
+            {% if request.state.features.freedom %}<a href="/freedom" class="{{ 'active' if '/freedom' in request.url.path else '' }}">{{ _("Freedom") }}</a>{% endif %}
             <a href="/oura" class="{{ 'active' if '/oura' in request.url.path else '' }}">Oura</a>
-            <a href="/bloodwork" class="{{ 'active' if '/bloodwork' in request.url.path else '' }}">Blood</a>
-            <a href="/goals" class="{{ 'active' if '/goals' in request.url.path else '' }}">Goals</a>
-            <a href="/experiments" class="{{ 'active' if '/experiments' in request.url.path else '' }}">Experiments</a>
-            {% if request.state.features.finance %}<a href="/finance" class="{{ 'active' if '/finance' in request.url.path else '' }}">Finance</a>{% endif %}
+            <a href="/bloodwork" class="{{ 'active' if '/bloodwork' in request.url.path else '' }}">{{ _("Blood") }}</a>
+            <a href="/goals" class="{{ 'active' if '/goals' in request.url.path else '' }}">{{ _("Goals") }}</a>
+            <a href="/experiments" class="{{ 'active' if '/experiments' in request.url.path else '' }}">{{ _("Experiments") }}</a>
+            {% if request.state.features.finance %}<a href="/finance" class="{{ 'active' if '/finance' in request.url.path else '' }}">{{ _("Finance") }}</a>{% endif %}
         </div>
         <div class="nav-end">
-            <button type="button" id="pwa-install-btn" class="nav-logout" title="Install App" style="display:none;">
+            <button type="button" id="pwa-install-btn" class="nav-logout" title="{{ _("Install App") }}" style="display:none;">
                 <i data-lucide="download" style="width:20px;height:20px;"></i>
             </button>
-            <button type="button" class="nav-logout" title="Toggle theme" id="theme-toggle">
+            <button type="button" class="nav-logout" title="{{ _("Toggle theme") }}" id="theme-toggle">
                 <i data-lucide="sun" style="width:20px;height:20px;"></i>
             </button>
             {% if request.state.user and request.state.user.role == 'admin' %}
-            <a href="/admin/users" title="Admin: users" aria-label="Admin: users"><i data-lucide="shield" style="width:20px;height:20px;"></i></a>
+            <a href="/admin/users" title="{{ _("Admin: users") }}" aria-label="{{ _("Admin: users") }}"><i data-lucide="shield" style="width:20px;height:20px;"></i></a>
             {% endif %}
             {# On a phone both live in the More menu: four bare icons put Log out
                one slip from Settings. #}
-            <a href="/settings" title="Settings" aria-label="Settings" class="nav-desktop-only"><i data-lucide="settings" style="width:20px;height:20px;"></i></a>
+            <a href="/settings" title="{{ _("Settings") }}" aria-label="{{ _("Settings") }}" class="nav-desktop-only"><i data-lucide="settings" style="width:20px;height:20px;"></i></a>
             <form method="POST" action="/logout" class="nav-desktop-only" style="margin:0;display:inline;">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                <button type="submit" class="nav-logout" title="Log out" aria-label="Log out"><i data-lucide="log-out" style="width:20px;height:20px;"></i></button>
+                <button type="submit" class="nav-logout" title="{{ _("Log out") }}" aria-label="{{ _("Log out") }}"><i data-lucide="log-out" style="width:20px;height:20px;"></i></button>
             </form>
         </div>
     </nav>
@@ -84,27 +84,27 @@
     <div class="bottom-bar" x-data="bottomBar" @click.outside="openMenu = null">
         <a href="/" class="tab-item {{ 'active' if request.url.path == '/' else '' }}">
             <i data-lucide="home"></i>
-            <span>Home</span>
+            <span>{{ _("Home") }}</span>
         </a>
         <a href="/daily" class="tab-item {{ 'active' if '/daily' in request.url.path else '' }}">
             <i data-lucide="calendar-check"></i>
-            <span>Daily</span>
+            <span>{{ _("Daily") }}</span>
         </a>
         {# The bar holds what you act on daily; read-mostly pages (Oura, Blood)
            live under More. Training is a daily action, so it is not hidden there. #}
         <a href="/training" class="tab-item {{ 'active' if '/training' in request.url.path else '' }}">
             <i data-lucide="dumbbell"></i>
-            <span>Training</span>
+            <span>{{ _("Training") }}</span>
         </a>
         {% if request.state.features.freedom %}
         <a href="/freedom" class="tab-item {{ 'active' if '/freedom' in request.url.path else '' }}">
             <i data-lucide="flame"></i>
-            <span>Freedom</span>
+            <span>{{ _("Freedom") }}</span>
         </a>
         {% else %}
         <a href="/goals" class="tab-item {{ 'active' if '/goals' in request.url.path else '' }}">
             <i data-lucide="crosshair"></i>
-            <span>Goals</span>
+            <span>{{ _("Goals") }}</span>
         </a>
         {% endif %}
         {% set more_paths = ['/oura', '/bloodwork', '/experiments', '/settings'] + (['/goals'] if request.state.features.freedom else []) + (['/finance'] if request.state.features.finance else []) %}
@@ -114,18 +114,18 @@
                     @click.stop="openMenu = openMenu === 'more' ? null : 'more'"
                     :aria-expanded="moreOpen" aria-controls="tab-more-menu">
                 <i data-lucide="menu"></i>
-                <span>More</span>
+                <span>{{ _("More") }}</span>
             </button>
             <div class="tab-dropdown" id="tab-more-menu" :class="{ 'show': openMenu === 'more' }" @click.stop>
-                {% if request.state.features.freedom %}<a href="/goals"><i data-lucide="crosshair"></i> Goals</a>{% endif %}
-                <a href="/experiments"><i data-lucide="flask-conical"></i> Experiments</a>
+                {% if request.state.features.freedom %}<a href="/goals"><i data-lucide="crosshair"></i> {{ _("Goals") }}</a>{% endif %}
+                <a href="/experiments"><i data-lucide="flask-conical"></i> {{ _("Experiments") }}</a>
                 <a href="/oura"><i data-lucide="moon"></i> Oura</a>
-                <a href="/bloodwork"><i data-lucide="droplets"></i> Blood</a>
-                {% if request.state.features.finance %}<a href="/finance"><i data-lucide="landmark"></i> Finance</a>{% endif %}
-                <a href="/settings"><i data-lucide="settings"></i> Settings</a>
+                <a href="/bloodwork"><i data-lucide="droplets"></i> {{ _("Blood") }}</a>
+                {% if request.state.features.finance %}<a href="/finance"><i data-lucide="landmark"></i> {{ _("Finance") }}</a>{% endif %}
+                <a href="/settings"><i data-lucide="settings"></i> {{ _("Settings") }}</a>
                 <form method="POST" action="/logout" class="tab-dropdown-form">
                     <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                    <button type="submit"><i data-lucide="log-out"></i> Log out</button>
+                    <button type="submit"><i data-lucide="log-out"></i> {{ _("Log out") }}</button>
                 </form>
             </div>
         </div>

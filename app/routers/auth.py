@@ -39,7 +39,7 @@ from app.central_db import (
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
-from app.i18n import _, current_language, normalize_language, set_language
+from app.i18n import N_, _, current_language, ngettext, normalize_language, set_language
 from app.main import templates
 from app.rate_limit import client_ip
 from app.user_db import create_user_db
@@ -110,9 +110,9 @@ async def registration_allowed() -> bool:
 # --- Signup ---
 
 
-INVITE_UNUSABLE = "This invite link is invalid, used or expired. Ask for a new one."
-RESERVED_ADDRESS = "This address is reserved on this server. Ask an admin for an invite made for it."
-RESET_UNUSABLE = "This reset link is invalid, used or expired. Ask an admin for a new one."
+INVITE_UNUSABLE = N_("This invite link is invalid, used or expired. Ask for a new one.")
+RESERVED_ADDRESS = N_("This address is reserved on this server. Ask an admin for an invite made for it.")
+RESET_UNUSABLE = N_("This reset link is invalid, used or expired. Ask an admin for a new one.")
 
 
 def _signup_response(request: Request, **context):
@@ -133,7 +133,7 @@ async def signup_page(request: Request, invite: str = ""):
             return templates.TemplateResponse(
                 request,
                 "auth_login.html",
-                {"request": request, "info": INVITE_UNUSABLE, "registration_open": await registration_allowed()},
+                {"request": request, "info": _(INVITE_UNUSABLE), "registration_open": await registration_allowed()},
                 headers=_NO_STORE,
             )
         return _signup_response(
@@ -144,7 +144,7 @@ async def signup_page(request: Request, invite: str = ""):
         return templates.TemplateResponse(
             request,
             "auth_login.html",
-            {"request": request, "info": "Registration is closed on this server.", "registration_open": False},
+            {"request": request, "info": _("Registration is closed on this server."), "registration_open": False},
         )
 
     if await signed_in_user(request.cookies.get(SESSION_COOKIE, "")):
@@ -163,7 +163,7 @@ async def signup_submit(
     invite: str = Form(""),
 ):
     if not invite and not await registration_allowed():
-        return error_redirect(request, "/login", "Registration is closed on this server.")
+        return error_redirect(request, "/login", _("Registration is closed on this server."))
 
     email = email.strip().lower()
     display_name = display_name.strip()
@@ -171,7 +171,7 @@ async def signup_submit(
     if invite:
         open_invite = await get_open_invite(invite)
         if not open_invite:
-            return error_redirect(request, "/login", INVITE_UNUSABLE)
+            return error_redirect(request, "/login", _(INVITE_UNUSABLE))
         invite_email = open_invite["email"]
 
     def _render_error(error: str):
@@ -185,40 +185,40 @@ async def signup_submit(
         )
 
     if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-        return _render_error("Please enter a valid email address.")
+        return _render_error(_("Please enter a valid email address."))
 
     if len(password) < 8:
-        return _render_error("Password must be at least 8 characters.")
+        return _render_error(_("Password must be at least 8 characters."))
 
     if password != password_confirm:
-        return _render_error("Passwords do not match.")
+        return _render_error(_("Passwords do not match."))
 
     if invite:
         # The invite is checked and used up in the same transaction as the insert.
         status, user = await create_user_from_invite(invite, email, password, display_name)
         if status == "invalid":
-            return error_redirect(request, "/login", INVITE_UNUSABLE)
+            return error_redirect(request, "/login", _(INVITE_UNUSABLE))
         if status == "email_mismatch":
-            return _render_error("This invite is for a different email address.")
+            return _render_error(_("This invite is for a different email address."))
         if status == "email_reserved":
-            return _render_error(RESERVED_ADDRESS)
+            return _render_error(_(RESERVED_ADDRESS))
         if status == "email_taken":
-            return _render_error("An account with that email already exists.")
+            return _render_error(_("An account with that email already exists."))
     else:
         existing = await get_user_by_email(email)
         if existing:
-            return _render_error("An account with that email already exists.")
+            return _render_error(_("An account with that email already exists."))
         # Open registration verifies no address, and VIRGIL_ADMIN_EMAILS makes one an
         # admin: only the first account, the operator's, may claim such an address here.
         if email in ADMIN_EMAILS and await count_users() > 0:
-            return _render_error(RESERVED_ADDRESS)
+            return _render_error(_(RESERVED_ADDRESS))
 
         # With registration closed we're only here via the bootstrap-first-user
         # rule, so the INSERT itself enforces it and two concurrent first signups
         # can't both slip through the count check.
         user = await create_user(email, password, display_name, only_if_first=not REGISTRATION_OPEN)
         if user is None:
-            return error_redirect(request, "/login", "Registration is closed on this server.")
+            return error_redirect(request, "/login", _("Registration is closed on this server."))
 
     try:
         await create_user_db(user["db_filename"])
@@ -232,12 +232,12 @@ async def signup_submit(
         if invite:
             await reopen_invite_used_by(user["id"])
         await delete_user(user["id"])
-        return _render_error("Could not create your account. Please try again.")
+        return _render_error(_("Could not create your account. Please try again."))
 
     await _event(request, "invite_consume" if invite else "signup", user["id"])
     await update_user(user["id"], language=current_language())
     token = create_session(user["id"], user["session_epoch"])
-    target = feedback_url("/onboarding", msg="Account created.")
+    target = feedback_url("/onboarding", msg=_("Account created."))
     response = RedirectResponse(target, status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     return response
@@ -258,7 +258,7 @@ async def reset_page(request: Request, token: str = ""):
         return templates.TemplateResponse(
             request,
             "auth_login.html",
-            {"request": request, "info": RESET_UNUSABLE, "registration_open": await registration_allowed()},
+            {"request": request, "info": _(RESET_UNUSABLE), "registration_open": await registration_allowed()},
             headers=_NO_STORE,
         )
     return _reset_response(request, token=token, email=reset["email"])
@@ -273,18 +273,18 @@ async def reset_submit(
 ):
     reset = await get_open_reset(token)
     if not reset:
-        return error_redirect(request, "/login", RESET_UNUSABLE)
+        return error_redirect(request, "/login", _(RESET_UNUSABLE))
     if len(password) < 8:
         return _reset_response(
-            request, token=token, email=reset["email"], error="Password must be at least 8 characters."
+            request, token=token, email=reset["email"], error=_("Password must be at least 8 characters.")
         )
     if password != password_confirm:
-        return _reset_response(request, token=token, email=reset["email"], error="Passwords do not match.")
+        return _reset_response(request, token=token, email=reset["email"], error=_("Passwords do not match."))
     user_id = await complete_password_reset(token, password)
     if not user_id:
-        return error_redirect(request, "/login", RESET_UNUSABLE)
+        return error_redirect(request, "/login", _(RESET_UNUSABLE))
     await _event(request, "password_reset", user_id)
-    return success_redirect(request, "/login", "Password set. Sign in with the new one.")
+    return success_redirect(request, "/login", _("Password set. Sign in with the new one."))
 
 
 # --- Login ---
@@ -316,7 +316,7 @@ async def login_submit(
             "auth_login.html",
             {
                 "request": request,
-                "error": "Invalid email or password.",
+                "error": _("Invalid email or password."),
                 "registration_open": await registration_allowed(),
             },
         )
@@ -336,7 +336,7 @@ async def login_submit(
             "auth_login.html",
             {
                 "request": request,
-                "error": "Invalid email or password.",
+                "error": _("Invalid email or password."),
                 "registration_open": await registration_allowed(),
             },
         )
@@ -348,7 +348,7 @@ async def login_submit(
             "auth_login.html",
             {
                 "request": request,
-                "error": "This account has been deactivated.",
+                "error": _("This account has been deactivated."),
                 "registration_open": await registration_allowed(),
             },
         )
@@ -364,7 +364,8 @@ async def login_submit(
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"])
     token = create_session(user["id"], user["session_epoch"])
-    response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
+    set_language(user["language"])
+    response = RedirectResponse(feedback_url("/", msg=_("Signed in.")), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     response.headers.append("set-cookie", language_cookie_header(user["language"]))
     return response
@@ -381,7 +382,7 @@ async def logout(request: Request):
     if user:
         await bump_session_epoch(user["id"])
         await _event(request, "logout", user["id"])
-    response = RedirectResponse(feedback_url("/login", msg="Signed out."), status_code=303)
+    response = RedirectResponse(feedback_url("/login", msg=_("Signed out.")), status_code=303)
     response.headers["set-cookie"] = clear_session_cookie()
     return response
 
@@ -411,7 +412,7 @@ async def mfa_setup_page(request: Request):
 async def mfa_enable(request: Request, totp_code: str = Form(...)):
     user = getattr(request.state, "user", None)
     if not user or not user["totp_secret"]:
-        return error_redirect(request, "/settings/mfa", "MFA setup is unavailable. Start setup again.")
+        return error_redirect(request, "/settings/mfa", _("MFA setup is unavailable. Start setup again."))
 
     secret = _totp_secret_plain(user["totp_secret"])
     totp = pyotp.TOTP(secret)
@@ -420,28 +421,28 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
             request,
             mfa_enabled=False,
             secret=secret,
-            error="Invalid code. Please try again.",
+            error=_("Invalid code. Please try again."),
         )
 
     # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
     await update_user(user["id"], totp_enabled=1, totp_secret=_totp_secret_stored(secret))
     await _event(request, "mfa_enable", user["id"])
-    return _resign(request, user["id"], await bump_session_epoch(user["id"]), "MFA enabled.")
+    return _resign(request, user["id"], await bump_session_epoch(user["id"]), _("MFA enabled."))
 
 
 @router.post("/settings/mfa/disable")
 async def mfa_disable(request: Request, password: str = Form(...)):
     user = getattr(request.state, "user", None)
     if not user:
-        return error_redirect(request, "/settings", "MFA could not be disabled.")
+        return error_redirect(request, "/settings", _("MFA could not be disabled."))
 
     # verify_password raises on empty input — treat it as a wrong password.
     if not password or not await verify_password_async(password, user["password_hash"]):
-        return _mfa_setup_response(request, mfa_enabled=True, error="Invalid password.")
+        return _mfa_setup_response(request, mfa_enabled=True, error=_("Invalid password."))
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
     await _event(request, "mfa_disable", user["id"])
-    return _resign(request, user["id"], await bump_session_epoch(user["id"]), "MFA disabled.")
+    return _resign(request, user["id"], await bump_session_epoch(user["id"]), _("MFA disabled."))
 
 
 def _resign(request: Request, user_id: str, epoch: int, message: str, target: str = "/settings"):
@@ -463,19 +464,19 @@ async def change_password(
 ):
     user = getattr(request.state, "user", None)
     if not user:
-        return error_redirect(request, "/login", "Sign in again to change your password.")
+        return error_redirect(request, "/login", _("Sign in again to change your password."))
     # verify_password raises on empty input, so an empty one is a wrong password.
     if not current_password or not await verify_password_async(current_password, user["password_hash"]):
-        return error_redirect(request, SECURITY, "Current password is incorrect.")
+        return error_redirect(request, SECURITY, _("Current password is incorrect."))
     if len(new_password) < 8:
-        return error_redirect(request, SECURITY, "New password must be at least 8 characters.")
+        return error_redirect(request, SECURITY, _("New password must be at least 8 characters."))
     if new_password != new_password_confirm:
-        return error_redirect(request, SECURITY, "New passwords do not match.")
+        return error_redirect(request, SECURITY, _("New passwords do not match."))
 
     await update_user(user["id"], password_hash=await hash_password_async(new_password))
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_change", user["id"])
-    return _resign(request, user["id"], epoch, "Password changed. Other devices are signed out.", SECURITY)
+    return _resign(request, user["id"], epoch, _("Password changed. Other devices are signed out."), SECURITY)
 
 
 # --- MFA Verify (during login) ---
@@ -484,7 +485,7 @@ async def change_password(
 @router.get("/mfa/verify", response_class=HTMLResponse)
 async def mfa_verify_page(request: Request):
     if not mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, "")):
-        return error_redirect(request, "/login", "MFA session expired. Sign in again.")
+        return error_redirect(request, "/login", _("MFA session expired. Sign in again."))
     return templates.TemplateResponse(request, "auth_mfa_verify.html", {"request": request})
 
 
@@ -492,11 +493,11 @@ async def mfa_verify_page(request: Request):
 async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     user_id = mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, ""))
     if not user_id:
-        return error_redirect(request, "/login", "MFA session expired. Sign in again.")
+        return error_redirect(request, "/login", _("MFA session expired. Sign in again."))
 
     user = await get_user_by_id(user_id)
     if not user or not user["is_active"]:
-        return error_redirect(request, "/login", "MFA session expired. Sign in again.")
+        return error_redirect(request, "/login", _("MFA session expired. Sign in again."))
 
     now = datetime.now(UTC)
     if not await claim_mfa_attempt(user["id"], now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS):
@@ -506,7 +507,11 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
             "auth_mfa_verify.html",
             {
                 "request": request,
-                "error": f"Too many invalid codes. Try again in {MFA_LOCK_SECONDS // 60} minutes.",
+                "error": ngettext(
+                    "Too many invalid codes. Try again in {num} minute.",
+                    "Too many invalid codes. Try again in {num} minutes.",
+                    MFA_LOCK_SECONDS // 60,
+                ).format(num=MFA_LOCK_SECONDS // 60),
             },
             status_code=429,
         )
@@ -519,14 +524,15 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
         return templates.TemplateResponse(
             request,
             "auth_mfa_verify.html",
-            {"request": request, "error": "Invalid code. Please try again."},
+            {"request": request, "error": _("Invalid code. Please try again.")},
         )
 
     # MFA verified — upgrade to full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"], "with MFA")
     token = create_session(user["id"], user["session_epoch"])
-    response = RedirectResponse(feedback_url("/", msg="Signed in."), status_code=303)
+    set_language(user["language"])
+    response = RedirectResponse(feedback_url("/", msg=_("Signed in.")), status_code=303)
     response.headers["set-cookie"] = session_cookie_header(token)
     response.headers.append("set-cookie", language_cookie_header(user["language"]))
     return response

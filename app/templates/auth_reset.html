@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virgil - Reset password</title>
+    <title>{{ _("Virgil - Reset password") }}</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
@@ -22,7 +22,7 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
-        <p class="auth-subtitle">Set a new password for {{ email }}.</p>
+        <p class="auth-subtitle">{% trans %}Set a new password for {{ email }}.{% endtrans %}</p>
 
         {% if error %}
         <div class="auth-error" role="alert">{{ error }}</div>
@@ -33,16 +33,16 @@
             <input type="hidden" name="token" value="{{ token }}">
             <input type="email" name="username" value="{{ email }}" autocomplete="username" hidden>
             <label>
-                New password
+                {{ _("New password") }}
                 <input type="password" name="password" required minlength="8" autocomplete="new-password" autofocus>
             </label>
             <label>
-                Repeat new password
+                {{ _("Repeat new password") }}
                 <input type="password" name="password_confirm" required minlength="8" autocomplete="new-password">
             </label>
-            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Set password</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Set password") }}</button>
         </form>
-        <p class="auth-footer">Every device signed in to this account is signed out, and its API tokens are revoked. <a href="/login">Sign in</a></p>
+        <p class="auth-footer">{{ _("Every device signed in to this account is signed out, and its API tokens are revoked.") }} <a href="/login">{{ _("Sign in") }}</a></p>
     </div>
 </div>
 

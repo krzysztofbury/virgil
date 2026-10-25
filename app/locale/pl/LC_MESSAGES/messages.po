@@ -2,7 +2,10 @@
 #
 # Tone: informal second person ("Zapisz", "Twoje cele").
 # Glossary, kept as is: Virgil, A.N.D.Y., Freedom, Oura, WOD, MCP, API.
-# Fixed Polish renderings are listed here as they are chosen.
+# Fixed renderings: Dashboard = Pulpit, Daily = Dziennik, Training = Trening,
+# Blood = Badania, Goals = Cele, Experiments = Eksperymenty, Finance = Finanse,
+# Settings = Ustawienia. A.N.D.Y. areas: Body = Ciało, Spirit = Duch,
+# Self/Account = Konto, Relations = Relacje. Fortress = Forteca.
 msgid ""
 msgstr ""
 "Project-Id-Version: Virgil\n"
@@ -12,6 +15,363 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=3; plural=(n==1 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
 
+#: app/csrf.py
+msgid "CSRF validation failed. Reload the page and try again."
+msgstr "Weryfikacja formularza nie powiodła się. Odśwież stronę i spróbuj ponownie."
+
+#: app/routers/auth.py
+msgid "This invite link is invalid, used or expired. Ask for a new one."
+msgstr "Ten link z zaproszeniem jest nieprawidłowy, wykorzystany albo wygasł. Poproś o nowy."
+
+#: app/routers/auth.py
+msgid "This address is reserved on this server. Ask an admin for an invite made for it."
+msgstr "Ten adres jest zarezerwowany na tym serwerze. Poproś administratora o zaproszenie wystawione na niego."
+
+#: app/routers/auth.py
+msgid "This reset link is invalid, used or expired. Ask an admin for a new one."
+msgstr "Ten link do resetu hasła jest nieprawidłowy, wykorzystany albo wygasł. Poproś administratora o nowy."
+
+#: app/routers/auth.py
+msgid "Registration is closed on this server."
+msgstr "Rejestracja na tym serwerze jest zamknięta."
+
+#: app/routers/auth.py
+msgid "Please enter a valid email address."
+msgstr "Podaj prawidłowy adres e-mail."
+
+#: app/routers/auth.py
+msgid "Password must be at least 8 characters."
+msgstr "Hasło musi mieć co najmniej 8 znaków."
+
+#: app/routers/auth.py
+msgid "Passwords do not match."
+msgstr "Hasła się nie zgadzają."
+
+#: app/routers/auth.py
+msgid "This invite is for a different email address."
+msgstr "To zaproszenie jest na inny adres e-mail."
+
+#: app/routers/auth.py
+msgid "An account with that email already exists."
+msgstr "Konto z tym adresem e-mail już istnieje."
+
+#: app/routers/auth.py
+msgid "Could not create your account. Please try again."
+msgstr "Nie udało się utworzyć konta. Spróbuj ponownie."
+
+#: app/routers/auth.py
+msgid "Account created."
+msgstr "Konto utworzone."
+
+#: app/routers/auth.py
+msgid "Password set. Sign in with the new one."
+msgstr "Hasło ustawione. Zaloguj się nowym hasłem."
+
+#: app/routers/auth.py
+msgid "Invalid email or password."
+msgstr "Nieprawidłowy e-mail lub hasło."
+
+#: app/routers/auth.py
+msgid "This account has been deactivated."
+msgstr "To konto zostało wyłączone."
+
+#: app/routers/auth.py
+msgid "Signed in."
+msgstr "Zalogowano."
+
+#: app/routers/auth.py
+msgid "Signed out."
+msgstr "Wylogowano."
+
+#: app/routers/auth.py
+msgid "MFA setup is unavailable. Start setup again."
+msgstr "Konfiguracja MFA jest niedostępna. Zacznij od nowa."
+
+#: app/routers/auth.py
+msgid "Invalid code. Please try again."
+msgstr "Nieprawidłowy kod. Spróbuj ponownie."
+
+#: app/routers/auth.py
+msgid "MFA enabled."
+msgstr "MFA włączone."
+
+#: app/routers/auth.py
+msgid "MFA could not be disabled."
+msgstr "Nie udało się wyłączyć MFA."
+
+#: app/routers/auth.py
+msgid "Invalid password."
+msgstr "Nieprawidłowe hasło."
+
+#: app/routers/auth.py
+msgid "MFA disabled."
+msgstr "MFA wyłączone."
+
+#: app/routers/auth.py
+msgid "Sign in again to change your password."
+msgstr "Zaloguj się ponownie, żeby zmienić hasło."
+
+#: app/routers/auth.py
+msgid "Current password is incorrect."
+msgstr "Obecne hasło jest nieprawidłowe."
+
+#: app/routers/auth.py
+msgid "New password must be at least 8 characters."
+msgstr "Nowe hasło musi mieć co najmniej 8 znaków."
+
+#: app/routers/auth.py
+msgid "New passwords do not match."
+msgstr "Nowe hasła się nie zgadzają."
+
+#: app/routers/auth.py
+msgid "Password changed. Other devices are signed out."
+msgstr "Hasło zmienione. Inne urządzenia zostały wylogowane."
+
+#: app/routers/auth.py
+msgid "MFA session expired. Sign in again."
+msgstr "Sesja MFA wygasła. Zaloguj się ponownie."
+
+#: app/routers/auth.py
+#, python-brace-format
+msgid "Too many invalid codes. Try again in {num} minute."
+msgid_plural "Too many invalid codes. Try again in {num} minutes."
+msgstr[0] "Zbyt wiele błędnych kodów. Spróbuj ponownie za {num} minutę."
+msgstr[1] "Zbyt wiele błędnych kodów. Spróbuj ponownie za {num} minuty."
+msgstr[2] "Zbyt wiele błędnych kodów. Spróbuj ponownie za {num} minut."
+
 #: app/routers/auth.py
 msgid "Language changed."
 msgstr "Zmieniono język."
+
+#: app/static/js/components.js
+msgid "Recently used"
+msgstr "Ostatnio używane"
+
+#: app/templates/auth_login.html
+msgid "Virgil - Login"
+msgstr "Virgil - Logowanie"
+
+#: app/templates/auth_login.html
+msgid "Sign in to continue."
+msgstr "Zaloguj się, żeby kontynuować."
+
+#: app/templates/auth_login.html
+msgid "Sign In"
+msgstr "Zaloguj się"
+
+#: app/templates/auth_login.html
+msgid "Don't have an account?"
+msgstr "Nie masz konta?"
+
+#: app/templates/auth_login.html
+msgid "Sign up"
+msgstr "Zarejestruj się"
+
+#: app/templates/auth_login.html app/templates/auth_signup.html
+msgid "Email"
+msgstr "E-mail"
+
+#: app/templates/auth_login.html app/templates/auth_signup.html
+msgid "Password"
+msgstr "Hasło"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Virgil - MFA Setup"
+msgstr "Virgil - Konfiguracja MFA"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Two-Factor Authentication"
+msgstr "Uwierzytelnianie dwuskładnikowe"
+
+#: app/templates/auth_mfa_setup.html
+msgid "MFA is enabled"
+msgstr "MFA jest włączone"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Your account is protected with a TOTP authenticator app."
+msgstr "Twoje konto chroni aplikacja uwierzytelniająca TOTP."
+
+#: app/templates/auth_mfa_setup.html
+msgid "Disable MFA"
+msgstr "Wyłącz MFA"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Confirm your password"
+msgstr "Potwierdź hasło"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Set up MFA"
+msgstr "Skonfiguruj MFA"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Scan the QR code with your authenticator app (Google Authenticator, Authy, etc.), then enter the 6-digit code to confirm."
+msgstr "Zeskanuj kod QR aplikacją uwierzytelniającą (Google Authenticator, Authy itp.), a potem wpisz 6-cyfrowy kod, żeby potwierdzić."
+
+#: app/templates/auth_mfa_setup.html
+msgid "QR Code"
+msgstr "Kod QR"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Manual entry key"
+msgstr "Klucz do ręcznego wpisania"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Verification Code"
+msgstr "Kod weryfikacyjny"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Enable MFA"
+msgstr "Włącz MFA"
+
+#: app/templates/auth_mfa_setup.html
+msgid "Back to Settings"
+msgstr "Wróć do ustawień"
+
+#: app/templates/auth_mfa_verify.html
+msgid "Virgil - Verify MFA"
+msgstr "Virgil - Weryfikacja MFA"
+
+#: app/templates/auth_mfa_verify.html
+msgid "Enter the 6-digit code from your authenticator app."
+msgstr "Wpisz 6-cyfrowy kod z aplikacji uwierzytelniającej."
+
+#: app/templates/auth_mfa_verify.html
+msgid "Code"
+msgstr "Kod"
+
+#: app/templates/auth_mfa_verify.html
+msgid "Verify"
+msgstr "Potwierdź"
+
+#: app/templates/auth_reset.html
+msgid "Virgil - Reset password"
+msgstr "Virgil - Reset hasła"
+
+#: app/templates/auth_reset.html
+#, python-format
+msgid "Set a new password for %(email)s."
+msgstr "Ustaw nowe hasło dla %(email)s."
+
+#: app/templates/auth_reset.html
+msgid "New password"
+msgstr "Nowe hasło"
+
+#: app/templates/auth_reset.html
+msgid "Repeat new password"
+msgstr "Powtórz nowe hasło"
+
+#: app/templates/auth_reset.html
+msgid "Set password"
+msgstr "Ustaw hasło"
+
+#: app/templates/auth_reset.html
+msgid "Every device signed in to this account is signed out, and its API tokens are revoked."
+msgstr "Wszystkie urządzenia zalogowane na to konto zostaną wylogowane, a jego tokeny API unieważnione."
+
+#: app/templates/auth_reset.html app/templates/auth_signup.html
+msgid "Sign in"
+msgstr "Zaloguj się"
+
+#: app/templates/auth_signup.html
+msgid "Virgil - Sign Up"
+msgstr "Virgil - Rejestracja"
+
+#: app/templates/auth_signup.html
+msgid "You were invited. Create your account."
+msgstr "Masz zaproszenie. Utwórz konto."
+
+#: app/templates/auth_signup.html
+msgid "Create your account."
+msgstr "Utwórz konto."
+
+#: app/templates/auth_signup.html
+msgid "Display Name"
+msgstr "Wyświetlana nazwa"
+
+#: app/templates/auth_signup.html
+msgid "Confirm Password"
+msgstr "Potwierdź hasło"
+
+#: app/templates/auth_signup.html
+msgid "Create Account"
+msgstr "Utwórz konto"
+
+#: app/templates/auth_signup.html
+msgid "Already have an account?"
+msgstr "Masz już konto?"
+
+#: app/templates/base.html
+msgid "Skip to content"
+msgstr "Przejdź do treści"
+
+#: app/templates/base.html
+msgid "Dashboard"
+msgstr "Pulpit"
+
+#: app/templates/base.html
+msgid "Daily"
+msgstr "Dziennik"
+
+#: app/templates/base.html
+msgid "Training"
+msgstr "Trening"
+
+#: app/templates/base.html
+msgid "Freedom"
+msgstr "Freedom"
+
+#: app/templates/base.html
+msgid "Blood"
+msgstr "Badania"
+
+#: app/templates/base.html
+msgid "Goals"
+msgstr "Cele"
+
+#: app/templates/base.html
+msgid "Experiments"
+msgstr "Eksperymenty"
+
+#: app/templates/base.html
+msgid "Finance"
+msgstr "Finanse"
+
+#: app/templates/base.html
+msgid "Install App"
+msgstr "Zainstaluj aplikację"
+
+#: app/templates/base.html
+msgid "Toggle theme"
+msgstr "Zmień motyw"
+
+#: app/templates/base.html
+msgid "Admin: users"
+msgstr "Admin: użytkownicy"
+
+#: app/templates/base.html
+msgid "Settings"
+msgstr "Ustawienia"
+
+#: app/templates/base.html
+msgid "Log out"
+msgstr "Wyloguj"
+
+#: app/templates/base.html
+msgid "Home"
+msgstr "Start"
+
+#: app/templates/base.html
+msgid "More"
+msgstr "Więcej"
+
+#: app/templates/partials/feedback.html
+msgid "Action feedback"
+msgstr "Komunikaty o działaniach"
+
+#: app/templates/partials/feedback.html
+msgid "Dismiss error"
+msgstr "Zamknij błąd"
+
+#: app/templates/partials/feedback.html
+msgid "Background work"
+msgstr "Zadania w tle"

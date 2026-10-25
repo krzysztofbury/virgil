@@ -185,7 +185,7 @@ function movementRow() {
             const recent = select.querySelectorAll('option[data-recent="1"]');
             if (!recent.length) return;
             const group = document.createElement('optgroup');
-            group.label = 'Recently used';
+            group.label = gettext('Recently used');
             recent.forEach(function (opt) {
                 const clone = opt.cloneNode(true);
                 // Otherwise one select carries two selected options: the

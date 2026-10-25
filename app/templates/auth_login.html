@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virgil - Login</title>
+    <title>{{ _("Virgil - Login") }}</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
@@ -22,7 +22,7 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
-        <p class="auth-subtitle">Sign in to continue.</p>
+        <p class="auth-subtitle">{{ _("Sign in to continue.") }}</p>
 
         {% if error %}
         <div class="auth-error" role="alert">{{ error }}</div>
@@ -34,17 +34,17 @@
         <form method="POST" action="/login">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <label>
-                Email
+                {{ _("Email") }}
                 <input type="email" name="username" required autocomplete="email" autofocus>
             </label>
             <label>
-                Password
+                {{ _("Password") }}
                 <input type="password" name="password" required autocomplete="current-password">
             </label>
-            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Sign In</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Sign In") }}</button>
         </form>
         {% if registration_open %}
-        <p class="auth-footer">Don't have an account? <a href="/signup">Sign up</a></p>
+        <p class="auth-footer">{{ _("Don't have an account?") }} <a href="/signup">{{ _("Sign up") }}</a></p>
         {% endif %}
     </div>
 </div>
