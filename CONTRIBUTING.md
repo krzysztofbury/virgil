@@ -44,6 +44,21 @@ module-level constant, translated with `_()` where it is shown) in Python, and
 entries in `app/locale/pl/LC_MESSAGES/messages.po`. The tests fail on an
 untranslated or stale catalog. The REST API, MCP, logs and exports stay English.
 
+## Evaluating the WOD parser
+
+`evals/wod/` scores the WOD parser against synthetic notes with known answers
+(#155). The scorer, the cases and the harness are tested in the normal suite
+without any provider. A live run makes paid calls, so it never runs in `pytest`
+or CI; it needs the provider's usual key variable and a spending cap:
+
+```bash
+ANTHROPIC_API_KEY=... uv run --locked --extra dev python -m evals.wod.run \
+  --models anthropic/claude-haiku-4-5 --efforts low,medium --budget-usd 2
+```
+
+It writes `docs/evals/wod-YYYY-MM-DD.md` and `.json`. Commit both, then write
+the report's known failure modes from its failing cases.
+
 For container or startup changes, also qualify the actual image:
 
 ```bash
