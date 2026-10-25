@@ -5,6 +5,7 @@ There is no nearest match: a gap in the vocabulary has to surface, because a
 guessed movement corrupts history silently.
 """
 
+from app.i18n import N_
 from app.library_validation import LibraryWriteError
 
 # Mirrors the CHECK constraint written by migration 033.
@@ -56,10 +57,17 @@ def normalize_aliases(raw: list[str]) -> list[str]:
         if not alias:
             continue
         if len(alias) > ALIAS_MAX:
-            raise LibraryWriteError(422, f"alias {alias!r} exceeds {ALIAS_MAX} characters")
+            raise LibraryWriteError(
+                422, N_("alias {alias!r} exceeds {ALIAS_MAX} characters"), alias=alias, ALIAS_MAX=ALIAS_MAX
+            )
         out.setdefault(alias.lower(), alias)
     if len(out) > MAX_ALIASES_PER_ENTRY:
-        raise LibraryWriteError(422, f"at most {MAX_ALIASES_PER_ENTRY} aliases allowed per entry, got {len(out)}")
+        raise LibraryWriteError(
+            422,
+            N_("at most {MAX_ALIASES_PER_ENTRY} aliases allowed per entry, got {value}"),
+            MAX_ALIASES_PER_ENTRY=MAX_ALIASES_PER_ENTRY,
+            value=len(out),
+        )
     return sorted(out.values(), key=str.lower)
 
 
@@ -82,14 +90,16 @@ async def write_classification(db, entry_id: int, changes: dict) -> set[str]:
                     r["name"]
                     for r in await db.execute_fetchall("SELECT name FROM exercise_families ORDER BY display_order")
                 ]
-                raise LibraryWriteError(422, f"family must be one of: {', '.join(names)}")
+                raise LibraryWriteError(422, N_("family must be one of: {choices}"), choices=", ".join(names))
             family_id = rows[0]["id"]
         await db.execute("UPDATE exercise_library SET family_id = ? WHERE id = ?", (family_id, entry_id))
         changed.add("family")
     if "default_equipment" in changes:
         equipment = changes["default_equipment"] or None
         if not valid_equipment(equipment):
-            raise LibraryWriteError(422, f"default_equipment must be one of: {', '.join(EQUIPMENT)}")
+            raise LibraryWriteError(
+                422, N_("default_equipment must be one of: {choices}"), choices=", ".join(EQUIPMENT)
+            )
         await db.execute("UPDATE exercise_library SET default_equipment = ? WHERE id = ?", (equipment, entry_id))
         changed.add("default_equipment")
     if "aliases" in changes:
@@ -97,13 +107,15 @@ async def write_classification(db, entry_id: int, changes: dict) -> set[str]:
         names = {r["name"].lower() for r in await db.execute_fetchall("SELECT name FROM exercise_library")}
         for alias in aliases:
             if alias.lower() in names:
-                raise LibraryWriteError(409, f"alias {alias!r} is already a library name")
+                raise LibraryWriteError(409, N_("alias {alias!r} is already a library name"), alias=alias)
             owner = await db.execute_fetchall(
                 "SELECT library_id FROM exercise_aliases WHERE alias = ? COLLATE NOCASE AND library_id != ?",
                 (alias, entry_id),
             )
             if owner:
-                raise LibraryWriteError(409, f"alias {alias!r} already belongs to library entry {owner[0][0]}")
+                raise LibraryWriteError(
+                    409, N_("alias {alias!r} already belongs to library entry {value}"), alias=alias, value=owner[0][0]
+                )
         await db.execute("DELETE FROM exercise_aliases WHERE library_id = ?", (entry_id,))
         await db.executemany(
             "INSERT INTO exercise_aliases (alias, library_id) VALUES (?, ?)", [(alias, entry_id) for alias in aliases]

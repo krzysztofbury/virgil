@@ -313,6 +313,10 @@ msgid "Month"
 msgstr "Miesiąc"
 
 #: app/library_validation.py
+msgid "archived"
+msgstr "zarchiwizowana"
+
+#: app/library_validation.py
 #, python-brace-format
 msgid "tag {tag} normalises to nothing"
 msgstr "tag {tag} po normalizacji jest pusty"
@@ -365,6 +369,10 @@ msgstr "nazwa nie może być pusta"
 msgid "cannot rename {name} — training history exists under that name; archive this entry and create a new one instead"
 msgstr "nie można zmienić nazwy {name}, bo pod tą nazwą jest historia treningów; zarchiwizuj tę pozycję i utwórz nową"
 
+#: app/library_validation.py app/templates/experiment_edit.html
+msgid "active"
+msgstr "aktywny"
+
 #: app/routers/admin.py
 msgid "Enter a valid email address, or leave it empty."
 msgstr "Podaj prawidłowy adres e-mail albo zostaw puste."
@@ -384,6 +392,11 @@ msgstr "Zaproszenie unieważnione."
 #: app/routers/admin.py
 msgid "Change your own password under Settings > Security."
 msgstr "Swoje hasło zmienisz w Ustawienia > Bezpieczeństwo."
+
+#: app/routers/admin.py
+#, python-brace-format
+msgid "{email} is in VIRGIL_ADMIN_EMAILS; only its owner sets its password."
+msgstr "{email} jest w VIRGIL_ADMIN_EMAILS; hasło ustawia tylko właściciel."
 
 #: app/routers/admin.py
 msgid "User account was not found."
@@ -406,12 +419,22 @@ msgid "Your own role cannot be changed from the admin panel."
 msgstr "Własnej roli nie można zmienić w panelu administratora."
 
 #: app/routers/admin.py
+#, python-brace-format
+msgid "{email} is in VIRGIL_ADMIN_EMAILS and stays an admin."
+msgstr "{email} jest w VIRGIL_ADMIN_EMAILS i pozostaje administratorem."
+
+#: app/routers/admin.py
 msgid "Role changed."
 msgstr "Rola zmieniona."
 
 #: app/routers/admin.py
 msgid "Your account cannot be disabled from the admin panel."
 msgstr "Własnego konta nie można wyłączyć w panelu administratora."
+
+#: app/routers/admin.py
+#, python-brace-format
+msgid "{email} is in VIRGIL_ADMIN_EMAILS and cannot be disabled."
+msgstr "{email} jest w VIRGIL_ADMIN_EMAILS i nie można go wyłączyć."
 
 #: app/routers/admin.py
 msgid "Disable the user's remote subscriptions before disabling the account."
@@ -428,6 +451,11 @@ msgstr "Konto użytkownika włączone."
 #: app/routers/admin.py
 msgid "Your account cannot be deleted from the admin panel."
 msgstr "Własnego konta nie można usunąć w panelu administratora."
+
+#: app/routers/admin.py
+#, python-brace-format
+msgid "{email} is in VIRGIL_ADMIN_EMAILS and cannot be deleted."
+msgstr "{email} jest w VIRGIL_ADMIN_EMAILS i nie można go usunąć."
 
 #: app/routers/admin.py
 msgid "Disable the user's remote subscriptions before deleting the account."
@@ -890,6 +918,21 @@ msgid "no target"
 msgstr "bez celu"
 
 #: app/routers/finance.py
+#, python-brace-format
+msgid "Write each threshold as minimum:points, not {pair!r}"
+msgstr "Zapisz każdy próg jako minimum:punkty, a nie {pair!r}"
+
+#: app/routers/finance.py
+#, python-brace-format
+msgid "Points must be whole numbers, not {value!r}"
+msgstr "Punkty muszą być liczbami całkowitymi, a nie {value!r}"
+
+#: app/routers/finance.py
+#, python-brace-format
+msgid "A threshold minimum must be a number, not {value!r}"
+msgstr "Minimum progu musi być liczbą, a nie {value!r}"
+
+#: app/routers/finance.py
 msgid "Fill in at least one balance."
 msgstr "Wpisz co najmniej jedno saldo."
 
@@ -900,6 +943,11 @@ msgid_plural "Recorded {num} balances for {date}."
 msgstr[0] "Zapisano {num} saldo z {date}."
 msgstr[1] "Zapisano {num} salda z {date}."
 msgstr[2] "Zapisano {num} sald z {date}."
+
+#: app/routers/finance.py
+#, python-brace-format
+msgid "{name} saved."
+msgstr "{name}: zapisano."
 
 #: app/routers/finance.py
 msgid "Essential monthly cost saved."
@@ -916,6 +964,10 @@ msgstr "Źródło dochodu usunięte."
 #: app/routers/finance.py
 msgid "Policies saved."
 msgstr "Ubezpieczenia zapisane."
+
+#: app/routers/finance.py
+msgid "Maximum points must be a whole number"
+msgstr "Maksimum punktów musi być liczbą całkowitą"
 
 #: app/routers/finance.py
 msgid "Layer removed."
@@ -936,8 +988,23 @@ msgid "Stopped tracking {name}. Its history is kept."
 msgstr "Przestajesz śledzić: {name}. Historia zostaje."
 
 #: app/routers/freedom.py
+#, python-brace-format
+msgid "{name} settings saved."
+msgstr "{name}: ustawienia zapisane."
+
+#: app/routers/freedom.py
 msgid "Choose a valid date and day outcome."
 msgstr "Wybierz prawidłową datę i wynik dnia."
+
+#: app/routers/freedom.py
+#, python-brace-format
+msgid "{name}: day saved."
+msgstr "{name}: dzień zapisany."
+
+#: app/routers/freedom.py
+#, python-brace-format
+msgid "{name}: clean today."
+msgstr "{name}: dziś czysto."
 
 #: app/routers/freedom.py
 msgid "Brick added."
@@ -954,6 +1021,11 @@ msgstr "Cegła usunięta z historii."
 #: app/routers/freedom.py
 msgid "Choose a valid day."
 msgstr "Wybierz prawidłowy dzień."
+
+#: app/routers/freedom.py
+#, python-brace-format
+msgid "{name}: day {date} deleted."
+msgstr "{name}: dzień {date} usunięty."
 
 #: app/routers/freedom.py
 msgid "Record corrected."
@@ -1716,6 +1788,15 @@ msgstr "Czas trwania"
 msgid "Reps"
 msgstr "Powtórzenia"
 
+#: app/routers/training.py app/templates/partials/wod_row.html
+#: app/templates/training.html app/templates/wod_confirm.html
+msgid "Set"
+msgstr "Seria"
+
+#: app/routers/training.py app/templates/settings.html
+msgid "Time"
+msgstr "Czas"
+
 #: app/services/daily_log.py
 #, python-brace-format
 msgid "Unknown daily-log fields: {fields}"
@@ -2441,6 +2522,20 @@ msgstr "Data startu musi być dzisiejsza albo wcześniejsza."
 msgid "The target must be between 1 and {TARGET_MAX} days."
 msgstr "Cel musi mieścić się między 1 a {TARGET_MAX} dni."
 
+#: app/services/library.py
+msgid "Library entry not found."
+msgstr "Nie znaleziono pozycji biblioteki."
+
+#: app/services/library.py
+#, python-brace-format
+msgid "Library entry is already {state}."
+msgstr "Pozycja biblioteki jest już: {state}."
+
+#: app/services/library.py
+#, python-brace-format
+msgid "{new_name!r} is already an alias of another movement"
+msgstr "{new_name!r} jest już aliasem innego ćwiczenia"
+
 #: app/services/measurements.py
 msgid "Arm"
 msgstr "Ramię"
@@ -2466,6 +2561,36 @@ msgstr "Nieznane pola pomiarów: {fields}"
 #, python-brace-format
 msgid "{field} must be between {low} and {high}"
 msgstr "{field} musi mieścić się między {low} a {high}."
+
+#: app/services/movement_vocab.py
+#, python-brace-format
+msgid "alias {alias!r} exceeds {ALIAS_MAX} characters"
+msgstr "alias {alias!r} ma więcej niż {ALIAS_MAX} znaków"
+
+#: app/services/movement_vocab.py
+#, python-brace-format
+msgid "at most {MAX_ALIASES_PER_ENTRY} aliases allowed per entry, got {value}"
+msgstr "pozycja może mieć najwyżej {MAX_ALIASES_PER_ENTRY} aliasów, podano {value}"
+
+#: app/services/movement_vocab.py
+#, python-brace-format
+msgid "family must be one of: {choices}"
+msgstr "rodzina musi być jedną z: {choices}"
+
+#: app/services/movement_vocab.py
+#, python-brace-format
+msgid "default_equipment must be one of: {choices}"
+msgstr "domyślny sprzęt musi być jednym z: {choices}"
+
+#: app/services/movement_vocab.py
+#, python-brace-format
+msgid "alias {alias!r} is already a library name"
+msgstr "alias {alias!r} jest już nazwą w bibliotece"
+
+#: app/services/movement_vocab.py
+#, python-brace-format
+msgid "alias {alias!r} already belongs to library entry {value}"
+msgstr "alias {alias!r} należy już do pozycji biblioteki {value}"
 
 #: app/services/training_log.py
 msgid "movement is required"
@@ -2651,6 +2776,10 @@ msgstr "Skopiowano."
 #: app/static/js/app.js
 msgid "Could not copy; select the text instead."
 msgstr "Nie udało się skopiować. Zaznacz tekst ręcznie."
+
+#: app/static/js/app.js
+msgid "One field needs attention."
+msgstr "Jedno pole wymaga uwagi."
 
 #: app/static/js/app.js
 #, python-brace-format
@@ -3875,10 +4004,6 @@ msgstr "Wróć do: %(title)s"
 #: app/templates/experiment_edit.html
 msgid "Shrinking removes the trailing weeks' targets/labels."
 msgstr "Skrócenie usuwa cele i etykiety ostatnich tygodni."
-
-#: app/templates/experiment_edit.html
-msgid "active"
-msgstr "aktywny"
 
 #: app/templates/experiment_edit.html
 msgid "completed"
@@ -5772,11 +5897,6 @@ msgstr "+ dodaj serię"
 msgid "Movement"
 msgstr "Ćwiczenie"
 
-#: app/templates/partials/wod_row.html app/templates/training.html
-#: app/templates/wod_confirm.html
-msgid "Set"
-msgstr "Seria"
-
 #: app/templates/partials/wod_row.html app/templates/wod_confirm.html
 msgid "Time (s)"
 msgstr "Czas (s)"
@@ -5992,10 +6112,6 @@ msgstr "Serie"
 #: app/templates/settings.html
 msgid "Reps (e.g. 10-12)"
 msgstr "Powtórzenia (np. 10-12)"
-
-#: app/templates/settings.html
-msgid "Time"
-msgstr "Czas"
 
 #: app/templates/settings.html
 msgid "Cue / notes"
@@ -6682,8 +6798,12 @@ msgid "minutes"
 msgstr "minuty"
 
 #: app/templates/training.html
-msgid "e.g. back squat 5x5 70 kg, then 21-15-9 thruster 43 / pull-up, 8:42 or simply: swim 40 min"
-msgstr "np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42 albo po prostu: pływanie 40 min"
+msgid ""
+"e.g. back squat 5x5 70 kg, then 21-15-9 thruster 43 / pull-up, 8:42\n"
+"or simply: swim 40 min"
+msgstr ""
+"np. back squat 5x5 70 kg, potem 21-15-9 thruster 43 / pull-up, 8:42\n"
+"albo po prostu: pływanie 40 min"
 
 #: app/templates/training.html
 msgid "The note is saved before it is read, so even a failed read never loses what you wrote."

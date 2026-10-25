@@ -130,7 +130,9 @@ async def create_reset_link(request: Request, user_id: str):
     if email := await _protected(user_id):
         # Otherwise any admin could take over the operator's break-glass account.
         return error_redirect(
-            request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS; only its owner sets its password."
+            request,
+            "/admin/users",
+            _("{email} is in VIRGIL_ADMIN_EMAILS; only its owner sets its password.").format(email=email),
         )
     user = await get_user_by_id(user_id)
     if not user:
@@ -170,7 +172,9 @@ async def change_role(request: Request, user_id: str, role: str = Form(...)):
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", _("Your own role cannot be changed from the admin panel."))
     if role == "user" and (email := await _protected(user_id)):
-        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and stays an admin.")
+        return error_redirect(
+            request, "/admin/users", _("{email} is in VIRGIL_ADMIN_EMAILS and stays an admin.").format(email=email)
+        )
     if not await get_user_by_id(user_id):
         return error_redirect(request, "/admin/users", _("User account was not found."))
     await update_user(user_id, role=role)
@@ -187,7 +191,9 @@ async def disable_user(request: Request, user_id: str):
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", _("Your account cannot be disabled from the admin panel."))
     if email := await _protected(user_id):
-        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and cannot be disabled.")
+        return error_redirect(
+            request, "/admin/users", _("{email} is in VIRGIL_ADMIN_EMAILS and cannot be disabled.").format(email=email)
+        )
     result = await disable_user_if_unsubscribed(user_id)
     if result == "not_found":
         return error_redirect(request, "/admin/users", _("User account was not found."))
@@ -221,7 +227,9 @@ async def delete_user_route(request: Request, user_id: str):
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", _("Your account cannot be deleted from the admin panel."))
     if email := await _protected(user_id):
-        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and cannot be deleted.")
+        return error_redirect(
+            request, "/admin/users", _("{email} is in VIRGIL_ADMIN_EMAILS and cannot be deleted.").format(email=email)
+        )
     result, db_filename = await delete_user_if_unsubscribed(user_id)
     if result == "busy":
         return error_redirect(request, "/admin/users", _("Another account operation is already in progress."))

@@ -173,13 +173,17 @@ class LocalizedError(ValueError):
 
     def __init__(self, message: str, **params) -> None:
         self.template, self.params = message, params
-        super().__init__(message.format(**params))
+        # Without params the message is final text, braces and all.
+        super().__init__(message.format(**params) if params else message)
 
     def localized(self) -> str:
         if current_language() == DEFAULT_LANGUAGE:
             return str(self)
+        if not self.params:
+            return _(self.template)
+        # Only field names are translated; a user's own text is shown as given.
         params = {
-            key: _(self.labels.get(value, value)) if isinstance(value, str) else value
+            key: _(self.labels[value]) if isinstance(value, str) and value in self.labels else value
             for key, value in self.params.items()
         }
         return _(self.template).format(**params)

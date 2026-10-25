@@ -1148,8 +1148,10 @@ document.addEventListener('submit', function(event) {
     });
     var summary = form.querySelector('[data-form-errors]');
     if (summary) {
-        summary.textContent = ngettext('{num} field needs attention.', '{num} fields need attention.', invalid.length)
-            .replace('{num}', invalid.length);
+        summary.textContent = invalid.length === 1
+            ? gettext('One field needs attention.')
+            : ngettext('{num} field needs attention.', '{num} fields need attention.', invalid.length)
+                .replace('{num}', invalid.length);
     }
     invalid[0].focus();
 }, true);

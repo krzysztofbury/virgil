@@ -23,8 +23,6 @@ TEMPLATES = APP / "templates"
 # The service worker caches one offline page for everyone, and the language
 # switch names itself so either reader finds it: both carry both languages.
 BILINGUAL_TEMPLATES = {"offline.html", "partials/language_switch.html"}
-# Pages whose leftover-English check waits for their area's conversion: until
-# then they legitimately show phrases another area already translated.
 
 # Words that are the same in both languages: product names and units.
 SAME_IN_BOTH = re.compile(
@@ -276,12 +274,17 @@ def test_api_errors_stay_english(polish):
     central.close()
     import asyncio
 
-    secret = asyncio.run(create_api_token(user_id, "i18n", ["read"], 1))
+    secret = asyncio.run(create_api_token(user_id, "i18n", ["read", "write"], 1))
     try:
-        response = polish.get("/api/daily/not-a-date", headers={"Authorization": f"Bearer {secret}"})
-        assert response.status_code in (400, 404, 422)
-        detail = str(response.json()["detail"])
-        assert not re.search(r"[ąćęłńóśźż]", detail), detail
+        # A Polish account and a Polish cookie, through an error that has a Polish
+        # translation: the API still answers in English.
+        response = polish.post(
+            "/api/library",
+            headers={"Authorization": f"Bearer {secret}"},
+            json={"name": " ", "section": "Core"},
+        )
+        assert response.status_code == 422
+        assert response.json()["detail"] == "name is required"
     finally:
         central = sqlite3.connect(Path(_TMP) / "central.db")
         central.execute("DELETE FROM api_tokens WHERE name = 'i18n'")
@@ -332,7 +335,8 @@ def test_service_errors_follow_the_page_but_the_api_stays_english(polish):
 
     from conftest import csrf_token
 
-    from app.services.measurements import MeasurementError, upsert_measurements  # noqa: F401
+    from app.i18n import reset_language, set_language
+    from app.services.measurements import MeasurementError
 
     token = csrf_token(polish, "/daily")
     response = polish.post(
@@ -343,10 +347,12 @@ def test_service_errors_follow_the_page_but_the_api_stays_english(polish):
     error = parse_qs(urlsplit(response.headers["location"]).query)["err"][0]
     assert error == "Waga musi mieścić się między 20 a 400."
 
+    token = set_language("pl")
     try:
-        raise MeasurementError("{field} must be between {low} and {high}", field="weight", low=20, high=400)
-    except MeasurementError as exc:
-        assert str(exc) == "weight must be between 20 and 400"
+        exc = MeasurementError("{field} must be between {low} and {high}", field="weight", low=20, high=400)
+        assert str(exc) == "weight must be between 20 and 400", "str() is the API's English, in any language"
+    finally:
+        reset_language(token)
 
 
 def test_no_module_shadows_the_translation_function():
@@ -413,3 +419,48 @@ def test_nothing_is_translated_at_import_time():
             ):
                 offenders.append(f"{path.relative_to(APP)}:{node.lineno}")
     assert offenders == []
+
+
+FEEDBACK_SINKS = {"success_redirect": 2, "error_redirect": 2, "feedback_headers": 0}
+
+
+def _localized_error_names() -> set[str]:
+    import app.main  # noqa: F401 - imports every module that defines one
+    from app.i18n import LocalizedError
+
+    found, todo = set(), [LocalizedError]
+    while todo:
+        for sub in todo.pop().__subclasses__():
+            found.add(sub.__name__)
+            todo.append(sub)
+    return found
+
+
+def _is_text(node: ast.expr) -> bool:
+    return isinstance(node, ast.JoinedStr) or isinstance(node, ast.Constant) and isinstance(node.value, str)
+
+
+def test_feedback_and_localized_errors_never_take_raw_text():
+    """Whatever its shape (no capital, no final stop, a leading placeholder), text
+    handed straight to feedback or to a LocalizedError skips translation."""
+    errors = _localized_error_names() | {"LocalizedError", "LocalizedLookupError"}
+    offenders = []
+    for path in sorted(APP.rglob("*.py")):
+        name = path.relative_to(APP).as_posix()
+        if name in NOT_UI:
+            continue
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Name):
+                continue
+            func = node.func.id
+            candidates = []
+            if func in FEEDBACK_SINKS and len(node.args) > FEEDBACK_SINKS[func]:
+                candidates.append(node.args[FEEDBACK_SINKS[func]])
+            if func in {"feedback_url", "feedback_redirect"}:
+                candidates += [k.value for k in node.keywords if k.arg in {"msg", "err"}]
+            if func in errors and node.args:
+                first = node.args[0]
+                status_first = isinstance(first, ast.Constant) and isinstance(first.value, int)
+                candidates.append(node.args[1] if status_first and len(node.args) > 1 else first)
+            offenders += [f"{name}:{node.lineno}" for value in candidates if _is_text(value)]
+    assert offenders == [], "\n".join(offenders)

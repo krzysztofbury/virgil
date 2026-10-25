@@ -208,7 +208,14 @@ class _ConfirmRejected(LocalizedError):
     anything is written.
     """
 
-    labels = {"reps": N_("Reps"), "weight": N_("Weight"), "duration": N_("Duration"), "set_number": N_("Set number")}
+    labels = {
+        "reps": N_("Reps"),
+        "weight": N_("Weight"),
+        "duration": N_("Duration"),
+        "set_number": N_("Set number"),
+        "set": N_("Set"),
+        "time": N_("Time"),
+    }
 
 
 def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int | None:

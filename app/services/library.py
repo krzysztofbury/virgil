@@ -1,5 +1,6 @@
 """Atomic exercise-library writes shared by forms and REST."""
 
+from app.i18n import N_
 from app.library_validation import LibraryWriteError, normalize_tags, validate_library_write
 from app.services.movement_vocab import write_classification
 
@@ -26,14 +27,14 @@ async def write_library(
         if op != "create":
             rows = await db.execute_fetchall("SELECT * FROM exercise_library WHERE id = ?", (entry_id,))
             if not rows:
-                raise LibraryWriteError(404, "Library entry not found.")
+                raise LibraryWriteError(404, N_("Library entry not found."))
             existing = dict(rows[0])
         fields = dict(fields or {})
         if op == "archive":
             target = 1 if fields.get("archived") else 0
             if existing["archived"] == target:
                 state = "archived" if target else "active"
-                raise LibraryWriteError(409, f"Library entry is already {state}.")
+                raise LibraryWriteError(409, N_("Library entry is already {state}."), state=state)
             fields = {"archived": target}
         values = await validate_library_write(
             db, op="update" if op == "archive" else op, entry_id=entry_id, existing=existing, fields=fields
@@ -44,7 +45,7 @@ async def write_library(
             "SELECT 1 FROM exercise_aliases WHERE alias = ? COLLATE NOCASE AND library_id IS NOT ?",
             (new_name, entry_id),
         ):
-            raise LibraryWriteError(409, f"{new_name!r} is already an alias of another movement")
+            raise LibraryWriteError(409, N_("{new_name!r} is already an alias of another movement"), new_name=new_name)
         changed = set(values or {})
         if op == "create":
             cursor = await db.execute(

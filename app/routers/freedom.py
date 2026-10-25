@@ -206,7 +206,7 @@ async def save_habit_settings(
         return error_redirect(request, "/freedom", localized(exc))
     except habit_service.HabitError as exc:
         return error_redirect(request, _page(slug), localized(exc))
-    return success_redirect(request, _page(habit["slug"]), f"{habit['name']} settings saved.")
+    return success_redirect(request, _page(habit["slug"]), _("{name} settings saved.").format(name=habit["name"]))
 
 
 @router.post("/freedom/{slug}/daily")
@@ -249,7 +249,7 @@ async def save_daily(
     return success_redirect(
         request,
         _page(view) if view else _page(slug, entry_date),
-        f"{habit['name']}: day saved.",
+        _("{name}: day saved.").format(name=habit["name"]),
         clear_draft=f"freedom-daily:{slug}:{entry_date}",
     )
 
@@ -277,7 +277,7 @@ async def clean_today(request: Request, slug: str):
         except FreedomWriteError as exc:
             return error_redirect(request, "/", localized(exc))
     if request.headers.get("HX-Request") != "true":
-        return success_redirect(request, "/", f"{habit['name']}: clean today.")
+        return success_redirect(request, "/", _("{name}: clean today.").format(name=habit["name"]))
     overviews = [await habit_overview(db, h) for h in await habit_service.list_habits(db)]
     return templates.TemplateResponse(
         request, "partials/freedom_today.html", {"request": request, "freedom_overviews": overviews}
@@ -352,7 +352,9 @@ async def remove_day(request: Request, slug: str, day: str):
         await delete_day(get_user_db_from_request(request), habit, entry_date)
     except LookupError as exc:
         return error_redirect(request, _page(slug), localized(exc))
-    return success_redirect(request, _page(slug), f"{habit['name']}: day {entry_date} deleted.")
+    return success_redirect(
+        request, _page(slug), _("{name}: day {date} deleted.").format(name=habit["name"], date=entry_date)
+    )
 
 
 @router.post("/freedom/{slug}/relapses/{event_id}/edit")

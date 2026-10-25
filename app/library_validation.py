@@ -111,6 +111,8 @@ class LibraryWriteError(LocalizedError):
     or don't, together, on the same input.
     """
 
+    labels = {"archived": N_("archived"), "active": N_("active")}
+
     def __init__(self, status: int, message: str, **params):
         super().__init__(message, **params)
         self.status = status

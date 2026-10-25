@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
 
 from app.feedback import error_redirect, success_redirect
-from app.i18n import _, localized, ngettext
+from app.i18n import N_, _, localized, ngettext
 from app.main import templates
 from app.services import finance
 from app.services.finance import FinanceError, FinanceNotFound
@@ -37,18 +37,20 @@ def _parse_thresholds(metric: str, text: str) -> list | dict:
     for pair in pairs:
         key, sep, points = pair.partition(":")
         if not sep:
-            raise FinanceError(f"Write each threshold as minimum:points, not {pair!r}")
+            raise FinanceError(N_("Write each threshold as minimum:points, not {pair!r}"), pair=pair)
         try:
             value = int(points.strip())
         except ValueError as exc:
-            raise FinanceError(f"Points must be whole numbers, not {points.strip()!r}") from exc
+            raise FinanceError(N_("Points must be whole numbers, not {value!r}"), value=points.strip()) from exc
         if metric == "policies":
             parsed.append((key.strip(), value))
         else:
             try:
                 minimum = float(key.strip().replace(",", "."))
             except ValueError as exc:
-                raise FinanceError(f"A threshold minimum must be a number, not {key.strip()!r}") from exc
+                raise FinanceError(
+                    N_("A threshold minimum must be a number, not {value!r}"), value=key.strip()
+                ) from exc
             parsed.append([int(minimum) if minimum.is_integer() else minimum, value])
     return dict(parsed) if metric == "policies" else parsed
 
@@ -160,7 +162,7 @@ async def save_account(
         account = await finance.upsert_account(db, data)
     except (FinanceError, FinanceNotFound) as exc:
         return error_redirect(request, f"{SETUP}#accounts", localized(exc))
-    return success_redirect(request, f"{SETUP}#accounts", f"{account['name']} saved.")
+    return success_redirect(request, f"{SETUP}#accounts", _("{name} saved.").format(name=account["name"]))
 
 
 @router.post("/finance/cost")
@@ -212,7 +214,7 @@ async def add_income(
             "confirmed_on": date.today().isoformat(),
         }
     )
-    return await _save_income(request, current, f"{name.strip()} saved.")
+    return await _save_income(request, current, _("{name} saved.").format(name=name.strip()))
 
 
 @router.post("/finance/income/{source_id}/delete")
@@ -270,14 +272,14 @@ async def save_layer(
             try:
                 points = int(max_points)
             except ValueError as exc:
-                raise FinanceError("Maximum points must be a whole number") from exc
+                raise FinanceError(N_("Maximum points must be a whole number")) from exc
             item["rule"] = {"metric": metric, "max_points": points, "thresholds": _parse_thresholds(metric, thresholds)}
         else:
             item["rule"] = None
         await finance.set_scoring(db, [item])
     except (FinanceError, FinanceNotFound) as exc:
         return error_redirect(request, f"{SETUP}#layers", localized(exc))
-    return success_redirect(request, f"{SETUP}#layers", f"{name.strip()} saved.")
+    return success_redirect(request, f"{SETUP}#layers", _("{name} saved.").format(name=name.strip()))
 
 
 @router.post("/finance/layers/{layer_id}/delete")
