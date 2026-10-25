@@ -26,6 +26,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Goal rep messages read "Execution rep skipd" and "carryd"; they now say
   skipped and carried over.
 
+### Security
+- The dependency audit ignores three filelock advisories until litellm allows
+  filelock 4 (#154): two are Windows only, and the third needs a second local
+  user, which the single-user container does not have.
+
 ## [0.9.0] - 2026-10-23
 
 ### Added
