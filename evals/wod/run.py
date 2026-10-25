@@ -8,7 +8,9 @@ Every case goes through the real parse_wod and call_llm, against a throwaway,
 freshly migrated database whose seeded vocabulary the expected outputs are
 written for. Provider keys come from the usual environment variables
 (ANTHROPIC_API_KEY, OPENAI_API_KEY, GEMINI_API_KEY...), never from an account.
-The run stops before the next call once the measured cost reaches the budget.
+The run stops before the next call once the measured cost reaches the budget,
+and stops at once on a model LiteLLM has no price for, since the budget could
+not stop it; --allow-unpriced runs such a model anyway, with cost unknown.
 Results go to docs/evals/wod-YYYY-MM-DD.md and .json.
 """
 
@@ -59,6 +61,10 @@ def isolate(scratch: Path) -> None:
     os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "true")
 
 
+class UnpricedModelError(RuntimeError):
+    pass
+
+
 class Meter:
     """Wraps litellm.acompletion for the run: latency, cost and the raw text of
     each call, read by the harness after parse_wod returns."""
@@ -78,6 +84,8 @@ class Meter:
             cost = litellm.completion_cost(completion_response=response)
         except Exception:  # noqa: BLE001 - a model without a price still gets scored
             cost = None
+        # LiteLLM prices some preview models at 0, which would count as free.
+        cost = cost or None
         usage = getattr(response, "usage", None)
         self.last = {
             "latency_s": round(time.perf_counter() - started, 3),
@@ -90,9 +98,17 @@ class Meter:
         return response
 
 
-async def run_suite(cases: list[dict], configs: list[tuple[str, str, str]], budget_usd: float, scratch: Path, inner):
+async def run_suite(
+    cases: list[dict],
+    configs: list[tuple[str, str, str]],
+    budget_usd: float,
+    scratch: Path,
+    inner,
+    allow_unpriced: bool = False,
+):
     """Score every case for every (model, effort, api_key). Returns the results
-    and whether the budget cut the run short."""
+    and whether the budget cut the run short. Raises UnpricedModelError after
+    the first call whose cost is unknown, unless allow_unpriced."""
     import aiosqlite
     import litellm
 
@@ -134,6 +150,11 @@ async def run_suite(cases: list[dict], configs: list[tuple[str, str, str]], budg
                     unmatched = list(parsed.unmatched)
                 except Exception as exc:  # noqa: BLE001 - a failed parse is a result, not a crash
                     error = f"{type(exc).__name__}: {exc}"[:300]
+                if meter.last and meter.last["cost_usd"] is None and not allow_unpriced:
+                    raise UnpricedModelError(
+                        f"{model} has no price in LiteLLM's cost map, so the budget cannot stop it. "
+                        "Pass --allow-unpriced to run it anyway."
+                    )
                 run = dict(meter.last or {"latency_s": None, "cost_usd": None, "raw": None, "finish_reason": ""})
                 run["json_health"] = json_health(run["raw"])
                 run["off_list_names"] = off_list_names(run["raw"], vocabulary)
@@ -159,6 +180,7 @@ async def run_suite(cases: list[dict], configs: list[tuple[str, str, str]], budg
 
 COLUMNS = [
     ("case_exact", "Case exact"),
+    ("ambiguous_exact", "Ambiguous exact"),
     ("entry_exact", "Entry exact"),
     ("recall", "Recall"),
     ("precision", "Precision"),
@@ -176,10 +198,15 @@ COLUMNS = [
 ]
 
 
-def _cell(value) -> str:
+PERCENT = {"case_exact", "ambiguous_exact", "entry_exact", "recall", "precision", "oov_rejected"} | {
+    f"{name}_accuracy" for name in ("reps", "weight", "duration", "equipment")
+}
+
+
+def _cell(key: str, value) -> str:
     if value is None:
         return "n/a"
-    if isinstance(value, float) and 0 <= value <= 1:
+    if key in PERCENT:
         return f"{value:.0%}"
     return str(value)
 
@@ -199,11 +226,12 @@ def render_markdown(results: list[dict], meta: dict) -> str:
         summary = result["summary"]
         lines.append(
             f"| {result['model']} | {result['effort']} | "
-            + " | ".join(_cell(summary[key]) for key, _label in COLUMNS)
+            + " | ".join(_cell(key, summary[key]) for key, _label in COLUMNS)
             + " |"
         )
     lines += [
         "",
+        "Case exact leaves out the cases tagged ambiguous, which have their own rate. "
         "Recall and precision count entries paired with the expected ones by movement and set. "
         "OOV rejected is the share of out-of-vocabulary names reported as unmatched. "
         "Invented counts numbers returned where the expected value is empty.",
@@ -253,6 +281,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--efforts", default="low,medium", help="comma-separated reasoning efforts")
     parser.add_argument("--budget-usd", type=float, required=True, help="stop before the next call past this cost")
     parser.add_argument("--only", default="", help="comma-separated case ids, for a quick check")
+    parser.add_argument(
+        "--allow-unpriced", action="store_true", help="run models LiteLLM has no price for; the budget cannot stop them"
+    )
     parser.add_argument("--out", type=Path, default=ROOT / "docs" / "evals")
     args = parser.parse_args(argv)
 
@@ -269,9 +300,12 @@ def main(argv: list[str] | None = None) -> int:
         sys.path.insert(0, str(ROOT))
         import litellm
 
-        results, cut_short, spent = asyncio.run(
-            run_suite(cases, configs, args.budget_usd, Path(scratch), litellm.acompletion)
-        )
+        try:
+            results, cut_short, spent = asyncio.run(
+                run_suite(cases, configs, args.budget_usd, Path(scratch), litellm.acompletion, args.allow_unpriced)
+            )
+        except UnpricedModelError as exc:
+            raise SystemExit(str(exc)) from exc
     meta = {
         "date": date.today().isoformat(),
         "commit": _commit(),

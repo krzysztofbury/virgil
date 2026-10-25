@@ -1,6 +1,7 @@
 """The WOD eval's golden cases (#155) agree with the vocabulary the parser is given."""
 
 import asyncio
+import re
 from collections import Counter
 
 import aiosqlite
@@ -76,3 +77,27 @@ def test_the_cases_cover_what_the_parser_meets():
     }.items():
         assert tags[tag] >= least, tag
     assert any(len(case["expected"]["entries"]) >= 30 for case in CASES), "one note near the truncation risk"
+
+
+EQUIPMENT_WORDS = {
+    r"\bbarbell\b": "barbell",
+    r"\bsztang": "barbell",
+    r"\bdumbbell\b": "dumbbell",
+    r"\bdb\b": "dumbbell",
+    r"\bkettlebell\b": "kettlebell",
+    r"\bkb\b": "kettlebell",
+    r"\bballs?\b": "ball",
+}
+
+
+def test_an_equipment_word_in_the_note_sets_equipment_on_an_entry():
+    """One rule for every case: the prompt's "only when the note says it", read
+    literally, also when the word is part of the movement's name (KB swing,
+    wall balls, barbell row)."""
+    missing = []
+    for case in CASES:
+        given = {entry["equipment"] for entry in case["expected"]["entries"]}
+        for pattern, equipment in EQUIPMENT_WORDS.items():
+            if re.search(pattern, case["note"], re.IGNORECASE) and equipment not in given:
+                missing.append((case["id"], equipment))
+    assert missing == []

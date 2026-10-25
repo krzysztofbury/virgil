@@ -96,3 +96,35 @@ def test_aggregate_rates_and_costs():
     assert (row["json_valid"], row["json_repaired"]) == (1, 1)
     assert row["latency_p50_s"] == 2.0
     assert row["cost_per_100_usd"] == 0.2 and row["cost_known_for"] == "1/2"
+
+
+def test_an_unrelated_extra_entry_does_not_make_a_dropped_name_hallucinated():
+    returned = [_entry("Thruster", 1, 21, 43), _entry("Thruster", 2, 15, 43), _entry("Thruster", 3, 9, 43)]
+    score = score_case(CASE, returned, [])
+    assert (score.oov_rejected, score.oov_hallucinated, score.oov_dropped) == (0, 0, 1)
+
+
+def test_a_rejected_name_reported_with_its_numbers_still_counts_as_rejected():
+    score = score_case(CASE, [_entry("Thruster", 1, 21, 43), _entry("Thruster", 2, 15, 43)], ["Sled push 4 x 20m"])
+    assert score.oov_rejected == 1 and score.unexpected_unmatched == []
+    assert score.case_exact
+
+
+def test_a_rejected_name_must_appear_as_whole_words():
+    score = score_case(CASE, [_entry("Thruster", 1, 21, 43), _entry("Thruster", 2, 15, 43)], ["sled pushes"])
+    assert score.oov_rejected == 0 and score.unexpected_unmatched == ["sled pushes"]
+
+
+def test_json_wrapped_in_a_fence_or_prose_is_extracted_not_repaired():
+    whole = json.dumps({"entries": [], "unmatched": []})
+    assert json_health(f"```json\n{whole}\n```") == "extracted"
+    assert json_health(f"Here you go: {whole}") == "extracted"
+    assert json_health(f"```json\n{whole[:-3]}") == "repaired"
+
+
+def test_ambiguous_cases_are_kept_out_of_the_headline_rate():
+    ambiguous = {**CASE, "id": "fran-ambiguous", "tags": ["ambiguous"]}
+    clear = score_case(CASE, [_entry("Thruster", 1, 21, 43), _entry("Thruster", 2, 15, 43)], ["sled push"])
+    missed = score_case(ambiguous, [], ["sled push"])
+    row = aggregate([clear, missed], [{"json_health": "valid"}, {"json_health": "valid"}])
+    assert row["case_exact"] == 1.0 and row["ambiguous_exact"] == 0.0

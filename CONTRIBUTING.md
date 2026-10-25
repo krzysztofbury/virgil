@@ -34,6 +34,19 @@ isolated databases, synthetic credentials, and bundled LiteLLM capability
 metadata. Date-window fixtures must control the clock. Use the same locked
 Ruff and Bandit through pre-commit; avoid separate global tool installations.
 
+For container or startup changes, also qualify the actual image:
+
+```bash
+docker build -t virgil-check --build-arg GIT_SHA=local-check .
+python3 scripts/check_image.py virgil-check
+```
+
+The smoke test owns uniquely named containers and volumes and removes them on
+completion or interruption. It has no external network access and uses synthetic
+account data. It also creates, verifies, and restores a recovery bundle, then
+checks login against the restored account. Dependency audit commands are in
+`.github/workflows/ci.yml`.
+
 ## English and Polish
 
 Every user-facing string in the web app has a Polish translation (#152). Mark
@@ -56,21 +69,14 @@ ANTHROPIC_API_KEY=... uv run --locked --extra dev python -m evals.wod.run \
   --models anthropic/claude-haiku-4-5 --efforts low,medium --budget-usd 2
 ```
 
-It writes `docs/evals/wod-YYYY-MM-DD.md` and `.json`. Commit both, then write
-the report's known failure modes from its failing cases.
+It stops at once on a model LiteLLM has no price for, since the cap could not
+stop it; `--allow-unpriced` runs one anyway. It writes
+`docs/evals/wod-YYYY-MM-DD.md` and `.json`. Commit both, then write the report's
+known failure modes from its failing cases.
 
-For container or startup changes, also qualify the actual image:
-
-```bash
-docker build -t virgil-check --build-arg GIT_SHA=local-check .
-python3 scripts/check_image.py virgil-check
-```
-
-The smoke test owns uniquely named containers and volumes and removes them on
-completion or interruption. It has no external network access and uses synthetic
-account data. It also creates, verifies, and restores a recovery bundle, then
-checks login against the restored account. Dependency audit commands are in
-`.github/workflows/ci.yml`.
+Cases tagged `ambiguous` have a defensible second reading and get their own
+rate. An equipment word in a note (barbell, sztanga, DB, KB, wall balls) sets
+that equipment, also when it is part of the movement's name.
 
 ## Dependency changes
 

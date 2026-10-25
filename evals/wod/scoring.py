@@ -27,9 +27,16 @@ def _norm(name: str) -> str:
     return " ".join(str(name).lower().split())
 
 
+def _covers(returned: str, expected: str) -> bool:
+    """The model reported `expected` as unmatched, perhaps with the user's
+    numbers around it ("sled push 4 x 20m" for "sled push")."""
+    return f" {expected} " in f" {returned} "
+
+
 def json_health(raw: str | None) -> str:
-    """'valid' when the model's text parses as JSON, 'repaired' when only the
-    parser's truncation repair recovers it, 'unusable' otherwise."""
+    """'valid' when the model's text parses as JSON, 'extracted' when a whole
+    object sits inside a code fence or prose, 'repaired' when only the parser's
+    truncation repair recovers it, 'unusable' otherwise."""
     if raw is None:
         return "unusable"
     try:
@@ -37,6 +44,13 @@ def json_health(raw: str | None) -> str:
         return "valid"
     except ValueError:
         pass
+    start = raw.find("{")
+    if start != -1:
+        try:
+            if isinstance(json.JSONDecoder().raw_decode(raw, start)[0], dict):
+                return "extracted"
+        except ValueError:
+            pass
     from app.services.llm import parse_andy_response
 
     try:
@@ -108,15 +122,18 @@ def score_case(case: dict, entries: list[dict], unmatched: list[str], error: str
     exact = sum(1 for want, got in pairs if all(_same(want[name], got.get(name)) for name in FIELDS))
     invented = sum(1 for want, got in pairs for name in NUMERIC if want[name] is None and got.get(name) is not None)
 
-    returned_unmatched = {_norm(name) for name in unmatched}
-    rejected = [name for name in expected_unmatched if _norm(name) in returned_unmatched]
-    not_rejected = [name for name in expected_unmatched if _norm(name) not in returned_unmatched]
+    returned_unmatched = [_norm(name) for name in unmatched]
+    rejected = [name for name in expected_unmatched if any(_covers(r, _norm(name)) for r in returned_unmatched)]
+    not_rejected = [name for name in expected_unmatched if name not in rejected]
     # An out-of-vocabulary name that is not reported either became an entry it
-    # should not have (hallucinated) or vanished (dropped). Extra entries are the
-    # only trace of the first.
-    hallucinated = len(not_rejected) if extra else 0
-    expected_norm = {_norm(name) for name in expected_unmatched}
-    unexpected = sorted(name for name in unmatched if _norm(name) not in expected_norm)
+    # should not have (hallucinated) or vanished (dropped). Its only trace is an
+    # extra entry for a movement the case never expects; an extra set of an
+    # expected movement is a counting error, not a mapped name.
+    expected_movements = {want["movement"] for want in expected}
+    foreign = sum(1 for entry in extra if entry["movement"] not in expected_movements)
+    hallucinated = min(len(not_rejected), foreign)
+    expected_norm = [_norm(name) for name in expected_unmatched]
+    unexpected = sorted(name for name in unmatched if not any(_covers(_norm(name), e) for e in expected_norm))
 
     details = [f"missed {m['movement']} set {m['set_number']}" for m in missed]
     details += [f"extra {x['movement']} set {x['set_number']}" for x in extra]
@@ -175,9 +192,14 @@ def aggregate(scores: list[CaseScore], runs: list[dict]) -> dict:
     costs = [r["cost_usd"] for r in runs if r.get("cost_usd") is not None]
     latencies = [r["latency_s"] for r in runs if r.get("latency_s") is not None]
     health = [r.get("json_health") for r in runs]
+    # A case tagged ambiguous has a defensible second reading, so it gets its
+    # own rate instead of moving the headline one.
+    clear = [s for s in scores if "ambiguous" not in s.tags]
+    ambiguous = [s for s in scores if "ambiguous" in s.tags]
     return {
         "cases": len(scores),
-        "case_exact": _ratio(sum(s.case_exact for s in scores), len(scores)),
+        "case_exact": _ratio(sum(s.case_exact for s in clear), len(clear)),
+        "ambiguous_exact": _ratio(sum(s.case_exact for s in ambiguous), len(ambiguous)),
         "entry_exact": _ratio(sum(s.exact_entries for s in scores), expected),
         "recall": _ratio(paired, expected),
         "precision": _ratio(paired, returned),
@@ -188,6 +210,7 @@ def aggregate(scores: list[CaseScore], runs: list[dict]) -> dict:
         "oov_dropped": sum(s.oov_dropped for s in scores),
         "errors": sum(1 for s in scores if s.error),
         "json_valid": health.count("valid"),
+        "json_extracted": health.count("extracted"),
         "json_repaired": health.count("repaired"),
         "json_unusable": health.count("unusable"),
         "off_list_names": sum(r.get("off_list_names", 0) for r in runs),

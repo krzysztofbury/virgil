@@ -15,8 +15,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and a harness that runs them through the real parser across models and
   reasoning efforts with a spending cap and writes a dated report to
   `docs/evals/`. Live runs are opt-in and never part of the test suite.
-
-### Added
 - The interface in Polish (#152). English stays the default; choose Polski
   on the sign-in pages or under Settings > General, and the choice is kept on
   the account so it follows you to another device. Every page, form, message,

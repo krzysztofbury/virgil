@@ -10,7 +10,7 @@ import json
 import litellm
 import pytest
 
-from evals.wod.run import load_cases, run_suite, write_report
+from evals.wod.run import UnpricedModelError, load_cases, render_markdown, run_suite, write_report
 
 MODEL = "openai/gpt-4o-mini"
 CASES = [case for case in load_cases() if case["id"] in {"en-fran", "en-sled-oov", "pl-polish-names"}]
@@ -27,17 +27,17 @@ def _answer_for(note: str, mangle=None) -> str:
     return mangle(case, text) if mangle else text
 
 
-def _provider(mangle=None):
+def _provider(mangle=None, model=MODEL):
     async def respond(**kwargs):
         note = kwargs["messages"][1]["content"]
-        return await REAL_ACOMPLETION(model=MODEL, messages=kwargs["messages"], mock_response=_answer_for(note, mangle))
+        return await REAL_ACOMPLETION(model=model, messages=kwargs["messages"], mock_response=_answer_for(note, mangle))
 
     return respond
 
 
-def _run(tmp_path, provider, budget=1.0, efforts=("low",)):
+def _run(tmp_path, provider, budget=1.0, efforts=("low",), allow_unpriced=False):
     configs = [(MODEL, effort, "sk-test") for effort in efforts]  # pragma: allowlist secret
-    return asyncio.run(run_suite(CASES, configs, budget, tmp_path, provider))
+    return asyncio.run(run_suite(CASES, configs, budget, tmp_path, provider, allow_unpriced=allow_unpriced))
 
 
 def test_correct_answers_score_exact_and_reach_the_report(client, tmp_path):
@@ -131,3 +131,40 @@ def test_the_budget_stops_the_run_before_the_next_call(client, tmp_path):
 def test_the_harness_leaves_litellm_as_it_found_it(client, tmp_path):
     _run(tmp_path, _provider())
     assert litellm.acompletion is REAL_ACOMPLETION
+
+
+# gemini-3-pro-preview is priced at 0 in LiteLLM's bundled map; the other is not in it at all.
+UNPRICED = ["gemini/gemini-3-pro-preview", "openai/not-in-the-cost-map"]
+
+
+@pytest.mark.parametrize("model", UNPRICED)
+def test_an_unpriced_model_stops_the_run_after_one_call(client, tmp_path, model):
+    """A budget cap that counts nothing is no cap: the run must not go on blind."""
+    calls = []
+    inner = _provider(model=model)
+
+    async def counting(**kwargs):
+        calls.append(1)
+        return await inner(**kwargs)
+
+    with pytest.raises(UnpricedModelError, match="--allow-unpriced"):
+        _run(tmp_path, counting)
+    assert len(calls) == 1
+    assert litellm.acompletion is REAL_ACOMPLETION
+
+
+@pytest.mark.parametrize("model", UNPRICED)
+def test_an_unpriced_model_runs_when_allowed_and_says_its_cost_is_unknown(client, tmp_path, model):
+    (result,), cut_short, spent = _run(tmp_path, _provider(model=model), allow_unpriced=True)
+    assert not cut_short and spent == 0
+    assert result["summary"]["cost_known_for"] == f"0/{len(CASES)}"
+    assert result["summary"]["cost_per_100_usd"] is None
+
+
+def test_the_report_shows_seconds_and_dollars_as_numbers(client, tmp_path):
+    (result,), _cut, _spent = _run(tmp_path, _provider())
+    result["summary"].update(case_exact=0.5, latency_p50_s=0.85, latency_p95_s=0.97, cost_per_100_usd=0.011)
+    meta = {"date": "2026-01-01", "commit": "abc", "cases": 3, "budget_usd": 1.0, "spent_usd": 0.0, "cut_short": False}
+    row = next(line for line in render_markdown([result], meta).splitlines() if line.startswith(f"| {MODEL}"))
+    assert "| 50% |" in row
+    assert "| 0.85 | 0.97 | 0.011 |" in row
