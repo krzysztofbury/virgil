@@ -12,6 +12,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.api_paths import is_api_key_path
 from app.config import BASE_URL
+from app.i18n import LANGUAGE_COOKIE
 from app.validation import valid_uuid
 
 logger = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ PUBLIC_PATHS = frozenset(
         "/signup",
         "/mfa/verify",
         "/reset",
+        "/language",
         "/offline",
         "/healthz",
         "/livez",
@@ -175,6 +177,30 @@ def session_cookie_header(token: str) -> str:
     """
     secure = "; Secure" if BASE_URL.startswith("https") else ""
     return f"{SESSION_COOKIE}={token}; HttpOnly; SameSite=Lax{secure}; Max-Age={SESSION_MAX_AGE_SECONDS}; Path=/"
+
+
+def language_cookie_header(language: str) -> str:
+    """Set-Cookie value remembering the interface language for a year (#152).
+
+    Readable by nothing but the server (HttpOnly) and harmless if forged: any
+    value other than "pl" means English.
+    """
+    secure = "; Secure" if BASE_URL.startswith("https") else ""
+    return f"{LANGUAGE_COOKIE}={language}; HttpOnly; SameSite=Lax{secure}; Max-Age={365 * 24 * 3600}; Path=/"
+
+
+LANGUAGE_CHOSEN_COOKIE = "virgil_lang_chosen"
+
+
+def language_chosen_cookie_header(*, clear: bool = False) -> str:
+    """Marks a language picked while signed out, for the next sign-in to keep.
+
+    A language cookie alone cannot say that: sign-in also sets it, from the
+    account, and another device may have changed the account since.
+    """
+    secure = "; Secure" if BASE_URL.startswith("https") else ""
+    value, age = ("", "; Max-Age=0") if clear else ("1", "")
+    return f"{LANGUAGE_CHOSEN_COOKIE}={value}; HttpOnly; SameSite=Lax{secure}{age}; Path=/"
 
 
 def clear_session_cookie() -> str:

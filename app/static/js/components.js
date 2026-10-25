@@ -2,6 +2,32 @@
 // attributes: anything past a simple expression lives in a component registered
 // below. Loaded before Alpine (which is deferred), so alpine:init has not fired.
 
+// Polish strings for our scripts (#152), rendered into the page by base.html.
+// English is the message id, so a missing entry shows the English text.
+var i18nCatalog = null;
+function gettext(message) {
+    if (i18nCatalog === null) {
+        var block = document.getElementById('i18n-catalog');
+        try {
+            i18nCatalog = block ? JSON.parse(block.textContent) : {};
+        } catch (e) {
+            i18nCatalog = {};
+        }
+    }
+    var translated = i18nCatalog[message];
+    return typeof translated === 'string' && translated ? translated : message;
+}
+
+// Plural forms: English has two; a Polish entry is a list of three.
+function ngettext(singular, plural, n) {
+    gettext(singular);
+    var forms = i18nCatalog[singular];
+    if (!Array.isArray(forms)) return n === 1 ? singular : plural;
+    var tens = n % 100, units = n % 10;
+    var index = n === 1 ? 0 : units >= 2 && units <= 4 && (tens < 10 || tens >= 20) ? 1 : 2;
+    return forms[index] || (n === 1 ? singular : plural);
+}
+
 // The phone tab bar's More menu.
 function bottomBar() {
     return {
@@ -170,7 +196,7 @@ function movementRow() {
             const recent = select.querySelectorAll('option[data-recent="1"]');
             if (!recent.length) return;
             const group = document.createElement('optgroup');
-            group.label = 'Recently used';
+            group.label = gettext('Recently used');
             recent.forEach(function (opt) {
                 const clone = opt.cloneNode(true);
                 // Otherwise one select carries two selected options: the

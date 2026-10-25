@@ -2,7 +2,7 @@
 
 Personal life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX.
 
-Virgil tracks daily habits, training sessions, health metrics, goals, experiments, and personal development programs — all through a mobile-friendly UI with dark/light theme support. Data lives in SQLite (source of truth) with on-demand markdown export for LLM-based reviews.
+Virgil tracks daily habits, training sessions, health metrics, goals, experiments, and personal development programs, all through a mobile-friendly UI in English or Polish with dark/light theme support. Data lives in SQLite (source of truth) with on-demand markdown export for LLM-based reviews.
 
 > **[CHANGELOG](CHANGELOG.md)** | **[Roadmap (issues)](https://github.com/krzysztofbury/virgil/issues)** | **[SPEC](SPEC.md)** | **[CONTRIBUTING](CONTRIBUTING.md)** | **[SECURITY](SECURITY.md)**
 
@@ -541,7 +541,7 @@ balances recorded once a month.
 
 ### Settings (`/settings`)
 Six-tab settings page:
-- **General** - Database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Freedom, with its habit checklist)
+- **General** - Interface language (English or Polski, kept on the account), database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Freedom, with its habit checklist)
 - **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
 - **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
 - **Data** - Markdown download (weekly/monthly/yearly/all), JSON/CSV download, database backup

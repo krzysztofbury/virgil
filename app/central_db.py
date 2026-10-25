@@ -198,6 +198,7 @@ _UPDATABLE_COLUMNS = frozenset(
         # Factory reset repoints the account at a freshly created database.
         "db_filename",
         "allow_shared_llm",
+        "language",
     }
 )
 

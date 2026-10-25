@@ -6,9 +6,9 @@
     <div class="flex-between">
         <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
         {% if exp.not_started %}
-        <small class="text-muted">Starts {{ exp.start_date }}</small>
+        <small class="text-muted">{% trans date=exp.start_date %}Starts {{ date }}{% endtrans %}</small>
         {% else %}
-        <small class="text-muted">Week {{ exp.current_week }}/{{ exp.num_weeks }}</small>
+        <small class="text-muted">{% trans week=exp.current_week, total=exp.num_weeks %}Week {{ week }}/{{ total }}{% endtrans %}</small>
         {% endif %}
     </div>
     <div class="exp-widget-bar">
@@ -18,7 +18,7 @@
         <small class="text-muted">{{ exp.logged_label }}</small>
     </div>
     {% if exp.loggable and exp.metrics %}
-    <div class="exp-quicklog exp-quicklog--card" role="group" aria-label="{{ exp.title }}: log today">
+    <div class="exp-quicklog exp-quicklog--card" role="group" aria-label="{% trans title=exp.title %}{{ title }}: log today{% endtrans %}">
         {% for m in exp.metrics %}
         <form action="/experiments/{{ exp.id }}/entry" method="post" class="exp-quicklog-item"
               hx-post="/experiments/{{ exp.id }}/entry" hx-target="#exp-card-{{ exp.id }}" hx-swap="outerHTML"
@@ -33,21 +33,21 @@
                     class="btn btn-sm {{ 'btn-primary' if m.today == 1 else 'btn-outline' }}">&#10003; {{ m.name }}</button>
             <button type="submit" name="value" value="0" id="exp-{{ exp.id }}-{{ m.id }}-no" aria-pressed="{{ 'true' if m.today == 0 else 'false' }}"
                     class="btn btn-sm {{ 'btn-primary' if m.today == 0 else 'btn-secondary' }}"
-                    aria-label="{{ m.name }}: not done today" title="Not done today">&#10007;</button>
+                    aria-label="{% trans name=m.name %}{{ name }}: not done today{% endtrans %}" title="{{ _("Not done today") }}">&#10007;</button>
             {% elif m.kind == 'count' %}
             <input type="hidden" name="value" value="1">
             <button type="submit" id="exp-{{ exp.id }}-{{ m.id }}-log" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">+1 {{ m.name }}</button>
-            {% if m.today %}<small class="text-muted">{{ m.today }} today</small>{% endif %}
+            {% if m.today %}<small class="text-muted">{% trans value=m.today %}{{ value }} today{% endtrans %}</small>{% endif %}
             {% elif m.kind == 'scale' %}
             <input type="number" name="value" min="0" max="10" placeholder="0-10" required class="exp-quicklog-scale" id="exp-{{ exp.id }}-{{ m.id }}-value"
-                   aria-label="{{ m.name }}, 0 to 10">
+                   aria-label="{% trans name=m.name %}{{ name }}, 0 to 10{% endtrans %}">
             <button type="submit" id="exp-{{ exp.id }}-{{ m.id }}-log" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
-            {% if m.today is not none %}<small class="text-muted">{{ m.today }} today</small>{% endif %}
+            {% if m.today is not none %}<small class="text-muted">{% trans value=m.today %}{{ value }} today{% endtrans %}</small>{% endif %}
             {% else %}
             <input type="number" name="value" min="1" max="1440" placeholder="min" required class="exp-quicklog-scale" id="exp-{{ exp.id }}-{{ m.id }}-value"
-                   aria-label="{{ m.name }}, minutes">
+                   aria-label="{% trans name=m.name %}{{ name }}, minutes{% endtrans %}">
             <button type="submit" id="exp-{{ exp.id }}-{{ m.id }}-log" class="btn btn-sm btn-outline" style="border-color: {{ m.color }};">{{ m.name }}</button>
-            {% if m.today %}<small class="text-muted">{{ m.today }}m today</small>{% endif %}
+            {% if m.today %}<small class="text-muted">{% trans value=m.today %}{{ value }}m today{% endtrans %}</small>{% endif %}
             {% endif %}
         </form>
         {% endfor %}

@@ -191,7 +191,7 @@ def test_mutation_forms_declare_pending_and_bounded_draft_contract(auth_client):
         conn.close()
     freedom = auth_client.get("/freedom").text
 
-    assert 'data-pending-label="Syncing..."' in oura
+    assert 'data-pending-label="{{ _("Syncing...") }}"' in oura
     assert 'data-draft-fields="notes"' in daily
     assert 'hx-sync="this:replace"' in daily
     assert 'data-draft-fields="note"' in freedom

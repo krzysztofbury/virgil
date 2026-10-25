@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Finance{% endblock %}
+{% block title %}{{ _("Virgil - Finance") }}{% endblock %}
 
 {% macro money(value) -%}
 {% if value is none %}-{% else %}{{ "{:,.2f}".format(value) }}{% endif %}
@@ -8,19 +8,18 @@
 {% block content %}
 <div class="page-header finance-header">
     <div>
-        <h1>Finance</h1>
+        <h1>{{ _("Finance") }}</h1>
         <p class="page-subtitle">
-            {% if overview.latest_snapshot %}Balances as of {{ overview.latest_snapshot }}, in {{ overview.currency }}.{% else %}No balances recorded yet.{% endif %}
+            {% if overview.latest_snapshot %}{% trans date=overview.latest_snapshot, currency=overview.currency %}Balances as of {{ date }}, in {{ currency }}.{% endtrans %}{% else %}{{ _("No balances recorded yet.") }}{% endif %}
         </p>
     </div>
-    <a href="/finance/setup" class="btn btn-outline btn-sm"><i data-lucide="sliders-horizontal"></i> Set up</a>
+    <a href="/finance/setup" class="btn btn-outline btn-sm"><i data-lucide="sliders-horizontal"></i> {{ _("Set up") }}</a>
 </div>
 
 {% if not accounts %}
 <div class="card">
     <p class="text-muted empty-next">
-        Your fortress has no accounts yet. <a href="/finance/setup">Set up your layers and accounts</a>,
-        then record their balances once a month here.
+        {{ _("Your fortress has no accounts yet.") }} {% trans %}<a href="/finance/setup">Set up your layers and accounts</a>, then record their balances once a month here.{% endtrans %}
     </p>
 </div>
 {% else %}
@@ -28,50 +27,50 @@
 <div class="stat-grid finance-stats">
     <div class="stat-card">
         <div class="stat-value">{{ money(overview.cushion) }}</div>
-        <div class="stat-label">Cushion</div>
+        <div class="stat-label">{{ _("Cushion") }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ overview.cushion_months if overview.cushion_months is not none else '-' }}</div>
-        <div class="stat-label">Months of essential cost</div>
+        <div class="stat-label">{{ _("Months of essential cost") }}</div>
     </div>
     <div class="stat-card">
         <div class="stat-value">
             {% if overview.score.points is not none %}{{ overview.score.points }}<small>/{{ overview.score.max_points }}</small>{% else %}-{% endif %}
         </div>
-        <div class="stat-label">Score</div>
+        <div class="stat-label">{{ _("Score") }}</div>
         {% if overview.score.points_with_all_income is not none and overview.score.points_with_all_income != overview.score.points %}
-        <small class="text-muted">{{ overview.score.points_with_all_income }} with all stable income</small>
+        <small class="text-muted">{% trans points=overview.score.points_with_all_income %}{{ points }} with all stable income{% endtrans %}</small>
         {% endif %}
     </div>
     <div class="stat-card">
         <div class="stat-value">{{ overview.independent_income_share ~ '%' if overview.independent_income_share is not none else '-' }}</div>
-        <div class="stat-label">Covered by independent income</div>
+        <div class="stat-label">{{ _("Covered by independent income") }}</div>
     </div>
 </div>
 
 {% set missing = [] %}
-{% for layer in overview.layers if layer.score and layer.score.missing %}{% set _ = missing.append(layer.name ~ ' needs ' ~ layer.score.missing) %}{% endfor %}
+{% for layer in overview.layers if layer.score and layer.score.missing %}{% set _ignored = missing.append(_("{name} needs {missing}").format(name=layer.name, missing=layer.score.missing)) %}{% endfor %}
 {% if missing or overview.stale_accounts %}
 <div class="card finance-notes">
-    {% for note in missing %}<p class="text-muted">{{ note }}. <a href="/finance/setup">Set it up</a>.</p>{% endfor %}
+    {% for note in missing %}<p class="text-muted">{{ note }}. <a href="/finance/setup">{{ _("Set it up") }}</a>.</p>{% endfor %}
     {% if overview.stale_accounts %}
-    <p class="text-muted">Not updated in the latest snapshot: {{ overview.stale_accounts | join(', ') }}. Their last balance is still counted.</p>
+    <p class="text-muted">{% trans accounts=overview.stale_accounts | join(', ') %}Not updated in the latest snapshot: {{ accounts }}. Their last balance is still counted.{% endtrans %}</p>
     {% endif %}
 </div>
 {% endif %}
 
 {% if history | length > 1 %}
 <div class="card">
-    <div class="card-header"><h3>Cushion over time</h3></div>
+    <div class="card-header"><h3>{{ _("Cushion over time") }}</h3></div>
     <div class="chart-container finance-chart">
         <canvas id="cushionChart" role="img"
-                aria-label="Months of essential cost the cushion covered at each recorded date"></canvas>
+                aria-label="{{ _("Months of essential cost the cushion covered at each recorded date") }}"></canvas>
     </div>
 </div>
 <script nonce="{{ request.state.csp_nonce }}">
     document.addEventListener('DOMContentLoaded', function() {
         createLineChart('cushionChart', {{ history | map(attribute='date') | list | tojson }}, [{
-            label: 'Months of essential cost',
+            label: {{ _("Months of essential cost")|tojson }},
             data: {{ history | map(attribute='cushion_months') | list | tojson }},
             borderColor: 'rgb(34, 197, 94)',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',
@@ -93,11 +92,11 @@
         {% if layer.description %}<p class="text-muted finance-layer-desc">{{ layer.description }}</p>{% endif %}
         {% if layer.score %}
         <p class="finance-layer-score">
-            {% if layer.score.points is not none %}{{ layer.score.points }} of {{ layer.score.max_points }} points{% else %}Score unknown{% endif %}
-            {% if layer.counts_toward_cushion %}<span class="badge">Counts toward the cushion</span>{% endif %}
+            {% if layer.score.points is not none %}{% trans points=layer.score.points, total=layer.score.max_points %}{{ points }} of {{ total }} points{% endtrans %}{% else %}{{ _("Score unknown") }}{% endif %}
+            {% if layer.counts_toward_cushion %}<span class="badge">{{ _("Counts toward the cushion") }}</span>{% endif %}
         </p>
         {% elif layer.counts_toward_cushion %}
-        <p class="finance-layer-score"><span class="badge">Counts toward the cushion</span></p>
+        <p class="finance-layer-score"><span class="badge">{{ _("Counts toward the cushion") }}</span></p>
         {% endif %}
         {% if layer.accounts %}
         <table class="import-report finance-accounts">
@@ -107,12 +106,12 @@
                     <td>
                         {{ account.name }}
                         {% if account.institution %}<small class="text-muted">{{ account.institution }}</small>{% endif %}
-                        {% if account.ownership == 'excluded' %}<small class="text-muted">not counted</small>{% elif account.ownership == 'joint' %}<small class="text-muted">joint</small>{% endif %}
+                        {% if account.ownership == 'excluded' %}<small class="text-muted">{{ _("not counted") }}</small>{% elif account.ownership == 'joint' %}<small class="text-muted">{{ _("joint") }}</small>{% endif %}
                     </td>
                     <td>
                         {{ money(account.amount) }}
                         {% if account.native_amount is not none %}<small class="text-muted">{{ money(account.native_amount) }} {{ account.native_currency }}</small>{% endif %}
-                        <small class="{{ 'finance-stale' if account.stale else 'text-muted' }}">{{ 'as of ' ~ account.as_of if account.as_of else 'no balance yet' }}</small>
+                        <small class="{{ 'finance-stale' if account.stale else 'text-muted' }}">{{ _('as of {date}').format(date=account.as_of) if account.as_of else _('no balance yet') }}</small>
                     </td>
                 </tr>
                 {% endfor %}
@@ -124,10 +123,10 @@
                 {% for policy in overview.policies %}
                 <tr>
                     <td>{{ policy.type | replace('_', ' ') | capitalize }}</td>
-                    <td>{{ {'present': 'In place', 'absent': 'None', 'not_applicable': 'Not applicable'}[policy.status] }}</td>
+                    <td>{{ {'present': _('In place'), 'absent': _('None'), 'not_applicable': _('Not applicable')}[policy.status] }}</td>
                 </tr>
                 {% else %}
-                <tr><td class="text-muted">No policies set. <a href="/finance/setup#policies">Add them</a>.</td></tr>
+                <tr><td class="text-muted">{{ _("No policies set.") }} <a href="/finance/setup#policies">{{ _("Add them") }}</a>.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -136,29 +135,29 @@
             <tbody>
                 {% for source in overview.income_sources %}
                 <tr class="{{ '' if source.independent_of_work else 'is-excluded' }}">
-                    <td>{{ source.name }}<small class="text-muted">{{ 'independent of work' if source.independent_of_work else 'depends on work' }}</small></td>
-                    <td>{{ money(source.monthly_amount) }}<small class="text-muted">per month</small></td>
+                    <td>{{ source.name }}<small class="text-muted">{{ _('independent of work') if source.independent_of_work else _('depends on work') }}</small></td>
+                    <td>{{ money(source.monthly_amount) }}<small class="text-muted">{{ _("per month") }}</small></td>
                 </tr>
                 {% else %}
-                <tr><td class="text-muted">No income sources set. <a href="/finance/setup#income">Add them</a>.</td></tr>
+                <tr><td class="text-muted">{{ _("No income sources set.") }} <a href="/finance/setup#income">{{ _("Add them") }}</a>.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
         {% else %}
-        <p class="text-muted">No accounts in this layer.</p>
+        <p class="text-muted">{{ _("No accounts in this layer.") }}</p>
         {% endif %}
     </div>
     {% endfor %}
 </div>
 {% if overview.excluded_total %}
-<p class="text-muted finance-excluded">Not counted anywhere: {{ money(overview.excluded_total) }} in accounts marked as not counted.</p>
+<p class="text-muted finance-excluded">{% trans amount=money(overview.excluded_total) %}Not counted anywhere: {{ amount }} in accounts marked as not counted.{% endtrans %}</p>
 {% endif %}
 
 <div class="card" id="record">
-    <div class="card-header"><h3>Record balances</h3></div>
-    <p class="text-muted">One date for the whole snapshot. Each field starts at the latest balance; change what moved. A blank field is skipped.</p>
+    <div class="card-header"><h3>{{ _("Record balances") }}</h3></div>
+    <p class="text-muted">{{ _("One date for the whole snapshot. Each field starts at the latest balance; change what moved. A blank field is skipped.") }}</p>
     <form method="POST" action="/finance/balances" class="finance-record">
-        <label>Date <input type="date" name="date" value="{{ today }}" required></label>
+        <label>{{ _("Date") }} <input type="date" name="date" value="{{ today }}" required></label>
         <table class="import-report">
             <tbody>
                 {% for account in accounts %}
@@ -170,7 +169,7 @@
                 {% endfor %}
             </tbody>
         </table>
-        <div class="form-actions"><button type="submit" class="btn btn-primary">Save snapshot</button></div>
+        <div class="form-actions"><button type="submit" class="btn btn-primary">{{ _("Save snapshot") }}</button></div>
     </form>
 </div>
 {% endif %}

@@ -8,6 +8,7 @@ from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api_paths import is_api_key_path
 from app.config import BASE_URL
+from app.i18n import _
 
 logger = logging.getLogger(__name__)
 
@@ -85,7 +86,7 @@ class CSRFMiddleware:
             cookie_token = request.cookies.get(CSRF_COOKIE, "")
             if not cookie_token:
                 # Nothing could match, so refuse before buffering up to 21 MB of body.
-                response = Response("CSRF validation failed", status_code=403)
+                response = Response(_("CSRF validation failed. Reload the page and try again."), status_code=403)
                 await response(scope, receive, send)
                 return
 
@@ -150,7 +151,7 @@ class CSRFMiddleware:
                 submitted.encode("utf-8"), cookie_token.encode("utf-8")
             )
             if not token_ok:
-                response = Response("CSRF validation failed", status_code=403)
+                response = Response(_("CSRF validation failed. Reload the page and try again."), status_code=403)
                 await response(scope, receive, send)
                 return
 

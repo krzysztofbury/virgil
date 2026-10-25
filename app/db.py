@@ -1,6 +1,17 @@
+from app.i18n import N_
+
 # Shared life area constants used by dashboard, life_scores, and export
 LIFE_AREAS = ["planning", "spirituality", "health", "work", "social", "growth", "relaxation", "family"]
-LIFE_AREA_LABELS = ["Planning", "Spirituality", "Health", "Work", "Social", "Growth", "Relaxation", "Family"]
+LIFE_AREA_LABELS = [
+    N_("Planning"),
+    N_("Spirituality"),
+    N_("Health"),
+    N_("Work"),
+    N_("Social"),
+    N_("Growth"),
+    N_("Relaxation"),
+    N_("Family"),
+]
 
 
 async def get_setting(db, key: str, default: str = "") -> str:

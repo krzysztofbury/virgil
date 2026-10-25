@@ -18,6 +18,7 @@ from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 import aiosqlite
 
 from app.db import get_setting, set_setting
+from app.i18n import N_, LocalizedError, LocalizedLookupError
 
 METRICS = ("cushion_months", "independent_income_share", "policies")
 ACCOUNT_KINDS = ("cash", "bonds", "retirement", "brokerage", "crypto", "property", "other")
@@ -27,26 +28,26 @@ BASE_CURRENCY_SETTING = "finance_base_currency"
 _MAX_MINOR = 10**15
 
 
-class FinanceError(ValueError):
+class FinanceError(LocalizedError):
     """A request the finance data cannot take. The message names the field."""
 
 
-class FinanceNotFound(LookupError):
+class FinanceNotFound(LocalizedLookupError):
     """An account or layer that does not exist."""
 
 
 def to_minor(value: object, field: str = "amount") -> int:
     if isinstance(value, bool) or not isinstance(value, int | float | str | Decimal):
-        raise FinanceError(f"{field} must be a number")
+        raise FinanceError(N_("{field} must be a number"), field=field)
     try:
         number = Decimal(str(value).strip().replace(" ", "").replace(",", "."))
     except InvalidOperation as exc:
-        raise FinanceError(f"{field} must be a number") from exc
+        raise FinanceError(N_("{field} must be a number"), field=field) from exc
     if not number.is_finite():
-        raise FinanceError(f"{field} must be a number")
+        raise FinanceError(N_("{field} must be a number"), field=field)
     minor = int((number * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP))
     if abs(minor) > _MAX_MINOR:
-        raise FinanceError(f"{field} is too large")
+        raise FinanceError(N_("{field} is too large"), field=field)
     return minor
 
 
@@ -57,7 +58,7 @@ def from_minor(value: int | None) -> float | None:
 def currency_code(value: object, field: str = "currency") -> str:
     code = str(value or "").strip().upper()
     if code and (len(code) != 3 or not code.isalpha()):
-        raise FinanceError(f"{field} must be a three-letter code such as PLN or EUR")
+        raise FinanceError(N_("{field} must be a three-letter code such as PLN or EUR"), field=field)
     return code
 
 
@@ -65,15 +66,15 @@ def iso_day(value: object, field: str = "date") -> str:
     try:
         return date.fromisoformat(str(value)).isoformat()
     except ValueError as exc:
-        raise FinanceError(f"{field} must be an ISO date (YYYY-MM-DD)") from exc
+        raise FinanceError(N_("{field} must be an ISO date (YYYY-MM-DD)"), field=field) from exc
 
 
 def _text(value: object, field: str, limit: int, *, required: bool = False) -> str:
     text = str(value or "").strip()
     if required and not text:
-        raise FinanceError(f"{field} is required")
+        raise FinanceError(N_("{field} is required"), field=field)
     if len(text) > limit:
-        raise FinanceError(f"{field} is longer than {limit} characters")
+        raise FinanceError(N_("{field} is longer than {limit} characters"), field=field, limit=limit)
     return text
 
 
@@ -375,14 +376,14 @@ async def history(db: aiosqlite.Connection, months: int = 12) -> dict:
 
 async def _find(db: aiosqlite.Connection, table: str, ref: object, what: str) -> dict:
     if isinstance(ref, bool) or ref is None or ref == "":
-        raise FinanceError(f"{what} is required")
+        raise FinanceError(N_("{what} is required"), what=what)
     # A JSON number is an id; text is always a name, even "2024".
     if isinstance(ref, int):
         rows = await db.execute_fetchall(f"SELECT * FROM {table} WHERE id = ?", (int(ref),))  # noqa: S608 - fixed table
     else:
         rows = await db.execute_fetchall(f"SELECT * FROM {table} WHERE name = ?", (str(ref).strip(),))  # noqa: S608
     if not rows:
-        raise FinanceNotFound(f"No {what} {ref!r}")
+        raise FinanceNotFound(N_("No {what} {ref!r}"), what=what, ref=ref)
     return dict(rows[0])
 
 
@@ -401,17 +402,17 @@ async def record_balances(db: aiosqlite.Connection, day: object, entries: list, 
     """Balances of several accounts on one date, all or none. A null amount removes that date's balance."""
     day = iso_day(day)
     if not isinstance(entries, list) or not entries:
-        raise FinanceError("entries must list at least one account")
+        raise FinanceError(N_("entries must list at least one account"))
     if len(entries) > 200:
-        raise FinanceError("entries can list at most 200 accounts")
+        raise FinanceError(N_("entries can list at most 200 accounts"))
     base = await base_currency(db)
     statements, seen, recorded, removed = [], set(), 0, 0
     for index, entry in enumerate(entries):
         if not isinstance(entry, dict):
-            raise FinanceError(f"entries[{index}] must be an object")
+            raise FinanceError(N_("entries[{index}] must be an object"), index=index)
         account = await _find(db, "finance_accounts", entry.get("account"), "account")
         if account["id"] in seen:
-            raise FinanceError(f"{account['name']} is listed twice")
+            raise FinanceError(N_("{value} is listed twice"), value=account["name"])
         seen.add(account["id"])
         if entry.get("amount") is None:
             statements.append(("DELETE FROM finance_balances WHERE account_id = ? AND date = ?", (account["id"], day)))
@@ -457,10 +458,10 @@ async def upsert_account(db: aiosqlite.Connection, data: dict) -> dict:
         layer_id = existing["layer_id"]
     kind = data.get("kind", current["kind"])
     if kind not in ACCOUNT_KINDS:
-        raise FinanceError(f"kind must be one of {', '.join(ACCOUNT_KINDS)}")
+        raise FinanceError(N_("kind must be one of {choices}"), choices=", ".join(ACCOUNT_KINDS))
     ownership = data.get("ownership", current["ownership"])
     if ownership not in OWNERSHIP:
-        raise FinanceError(f"ownership must be one of {', '.join(OWNERSHIP)}")
+        raise FinanceError(N_("ownership must be one of {choices}"), choices=", ".join(OWNERSHIP))
     values = (
         name,
         _text(data.get("institution", current["institution"]), "institution", 80),
@@ -493,7 +494,7 @@ async def upsert_account(db: aiosqlite.Connection, data: dict) -> dict:
             account_id = cursor.lastrowid
     except aiosqlite.IntegrityError as exc:
         await db.rollback()
-        raise FinanceError(f"Another account is already called {name!r}") from exc
+        raise FinanceError(N_("Another account is already called {name!r}"), name=name) from exc
     return next(account for account in await list_accounts(db) if account["id"] == account_id)
 
 
@@ -506,7 +507,7 @@ async def set_assumptions(db: aiosqlite.Connection, data: dict) -> dict:
     if data.get("essential_monthly_cost") is not None:
         cost = to_minor(data["essential_monthly_cost"], "essential_monthly_cost")
         if cost <= 0:
-            raise FinanceError("essential_monthly_cost must be above zero")
+            raise FinanceError(N_("essential_monthly_cost must be above zero"))
         since = iso_day(data.get("effective_from") or date.today().isoformat(), "effective_from")
         statements.append(
             (
@@ -518,19 +519,19 @@ async def set_assumptions(db: aiosqlite.Connection, data: dict) -> dict:
     if data.get("income_sources") is not None:
         sources = data["income_sources"]
         if not isinstance(sources, list) or len(sources) > 50:
-            raise FinanceError("income_sources must be a list of at most 50 sources")
+            raise FinanceError(N_("income_sources must be a list of at most 50 sources"))
         statements.append(("DELETE FROM finance_income_sources", ()))
         names = set()
         for index, source in enumerate(sources):
             if not isinstance(source, dict):
-                raise FinanceError(f"income_sources[{index}] must be an object")
+                raise FinanceError(N_("income_sources[{index}] must be an object"), index=index)
             name = _text(source.get("name"), f"income_sources[{index}].name", 80, required=True)
             if name.lower() in names:
-                raise FinanceError(f"{name} is listed twice")
+                raise FinanceError(N_("{name} is listed twice"), name=name)
             names.add(name.lower())
             amount = to_minor(source.get("monthly_amount"), f"income_sources[{index}].monthly_amount")
             if amount < 0:
-                raise FinanceError(f"income_sources[{index}].monthly_amount cannot be negative")
+                raise FinanceError(N_("income_sources[{index}].monthly_amount cannot be negative"), index=index)
             confirmed = source.get("confirmed_on") or ""
             statements.append(
                 (
@@ -548,17 +549,21 @@ async def set_assumptions(db: aiosqlite.Connection, data: dict) -> dict:
     if data.get("policies") is not None:
         policies = data["policies"]
         if not isinstance(policies, list) or len(policies) > 30:
-            raise FinanceError("policies must be a list of at most 30 policies")
+            raise FinanceError(N_("policies must be a list of at most 30 policies"))
         for index, policy in enumerate(policies):
             if not isinstance(policy, dict):
-                raise FinanceError(f"policies[{index}] must be an object")
+                raise FinanceError(N_("policies[{index}] must be an object"), index=index)
             kind = _text(policy.get("type"), f"policies[{index}].type", 40, required=True).lower()
             status = policy.get("status")
             if status is None:
                 statements.append(("DELETE FROM finance_policies WHERE type = ?", (kind,)))
                 continue
             if status not in POLICY_STATUSES:
-                raise FinanceError(f"policies[{index}].status must be one of {', '.join(POLICY_STATUSES)}")
+                raise FinanceError(
+                    N_("policies[{index}].status must be one of {choices}"),
+                    index=index,
+                    choices=", ".join(POLICY_STATUSES),
+                )
             confirmed = policy.get("confirmed_on") or ""
             statements.append(
                 (
@@ -577,9 +582,9 @@ async def set_assumptions(db: aiosqlite.Connection, data: dict) -> dict:
     if currency is not None:
         code = currency_code(currency, "base_currency")
         if not code:
-            raise FinanceError("base_currency must be a three-letter code such as PLN or EUR")
+            raise FinanceError(N_("base_currency must be a three-letter code such as PLN or EUR"))
     if not statements and currency is None:
-        raise FinanceError("Nothing to set: give essential_monthly_cost, income_sources, policies or base_currency")
+        raise FinanceError(N_("Nothing to set: give essential_monthly_cost, income_sources, policies or base_currency"))
     await _write(db, statements)
     if currency is not None:
         await set_setting(db, BASE_CURRENCY_SETTING, code)
@@ -602,35 +607,44 @@ async def assumptions(db: aiosqlite.Connection) -> dict:
 
 def _validate_rule(rule: dict, layer: str) -> tuple[str, int, str]:
     if not isinstance(rule, dict):
-        raise FinanceError(f"{layer}: rule must be an object or null")
+        raise FinanceError(N_("{layer}: rule must be an object or null"), layer=layer)
     metric = rule.get("metric")
     if metric not in METRICS:
-        raise FinanceError(f"{layer}: metric must be one of {', '.join(METRICS)}")
+        raise FinanceError(N_("{layer}: metric must be one of {choices}"), layer=layer, choices=", ".join(METRICS))
     max_points = rule.get("max_points")
     if isinstance(max_points, bool) or not isinstance(max_points, int) or not 0 <= max_points <= 100:
-        raise FinanceError(f"{layer}: max_points must be a whole number from 0 to 100")
+        raise FinanceError(N_("{layer}: max_points must be a whole number from 0 to 100"), layer=layer)
     thresholds = rule.get("thresholds")
     if metric == "policies":
         if not isinstance(thresholds, dict) or not 1 <= len(thresholds) <= 12:
-            raise FinanceError(f"{layer}: thresholds must map 1 to 12 policy types to points")
+            raise FinanceError(N_("{layer}: thresholds must map 1 to 12 policy types to points"), layer=layer)
         cleaned = {}
         for kind, points in thresholds.items():
             key = _text(kind, f"{layer}: policy type", 40, required=True).lower()
             if isinstance(points, bool) or not isinstance(points, int) or not 0 <= points <= max_points:
-                raise FinanceError(f"{layer}: points for {key} must be a whole number from 0 to {max_points}")
+                raise FinanceError(
+                    N_("{layer}: points for {key} must be a whole number from 0 to {max_points}"),
+                    layer=layer,
+                    key=key,
+                    max_points=max_points,
+                )
             cleaned[key] = points
         return metric, max_points, json.dumps(cleaned)
     if not isinstance(thresholds, list) or not 1 <= len(thresholds) <= 10:
-        raise FinanceError(f"{layer}: thresholds must list 1 to 10 [minimum, points] pairs")
+        raise FinanceError(N_("{layer}: thresholds must list 1 to 10 [minimum, points] pairs"), layer=layer)
     cleaned = []
     for pair in thresholds:
         if not isinstance(pair, list | tuple) or len(pair) != 2:
-            raise FinanceError(f"{layer}: each threshold is a [minimum, points] pair")
+            raise FinanceError(N_("{layer}: each threshold is a [minimum, points] pair"), layer=layer)
         minimum, points = pair
         if isinstance(minimum, bool) or not isinstance(minimum, int | float) or not 0 <= minimum <= 10_000:
-            raise FinanceError(f"{layer}: a threshold minimum must be a number from 0 to 10000")
+            raise FinanceError(N_("{layer}: a threshold minimum must be a number from 0 to 10000"), layer=layer)
         if isinstance(points, bool) or not isinstance(points, int) or not 0 <= points <= max_points:
-            raise FinanceError(f"{layer}: threshold points must be a whole number from 0 to {max_points}")
+            raise FinanceError(
+                N_("{layer}: threshold points must be a whole number from 0 to {max_points}"),
+                layer=layer,
+                max_points=max_points,
+            )
         cleaned.append([minimum, points])
     return metric, max_points, json.dumps(sorted(cleaned, key=lambda pair: pair[0], reverse=True))
 
@@ -651,17 +665,17 @@ async def set_scoring(db: aiosqlite.Connection, layers: list | None = None, remo
     `rule: null` stops scoring it; leaving `rule` out keeps the current one.
     """
     if not layers and not remove:
-        raise FinanceError("Give layers to set or names to remove")
+        raise FinanceError(N_("Give layers to set or names to remove"))
     statements, new_layers = [], []
     for name in remove or []:
         layer = await _find(db, "finance_layers", name, "layer")
         used = await db.execute_fetchall("SELECT COUNT(*) FROM finance_accounts WHERE layer_id = ?", (layer["id"],))
         if used[0][0]:
-            raise FinanceError(f"{layer['name']} still has accounts; move them first")
+            raise FinanceError(N_("{value} still has accounts; move them first"), value=layer["name"])
         statements.append(("DELETE FROM finance_layers WHERE id = ?", (layer["id"],)))
     for index, item in enumerate(layers or []):
         if not isinstance(item, dict):
-            raise FinanceError(f"layers[{index}] must be an object")
+            raise FinanceError(N_("layers[{index}] must be an object"), index=index)
         ref = item.get("id") if item.get("id") is not None else item.get("name")
         try:
             existing = await _find(db, "finance_layers", ref, "layer")
@@ -673,7 +687,7 @@ async def set_scoring(db: aiosqlite.Connection, layers: list | None = None, remo
         cushion = item.get("counts_toward_cushion", bool((existing or {}).get("counts_toward_cushion", 0)))
         order = item.get("display_order", (existing or {}).get("display_order", 100 + index))
         if isinstance(order, bool) or not isinstance(order, int):
-            raise FinanceError(f"{label}: display_order must be a whole number")
+            raise FinanceError(N_("{label}: display_order must be a whole number"), label=label)
         rule = _validate_rule(item["rule"], label) if item.get("rule") is not None else None
         if existing:
             statements.append(
@@ -710,7 +724,7 @@ async def set_scoring(db: aiosqlite.Connection, layers: list | None = None, remo
         await db.commit()
     except aiosqlite.IntegrityError as exc:
         await db.rollback()
-        raise FinanceError("Two layers cannot share a name") from exc
+        raise FinanceError(N_("Two layers cannot share a name")) from exc
     except BaseException:
         await db.rollback()
         raise

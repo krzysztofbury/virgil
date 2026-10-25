@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ current_language() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virgil - Sign Up</title>
+    <title>{{ _("Virgil - Sign Up") }}</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
@@ -22,7 +22,7 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
-        <p class="auth-subtitle">{% if invite %}You were invited. Create your account.{% else %}Create your account.{% endif %}</p>
+        <p class="auth-subtitle">{% if invite %}{{ _("You were invited. Create your account.") }}{% else %}{{ _("Create your account.") }}{% endif %}</p>
 
         {% if error %}
         <div class="auth-error" role="alert">{{ error }}</div>
@@ -32,25 +32,26 @@
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             {% if invite %}<input type="hidden" name="invite" value="{{ invite }}">{% endif %}
             <label>
-                Email
+                {{ _("Email") }}
                 <input type="email" name="email" required autocomplete="email" value="{{ email or '' }}"
                        {% if email_locked %}readonly{% else %}autofocus{% endif %}>
             </label>
             <label>
-                Display Name
+                {{ _("Display Name") }}
                 <input type="text" name="display_name" autocomplete="name" value="{{ display_name or '' }}">
             </label>
             <label>
-                Password
+                {{ _("Password") }}
                 <input type="password" name="password" required autocomplete="new-password">
             </label>
             <label>
-                Confirm Password
+                {{ _("Confirm Password") }}
                 <input type="password" name="password_confirm" required autocomplete="new-password">
             </label>
-            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Create Account</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Create Account") }}</button>
         </form>
-        <p class="auth-footer">Already have an account? <a href="/login">Sign in</a></p>
+        <p class="auth-footer">{{ _("Already have an account?") }} <a href="/login">{{ _("Sign in") }}</a></p>
+        {% include "partials/language_switch.html" %}
     </div>
 </div>
 

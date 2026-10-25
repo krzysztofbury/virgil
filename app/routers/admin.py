@@ -24,6 +24,7 @@ from app.central_db import (
 )
 from app.config import ADMIN_EMAILS, BASE_URL, REGISTRATION_OPEN
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _
 from app.main import templates
 from app.rate_limit import client_ip
 from app.services.backup import delete_user_backups
@@ -101,9 +102,9 @@ async def create_invite_route(
     admin = _require_admin(request)
     email = email.strip().lower()
     if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
-        return error_redirect(request, "/admin/users", "Enter a valid email address, or leave it empty.")
+        return error_redirect(request, "/admin/users", _("Enter a valid email address, or leave it empty."))
     if role not in ("user", "admin"):
-        return error_redirect(request, "/admin/users", "Unknown role.")
+        return error_redirect(request, "/admin/users", _("Unknown role."))
     token = await create_invite(admin["id"], email=email, role=role, allow_shared_llm=bool(allow_shared_llm))
     await _event(request, "invite_create", None, admin, f"for {email or 'any address'} as {role}")
     return await _users_page(request, new_invite_link=f"{BASE_URL}/signup?invite={token}", new_invite_email=email)
@@ -114,9 +115,9 @@ async def revoke_invite_route(request: Request, invite_id: str):
     admin = _require_admin(request)
     _validate_user_id(invite_id)
     if not await revoke_invite(invite_id):
-        return error_redirect(request, "/admin/users", "That invite was already used, revoked or expired.")
+        return error_redirect(request, "/admin/users", _("That invite was already used, revoked or expired."))
     await _event(request, "invite_revoke", None, admin)
-    return success_redirect(request, "/admin/users", "Invite revoked.")
+    return success_redirect(request, "/admin/users", _("Invite revoked."))
 
 
 @router.post("/users/{user_id}/reset-link", response_class=HTMLResponse)
@@ -125,17 +126,19 @@ async def create_reset_link(request: Request, user_id: str):
     admin = _require_admin(request)
     _validate_user_id(user_id)
     if user_id == admin["id"]:
-        return error_redirect(request, "/admin/users", "Change your own password under Settings > Security.")
+        return error_redirect(request, "/admin/users", _("Change your own password under Settings > Security."))
     if email := await _protected(user_id):
         # Otherwise any admin could take over the operator's break-glass account.
         return error_redirect(
-            request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS; only its owner sets its password."
+            request,
+            "/admin/users",
+            _("{email} is in VIRGIL_ADMIN_EMAILS; only its owner sets its password.").format(email=email),
         )
     user = await get_user_by_id(user_id)
     if not user:
-        return error_redirect(request, "/admin/users", "User account was not found.")
+        return error_redirect(request, "/admin/users", _("User account was not found."))
     if not user["is_active"]:
-        return error_redirect(request, "/admin/users", "Enable the account before resetting its password.")
+        return error_redirect(request, "/admin/users", _("Enable the account before resetting its password."))
     token = await create_password_reset(user_id, admin["id"])
     await _event(request, "reset_link_create", user_id, admin)
     return await _users_page(request, reset_link=f"{BASE_URL}/reset?token={token}", reset_email=user["email"])
@@ -147,14 +150,16 @@ async def change_shared_llm(request: Request, user_id: str, allow: str = Form(""
     admin = _require_admin(request)
     _validate_user_id(user_id)
     if not await get_user_by_id(user_id):
-        return error_redirect(request, "/admin/users", "User account was not found.")
+        return error_redirect(request, "/admin/users", _("User account was not found."))
     allowed = allow == "1"
     await update_user(user_id, allow_shared_llm=int(allowed))
     await _event(request, "llm_access_change", user_id, admin, "allowed" if allowed else "withdrawn")
     return success_redirect(
         request,
         "/admin/users",
-        "The account may use the server's LLM key." if allowed else "The account no longer uses the server's LLM key.",
+        _("The account may use the server's LLM key.")
+        if allowed
+        else _("The account no longer uses the server's LLM key."),
     )
 
 
@@ -163,18 +168,20 @@ async def change_role(request: Request, user_id: str, role: str = Form(...)):
     admin = _require_admin(request)
     _validate_user_id(user_id)
     if role not in ("user", "admin"):
-        return error_redirect(request, "/admin/users", "Unknown role.")
+        return error_redirect(request, "/admin/users", _("Unknown role."))
     if user_id == admin["id"]:
-        return error_redirect(request, "/admin/users", "Your own role cannot be changed from the admin panel.")
+        return error_redirect(request, "/admin/users", _("Your own role cannot be changed from the admin panel."))
     if role == "user" and (email := await _protected(user_id)):
-        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and stays an admin.")
+        return error_redirect(
+            request, "/admin/users", _("{email} is in VIRGIL_ADMIN_EMAILS and stays an admin.").format(email=email)
+        )
     if not await get_user_by_id(user_id):
-        return error_redirect(request, "/admin/users", "User account was not found.")
+        return error_redirect(request, "/admin/users", _("User account was not found."))
     await update_user(user_id, role=role)
     if role == "user":
         await revoke_invites_created_by(user_id)
     await _event(request, "role_change", user_id, admin, f"to {role}")
-    return success_redirect(request, "/admin/users", "Role changed.")
+    return success_redirect(request, "/admin/users", _("Role changed."))
 
 
 @router.post("/users/{user_id}/disable")
@@ -182,21 +189,23 @@ async def disable_user(request: Request, user_id: str):
     admin = _require_admin(request)
     _validate_user_id(user_id)
     if user_id == admin["id"]:
-        return error_redirect(request, "/admin/users", "Your account cannot be disabled from the admin panel.")
+        return error_redirect(request, "/admin/users", _("Your account cannot be disabled from the admin panel."))
     if email := await _protected(user_id):
-        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and cannot be disabled.")
+        return error_redirect(
+            request, "/admin/users", _("{email} is in VIRGIL_ADMIN_EMAILS and cannot be disabled.").format(email=email)
+        )
     result = await disable_user_if_unsubscribed(user_id)
     if result == "not_found":
-        return error_redirect(request, "/admin/users", "User account was not found.")
+        return error_redirect(request, "/admin/users", _("User account was not found."))
     if result == "busy":
-        return error_redirect(request, "/admin/users", "Another account operation is already in progress.")
+        return error_redirect(request, "/admin/users", _("Another account operation is already in progress."))
     if result == "subscribed":
         return error_redirect(
-            request, "/admin/users", "Disable the user's remote subscriptions before disabling the account."
+            request, "/admin/users", _("Disable the user's remote subscriptions before disabling the account.")
         )
     await revoke_invites_created_by(user_id)
     await _event(request, "user_disable", user_id, admin)
-    return success_redirect(request, "/admin/users", "User account disabled.")
+    return success_redirect(request, "/admin/users", _("User account disabled."))
 
 
 @router.post("/users/{user_id}/enable")
@@ -204,10 +213,10 @@ async def enable_user(request: Request, user_id: str):
     admin = _require_admin(request)
     _validate_user_id(user_id)
     if not await get_user_by_id(user_id):
-        return error_redirect(request, "/admin/users", "User account was not found.")
+        return error_redirect(request, "/admin/users", _("User account was not found."))
     await update_user(user_id, is_active=1)
     await _event(request, "user_enable", user_id, admin)
-    return success_redirect(request, "/admin/users", "User account enabled.")
+    return success_redirect(request, "/admin/users", _("User account enabled."))
 
 
 @router.post("/users/{user_id}/delete")
@@ -216,19 +225,21 @@ async def delete_user_route(request: Request, user_id: str):
     _validate_user_id(user_id)
     # Prevent self-deletion.
     if user_id == admin["id"]:
-        return error_redirect(request, "/admin/users", "Your account cannot be deleted from the admin panel.")
+        return error_redirect(request, "/admin/users", _("Your account cannot be deleted from the admin panel."))
     if email := await _protected(user_id):
-        return error_redirect(request, "/admin/users", f"{email} is in VIRGIL_ADMIN_EMAILS and cannot be deleted.")
+        return error_redirect(
+            request, "/admin/users", _("{email} is in VIRGIL_ADMIN_EMAILS and cannot be deleted.").format(email=email)
+        )
     result, db_filename = await delete_user_if_unsubscribed(user_id)
     if result == "busy":
-        return error_redirect(request, "/admin/users", "Another account operation is already in progress.")
+        return error_redirect(request, "/admin/users", _("Another account operation is already in progress."))
     if result == "subscribed":
         return error_redirect(
-            request, "/admin/users", "Disable the user's remote subscriptions before deleting the account."
+            request, "/admin/users", _("Disable the user's remote subscriptions before deleting the account.")
         )
     if result == "not_found" or not db_filename:
-        return error_redirect(request, "/admin/users", "User account was not found.")
+        return error_redirect(request, "/admin/users", _("User account was not found."))
     delete_user_db(db_filename)
     delete_user_backups(db_filename)
     await _event(request, "user_delete", user_id, admin)
-    return success_redirect(request, "/admin/users", "User account deleted.")
+    return success_redirect(request, "/admin/users", _("User account deleted."))

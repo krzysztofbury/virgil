@@ -3,9 +3,9 @@
 {% if oura_freshness %}
 <small class="oura-freshness{{ ' is-stale' if oura_freshness.stale else '' }}"{% if oura_freshness.local %} title="{{ oura_freshness.local }}"{% endif %}>
     {%- if oura_freshness.age -%}
-    {{ 'Last synced' if oura_freshness.stale else 'Synced' }} {{ oura_freshness.age }}
+    {{ _('Last synced') if oura_freshness.stale else _('Synced') }} {{ oura_freshness.age }}
     {%- else -%}
-    Not synced yet
+    {{ _("Not synced yet") }}
     {%- endif -%}
 </small>
 {% endif %}

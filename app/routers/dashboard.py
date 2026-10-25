@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse
 
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS, get_setting
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _, month_short, weekday_short
 from app.main import templates
 from app.services.daily_log import day_progress
 from app.services.experiment_card import experiment_card
@@ -84,7 +85,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         else:
             week_logs.append({"date": d.isoformat(), "energy": None, "completion": 0})
 
-    day_names = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    day_names = [weekday_short(index) for index in range(7)]
 
     # Latest body measurements (prefer body_measurements, fallback to life_scores)
     meas = await db.execute_fetchall("SELECT * FROM body_measurements ORDER BY date DESC LIMIT 2")
@@ -170,7 +171,10 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             **({"borderWidth": 3} if key == "power_level" else {"hidden": True}),
         }
         for key, label, color in zip(
-            ("power_level", *AREAS), ("Power level", *AREA_LABELS), LIFE_HISTORY_COLORS, strict=True
+            ("power_level", *AREAS),
+            (_("Power level"), *[_(label) for label in AREA_LABELS]),
+            LIFE_HISTORY_COLORS,
+            strict=True,
         )
     ]
 
@@ -236,7 +240,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             )
         year_months.append(
             {
-                "name": calendar.month_abbr[m],
+                "name": month_short(m),
                 "first_weekday": first_weekday,
                 "days": days,
             }
@@ -300,7 +304,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "oura_freshness": await oura_sync_freshness(db),
             "scores": scores,
             "areas": AREAS,
-            "area_labels": AREA_LABELS,
+            "area_labels": [_(label) for label in AREA_LABELS],
             "chart_datasets": chart_datasets,
             "life_history": life_history,
             "life_history_datasets": life_history_datasets,
@@ -329,11 +333,11 @@ async def generate_briefing_endpoint(request: Request, job_nonce: str = Form(...
 
     db = get_user_db_from_request(request)
     if not await llm_available(db):
-        return error_redirect(request, "/", "No AI provider is configured. Add one in Settings.")
+        return error_redirect(request, "/", _("No AI provider is configured. Add one in Settings."))
     try:
         key = paid_llm_job_key("morning_briefing", "manual", job_nonce)
     except ValueError:
-        return error_redirect(request, "/", "Reload the page and try again.")
+        return error_redirect(request, "/", _("Reload the page and try again."))
     day = date.today().isoformat()
     try:
         result = await enqueue_paid_llm_job(
@@ -343,12 +347,12 @@ async def generate_briefing_endpoint(request: Request, job_nonce: str = Form(...
             idempotency_key=key,
         )
     except ActiveWorkloadConflictError:
-        return error_redirect(request, "/", "A briefing is already queued.")
+        return error_redirect(request, "/", _("A briefing is already queued."))
     except Exception:
         logger.exception("Briefing enqueue failed")
-        return error_redirect(request, "/", "The briefing could not be queued. Try again.")
+        return error_redirect(request, "/", _("The briefing could not be queued. Try again."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
 
-    return success_redirect(request, f"/?job_id={result.job_id}", "Briefing queued.")
+    return success_redirect(request, f"/?job_id={result.job_id}", _("Briefing queued."))

@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ current_language() }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virgil - Verify MFA</title>
+    <title>{{ _("Virgil - Verify MFA") }}</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
@@ -21,7 +21,7 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
-        <p class="auth-subtitle">Enter the 6-digit code from your authenticator app.</p>
+        <p class="auth-subtitle">{{ _("Enter the 6-digit code from your authenticator app.") }}</p>
 
         {% if error %}
         <div class="auth-error" role="alert">{{ error }}</div>
@@ -30,13 +30,14 @@
         <form method="POST" action="/mfa/verify">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <label>
-                Code
+                {{ _("Code") }}
                 <input type="text" name="totp_code" required autocomplete="one-time-code"
                        inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autofocus
                        style="text-align:center;font-size:1.5rem;letter-spacing:0.5rem;">
             </label>
-            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">Verify</button>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Verify") }}</button>
         </form>
+        {% include "partials/language_switch.html" %}
     </div>
 </div>
 

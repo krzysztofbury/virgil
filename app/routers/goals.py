@@ -2,6 +2,7 @@ from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, PlainTextResponse
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _, ngettext
 from app.main import templates
 from app.services.goal_data import (
     GOAL_STATUSES,
@@ -120,9 +121,9 @@ async def toggle_focus(request: Request, goal_id: int = Form(...), horizon: str 
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT status FROM goals WHERE id = ?", (goal_id,))
     if not rows:
-        return error_redirect(request, destination, "Goal was not found.")
+        return error_redirect(request, destination, _("Goal was not found."))
     if rows[0]["status"] != "active":
-        return error_redirect(request, destination, "Only active goals can be added to current focus.")
+        return error_redirect(request, destination, _("Only active goals can be added to current focus."))
     cursor = await db.execute(
         "UPDATE goals SET active = 1 - active, updated_at = datetime('now') WHERE id = ? AND status = 'active' "
         "RETURNING active",
@@ -131,10 +132,10 @@ async def toggle_focus(request: Request, goal_id: int = Form(...), horizon: str 
     changed = await cursor.fetchall()
     if not changed:
         await db.rollback()
-        return error_redirect(request, destination, "Goal focus changed concurrently. Try again.")
+        return error_redirect(request, destination, _("Goal focus changed concurrently. Try again."))
     await record_goal_change(db, goal_id, "focused" if changed[0]["active"] else "unfocused")
     await db.commit()
-    return success_redirect(request, destination, "Goal focus updated.")
+    return success_redirect(request, destination, _("Goal focus updated."))
 
 
 @router.post("/goals/save")
@@ -162,10 +163,10 @@ async def save_goal(
         )
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.message)
+        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.localized())
     await db.commit()
     # Back to the horizon the goal belongs to, not to the default one.
-    return success_redirect(request, f"/goals?horizon={horizon}", "Goal saved.")
+    return success_redirect(request, f"/goals?horizon={horizon}", _("Goal saved."))
 
 
 @router.post("/goals/details")
@@ -186,9 +187,9 @@ async def save_goal_details(
         )
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.message)
+        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.localized())
     await db.commit()
-    return success_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", "Goal details saved.")
+    return success_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", _("Goal details saved."))
 
 
 @router.post("/goals/update-inline")
@@ -202,7 +203,7 @@ async def update_goal_inline(
         await update_goal(db, goal_id, {"content": content})
     except GoalDataError as exc:
         await db.rollback()
-        return PlainTextResponse(exc.message, status_code=exc.status_code)
+        return PlainTextResponse(exc.localized(), status_code=exc.status_code)
     await db.commit()
     return PlainTextResponse("saved")
 
@@ -215,10 +216,16 @@ async def delete_goal(request: Request, goal_id: int = Form(...), horizon: str =
         await delete_goal_record(db, goal_id)
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, destination, exc.message)
+        return error_redirect(request, destination, exc.localized())
     await db.commit()
     return success_redirect(
-        request, destination, f"Goal deleted. Restore it under Recently deleted for {GOAL_TRASH_DAYS} days."
+        request,
+        destination,
+        ngettext(
+            "Goal deleted. Restore it under Recently deleted for {num} day.",
+            "Goal deleted. Restore it under Recently deleted for {num} days.",
+            GOAL_TRASH_DAYS,
+        ).format(num=GOAL_TRASH_DAYS),
     )
 
 
@@ -229,10 +236,10 @@ async def restore_goal(request: Request, goal_id: int = Form(...), horizon: str 
         goal = await restore_goal_record(db, goal_id)
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.message)
+        return error_redirect(request, f"/goals?horizon={_safe_horizon(horizon)}", exc.localized())
     await db.commit()
     # Back to the horizon the goal lives in, where it now shows again.
-    return success_redirect(request, f"/goals?horizon={goal['horizon']}", "Goal restored.")
+    return success_redirect(request, f"/goals?horizon={goal['horizon']}", _("Goal restored."))
 
 
 @router.post("/goals/reps/save")
@@ -264,9 +271,9 @@ async def save_goal_rep(
             )
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, "/goals", exc.message)
+        return error_redirect(request, "/goals", exc.localized())
     await db.commit()
-    return success_redirect(request, "/goals", "Execution rep saved.")
+    return success_redirect(request, "/goals", _("Execution rep saved."))
 
 
 @router.post("/goals/reps/{rep_id}/transition")
@@ -282,9 +289,14 @@ async def transition_goal_rep(
         await transition_rep(db, rep_id, action, due_date=due_date or None, period=period or None)
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, "/goals", exc.message)
+        return error_redirect(request, "/goals", exc.localized())
     await db.commit()
-    return success_redirect(request, "/goals", f"Execution rep {action}d.")
+    done = {
+        "complete": _("Execution rep completed."),
+        "skip": _("Execution rep skipped."),
+        "carry": _("Execution rep carried over."),
+    }
+    return success_redirect(request, "/goals", done.get(action, _("Execution rep saved.")))
 
 
 @router.post("/goals/reps/{rep_id}/delete")
@@ -294,6 +306,6 @@ async def delete_goal_rep(request: Request, rep_id: int):
         await delete_rep_record(db, rep_id)
     except GoalDataError as exc:
         await db.rollback()
-        return error_redirect(request, "/goals", exc.message)
+        return error_redirect(request, "/goals", exc.localized())
     await db.commit()
-    return success_redirect(request, "/goals", "Execution rep removed.")
+    return success_redirect(request, "/goals", _("Execution rep removed."))

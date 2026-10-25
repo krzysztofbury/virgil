@@ -65,9 +65,17 @@ jobs:
           uv lock --check --script mcp_server/virgil_mcp.py
           uv run --locked --extra dev python scripts/check_mcp.py
       - name: Audit locked dependencies
+        # Ignored until litellm allows filelock 4 (#154): two are Windows only,
+        # the third needs a second local user, and the container has one.
+        env:
+          IGNORED: >-
+            --ignore-vuln GHSA-567q-5qvw-pf92
+            --ignore-vuln GHSA-9vhv-jxww-xfm5
+            --ignore-vuln GHSA-v4x8-3wr5-3wq8
         run: |
           uv export --locked --extra dev --no-emit-project --format requirements-txt --output-file "$RUNNER_TEMP/requirements.txt"
-          uv run --locked --extra dev pip-audit --strict --disable-pip --require-hashes -r "$RUNNER_TEMP/requirements.txt"
+          # shellcheck disable=SC2086
+          uv run --locked --extra dev pip-audit --strict --disable-pip --require-hashes $IGNORED -r "$RUNNER_TEMP/requirements.txt"
           uv export --locked --script mcp_server/virgil_mcp.py --format requirements-txt --output-file "$RUNNER_TEMP/mcp-requirements.txt"
           uv run --locked --extra dev pip-audit --strict --disable-pip --require-hashes -r "$RUNNER_TEMP/mcp-requirements.txt"
 

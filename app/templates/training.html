@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 {% from "partials/wod_row.html" import equipment_options_list %}
-{% block title %}Virgil - Training{% endblock %}
+{% block title %}{{ _("Virgil - Training") }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Training</h1>
+    <h1>{{ _("Training") }}</h1>
 </div>
 
 <!-- 1. Capture — the only way in. Free text goes to the parser, which resolves
@@ -13,49 +13,48 @@
      committed before the parser runs, so a parse failure costs structure, never
      the record. -->
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Log a workout</h3></div>
+    <div class="card-header"><h3>{{ _("Log a workout") }}</h3></div>
     <div class="card-body">
         <form method="post" action="/training/wod">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="capture_token" value="{{ capture_token }}">
             <div class="grid" style="margin-bottom: 0.75rem;">
                 <div>
-                    <label>Date
+                    <label>{{ _("Date") }}
                         <input type="date" name="date" value="{{ today }}" required>
                     </label>
                 </div>
                 <div>
-                    <label>Duration (min, optional)
-                        <input type="number" name="duration_minutes" placeholder="minutes" min="1">
+                    <label>{{ _("Duration (min, optional)") }}
+                        <input type="number" name="duration_minutes" placeholder="{{ _("minutes") }}" min="1">
                     </label>
                 </div>
             </div>
             <textarea name="wod_text" rows="4" maxlength="4000"
-                placeholder="e.g. back squat 5x5 70 kg, then 21-15-9 thruster 43 / pull-up, 8:42&#10;or simply: swim 40 min"></textarea>
+                placeholder="{{ _("e.g. back squat 5x5 70 kg, then 21-15-9 thruster 43 / pull-up, 8:42\nor simply: swim 40 min") }}"></textarea>
             {# The property that makes a parse failure harmless, said out loud. #}
-            <small class="text-muted form-hint">The note is saved before it is read, so even a failed
-            read never loses what you wrote.</small>
+            <small class="text-muted form-hint">{{ _("The note is saved before it is read, so even a failed read never loses what you wrote.") }}</small>
             <div class="form-actions">
-                <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="Saving...">Log workout</button>
+                <button id="wod-submit" type="submit" class="btn btn-primary" data-pending-label="{{ _("Saving...") }}">{{ _("Log workout") }}</button>
             </div>
         </form>
     </div>
 </div>
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>This Week</h3></div>
+    <div class="card-header"><h3>{{ _("This Week") }}</h3></div>
     <div class="stat-grid">
         <div class="stat-card">
             <div class="stat-value">{{ kpi_sessions }}</div>
-            <div class="stat-label">Sessions</div>
+            <div class="stat-label">{{ _("Sessions") }}</div>
         </div>
         <div class="stat-card">
             <div class="stat-value">{{ "{:,}".format(kpi_volume) }} <small style="font-size:0.6em;font-weight:400;">kg</small></div>
-            <div class="stat-label">Volume (Core)</div>
+            <div class="stat-label">{{ _("Volume (Core)") }}</div>
         </div>
         <div class="stat-card">
             <div class="stat-value">{{ "{:,}".format(kpi_reps) }}</div>
-            <div class="stat-label">Total Reps</div>
+            <div class="stat-label">{{ _("Total Reps") }}</div>
         </div>
     </div>
 </div>
@@ -65,11 +64,11 @@
 {% if has_loaded_sets %}
 <div class="card" id="personal-bests" style="margin-bottom: 1rem;">
     <div class="card-header flex-between">
-        <h3>Personal Bests</h3>
-        {% with range_label = "Personal Bests window" %}{% include "partials/range_picker.html" %}{% endwith %}
+        <h3>{{ _("Personal Bests") }}</h3>
+        {% with range_label = _("Personal Bests window") %}{% include "partials/range_picker.html" %}{% endwith %}
     </div>
     {% if not personal_bests %}
-    <p class="text-muted">No loaded Core sets in the last {{ range_weeks }} weeks.</p>
+    <p class="text-muted">{% trans count=range_weeks %}No loaded Core sets in the last {{ count }} week.{% pluralize %}No loaded Core sets in the last {{ count }} weeks.{% endtrans %}</p>
     {% endif %}
     <div class="pb-grid">
         {% for pb in personal_bests %}
@@ -81,19 +80,19 @@
             <div class="pb-movement-head">
                 <h4>{{ pb.name }}</h4>
                 <div class="pb-best-load"{% if best %} data-pb-effort="{{ best.effort or '' }}" data-pb-weight="{{ best.max_weight }}"{% endif %}>{{ pb.max_weight }} <small>kg</small>
-                    {% if best and best.effort %}<span class="pb-best-effort">&times; {% if pb.metric == 'time' %}{{ best.effort | duration }}{% else %}{{ best.effort }} rep{% if best.effort != 1 %}s{% endif %}{% endif %}</span>{% endif %}
+                    {% if best and best.effort %}<span class="pb-best-effort">&times; {% if pb.metric == 'time' %}{{ best.effort | duration }}{% else %}{% trans count=best.effort %}{{ count }} rep{% pluralize %}{{ count }} reps{% endtrans %}{% endif %}</span>{% endif %}
                 </div>
             </div>
             {% if others %}
-            <div class="pb-records" aria-label="Other records for {{ pb.name }}">
+            <div class="pb-records" aria-label="{% trans name=pb.name %}Other records for {{ name }}{% endtrans %}">
                 {% for record in others %}
                 <div class="pb-record" data-pb-effort="{{ record.effort or '' }}" data-pb-weight="{{ record.max_weight }}">
                     <strong>{{ record.max_weight }} kg</strong>
                     <span>
                     {% if pb.metric == 'time' %}
-                        {% if record.effort %}{{ record.effort | duration }}{% else %}timed{% endif %}
+                        {% if record.effort %}{{ record.effort | duration }}{% else %}{{ _("timed") }}{% endif %}
                     {% else %}
-                        {% if record.effort %}{{ record.effort }} rep{% if record.effort != 1 %}s{% endif %}{% else %}weighted{% endif %}
+                        {% if record.effort %}{% trans count=record.effort %}{{ count }} rep{% pluralize %}{{ count }} reps{% endtrans %}{% else %}{{ _("weighted") }}{% endif %}
                     {% endif %}
                     </span>
                 </div>
@@ -104,26 +103,25 @@
         {% endfor %}
     </div>
     {% if personal_bests_overflow %}
-    <p class="text-muted"><small>Showing a bounded recent selection of Personal Best records.</small></p>
+    <p class="text-muted"><small>{{ _("Showing a bounded recent selection of Personal Best records.") }}</small></p>
     {% endif %}
 </div>
 {% endif %}
 
 {% if pending_sessions %}
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Unfinished</h3></div>
+    <div class="card-header"><h3>{{ _("Unfinished") }}</h3></div>
     <div class="card-body">
         <ul style="margin:0;padding-left:1.1rem;">
         {% for p in pending_sessions %}
             <li><strong>{{ p.date }}</strong>
-                <a href="/training/wod/confirm/{{ p.id }}">Finish</a>
+                <a href="/training/wod/confirm/{{ p.id }}">{{ _("Finish") }}</a>
                 {% if p.notes %}<span class="text-muted"><small>{{ p.notes[:60] }}</small></span>{% endif %}
             </li>
         {% endfor %}
         </ul>
         {% if pending_overflow %}
-        <p class="text-muted"><small>Showing the first {{ pending_sessions | length }}.
-        There are more unfinished sessions - finish these to see the next ones.</small></p>
+        <p class="text-muted"><small>{% trans count=pending_sessions | length %}Showing the first {{ count }}. There are more unfinished sessions - finish these to see the next ones.{% endtrans %}</small></p>
         {% endif %}
     </div>
 </div>
@@ -132,26 +130,26 @@
 <div class="card training-history-card">
     <div class="card-header training-history-head">
         <div>
-            <h3>Workout History</h3>
-            <small class="text-muted"><span class="hover-hint">Hover for a summary. </span>Select a training day for full details.</small>
+            <h3>{{ _("Workout History") }}</h3>
+            <small class="text-muted"><span class="hover-hint">{{ _("Hover for a summary.") }} </span>{{ _("Select a training day for full details.") }}</small>
         </div>
-        <nav class="training-year-nav" aria-label="Training history year">
-            {% if previous_year %}<a href="/training?year={{ previous_year }}" aria-label="Show {{ previous_year }}">&larr;</a>{% else %}<span></span>{% endif %}
+        <nav class="training-year-nav" aria-label="{{ _("Training history year") }}">
+            {% if previous_year %}<a href="/training?year={{ previous_year }}" aria-label="{% trans year=previous_year %}Show {{ year }}{% endtrans %}">&larr;</a>{% else %}<span></span>{% endif %}
             <strong>{{ selected_year }}</strong>
-            {% if next_year %}<a href="/training?year={{ next_year }}" aria-label="Show {{ next_year }}">&rarr;</a>{% else %}<span></span>{% endif %}
+            {% if next_year %}<a href="/training?year={{ next_year }}" aria-label="{% trans year=next_year %}Show {{ year }}{% endtrans %}">&rarr;</a>{% else %}<span></span>{% endif %}
         </nav>
     </div>
     {% if training_days %}
     <form method="GET" action="/training" class="training-date-jump">
         <input type="hidden" name="year" value="{{ selected_year }}">
-        <label>Open training day
+        <label>{{ _("Open training day") }}
             <select name="day">
                 {% for day in training_days | reverse %}
-                <option value="{{ day.date }}">{{ day.date }} - {{ day.session_count }} session{% if day.session_count != 1 %}s{% endif %}</option>
+                <option value="{{ day.date }}">{% trans date=day.date, count=day.session_count %}{{ date }} - {{ count }} session{% pluralize %}{{ date }} - {{ count }} sessions{% endtrans %}</option>
                 {% endfor %}
             </select>
         </label>
-        <button type="submit" class="btn btn-outline">Open</button>
+        <button type="submit" class="btn btn-outline">{{ _("Open") }}</button>
     </form>
     {% endif %}
     <div class="year-cal-grid training-cal-grid">
@@ -159,7 +157,7 @@
         <section class="year-cal-month" aria-label="{{ month.name }} {{ selected_year }}">
             <div class="year-cal-month-name">{{ month.name }}</div>
             <div class="year-cal-dots">
-                {% for _ in range(month.first_weekday) %}
+                {% for _blank in range(month.first_weekday) %}
                 <span class="year-cal-dot year-cal-dot-empty"></span>
                 {% endfor %}
                 {% for day in month.days %}
@@ -170,7 +168,7 @@
                        data-calendar-dialog="training-day-{{ day.date }}"
                        data-training-date="{{ day.date }}"
                        data-session-count="{{ day.session_count }}"
-                       aria-label="{{ day.summary }}. Open details."></a>
+                       aria-label="{% trans summary=day.summary %}{{ summary }}. Open details.{% endtrans %}"></a>
                     {% else %}
                     <span class="year-cal-dot training-cal-dot training-cal-idle{% if day.is_future %} training-cal-future{% endif %}{% if day.is_today %} training-cal-today{% endif %}"></span>
                     {% endif %}
@@ -179,8 +177,8 @@
         </section>
         {% endfor %}
     </div>
-    <div class="training-cal-legend" aria-label="Training duration legend">
-        <span><i class="training-cal-swatch training-cal-level-1"></i> short</span>
+    <div class="training-cal-legend" aria-label="{{ _("Training duration legend") }}">
+        <span><i class="training-cal-swatch training-cal-level-1"></i> {{ _("short") }}</span>
         <span><i class="training-cal-swatch training-cal-level-2"></i> 45+ min</span>
         <span><i class="training-cal-swatch training-cal-level-3"></i> 90+ min</span>
     </div>
@@ -191,10 +189,10 @@
     <div class="training-dialog-head">
         <div>
             <h3 id="training-day-title-{{ open_day }}">{{ open_day }}</h3>
-            <p class="text-muted">{{ open_day_summary.session_count }} session{% if open_day_summary.session_count != 1 %}s{% endif %}{% if open_day_summary.total_minutes %} - {{ open_day_summary.total_minutes }} min{% endif %}</p>
+            <p class="text-muted">{% trans count=open_day_summary.session_count %}{{ count }} session{% pluralize %}{{ count }} sessions{% endtrans %}{% if open_day_summary.total_minutes %} - {{ open_day_summary.total_minutes }} min{% endif %}</p>
         </div>
         <form method="dialog">
-            <button class="training-dialog-close" aria-label="Close {{ open_day }} training details">&times;</button>
+            <button class="training-dialog-close" aria-label="{% trans %}Close {{ open_day }} training details{% endtrans %}">&times;</button>
         </form>
     </div>
     <div class="training-dialog-body">
@@ -202,55 +200,55 @@
         {% for s in open_day_sessions %}
         <section class="training-session" data-training-session="{{ s.id }}">
             <div class="training-session-head">
-                <strong>Session {{ loop.index }}</strong>
+                <strong>{% trans number=loop.index %}Session {{ number }}{% endtrans %}</strong>
                 {% if s.duration_minutes %}<span class="text-muted">{{ s.duration_minutes }} min</span>{% endif %}
-                {% if s.wod_parsed %}<a href="/training/wod/confirm/{{ s.id }}">Finish</a>{% endif %}
+                {% if s.wod_parsed %}<a href="/training/wod/confirm/{{ s.id }}">{{ _("Finish") }}</a>{% endif %}
             </div>
             {% if s.notes %}<p class="training-session-note">{{ s.notes }}</p>{% endif %}
             {% if s.parsing %}
             <p class="text-muted" role="status" aria-live="polite">
                 <span class="spinner" aria-hidden="true"></span>
-                Reading your note - <a href="/training/wod/confirm/{{ s.id }}">wait for the entries</a>.
+                {% trans id=s.id %}Reading your note - <a href="/training/wod/confirm/{{ id }}">wait for the entries</a>.{% endtrans %}
             </p>
             {% endif %}
             {% if s.stranded %}
             <form method="POST" action="/training/session/{{ s.id }}/manual">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                <button type="submit" class="btn btn-sm btn-outline">Enter sets by hand</button>
+                <button type="submit" class="btn btn-sm btn-outline">{{ _("Enter sets by hand") }}</button>
             </form>
             {% endif %}
             {% if s.entries %}
             <div class="overflow-x">
                 <table class="training-sets-table">
-                    <thead><tr><th>Exercise</th><th>Set</th><th>Reps</th><th>Weight</th><th>Duration</th><th>Note</th><th><span class="sr-only">Correct</span></th></tr></thead>
+                    <thead><tr><th>{{ _("Exercise") }}</th><th>{{ _("Set") }}</th><th>{{ _("Reps") }}</th><th>{{ _("Weight") }}</th><th>{{ _("Duration") }}</th><th>{{ _("Note") }}</th><th><span class="sr-only">{{ _("Correct") }}</span></th></tr></thead>
                     <tbody>
                         {% for e in s.entries %}
                         <tr>
                             <td><small>{{ e.exercise_name }}</small></td>
-                            <td data-label="Set">{{ e.set_number }}</td>
-                            <td data-label="Reps">{{ e.reps or '-' }}</td>
-                            <td data-label="Weight">{% if e.weight %}{{ e.weight }} kg{% else %}-{% endif %}</td>
-                            <td data-label="Duration">{{ e.duration | duration or "-" }}</td>
-                            <td data-label="Note"><small>{{ e.notes or '-' }}</small></td>
+                            <td data-label="{{ _("Set") }}">{{ e.set_number }}</td>
+                            <td data-label="{{ _("Reps") }}">{{ e.reps or '-' }}</td>
+                            <td data-label="{{ _("Weight") }}">{% if e.weight %}{{ e.weight }} kg{% else %}-{% endif %}</td>
+                            <td data-label="{{ _("Duration") }}">{{ e.duration | duration or "-" }}</td>
+                            <td data-label="{{ _("Note") }}"><small>{{ e.notes or '-' }}</small></td>
                             <td class="training-set-actions">
                                 <details class="training-set-edit">
-                                    <summary aria-label="Edit {{ e.exercise_name }} set {{ e.set_number }}">Edit</summary>
+                                    <summary aria-label="{% trans name=e.exercise_name, number=e.set_number %}Edit {{ name }} set {{ number }}{% endtrans %}">{{ _("Edit") }}</summary>
                                     <form method="POST" action="/training/entry/{{ e.id }}/edit" class="training-set-form">
-                                        <label class="training-set-wide">Movement
+                                        <label class="training-set-wide">{{ _("Movement") }}
                                             <input type="text" name="movement" value="{{ e.exercise_name }}" list="training-movements" required maxlength="200"></label>
-                                        <label>Set <input type="number" name="set_number" value="{{ e.set_number }}" min="1" max="100"></label>
-                                        <label>Reps <input type="number" name="reps" value="{{ e.reps if e.reps is not none else '' }}" min="0" max="1000"></label>
-                                        <label>Weight (kg) <input type="number" name="weight" value="{{ e.weight if e.weight is not none else '' }}" min="0" max="1000" step="0.5"></label>
+                                        <label>{{ _("Set") }} <input type="number" name="set_number" value="{{ e.set_number }}" min="1" max="100"></label>
+                                        <label>{{ _("Reps") }} <input type="number" name="reps" value="{{ e.reps if e.reps is not none else '' }}" min="0" max="1000"></label>
+                                        <label>{{ _("Weight (kg)") }} <input type="number" name="weight" value="{{ e.weight if e.weight is not none else '' }}" min="0" max="1000" step="0.5"></label>
                                         {# Minutes, as the page shows time everywhere else; stored in seconds. #}
-                                        <label>Time (min) <input type="number" name="duration_minutes" value="{{ '%g'|format((e.duration / 60)|round(2)) if e.duration is not none else '' }}" min="0" max="1440" step="any"></label>
-                                        <label>Equipment <select name="equipment">{{ equipment_options_list(equipment_options, e.equipment or '') }}</select></label>
-                                        <label class="training-set-wide">Note <input type="text" name="note" value="{{ e.notes or '' }}" maxlength="200"></label>
-                                        <button type="submit" class="btn btn-secondary btn-sm">Save set</button>
+                                        <label>{{ _("Time (min)") }} <input type="number" name="duration_minutes" value="{{ '%g'|format((e.duration / 60)|round(2)) if e.duration is not none else '' }}" min="0" max="1440" step="any"></label>
+                                        <label>{{ _("Equipment") }} <select name="equipment">{{ equipment_options_list(equipment_options, e.equipment or '') }}</select></label>
+                                        <label class="training-set-wide">{{ _("Note") }} <input type="text" name="note" value="{{ e.notes or '' }}" maxlength="200"></label>
+                                        <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save set") }}</button>
                                     </form>
                                 </details>
                                 <form method="POST" action="/training/entry/{{ e.id }}/delete"
-                                      data-confirm="Delete {{ e.exercise_name }} set {{ e.set_number }}? The rest of the workout stays.">
-                                    <button type="submit" class="exp-delete-btn" aria-label="Delete {{ e.exercise_name }} set {{ e.set_number }}">&times;</button>
+                                      data-confirm="{% trans name=e.exercise_name, number=e.set_number %}Delete {{ name }} set {{ number }}? The rest of the workout stays.{% endtrans %}">
+                                    <button type="submit" class="exp-delete-btn" aria-label="{% trans name=e.exercise_name, number=e.set_number %}Delete {{ name }} set {{ number }}{% endtrans %}">&times;</button>
                                 </form>
                             </td>
                         </tr>
@@ -259,26 +257,26 @@
                 </table>
             </div>
             {% elif s.entry_count %}
-            <p class="text-muted"><small>Stored entries could not be rendered.</small></p>
+            <p class="text-muted"><small>{{ _("Stored entries could not be rendered.") }}</small></p>
             {% else %}
-            <p class="text-muted"><small>No entries</small></p>
+            <p class="text-muted"><small>{{ _("No entries") }}</small></p>
             {% endif %}
             {% if s.entries_overflow %}
-            <p class="text-muted"><small>Showing the first {{ s.entries | length }} of {{ s.entry_count }} sets.</small></p>
+            <p class="text-muted"><small>{% trans shown=s.entries | length, count=s.entry_count %}Showing the first {{ shown }} of {{ count }} set.{% pluralize %}Showing the first {{ shown }} of {{ count }} sets.{% endtrans %}</small></p>
             {% endif %}
             <details class="training-session-delete">
-                <summary>Delete workout</summary>
+                <summary>{{ _("Delete workout") }}</summary>
                 <form method="POST" action="/training/session/{{ s.id }}/delete">
                     <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-                    <button type="submit" class="btn btn-sm btn-outline">Confirm delete</button>
+                    <button type="submit" class="btn btn-sm btn-outline">{{ _("Confirm delete") }}</button>
                 </form>
             </details>
         </section>
         {% endfor %}
         {% if day_has_newer or day_has_older %}
-        <nav class="training-day-pages" aria-label="{{ open_day }} session pages">
-            {% if day_has_newer %}<a href="/training?year={{ selected_year }}&amp;day={{ open_day }}&amp;after_id={{ open_day_sessions[0].id }}#training-day-{{ open_day }}">newer sessions</a>{% else %}<span></span>{% endif %}
-            {% if day_has_older %}<a href="/training?year={{ selected_year }}&amp;day={{ open_day }}&amp;before_id={{ open_day_sessions[-1].id }}#training-day-{{ open_day }}">older sessions</a>{% endif %}
+        <nav class="training-day-pages" aria-label="{% trans %}{{ open_day }} session pages{% endtrans %}">
+            {% if day_has_newer %}<a href="/training?year={{ selected_year }}&amp;day={{ open_day }}&amp;after_id={{ open_day_sessions[0].id }}#training-day-{{ open_day }}">{{ _("newer sessions") }}</a>{% else %}<span></span>{% endif %}
+            {% if day_has_older %}<a href="/training?year={{ selected_year }}&amp;day={{ open_day }}&amp;before_id={{ open_day_sessions[-1].id }}#training-day-{{ open_day }}">{{ _("older sessions") }}</a>{% endif %}
         </nav>
         {% endif %}
     </div>

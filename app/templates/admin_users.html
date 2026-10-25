@@ -1,19 +1,18 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Admin{% endblock %}
+{% block title %}{{ _("Virgil - Admin") }}{% endblock %}
 
 {% block content %}
 <div class="page-header">
     <div class="flex-between">
-        <h1>User Management</h1>
-        <small class="text-muted">{{ total }} users &middot; Registration {{ 'open' if registration_open else 'closed' }}</small>
+        <h1>{{ _("User Management") }}</h1>
+        <small class="text-muted">{% trans count=total %}{{ count }} user{% pluralize %}{{ count }} users{% endtrans %} &middot; {% if registration_open %}{{ _("Registration open") }}{% else %}{{ _("Registration closed") }}{% endif %}</small>
     </div>
 </div>
 
 {% if reset_link %}
 <div class="card invite-link" role="status" style="margin-bottom:1rem;">
-    <p><strong>Send this link to {{ reset_email }}.</strong> It sets a new password once, works for
-        {{ reset_minutes }} minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked.</p>
-    <input type="text" value="{{ reset_link }}" readonly aria-label="Password reset link">
+    <p><strong>{% trans email=reset_email %}Send this link to {{ email }}.{% endtrans %}</strong> {% trans minutes=reset_minutes %}It sets a new password once, works for {{ minutes }} minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked.{% endtrans %}</p>
+    <input type="text" value="{{ reset_link }}" readonly aria-label="{{ _("Password reset link") }}">
 </div>
 {% endif %}
 
@@ -22,14 +21,14 @@
         <table>
             <thead>
                 <tr>
-                    <th>Email</th>
-                    <th>Name</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Server LLM key</th>
-                    <th>Last Login</th>
-                    <th>Created</th>
-                    <th>Actions</th>
+                    <th>{{ _("Email") }}</th>
+                    <th>{{ _("Name") }}</th>
+                    <th>{{ _("Role") }}</th>
+                    <th>{{ _("Status") }}</th>
+                    <th>{{ _("Server LLM key") }}</th>
+                    <th>{{ _("Last Login") }}</th>
+                    <th>{{ _("Created") }}</th>
+                    <th>{{ _("Actions") }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -39,26 +38,26 @@
                     <td>{{ u.display_name or '-' }}</td>
                     <td>
                         {% if u.role == 'admin' %}
-                        <span class="flag-normal" style="font-weight:600;">Admin</span>
+                        <span class="flag-normal" style="font-weight:600;">{{ _("Admin") }}</span>
                         {% else %}
-                        <span class="text-muted">User</span>
+                        <span class="text-muted">{{ _("User") }}</span>
                         {% endif %}
                     </td>
                     <td>
                         {% if u.is_active %}
-                        <span class="flag-normal">Active</span>
+                        <span class="flag-normal">{{ _("Active") }}</span>
                         {% else %}
-                        <span style="color:var(--red);">Disabled</span>
+                        <span style="color:var(--red);">{{ _("Disabled") }}</span>
                         {% endif %}
                     </td>
                     <td>
                         <form method="POST" action="/admin/users/{{ u.id }}/shared-llm" class="row-actions">
                             <input type="hidden" name="allow" value="{{ '0' if u.allow_shared_llm else '1' }}">
-                            <span>{{ 'Yes' if u.allow_shared_llm else 'No' }}</span>
-                            <button type="submit" class="btn btn-sm btn-outline">{{ 'Withdraw' if u.allow_shared_llm else 'Allow' }}</button>
+                            <span>{{ _('Yes') if u.allow_shared_llm else _('No') }}</span>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _('Withdraw') if u.allow_shared_llm else _('Allow') }}</button>
                         </form>
                     </td>
-                    <td><small>{{ u.last_login_at[:16] if u.last_login_at else 'Never' }}</small></td>
+                    <td><small>{{ u.last_login_at[:16] if u.last_login_at else _('Never') }}</small></td>
                     <td><small>{{ u.created_at[:10] if u.created_at else '-' }}</small></td>
                     <td><div class="row-actions">
                         {% set protected = u.email in admin_emails %}
@@ -66,28 +65,28 @@
                         {% if not is_me and not (protected and u.role == 'admin') %}
                         <form method="POST" action="/admin/users/{{ u.id }}/role" style="margin:0;">
                             <input type="hidden" name="role" value="{{ 'user' if u.role == 'admin' else 'admin' }}">
-                            <button type="submit" class="btn btn-sm btn-outline">{{ 'Make user' if u.role == 'admin' else 'Make admin' }}</button>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _('Make user') if u.role == 'admin' else _('Make admin') }}</button>
                         </form>
                         {% endif %}
                         {% if not is_me and not protected and u.is_active %}
                         <form method="POST" action="/admin/users/{{ u.id }}/reset-link">
-                            <button type="submit" class="btn btn-sm btn-outline">Reset link</button>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Reset link") }}</button>
                         </form>
                         {% endif %}
                         {% if protected or is_me %}
                         {% elif u.is_active %}
                         <form method="POST" action="/admin/users/{{ u.id }}/disable" style="margin:0;">
-                            <button type="submit" class="btn btn-sm btn-outline">Disable</button>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Disable") }}</button>
                         </form>
                         {% else %}
                         <form method="POST" action="/admin/users/{{ u.id }}/enable" style="margin:0;">
-                            <button type="submit" class="btn btn-sm btn-outline">Enable</button>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Enable") }}</button>
                         </form>
                         {% endif %}
                         {% if not protected and not is_me %}
                         <form method="POST" action="/admin/users/{{ u.id }}/delete" style="margin:0;"
-                              data-confirm="Delete user {{ u.email }}? This removes all their data and its backups.">
-                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--red);">Delete</button>
+                              data-confirm="{% trans email=u.email %}Delete user {{ email }}? This removes all their data and its backups.{% endtrans %}">
+                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--red);">{{ _("Delete") }}</button>
                         </form>
                         {% endif %}
                     </div></td>
@@ -99,52 +98,51 @@
 </div>
 
 <div class="card" style="margin-top:1rem;" id="invites">
-    <div class="card-header"><h3>Invites</h3></div>
+    <div class="card-header"><h3>{{ _("Invites") }}</h3></div>
     {% if new_invite_link %}
     <div class="invite-link" role="status">
-        <p><strong>Send this link{% if new_invite_email %} to {{ new_invite_email }}{% endif %}.</strong>
-            It works once, for {{ invite_days }} days, and is not shown again.</p>
-        <input type="text" value="{{ new_invite_link }}" readonly aria-label="Invite link">
+        <p><strong>{% if new_invite_email %}{% trans email=new_invite_email %}Send this link to {{ email }}.{% endtrans %}{% else %}{{ _("Send this link.") }}{% endif %}</strong>
+            {% trans days=invite_days %}It works once, for {{ days }} days, and is not shown again.{% endtrans %}</p>
+        <input type="text" value="{{ new_invite_link }}" readonly aria-label="{{ _("Invite link") }}">
     </div>
     {% endif %}
     <p class="text-muted" style="font-size:0.85rem;">
-        Registration is {{ 'open' if registration_open else 'closed' }}; an invite lets one person create an account
-        anyway. Each account is separate: its own data, sign-in and keys.
+        {% if registration_open %}{{ _("Registration is open; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys.") }}{% else %}{{ _("Registration is closed; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys.") }}{% endif %}
     </p>
     <details {% if not invites and not new_invite_link %}open{% endif %}>
-        <summary style="cursor:pointer;">Create an invite</summary>
+        <summary style="cursor:pointer;">{{ _("Create an invite") }}</summary>
         <form method="POST" action="/admin/invites" class="invite-form">
             <div class="grid">
-                <div><label>Email <small class="text-muted">(optional: only this address can use it)</small>
+                <div><label>{{ _("Email") }} <small class="text-muted">{{ _("(optional: only this address can use it)") }}</small>
                     <input type="email" name="email" autocomplete="off">
                 </label></div>
-                <div><label>Role
+                <div><label>{{ _("Role") }}
                     <select name="role">
-                        <option value="user">User</option>
-                        <option value="admin">Admin</option>
+                        <option value="user">{{ _("User") }}</option>
+                        <option value="admin">{{ _("Admin") }}</option>
                     </select>
                 </label></div>
             </div>
             <label class="checkbox-label"><input type="checkbox" name="allow_shared_llm" value="1">
-                May use this server's LLM key when they have none of their own</label>
-            <button type="submit" class="btn btn-primary btn-sm">Create invite link</button>
+                {{ _("May use this server's LLM key when they have none of their own") }}</label>
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Create invite link") }}</button>
         </form>
     </details>
     {% if invites %}
     <div class="overflow-x" style="margin-top:0.75rem;">
         <table>
-            <thead><tr><th>For</th><th>Role</th><th>Server LLM key</th><th>Expires (UTC)</th><th>Created by</th><th></th></tr></thead>
+            <thead><tr><th>{{ _("For") }}</th><th>{{ _("Role") }}</th><th>{{ _("Server LLM key") }}</th><th>{{ _("Expires (UTC)") }}</th><th>{{ _("Created by") }}</th><th></th></tr></thead>
             <tbody>
                 {% for i in invites %}
                 <tr>
-                    <td>{{ i.email or 'Any address' }}</td>
-                    <td>{{ i.role | capitalize }}</td>
-                    <td>{{ 'Yes' if i.allow_shared_llm else 'No' }}</td>
+                    <td>{{ i.email or _('Any address') }}</td>
+                    <td>{{ i.role | label }}</td>
+                    <td>{{ _('Yes') if i.allow_shared_llm else _('No') }}</td>
                     <td><small>{{ i.expires_at[:16] | replace('T', ' ') }}</small></td>
                     <td><small>{{ i.created_by_email }}</small></td>
                     <td>
                         <form method="POST" action="/admin/invites/{{ i.id }}/revoke" style="margin:0;">
-                            <button type="submit" class="btn btn-sm btn-outline">Revoke</button>
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Revoke") }}</button>
                         </form>
                     </td>
                 </tr>
@@ -156,12 +154,12 @@
 </div>
 
 <div class="card" style="margin-top:1rem;">
-    <div class="card-header"><h3>Security events</h3></div>
-    <p class="text-muted" style="font-size:0.85rem;">Sign-ins, sign-outs and account changes from the last 180 days, newest first.</p>
+    <div class="card-header"><h3>{{ _("Security events") }}</h3></div>
+    <p class="text-muted" style="font-size:0.85rem;">{{ _("Sign-ins, sign-outs and account changes from the last 180 days, newest first.") }}</p>
     {% if events %}
     <div class="overflow-x">
         <table>
-            <thead><tr><th>Time (UTC)</th><th>Event</th><th>Account</th><th>IP</th><th>Detail</th></tr></thead>
+            <thead><tr><th>{{ _("Time (UTC)") }}</th><th>{{ _("Event") }}</th><th>{{ _("Account") }}</th><th>{{ _("IP") }}</th><th>{{ _("Detail") }}</th></tr></thead>
             <tbody>
                 {% for e in events %}
                 <tr>
@@ -176,7 +174,7 @@
         </table>
     </div>
     {% else %}
-    <p class="text-muted">No events yet.</p>
+    <p class="text-muted">{{ _("No events yet.") }}</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -5,6 +5,7 @@ import sqlite3
 from calendar import monthrange
 from datetime import UTC, date, datetime, timedelta
 
+from app.i18n import N_, LocalizedError
 from app.validation import truncate
 
 GOAL_STATUSES = ("active", "paused", "completed", "abandoned")
@@ -29,24 +30,32 @@ _TRACKED_FIELDS = {
 }
 
 
-class GoalDataError(ValueError):
-    def __init__(self, message: str, status_code: int = 422):
-        super().__init__(message)
-        self.message = message
+class GoalDataError(LocalizedError):
+    labels = {
+        "content": N_("Content"),
+        "start_date": N_("Start date"),
+        "end_date": N_("End date"),
+        "due_date": N_("Due date"),
+    }
+
+    def __init__(self, message: str, status_code: int = 422, **params):
+        super().__init__(message, **params)
+        # The English text, for the API; pages use localized().
+        self.message = str(self)
         self.status_code = status_code
 
 
 def canonical_date(value: str | None, field: str, *, required: bool = False) -> str | None:
     if value in (None, ""):
         if required:
-            raise GoalDataError(f"{field} is required")
+            raise GoalDataError(N_("{field} is required"), field=field)
         return None
     try:
         parsed = date.fromisoformat(value)
     except (TypeError, ValueError) as exc:
-        raise GoalDataError(f"{field} must use YYYY-MM-DD") from exc
+        raise GoalDataError(N_("{field} must use YYYY-MM-DD"), field=field) from exc
     if parsed.isoformat() != value:
-        raise GoalDataError(f"{field} must use YYYY-MM-DD")
+        raise GoalDataError(N_("{field} must use YYYY-MM-DD"), field=field)
     return value
 
 
@@ -57,7 +66,7 @@ def period_bounds(period: str, due_date: str) -> tuple[str, str]:
     contract exposed to agents and goal-rep writers.
     """
     if period not in REP_PERIODS:
-        raise GoalDataError(f"period must be one of: {', '.join(REP_PERIODS)}")
+        raise GoalDataError(N_("period must be one of: {choices}"), choices=", ".join(REP_PERIODS))
     due = date.fromisoformat(canonical_date(due_date, "due_date", required=True))
     if period == "day":
         start = end = due
@@ -80,10 +89,10 @@ def period_bounds(period: str, due_date: str) -> tuple[str, str]:
 
 def normalize_content(value: str, field: str, limit: int = 2000) -> str:
     if not isinstance(value, str):
-        raise GoalDataError(f"{field} must be text")
+        raise GoalDataError(N_("{field} must be text"), field=field)
     normalized = truncate(value, limit).strip()
     if not normalized:
-        raise GoalDataError(f"{field} is required")
+        raise GoalDataError(N_("{field} is required"), field=field)
     return normalized
 
 
@@ -95,13 +104,13 @@ def _validate_goal_fields(
     end_date: str | None,
 ) -> tuple[str | None, str | None]:
     if horizon not in HORIZONS:
-        raise GoalDataError(f"horizon must be one of: {', '.join(HORIZONS)}")
+        raise GoalDataError(N_("horizon must be one of: {choices}"), choices=", ".join(HORIZONS))
     if status not in GOAL_STATUSES:
-        raise GoalDataError(f"status must be one of: {', '.join(GOAL_STATUSES)}")
+        raise GoalDataError(N_("status must be one of: {choices}"), choices=", ".join(GOAL_STATUSES))
     start = canonical_date(start_date, "start_date")
     end = canonical_date(end_date, "end_date")
     if start and end and start > end:
-        raise GoalDataError("start_date must not be after end_date")
+        raise GoalDataError(N_("start_date must not be after end_date"))
     return start, end
 
 
@@ -129,11 +138,11 @@ async def create_goal(
     )
     area = await db.execute_fetchall("SELECT 1 FROM goal_areas WHERE id = ?", (area_id,))
     if not area:
-        raise GoalDataError("Goal area not found", 404)
+        raise GoalDataError(N_("Goal area not found"), 404)
     if parent_goal_id is not None:
         parent = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (parent_goal_id,))
         if not parent:
-            raise GoalDataError("Parent goal not found", 404)
+            raise GoalDataError(N_("Parent goal not found"), 404)
     source = normalize_content(source, "source", 50)
     source_ref = truncate(source_ref.strip(), 200)
     active = 1 if active and status == "active" else 0
@@ -158,7 +167,7 @@ async def create_goal(
         if existing:
             goal = dict(existing[0])
             if not same_write(goal):
-                raise GoalDataError("Idempotency key already belongs to a different goal write", 409)
+                raise GoalDataError(N_("Idempotency key already belongs to a different goal write"), 409)
             return goal, False
     try:
         cursor = await db.execute(
@@ -191,8 +200,8 @@ async def create_goal(
         if existing and same_write(dict(existing[0])):
             return dict(existing[0]), False
         if existing:
-            raise GoalDataError("Idempotency key already belongs to a different goal write", 409) from exc
-        raise GoalDataError("Goal write conflicts with existing data", 409) from exc
+            raise GoalDataError(N_("Idempotency key already belongs to a different goal write"), 409) from exc
+        raise GoalDataError(N_("Goal write conflicts with existing data"), 409) from exc
     rows = await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (cursor.lastrowid,))
     await record_goal_change(db, cursor.lastrowid, "created", status_to=status)
     return dict(rows[0]), True
@@ -241,7 +250,7 @@ async def goal_history(db, goal_ids) -> dict[int, list[dict]]:
 async def update_goal(db, goal_id: int, changes: dict) -> dict:
     rows = await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (goal_id,))
     if not rows:
-        raise GoalDataError("Goal not found", 404)
+        raise GoalDataError(N_("Goal not found"), 404)
     current = dict(rows[0])
     allowed = {
         "area_id",
@@ -256,7 +265,7 @@ async def update_goal(db, goal_id: int, changes: dict) -> dict:
     }
     unknown = set(changes) - allowed
     if unknown:
-        raise GoalDataError(f"Unsupported goal fields: {', '.join(sorted(unknown))}")
+        raise GoalDataError(N_("Unsupported goal fields: {choices}"), choices=", ".join(sorted(unknown)))
     values = {**current, **changes}
     values["content"] = normalize_content(values["content"], "content")
     values["start_date"], values["end_date"] = _validate_goal_fields(
@@ -267,19 +276,19 @@ async def update_goal(db, goal_id: int, changes: dict) -> dict:
     )
     area = await db.execute_fetchall("SELECT 1 FROM goal_areas WHERE id = ?", (values["area_id"],))
     if not area:
-        raise GoalDataError("Goal area not found", 404)
+        raise GoalDataError(N_("Goal area not found"), 404)
     if values["parent_goal_id"] is not None:
         if values["parent_goal_id"] == goal_id:
-            raise GoalDataError("A goal cannot be its own parent")
+            raise GoalDataError(N_("A goal cannot be its own parent"))
         parent = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (values["parent_goal_id"],))
         if not parent:
-            raise GoalDataError("Parent goal not found", 404)
+            raise GoalDataError(N_("Parent goal not found"), 404)
     if values["status"] in ("completed", "abandoned") and current["status"] != values["status"]:
         pending = await db.execute_fetchall(
             "SELECT 1 FROM goal_reps WHERE goal_id = ? AND status = 'pending' LIMIT 1", (goal_id,)
         )
         if pending:
-            raise GoalDataError("Complete, skip, or remove pending reps before closing this goal", 409)
+            raise GoalDataError(N_("Complete, skip, or remove pending reps before closing this goal"), 409)
     if values["status"] != "active":
         values["active"] = 0
     await db.execute(
@@ -326,14 +335,14 @@ async def update_goal(db, goal_id: int, changes: dict) -> dict:
     if changed[0]["count"] != 1:
         latest = await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,))
         if not latest:
-            raise GoalDataError("Goal not found", 404)
+            raise GoalDataError(N_("Goal not found"), 404)
         if values["status"] in ("completed", "abandoned"):
             pending = await db.execute_fetchall(
                 "SELECT 1 FROM goal_reps WHERE goal_id = ? AND status = 'pending' LIMIT 1", (goal_id,)
             )
             if pending:
-                raise GoalDataError("Complete, skip, or remove pending reps before closing this goal", 409)
-        raise GoalDataError("Goal hierarchy changed concurrently; retry the update", 409)
+                raise GoalDataError(N_("Complete, skip, or remove pending reps before closing this goal"), 409)
+        raise GoalDataError(N_("Goal hierarchy changed concurrently; retry the update"), 409)
     updated = dict((await db.execute_fetchall("SELECT * FROM goals WHERE id = ?", (goal_id,)))[0])
     fields = tuple(label for field, label in _TRACKED_FIELDS.items() if updated[field] != current[field])
     if fields:
@@ -356,7 +365,7 @@ async def delete_goal_record(db, goal_id: int) -> None:
     since deleting it clears those links (ON DELETE SET NULL).
     """
     if not await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,)):
-        raise GoalDataError("Goal not found", 404)
+        raise GoalDataError(N_("Goal not found"), 404)
     # Read before the delete clears them. No write lock is held for this: a rep
     # created meanwhile must still win (the delete below refuses), and a link
     # made in that instant is at worst not relinked on restore.
@@ -372,8 +381,8 @@ async def delete_goal_record(db, goal_id: int) -> None:
     deleted = await cursor.fetchall()
     if not deleted:
         if not await db.execute_fetchall("SELECT 1 FROM goals WHERE id = ?", (goal_id,)):
-            raise GoalDataError("Goal not found", 404)
-        raise GoalDataError("Goals with execution history cannot be deleted; mark the goal abandoned instead", 409)
+            raise GoalDataError(N_("Goal not found"), 404)
+        raise GoalDataError(N_("Goals with execution history cannot be deleted; mark the goal abandoned instead"), 409)
     goal = dict(deleted[0])
     await db.execute(
         "INSERT OR REPLACE INTO deleted_goals (id, goal_json, child_goal_ids, experiment_ids) VALUES (?, ?, ?, ?)",
@@ -434,13 +443,13 @@ async def restore_goal_record(db, goal_id: int) -> dict:
     await purge_deleted_goals(db)
     rows = await db.execute_fetchall("SELECT * FROM deleted_goals WHERE id = ?", (goal_id,))
     if not rows:
-        raise GoalDataError("This goal was already restored or can no longer be", 404)
+        raise GoalDataError(N_("This goal was already restored or can no longer be"), 404)
     goal = json.loads(rows[0]["goal_json"])
     # Only the columns the table has now: a snapshot can predate a migration.
     columns = [row["name"] for row in await db.execute_fetchall("PRAGMA table_info(goals)")]
     goal = {column: goal[column] for column in columns if column in goal}
     if not await db.execute_fetchall("SELECT 1 FROM goal_areas WHERE id = ?", (goal.get("area_id"),)):
-        raise GoalDataError("The goal's area no longer exists", 409)
+        raise GoalDataError(N_("The goal's area no longer exists"), 409)
     parent_id = goal.get("parent_goal_id")
     goal["parent_goal_id"] = None  # set below, once its children are back under it
     if goal.get("source_ref") and await db.execute_fetchall(
@@ -454,7 +463,7 @@ async def restore_goal_record(db, goal_id: int) -> dict:
             list(goal.values()),
         )
     except sqlite3.IntegrityError as exc:
-        raise GoalDataError("This goal no longer fits the current data and cannot be restored", 409) from exc
+        raise GoalDataError(N_("This goal no longer fits the current data and cannot be restored"), 409) from exc
     for child_id in json.loads(rows[0]["child_goal_ids"]):
         await db.execute(
             "UPDATE goals SET parent_goal_id = ? WHERE id = ? AND parent_goal_id IS NULL", (goal_id, child_id)
@@ -501,15 +510,15 @@ async def create_rep(
 ) -> tuple[dict, bool]:
     goal = await db.execute_fetchall("SELECT status, start_date, end_date FROM goals WHERE id = ?", (goal_id,))
     if not goal:
-        raise GoalDataError("Goal not found", 404)
+        raise GoalDataError(N_("Goal not found"), 404)
     if goal[0]["status"] not in ("active", "paused"):
-        raise GoalDataError("Reps can only be added to active or paused goals", 409)
+        raise GoalDataError(N_("Reps can only be added to active or paused goals"), 409)
     content = normalize_content(content, "content")
     period_start, period_end = period_bounds(period, due_date)
     if goal[0]["start_date"] and due_date < goal[0]["start_date"]:
-        raise GoalDataError("due_date is before the goal window")
+        raise GoalDataError(N_("due_date is before the goal window"))
     if goal[0]["end_date"] and due_date > goal[0]["end_date"]:
-        raise GoalDataError("due_date is after the goal window")
+        raise GoalDataError(N_("due_date is after the goal window"))
     source = normalize_content(source, "source", 50)
     source_ref = truncate(source_ref.strip(), 200)
 
@@ -530,7 +539,7 @@ async def create_rep(
         if existing:
             rep = dict(existing[0])
             if not same_write(rep):
-                raise GoalDataError("Idempotency key already belongs to a different rep write", 409)
+                raise GoalDataError(N_("Idempotency key already belongs to a different rep write"), 409)
             return rep, False
     try:
         cursor = await db.execute(
@@ -569,21 +578,21 @@ async def create_rep(
         if existing and same_write(dict(existing[0])):
             return dict(existing[0]), False
         if existing:
-            raise GoalDataError("Idempotency key already belongs to a different rep write", 409) from exc
+            raise GoalDataError(N_("Idempotency key already belongs to a different rep write"), 409) from exc
         if carried_from_id is not None:
-            raise GoalDataError("Rep was already carried", 409) from exc
-        raise GoalDataError("Goal rep write conflicts with existing data", 409) from exc
+            raise GoalDataError(N_("Rep was already carried"), 409) from exc
+        raise GoalDataError(N_("Goal rep write conflicts with existing data"), 409) from exc
     if cursor.rowcount != 1:
         latest = await db.execute_fetchall("SELECT status, start_date, end_date FROM goals WHERE id = ?", (goal_id,))
         if not latest:
-            raise GoalDataError("Goal not found", 404)
+            raise GoalDataError(N_("Goal not found"), 404)
         if latest[0]["status"] not in ("active", "paused"):
-            raise GoalDataError("Reps can only be added to active or paused goals", 409)
+            raise GoalDataError(N_("Reps can only be added to active or paused goals"), 409)
         if latest[0]["start_date"] and due_date < latest[0]["start_date"]:
-            raise GoalDataError("due_date is before the goal window")
+            raise GoalDataError(N_("due_date is before the goal window"))
         if latest[0]["end_date"] and due_date > latest[0]["end_date"]:
-            raise GoalDataError("due_date is after the goal window")
-        raise GoalDataError("Goal changed concurrently; retry the rep write", 409)
+            raise GoalDataError(N_("due_date is after the goal window"))
+        raise GoalDataError(N_("Goal changed concurrently; retry the rep write"), 409)
     rows = await db.execute_fetchall("SELECT * FROM goal_reps WHERE id = ?", (cursor.lastrowid,))
     return dict(rows[0]), True
 
@@ -591,14 +600,14 @@ async def create_rep(
 async def update_rep(db, rep_id: int, changes: dict) -> dict:
     rows = await db.execute_fetchall("SELECT * FROM goal_reps WHERE id = ?", (rep_id,))
     if not rows:
-        raise GoalDataError("Goal rep not found", 404)
+        raise GoalDataError(N_("Goal rep not found"), 404)
     current = dict(rows[0])
     if current["status"] != "pending":
-        raise GoalDataError("Only pending reps can be edited", 409)
+        raise GoalDataError(N_("Only pending reps can be edited"), 409)
     allowed = {"goal_id", "content", "period", "due_date", "notes"}
     unknown = set(changes) - allowed
     if unknown:
-        raise GoalDataError(f"Unsupported rep fields: {', '.join(sorted(unknown))}")
+        raise GoalDataError(N_("Unsupported rep fields: {choices}"), choices=", ".join(sorted(unknown)))
     values = {**current, **changes}
     values["content"] = normalize_content(values["content"], "content")
     period_start, period_end = period_bounds(values["period"], values["due_date"])
@@ -606,13 +615,13 @@ async def update_rep(db, rep_id: int, changes: dict) -> dict:
         "SELECT status, start_date, end_date FROM goals WHERE id = ?", (values["goal_id"],)
     )
     if not goal:
-        raise GoalDataError("Goal not found", 404)
+        raise GoalDataError(N_("Goal not found"), 404)
     if goal[0]["status"] not in ("active", "paused"):
-        raise GoalDataError("Reps can only be moved to active or paused goals", 409)
+        raise GoalDataError(N_("Reps can only be moved to active or paused goals"), 409)
     if goal[0]["start_date"] and values["due_date"] < goal[0]["start_date"]:
-        raise GoalDataError("due_date is before the goal window")
+        raise GoalDataError(N_("due_date is before the goal window"))
     if goal[0]["end_date"] and values["due_date"] > goal[0]["end_date"]:
-        raise GoalDataError("due_date is after the goal window")
+        raise GoalDataError(N_("due_date is after the goal window"))
     cursor = await db.execute(
         """UPDATE goal_reps SET goal_id = ?, content = ?, period = ?, period_start = ?, period_end = ?,
            due_date = ?, notes = ?, updated_at = datetime('now')
@@ -636,7 +645,7 @@ async def update_rep(db, rep_id: int, changes: dict) -> dict:
         ),
     )
     if cursor.rowcount != 1:
-        raise GoalDataError("Goal or rep changed concurrently; retry the update", 409)
+        raise GoalDataError(N_("Goal or rep changed concurrently; retry the update"), 409)
     updated = await db.execute_fetchall("SELECT * FROM goal_reps WHERE id = ?", (rep_id,))
     return dict(updated[0])
 
@@ -652,8 +661,8 @@ async def delete_rep_record(db, rep_id: int) -> None:
         return
     rows = await db.execute_fetchall("SELECT 1 FROM goal_reps WHERE id = ?", (rep_id,))
     if not rows:
-        raise GoalDataError("Goal rep not found", 404)
-    raise GoalDataError("Only pending reps outside a carry chain can be deleted", 409)
+        raise GoalDataError(N_("Goal rep not found"), 404)
+    raise GoalDataError(N_("Only pending reps outside a carry chain can be deleted"), 409)
 
 
 async def transition_rep(
@@ -666,7 +675,7 @@ async def transition_rep(
 ) -> tuple[dict, dict | None]:
     rows = await db.execute_fetchall("SELECT * FROM goal_reps WHERE id = ?", (rep_id,))
     if not rows:
-        raise GoalDataError("Goal rep not found", 404)
+        raise GoalDataError(N_("Goal rep not found"), 404)
     rep = dict(rows[0])
     if rep["status"] != "pending":
         if rep["status"] == "completed" and action == "complete":
@@ -680,10 +689,10 @@ async def transition_rep(
                 requested_period = period or rep["period"]
                 if due_date == child["due_date"] and requested_period == child["period"]:
                     return rep, child
-        raise GoalDataError("Only pending reps can transition", 409)
+        raise GoalDataError(N_("Only pending reps can transition"), 409)
     goal = await db.execute_fetchall("SELECT status FROM goals WHERE id = ?", (rep["goal_id"],))
     if not goal or goal[0]["status"] not in ("active", "paused"):
-        raise GoalDataError("Reps on a closed goal cannot transition", 409)
+        raise GoalDataError(N_("Reps on a closed goal cannot transition"), 409)
     if action == "complete":
         cursor = await db.execute(
             "UPDATE goal_reps SET status = 'completed', completed_at = datetime('now'), updated_at = datetime('now') "
@@ -691,7 +700,7 @@ async def transition_rep(
             (rep_id,),
         )
         if cursor.rowcount != 1:
-            raise GoalDataError("Rep changed concurrently. Retry the transition.", 409)
+            raise GoalDataError(N_("Rep changed concurrently. Retry the transition."), 409)
         carried = None
     elif action == "skip":
         cursor = await db.execute(
@@ -700,18 +709,18 @@ async def transition_rep(
             (rep_id,),
         )
         if cursor.rowcount != 1:
-            raise GoalDataError("Rep changed concurrently. Retry the transition.", 409)
+            raise GoalDataError(N_("Rep changed concurrently. Retry the transition."), 409)
         carried = None
     elif action == "carry":
         if not due_date:
-            raise GoalDataError("due_date is required when carrying a rep")
+            raise GoalDataError(N_("due_date is required when carrying a rep"))
         cursor = await db.execute(
             "UPDATE goal_reps SET status = 'carried', completed_at = NULL, updated_at = datetime('now') "
             "WHERE id = ? AND status = 'pending'",
             (rep_id,),
         )
         if cursor.rowcount != 1:
-            raise GoalDataError("Rep changed concurrently. Retry the transition.", 409)
+            raise GoalDataError(N_("Rep changed concurrently. Retry the transition."), 409)
         carried, _ = await create_rep(
             db,
             goal_id=rep["goal_id"],
@@ -722,6 +731,6 @@ async def transition_rep(
             carried_from_id=rep_id,
         )
     else:
-        raise GoalDataError("action must be complete, carry, or skip")
+        raise GoalDataError(N_("action must be complete, carry, or skip"))
     updated = await db.execute_fetchall("SELECT * FROM goal_reps WHERE id = ?", (rep_id,))
     return dict(updated[0]), carried

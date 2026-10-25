@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virgil - Offline</title>
+    <title>Virgil - Offline / Brak połączenia</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
     <link rel="manifest" href="/static/manifest.json">
@@ -15,10 +15,14 @@
     <main class="container" style="padding-top:4rem;text-align:center;">
         <div class="card" style="max-width:400px;margin:3rem auto;padding:3rem 2rem;">
             <img src="/static/icons/logo.png" alt="" width="56" height="56" style="margin-bottom:1rem;opacity:0.6;">
+            {# The service worker caches this one page for every visitor, so it
+               carries both languages instead of going through the catalog. #}
             <h2 style="margin-bottom:0.5rem;">Can't reach your Virgil server</h2>
-            <p class="text-muted" style="margin-bottom:1.5rem;">This page needs the server, which may be on your home network or behind your tunnel. Check that this device can reach it, then try again.</p>
+            <p class="text-muted" style="margin-bottom:1rem;">This page needs the server, which may be on your home network or behind your tunnel. Check that this device can reach it, then try again.</p>
+            <h2 lang="pl" style="margin-bottom:0.5rem;">Brak połączenia z serwerem Virgil</h2>
+            <p lang="pl" class="text-muted" style="margin-bottom:1.5rem;">Ta strona potrzebuje serwera, który może być w Twojej sieci domowej albo za tunelem. Sprawdź, czy to urządzenie ma do niego dostęp, i spróbuj ponownie.</p>
             {# The address this page stands in for: following it tries again. #}
-            <a href="" class="btn btn-primary">Retry</a>
+            <a href="" class="btn btn-primary">Retry <span lang="pl">/ Ponów</span></a>
         </div>
     </main>
 </body>

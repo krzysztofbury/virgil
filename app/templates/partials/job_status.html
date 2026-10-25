@@ -21,24 +21,24 @@
         </div>
         <div class="job-status-heading-end">
             <span class="job-status-badge job-status-badge-{{ job.display_status | replace('_', '-') }}">{{ job.status_label }}</span>
-            <button type="button" class="job-status-dismiss" data-job-dismiss aria-label="Dismiss this notification">&times;</button>
+            <button type="button" class="job-status-dismiss" data-job-dismiss aria-label="{{ _("Dismiss this notification") }}">&times;</button>
         </div>
     </div>
 
     <div class="job-status-meta">
-        <span>Attempts made: {{ job.attempts }}</span>
-        <span>Attempt limit: {{ job.max_attempts }}</span>
-        <span>Created: {{ job.created_at }} UTC</span>
+        <span>{% trans count=job.attempts %}Attempts made: {{ count }}{% endtrans %}</span>
+        <span>{% trans count=job.max_attempts %}Attempt limit: {{ count }}{% endtrans %}</span>
+        <span>{% trans when=job.created_at %}Created: {{ when }} UTC{% endtrans %}</span>
     </div>
 
     {% if job.last_error %}
-    <p class="job-status-error"><strong>Last error:</strong> {{ job.last_error }}</p>
+    <p class="job-status-error"><strong>{{ _("Last error:") }}</strong> {{ job.last_error }}</p>
     {% endif %}
 
     {% if job.ambiguous %}
     <div class="job-status-warning">
-        <strong>Check before retrying.</strong>
-        The external service may already have completed this work. Verify it there first to avoid a duplicate action or charge.
+        <strong>{{ _("Check before retrying.") }}</strong>
+        {{ _("The external service may already have completed this work. Verify it there first to avoid a duplicate action or charge.") }}
     </div>
     {% endif %}
 
@@ -53,8 +53,8 @@
           {% if job.ambiguous %}onsubmit="return confirm('Retry only after checking the external service. Continue?')"{% endif %}>
         <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         {% if job.ambiguous %}<input type="hidden" name="confirm_ambiguous" value="yes">{% endif %}
-        <button type="submit" class="btn btn-outline btn-sm" data-pending-label="Queueing...">
-            {{ 'Retry anyway' if job.ambiguous else 'Retry' }}
+        <button type="submit" class="btn btn-outline btn-sm" data-pending-label="{{ _("Queueing...") }}">
+            {{ _('Retry anyway') if job.ambiguous else _('Retry') }}
         </button>
     </form>
     {% endif %}

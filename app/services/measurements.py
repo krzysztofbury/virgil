@@ -4,6 +4,8 @@ One row per date. A write merges: fields absent from `changes` keep their
 stored value, and an explicit None clears one.
 """
 
+from app.i18n import N_, LocalizedError
+
 FIELDS = ("weight", "arm", "waist", "hips", "thighs")
 BOUNDS = {
     "weight": (20.0, 400.0),
@@ -14,20 +16,28 @@ BOUNDS = {
 }
 
 
-class MeasurementError(ValueError):
-    pass
+class MeasurementError(LocalizedError):
+    labels = {
+        "weight": N_("Weight"),
+        "arm": N_("Arm"),
+        "waist": N_("Waist"),
+        "hips": N_("Hips"),
+        "thighs": N_("Thighs"),
+    }
 
 
 def _validate(changes: dict) -> dict:
     unknown = set(changes) - set(FIELDS)
     if unknown:
-        raise MeasurementError(f"Unknown measurement fields: {', '.join(sorted(unknown))}")
+        raise MeasurementError(N_("Unknown measurement fields: {fields}"), fields=", ".join(sorted(unknown)))
     clean = {}
     for field, value in changes.items():
         if value is not None:
             low, high = BOUNDS[field]
             if isinstance(value, bool) or not isinstance(value, int | float) or not low <= value <= high:
-                raise MeasurementError(f"{field} must be between {low:g} and {high:g}")
+                raise MeasurementError(
+                    N_("{field} must be between {low} and {high}"), field=field, low=f"{low:g}", high=f"{high:g}"
+                )
             value = float(value)
         clean[field] = value
     return clean

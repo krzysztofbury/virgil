@@ -12,6 +12,8 @@ stays a clean day with the detail in the note.
 
 from datetime import date as calendar_date
 
+from app.i18n import N_, LocalizedError, LocalizedLookupError
+
 AMOUNT_MAX = 1440
 NOTE_MAX = 500
 HOOK_MAX = 200
@@ -19,7 +21,7 @@ STORY_MAX = 2000
 DAILY_MARKER = "via daily log"
 
 
-class FreedomWriteError(ValueError):
+class FreedomWriteError(LocalizedError):
     pass
 
 
@@ -45,7 +47,7 @@ async def save_day(db, habit: dict, day: str, *, slipped: bool, amount: int | No
     """Upsert one habit's outcome for one day."""
     entry_date = past_or_today(day)
     if entry_date is None:
-        raise FreedomWriteError("Choose a date of today or earlier.")
+        raise FreedomWriteError(N_("Choose a date of today or earlier."))
     unit, threshold = habit["amount_unit"], habit["slip_threshold"]
     if not unit:
         amount = None
@@ -53,7 +55,9 @@ async def save_day(db, habit: dict, day: str, *, slipped: bool, amount: int | No
         amount = max(0, min(AMOUNT_MAX, amount))
     if slipped and unit and threshold and (amount is None or amount < threshold):
         raise FreedomWriteError(
-            f"A slip means at least {threshold} {unit}. Record less as a clean day and add it to the note."
+            N_("A slip means at least {threshold} {unit}. Record less as a clean day and add it to the note."),
+            threshold=threshold,
+            unit=unit,
         )
     if not slipped:
         amount = None
@@ -111,7 +115,7 @@ async def delete_day(db, habit: dict, day: str) -> None:
     try:
         cursor = await db.execute("DELETE FROM feniks_daily WHERE habit_id = ? AND date = ?", (habit["id"], day))
         if cursor.rowcount == 0:
-            raise LookupError("No day entry for that date.")
+            raise LocalizedLookupError(N_("No day entry for that date."))
         await db.execute(
             "DELETE FROM pmo_events WHERE habit_id = ? AND date = ? AND event_type = 'relapse' AND notes = ?",
             (habit["id"], day, DAILY_MARKER),
@@ -146,10 +150,10 @@ async def _own_event(db, habit: dict, event_id: int) -> dict:
         "SELECT id, date, event_type, notes FROM pmo_events WHERE id = ? AND habit_id = ?", (event_id, habit["id"])
     )
     if not rows:
-        raise LookupError("That record no longer exists.")
+        raise LocalizedLookupError(N_("That record no longer exists."))
     event = dict(rows[0])
     if event["notes"] == DAILY_MARKER:
-        raise FreedomWriteError("This record follows its slipped day: correct or delete the day instead.")
+        raise FreedomWriteError(N_("This record follows its slipped day: correct or delete the day instead."))
     return event
 
 
@@ -184,12 +188,12 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
     """Correct a relapse or reset record that no day log owns (an older or imported one)."""
     event_date = past_or_today(day)
     if event_date is None:
-        raise FreedomWriteError("Choose a date of today or earlier.")
+        raise FreedomWriteError(N_("Choose a date of today or earlier."))
     if event_type not in EVENT_TYPES:
-        raise FreedomWriteError("Choose relapse or reset.")
+        raise FreedomWriteError(N_("Choose relapse or reset."))
     notes = (notes or "").strip()[:NOTE_MAX]
     if notes == DAILY_MARKER:
-        raise FreedomWriteError("That note is reserved for records a day log writes.")
+        raise FreedomWriteError(N_("That note is reserved for records a day log writes."))
     _require_idle(db)
     await db.execute("BEGIN IMMEDIATE")
     try:
@@ -198,9 +202,11 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
             "SELECT 1 FROM pmo_events WHERE habit_id = ? AND date = ? AND event_type = 'relapse' AND id != ?",
             (habit["id"], event_date, event_id),
         ):
-            raise FreedomWriteError(f"There is already a relapse on {event_date}.")
+            raise FreedomWriteError(N_("There is already a relapse on {event_date}."), event_date=event_date)
         if event_type == "relapse" and await _logged_as(db, habit, event_date, slipped=False):
-            raise FreedomWriteError(f"{event_date} is logged as clean. Log that day as slipped instead.")
+            raise FreedomWriteError(
+                N_("{event_date} is logged as clean. Log that day as slipped instead."), event_date=event_date
+            )
         await db.execute(
             "UPDATE pmo_events SET date = ?, event_type = ?, notes = ? WHERE id = ?",
             (event_date, event_type, notes, event_id),
@@ -233,10 +239,10 @@ async def add_brick(db, habit: dict, day: str, *, hook: str, craving: int | None
     """A brick is one urge survived. The hook is what makes it retrievable, so it is required."""
     hook = (hook or "").strip()
     if not hook:
-        raise FreedomWriteError("Name the brick before saving it.")
+        raise FreedomWriteError(N_("Name the brick before saving it."))
     entry_date = past_or_today(day)
     if entry_date is None:
-        raise FreedomWriteError("Give the brick a date of today or earlier.")
+        raise FreedomWriteError(N_("Give the brick a date of today or earlier."))
     if craving is not None:
         craving = max(0, min(10, craving))
     hook = hook[:HOOK_MAX]
@@ -280,17 +286,17 @@ async def _edited_brick(db, brick_id: int, changes: dict) -> dict:
         (brick_id,),
     )
     if not rows:
-        raise LookupError("Brick was not found.")
+        raise LocalizedLookupError(N_("Brick was not found."))
     brick = dict(rows[0])
     if "date" in changes:
         entry_date = past_or_today(changes["date"])
         if entry_date is None:
-            raise FreedomWriteError("Give the brick a date of today or earlier.")
+            raise FreedomWriteError(N_("Give the brick a date of today or earlier."))
         brick["date"] = entry_date
     if "hook" in changes:
         hook = (changes["hook"] or "").strip()
         if not hook:
-            raise FreedomWriteError("Name the brick before saving it.")
+            raise FreedomWriteError(N_("Name the brick before saving it."))
         brick["hook"] = hook[:HOOK_MAX]
     if "craving" in changes:
         craving = changes["craving"]
@@ -307,7 +313,7 @@ async def delete_brick(db, brick_id: int) -> dict:
         (brick_id,),
     )
     if not rows:
-        raise LookupError("Brick was not found.")
+        raise LocalizedLookupError(N_("Brick was not found."))
     await db.execute("DELETE FROM feniks_bricks WHERE id = ?", (brick_id,))
     await db.commit()
     return dict(rows[0])

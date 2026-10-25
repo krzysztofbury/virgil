@@ -34,6 +34,16 @@ isolated databases, synthetic credentials, and bundled LiteLLM capability
 metadata. Date-window fixtures must control the clock. Use the same locked
 Ruff and Bandit through pre-commit; avoid separate global tool installations.
 
+## English and Polish
+
+Every user-facing string in the web app has a Polish translation (#152). Mark
+text with `{{ _("...") }}` or `{% trans %}` in templates, `_()` (or `N_()` for a
+module-level constant, translated with `_()` where it is shown) in Python, and
+`gettext("...")` in our scripts. Then run
+`uv run --locked --extra dev python scripts/i18n.py update` and fill in the new
+entries in `app/locale/pl/LC_MESSAGES/messages.po`. The tests fail on an
+untranslated or stale catalog. The REST API, MCP, logs and exports stay English.
+
 For container or startup changes, also qualify the actual image:
 
 ```bash

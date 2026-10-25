@@ -1,13 +1,13 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Daily Log{% endblock %}
+{% block title %}{{ _("Virgil - Daily Log") }}{% endblock %}
 
 {% block content %}
 <div data-swipe-left="/daily/{{ next_day }}" data-swipe-right="/daily/{{ prev_day }}">
 <!-- Date Navigator -->
 <div class="date-nav">
-    <a href="/daily/{{ prev_day }}" class="btn btn-icon" aria-label="Previous day"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
+    <a href="/daily/{{ prev_day }}" class="btn btn-icon" aria-label="{{ _("Previous day") }}"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
     <h2>{{ day_name }} {{ date }}</h2>
-    <a href="/daily/{{ next_day }}" class="btn btn-icon" aria-label="Next day"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></a>
+    <a href="/daily/{{ next_day }}" class="btn btn-icon" aria-label="{{ _("Next day") }}"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></a>
 </div>
 
 <form id="daily-form"
@@ -22,9 +22,9 @@
     <!-- Routines & Energy -->
     <div class="card" style="margin-bottom: 1rem;">
         <div class="card-header">
-            <h3>Routines &amp; Energy</h3>
+            <h3>{{ _("Routines & Energy") }}</h3>
             {# Stated, not counted off the icons. #}
-            <small class="text-muted"><span id="done-count">{{ done_count }}/{{ done_total }}</span> complete today</small>
+            <small class="text-muted"><span id="done-count">{{ done_count }}/{{ done_total }}</span> {{ _("complete today") }}</small>
         </div>
 
         {# The slider needs a position, but an untouched day has no rating.
@@ -35,12 +35,12 @@
         <div style="display: flex; align-items: center; gap: 1rem; margin-bottom: 0.5rem;">
             <span class="energy-display" id="energy-val">{% if energy_rated %}{{ energy_rated }}{% else %}—{% endif %}</span>
             <input type="hidden" name="energy" id="energy-field" value="{% if energy_rated %}{{ energy_rated }}{% endif %}">
-            <input type="range" id="energy-slider" min="1" max="10" value="{{ slider_val }}" aria-label="Energy, 1 to 10"
+            <input type="range" id="energy-slider" min="1" max="10" value="{{ slider_val }}" aria-label="{{ _("Energy, 1 to 10") }}"
                    style="flex: 1; --pct: {{ ((slider_val - 1) / 9 * 100) | round }}%;">
             <span class="text-muted">/10</span>
         </div>
         {# A bare 1-10 scale says nothing about what 4 means. #}
-        <div class="energy-anchors"><span>Low</span><span>OK</span><span>High</span></div>
+        <div class="energy-anchors"><span>{{ _("Low") }}</span><span>OK</span><span>{{ _("High") }}</span></div>
 
         {% macro toggle(name, label, value) %}
         <div class="andy-item">
@@ -59,14 +59,14 @@
                     {% elif value == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                     {% endif %}
                 </button>
-                <span class="toggle-state" id="{{ name }}-state">{{ 'Done' if value == 'done' else 'Skipped' if value == 'skipped' else 'Pending' }}</span>
+                <span class="toggle-state" id="{{ name }}-state">{{ _('Done') if value == 'done' else _('Skipped') if value == 'skipped' else _('Pending') }}</span>
             </div>
         </div>
         {% endmacro %}
 
-        {{ toggle('morning_routine', 'Morning Routine', log.morning_routine if log else 'pending') }}
-        {{ toggle('evening_routine', 'Evening Routine', log.evening_routine if log else 'pending') }}
-        {{ toggle('water', 'Water Intake (>2500ml)', log.water if log else 'pending') }}
+        {{ toggle('morning_routine', _('Morning Routine'), log.morning_routine if log else 'pending') }}
+        {{ toggle('evening_routine', _('Evening Routine'), log.evening_routine if log else 'pending') }}
+        {{ toggle('water', _('Water Intake (>2500ml)'), log.water if log else 'pending') }}
     </div>
 
     <!-- A.N.D.Y. -->
@@ -83,8 +83,8 @@
             <button type="submit" form="andy-generate-form"
                     class="btn btn-sm btn-outline andy-gen-btn"
                     id="andy-gen-btn"
-                    data-pending-label="Queueing..."
-                    title="Generate with AI">
+                    data-pending-label="{{ _("Queueing...") }}"
+                    title="{{ _("Generate with AI") }}">
                 <span class="andy-btn-idle"><i data-lucide="sparkles" style="width:14px;height:14px;"></i> AI</span>
             </button>
             {% endif %}
@@ -107,45 +107,45 @@
                         {% elif status == 'skipped' %}<i data-lucide="minus" style="width:16px;height:16px;"></i>
                         {% endif %}
                     </button>
-                    <span class="toggle-state" id="{{ name }}-state">{{ 'Done' if status == 'done' else 'Skipped' if status == 'skipped' else 'Pending' }}</span>
+                    <span class="toggle-state" id="{{ name }}-state">{{ _('Done') if status == 'done' else _('Skipped') if status == 'skipped' else _('Pending') }}</span>
                 </div>
             </div>
             {% if status == 'done' and desc %}
             {# Done work is a record, not a field to look past. The input stays in
                the form inside the closed disclosure, so it still submits. #}
             <p class="andy-desc-done">{{ desc }}</p>
-            <details><summary>Edit</summary>
-                <input type="text" name="{{ name }}_desc" value="{{ desc }}" class="andy-desc" aria-label="{{ label }} task">
+            <details><summary>{{ _("Edit") }}</summary>
+                <input type="text" name="{{ name }}_desc" value="{{ desc }}" class="andy-desc" aria-label="{% trans %}{{ label }} task{% endtrans %}">
             </details>
             {% else %}
-            <input type="text" name="{{ name }}_desc" value="{{ desc or '' }}" placeholder="What will you do?"
-                   class="andy-desc" aria-label="{{ label }} task">
+            <input type="text" name="{{ name }}_desc" value="{{ desc or '' }}" placeholder="{{ _("What will you do?") }}"
+                   class="andy-desc" aria-label="{% trans %}{{ label }} task{% endtrans %}">
             {% endif %}
         </div>
         {% endmacro %}
 
         <div class="andy-grid">
-            {{ andy_row('andy_body', 'Body', log.andy_body_status if log else 'pending', log.andy_body_desc if log else '') }}
-            {{ andy_row('andy_spirit', 'Spirit', log.andy_spirit_status if log else 'pending', log.andy_spirit_desc if log else '') }}
-            {{ andy_row('andy_account', 'Self', log.andy_account_status if log else 'pending', log.andy_account_desc if log else '') }}
-            {{ andy_row('andy_relations', 'Relations', log.andy_relations_status if log else 'pending', log.andy_relations_desc if log else '') }}
+            {{ andy_row('andy_body', _('Body'), log.andy_body_status if log else 'pending', log.andy_body_desc if log else '') }}
+            {{ andy_row('andy_spirit', _('Spirit'), log.andy_spirit_status if log else 'pending', log.andy_spirit_desc if log else '') }}
+            {{ andy_row('andy_account', _('Self'), log.andy_account_status if log else 'pending', log.andy_account_desc if log else '') }}
+            {{ andy_row('andy_relations', _('Relations'), log.andy_relations_status if log else 'pending', log.andy_relations_desc if log else '') }}
         </div>
     </div>
 
     <!-- Notes -->
     <div class="card" x-data="{ editing: false }">
         <div class="card-header">
-            <h3>Notes</h3>
-            <button type="button" class="btn btn-sm btn-outline" @click="editing = !editing" x-text="editing ? 'Save' : 'Edit'"></button>
+            <h3>{{ _("Notes") }}</h3>
+            <button type="button" class="btn btn-sm btn-outline" @click="editing = !editing" x-text='editing ? {{ _("Save")|tojson }} : {{ _("Edit")|tojson }}'></button>
         </div>
         <div x-show="editing">
-            <textarea name="notes" rows="3" placeholder="Notes for the day...">{{ log.notes if log else '' }}</textarea>
+            <textarea name="notes" rows="3" placeholder="{{ _("Notes for the day...") }}">{{ log.notes if log else '' }}</textarea>
         </div>
         <div x-show="!editing" class="md-preview">
             {% if log and log.notes %}
             {{ log.notes | md_block }}
             {% else %}
-            <p class="text-muted">No notes yet.</p>
+            <p class="text-muted">{{ _("No notes yet.") }}</p>
             {% endif %}
         </div>
     </div>
@@ -162,11 +162,11 @@
 <!-- Your trends: reference, not today's work. Safe to collapse - streaks and
      the heatmaps are divs and a table, no canvas. -->
 <details class="card" id="daily-trends" style="margin-bottom:1rem;">
-    <summary>Your trends</summary>
+    <summary>{{ _("Your trends") }}</summary>
 <!-- Habit Streaks -->
 {% if habit_streaks %}
 <div>
-    <div class="card-header"><h3>Habit Streaks</h3></div>
+    <div class="card-header"><h3>{{ _("Habit Streaks") }}</h3></div>
     <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
         {% for field, info in habit_streaks.items() %}
         <div class="stat-card" style="flex:1;min-width:80px;text-align:center;">
@@ -181,7 +181,7 @@
 <!-- Habit Completion Heatmap (7 days) -->
 {% if heatmap_data %}
 <div>
-    <div class="card-header"><h3>Completion Heatmap</h3></div>
+    <div class="card-header"><h3>{{ _("Completion Heatmap") }}</h3></div>
     <div class="heatmap-grid heatmap-grid--week">
         {% for d in heatmap_data %}
         <div class="heatmap-cell heatmap-cell--week" title="{{ d.date }}: {{ d.pct }}%"
@@ -197,16 +197,16 @@
    summary; the text equivalent is the table itself, with each day's count in
    its cell for a screen reader and each week's average visible below. #}
 {% if heatmap_weeks %}
-{% set weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] %}
+{% set weekdays = [_("Monday"), _("Tuesday"), _("Wednesday"), _("Thursday"), _("Friday"), _("Saturday"), _("Sunday")] %}
 <div class="heatmap-weeks-wrap">
-    <div class="card-header"><h3>Last 12 Weeks</h3></div>
+    <div class="card-header"><h3>{{ _("Last 12 Weeks") }}</h3></div>
     <table class="heatmap-weeks">
-        <caption class="sr-only">Habits done per day out of {{ habit_total }}, in the 12 weeks up to {{ date }}</caption>
+        <caption class="sr-only">{% trans %}Habits done per day out of {{ habit_total }}, in the 12 weeks up to {{ date }}{% endtrans %}</caption>
         <thead>
             <tr>
                 <td></td>
                 {% for week in heatmap_weeks %}
-                <th scope="col"><span aria-hidden="true">{{ week.month }}</span><span class="sr-only">Week of {{ week.start }}</span></th>
+                <th scope="col"><span aria-hidden="true">{{ week.month }}</span><span class="sr-only">{% trans start=week.start %}Week of {{ start }}{% endtrans %}</span></th>
                 {% endfor %}
             </tr>
         </thead>
@@ -218,12 +218,12 @@
                 {% for week in heatmap_weeks %}
                 {% set day = week.days[row] %}
                 {% if day.future %}
-                <td class="heatmap-day heatmap-day--future"><span class="sr-only">After this day</span></td>
+                <td class="heatmap-day heatmap-day--future"><span class="sr-only">{{ _("After this day") }}</span></td>
                 {% elif day.done is none %}
-                <td class="heatmap-day" data-calendar-tip="{{ day.date }}: not logged"><span class="sr-only">Not logged</span></td>
+                <td class="heatmap-day" data-calendar-tip="{{ day.date }}: not logged"><span class="sr-only">{{ _("Not logged") }}</span></td>
                 {% else %}
-                <td class="heatmap-day" data-calendar-tip="{{ day.date }}: {{ day.done }} of {{ habit_total }} done"
-                    style="{% if day.done %}background: hsl({{ (day.done / habit_total * 120) | round }}, 65%, 35%);{% endif %}"><span class="sr-only">{{ day.done }} of {{ habit_total }}</span></td>
+                <td class="heatmap-day" data-calendar-tip="{% trans date=day.date, done=day.done %}{{ date }}: {{ done }} of {{ habit_total }} done{% endtrans %}"
+                    style="{% if day.done %}background: hsl({{ (day.done / habit_total * 120) | round }}, 65%, 35%);{% endif %}"><span class="sr-only">{% trans done=day.done %}{{ done }} of {{ habit_total }}{% endtrans %}</span></td>
                 {% endif %}
                 {% endfor %}
             </tr>
@@ -231,7 +231,7 @@
         </tbody>
         <tfoot>
             <tr>
-                <th scope="row"><span aria-hidden="true">%</span><span class="sr-only">Week average, percent</span></th>
+                <th scope="row"><span aria-hidden="true">%</span><span class="sr-only">{{ _("Week average, percent") }}</span></th>
                 {% for week in heatmap_weeks %}
                 <td>{{ week.average }}</td>
                 {% endfor %}
@@ -250,32 +250,32 @@
       hx-sync="this:replace">
     <input type="hidden" name="date" value="{{ date }}">
     <div class="card" style="margin-top: 1rem;">
-        <div class="card-header"><h3>Measurements (Saturday)</h3></div>
+        <div class="card-header"><h3>{{ _("Measurements (Saturday)") }}</h3></div>
         <div class="grid">
             <div>
-                <label>Weight (kg)
+                <label>{{ _("Weight (kg)") }}
                     <input type="number" step="0.1" name="weight" value="{{ measurements.weight if measurements and measurements.weight else '' }}" placeholder="kg">
                 </label>
             </div>
             <div>
-                <label>Arm (cm)
+                <label>{{ _("Arm (cm)") }}
                     <input type="number" step="0.1" name="arm" value="{{ measurements.arm if measurements and measurements.arm else '' }}" placeholder="cm">
                 </label>
             </div>
         </div>
         <div class="grid" style="margin-top: 0.75rem;">
             <div>
-                <label>Waist (cm)
+                <label>{{ _("Waist (cm)") }}
                     <input type="number" step="0.1" name="waist" value="{{ measurements.waist if measurements and measurements.waist else '' }}" placeholder="cm">
                 </label>
             </div>
             <div>
-                <label>Hips (cm)
+                <label>{{ _("Hips (cm)") }}
                     <input type="number" step="0.1" name="hips" value="{{ measurements.hips if measurements and measurements.hips else '' }}" placeholder="cm">
                 </label>
             </div>
             <div>
-                <label>Thighs (cm)
+                <label>{{ _("Thighs (cm)") }}
                     <input type="number" step="0.1" name="thighs" value="{{ measurements.thighs if measurements and measurements.thighs else '' }}" placeholder="cm">
                 </label>
             </div>

@@ -13,6 +13,7 @@ from fastapi.responses import JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
+from app import i18n
 from app.auth import AuthMiddleware
 from app.csrf import CSRFMiddleware
 from app.formatting import format_duration_seconds, format_ref_range, format_thousands
@@ -296,8 +297,11 @@ class CentralMigrationGuardMiddleware:
 app = FastAPI(title="Virgil", lifespan=lifespan)
 # The last one added runs first. Outermost to innermost: security headers wrap
 # every response (403, 429, 503 and login redirects included); the rate limit
-# and auth both run before CSRF, the only layer that reads a request body.
+# and auth both run before CSRF, the only layer that reads a request body. The
+# language is resolved between auth (it needs the user) and CSRF (its errors are
+# shown to people).
 app.add_middleware(CSRFMiddleware)
+app.add_middleware(i18n.LanguageMiddleware)
 app.add_middleware(AuthMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(CentralMigrationGuardMiddleware, state=app.state)
@@ -314,6 +318,11 @@ templates.env.filters["md_block"] = _md_block
 templates.env.filters["duration"] = format_duration_seconds
 templates.env.filters["thousands"] = format_thousands
 templates.env.globals["ref_range"] = format_ref_range
+templates.env.add_extension("jinja2.ext.i18n")
+templates.env.install_gettext_callables(i18n._, i18n.ngettext, newstyle=True)
+templates.env.globals["current_language"] = i18n.current_language
+templates.env.globals["js_catalog"] = i18n.js_catalog
+templates.env.filters["label"] = i18n.enum_label
 
 
 @app.get("/healthz")

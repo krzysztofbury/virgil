@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Goals{% endblock %}
+{% block title %}{{ _("Virgil - Goals") }}{% endblock %}
 
 {% macro goal_item(g, horizon, show_details=true) %}
 <article class="goal-item{{ ' goal-item-focused' if g.active else '' }}">
@@ -9,8 +9,8 @@
             <input type="hidden" name="goal_id" value="{{ g.id }}">
             <input type="hidden" name="horizon" value="{{ horizon }}">
             <button type="submit" class="goal-focus-btn{{ ' is-active' if g.active else '' }}"
-                    title="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
-                    aria-label="{{ 'Remove from current focus' if g.active else 'Add to current focus' }}"
+                    title="{{ _('Remove from current focus') if g.active else _('Add to current focus') }}"
+                    aria-label="{{ _('Remove from current focus') if g.active else _('Add to current focus') }}"
                     aria-pressed="{{ 'true' if g.active else 'false' }}"
                     {{ 'disabled' if g.status != 'active' else '' }}>
                 <i data-lucide="star"></i>
@@ -26,61 +26,61 @@
                hx-indicator="closest .goal-item"
                name="content"
                data-no-newline
-               aria-label="Goal">{{ g.content|strip_md }}</textarea>
+               aria-label="{{ _("Goal") }}">{{ g.content|strip_md }}</textarea>
         <form method="POST" action="/goals/delete" class="goal-icon-form"
-              data-confirm="Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead.">
+              data-confirm="{% trans count=trash_days %}Delete this goal? You can restore it under Recently deleted for {{ count }} day. Goals with execution history must be marked abandoned instead.{% pluralize %}Delete this goal? You can restore it under Recently deleted for {{ count }} days. Goals with execution history must be marked abandoned instead.{% endtrans %}">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="goal_id" value="{{ g.id }}">
             <input type="hidden" name="horizon" value="{{ horizon }}">
-            <button type="submit" class="goal-delete-btn" title="Delete goal" aria-label="Delete goal">
+            <button type="submit" class="goal-delete-btn" title="{{ _("Delete goal") }}" aria-label="{{ _("Delete goal") }}">
                 <i data-lucide="trash-2"></i>
             </button>
         </form>
     </div>
     <div class="goal-meta">
-        <span class="goal-status goal-status-{{ g.status }}">{{ g.status|capitalize }}</span>
+        <span class="goal-status goal-status-{{ g.status }}">{{ g.status|label }}</span>
         {% if g.start_date or g.end_date %}
-        <span class="goal-date"><i data-lucide="calendar-range"></i>{{ g.start_date or 'Open' }} to {{ g.end_date or 'Open' }}</span>
+        <span class="goal-date"><i data-lucide="calendar-range"></i>{% trans start=g.start_date or _('Open'), end=g.end_date or _('Open') %}{{ start }} to {{ end }}{% endtrans %}</span>
         {% endif %}
     </div>
     {% if show_details %}
     <details class="goal-details">
-        <summary>Details and execution</summary>
+        <summary>{{ _("Details and execution") }}</summary>
         <div class="goal-details-panel">
             <form method="POST" action="/goals/details" class="goal-detail-form">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                 <input type="hidden" name="goal_id" value="{{ g.id }}">
                 <input type="hidden" name="horizon" value="{{ g.horizon }}">
                 <div class="goal-form-grid goal-form-grid-details">
-                    <label class="goal-field">Status
+                    <label class="goal-field">{{ _("Status") }}
                         <select name="status">
-                            {% for value in goal_statuses %}<option value="{{ value }}" {{ 'selected' if g.status == value else '' }}>{{ value|capitalize }}</option>{% endfor %}
+                            {% for value in goal_statuses %}<option value="{{ value }}" {{ 'selected' if g.status == value else '' }}>{{ value|label }}</option>{% endfor %}
                         </select>
                     </label>
-                    <label class="goal-field">Starts
+                    <label class="goal-field">{{ _("Starts") }}
                         <input type="date" name="start_date" value="{{ g.start_date or '' }}">
                     </label>
-                    <label class="goal-field">Ends
+                    <label class="goal-field">{{ _("Ends") }}
                         <input type="date" name="end_date" value="{{ g.end_date or '' }}">
                     </label>
                 </div>
-                <button type="submit" class="btn btn-secondary btn-sm">Save details</button>
+                <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save details") }}</button>
             </form>
             {% if g.status in ('active', 'paused') %}
             <form method="POST" action="/goals/reps/save" class="goal-rep-form">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                 <input type="hidden" name="goal_id" value="{{ g.id }}">
-                <label class="goal-field">New execution rep
-                    <input type="text" name="content" maxlength="2000" placeholder="What is the next concrete action?" required>
+                <label class="goal-field">{{ _("New execution rep") }}
+                    <input type="text" name="content" maxlength="2000" placeholder="{{ _("What is the next concrete action?") }}" required>
                 </label>
                 <div class="goal-form-grid goal-form-grid-rep">
-                    <label class="goal-field">Period
-                        <select name="period">{% for value in rep_periods %}<option value="{{ value }}" {{ 'selected' if value == 'month' else '' }}>{{ value|capitalize }}</option>{% endfor %}</select>
+                    <label class="goal-field">{{ _("Period") }}
+                        <select name="period">{% for value in rep_periods %}<option value="{{ value }}" {{ 'selected' if value == 'month' else '' }}>{{ value|label }}</option>{% endfor %}</select>
                     </label>
-                    <label class="goal-field">Due
+                    <label class="goal-field">{{ _("Due") }}
                         <input type="date" name="due_date" required>
                     </label>
-                    <button type="submit" class="btn btn-primary btn-sm">Add rep</button>
+                    <button type="submit" class="btn btn-primary btn-sm">{{ _("Add rep") }}</button>
                 </div>
             </form>
             {% endif %}
@@ -88,17 +88,17 @@
             {% set changes = goal_changes.get(g.id, []) %}
             {% if changes %}
             <div class="goal-changes">
-                <p class="goal-changes-title">Changes</p>
+                <p class="goal-changes-title">{{ _("Changes") }}</p>
                 <ol>
                     {% for c in changes %}
                     <li><time>{{ c.when }}</time>
-                        {%- if c.event == 'created' %} Created
-                        {%- elif c.event == 'focused' %} Added to focus
-                        {%- elif c.event == 'unfocused' %} Removed from focus
-                        {%- elif c.event == 'deleted' %} Deleted
-                        {%- elif c.event == 'restored' %} Restored
-                        {%- else %} Changed {{ c.fields }}
-                            {%- if c.status_from and c.status_to %} ({{ c.status_from }} to {{ c.status_to }}){% endif %}
+                        {%- if c.event == 'created' %} {{ _("Created") }}
+                        {%- elif c.event == 'focused' %} {{ _("Added to focus") }}
+                        {%- elif c.event == 'unfocused' %} {{ _("Removed from focus") }}
+                        {%- elif c.event == 'deleted' %} {{ _("Deleted") }}
+                        {%- elif c.event == 'restored' %} {{ _("Restored") }}
+                        {%- else %} {% trans fields=c.fields %}Changed {{ fields }}{% endtrans %}
+                            {%- if c.status_from and c.status_to %} ({% trans start=c.status_from, end=c.status_to %}{{ start }} to {{ end }}{% endtrans %}){% endif %}
                         {%- endif %}</li>
                     {% endfor %}
                 </ol>
@@ -107,11 +107,11 @@
             {# On a phone the row's trash icon sat next to the star, one slip
                from deleting; there it lives here instead. #}
             <form method="POST" action="/goals/delete" class="goal-delete-detail on-mobile"
-                  data-confirm="Delete this goal? You can restore it under Recently deleted for {{ trash_days }} days. Goals with execution history must be marked abandoned instead.">
+                  data-confirm="{% trans count=trash_days %}Delete this goal? You can restore it under Recently deleted for {{ count }} day. Goals with execution history must be marked abandoned instead.{% pluralize %}Delete this goal? You can restore it under Recently deleted for {{ count }} days. Goals with execution history must be marked abandoned instead.{% endtrans %}">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                 <input type="hidden" name="goal_id" value="{{ g.id }}">
                 <input type="hidden" name="horizon" value="{{ horizon }}">
-                <button type="submit" class="btn btn-outline btn-sm">Delete goal</button>
+                <button type="submit" class="btn btn-outline btn-sm">{{ _("Delete goal") }}</button>
             </form>
         </div>
     </details>
@@ -122,9 +122,9 @@
 {% block content %}
 <header class="goal-page-header">
     <div>
-        <span class="goal-eyebrow">Direction and execution</span>
-        <h1>Life Goals Map</h1>
-        <p>Keep the destination visible, then turn it into the next concrete rep.</p>
+        <span class="goal-eyebrow">{{ _("Direction and execution") }}</span>
+        <h1>{{ _("Life Goals Map") }}</h1>
+        <p>{{ _("Keep the destination visible, then turn it into the next concrete rep.") }}</p>
     </div>
 </header>
 
@@ -133,20 +133,20 @@
         <div class="goal-section-heading">
             <span class="goal-section-icon"><i data-lucide="crosshair"></i></span>
             <div>
-                <h2 id="current-focus-title">Current focus</h2>
-                <p>Star up to {{ focus_limit }} goals you are actively moving now.</p>
+                <h2 id="current-focus-title">{{ _("Current focus") }}</h2>
+                <p>{% trans %}Star up to {{ focus_limit }} goals you are actively moving now.{% endtrans %}</p>
             </div>
         </div>
         <span class="goal-count{{ ' is-over' if focus_over else '' }}">{{ focus|length }} / {{ focus_limit }}</span>
     </div>
     {% if focus_over %}
-    <p class="form-error goal-focus-warning" role="status">{{ focus | length }} goals starred. Focus works best at {{ focus_limit }} or fewer.</p>
+    <p class="form-error goal-focus-warning" role="status">{% trans count=focus | length %}{{ count }} goal starred. Focus works best at {{ focus_limit }} or fewer.{% pluralize %}{{ count }} goals starred. Focus works best at {{ focus_limit }} or fewer.{% endtrans %}</p>
     {% endif %}
     {% if focus %}
     <div class="goal-focus-grid">
         {% for g in focus %}
         <div class="goal-focus-card">
-            <span class="goal-area-label">{{ g.area_icon }} {{ g.area_name }} <span>{{ g.horizon }}</span></span>
+            <span class="goal-area-label">{{ g.area_icon }} {{ g.area_name }} <span>{{ g.horizon|label }}</span></span>
             {{ goal_item(g, horizon, false) }}
         </div>
         {% endfor %}
@@ -154,7 +154,7 @@
     {% else %}
     <div class="goal-empty-state">
         <span class="goal-empty-icon"><i data-lucide="star"></i></span>
-        <div><strong>No goals in focus</strong><p>Star a goal below to keep it within reach.</p></div>
+        <div><strong>{{ _("No goals in focus") }}</strong><p>{{ _("Star a goal below to keep it within reach.") }}</p></div>
     </div>
     {% endif %}
 </section>
@@ -164,7 +164,7 @@
     <div class="goal-section-header">
         <div class="goal-section-heading">
             <span class="goal-section-icon goal-section-icon-warm"><i data-lucide="list-checks"></i></span>
-            <div><h2 id="pending-reps-title">Execution queue</h2><p>Concrete commitments, ordered by due date.</p></div>
+            <div><h2 id="pending-reps-title">{{ _("Execution queue") }}</h2><p>{{ _("Concrete commitments, ordered by due date.") }}</p></div>
         </div>
         <span class="goal-count">{{ pending_reps|length }}</span>
     </div>
@@ -177,21 +177,21 @@
                 <form method="POST" action="/goals/reps/{{ rep.id }}/transition">
                     <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                     <input type="hidden" name="action" value="complete">
-                    <button type="submit" class="btn btn-primary btn-sm"><i data-lucide="check"></i> Complete</button>
+                    <button type="submit" class="btn btn-primary btn-sm"><i data-lucide="check"></i> {{ _("Complete") }}</button>
                 </form>
                 <form method="POST" action="/goals/reps/{{ rep.id }}/transition">
                     <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                     <input type="hidden" name="action" value="skip">
-                    <button type="submit" class="btn btn-outline btn-sm">Skip</button>
+                    <button type="submit" class="btn btn-outline btn-sm">{{ _("Skip") }}</button>
                 </form>
                 <details class="goal-carry">
-                    <summary>Carry</summary>
+                    <summary>{{ _("Carry") }}</summary>
                     <form method="POST" action="/goals/reps/{{ rep.id }}/transition">
                         <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                         <input type="hidden" name="action" value="carry">
                         <input type="hidden" name="period" value="{{ rep.period }}">
-                        <input type="date" name="due_date" aria-label="New due date" required>
-                        <button type="submit" class="btn btn-secondary btn-sm">Move rep</button>
+                        <input type="date" name="due_date" aria-label="{{ _("New due date") }}" required>
+                        <button type="submit" class="btn btn-secondary btn-sm">{{ _("Move rep") }}</button>
                     </form>
                 </details>
             </div>
@@ -204,39 +204,39 @@
 {# The horizon tabs filter the area cards only, so they sit right above them,
    not above the focus panel and the queue, which they never change. #}
 <div class="goal-controls">
-    <nav class="goal-horizons" aria-label="Goal horizon">
-        <span>Horizon</span>
+    <nav class="goal-horizons" aria-label="{{ _("Goal horizon") }}">
+        <span>{{ _("Horizon") }}</span>
         <div class="tabs">
             {% for h_key, h_label in horizons %}
-            <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}" {{ 'aria-current="page"' if horizon == h_key else '' }}>{{ h_label }}</a>
+            <a href="/goals?horizon={{ h_key }}" class="{{ 'active' if horizon == h_key else '' }}" {{ 'aria-current="page"' if horizon == h_key else '' }}>{{ h_key|label }}</a>
             {% endfor %}
         </div>
     </nav>
     <details class="goal-create">
-        <summary><i data-lucide="plus"></i> Add goal</summary>
+        <summary><i data-lucide="plus"></i> {{ _("Add goal") }}</summary>
         <form method="POST" action="/goals/save" class="goal-create-form">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
-            <label class="goal-field goal-field-content">Goal
-                <input type="text" name="content" placeholder="New goal..." required>
+            <label class="goal-field goal-field-content">{{ _("Goal") }}
+                <input type="text" name="content" placeholder="{{ _("New goal...") }}" required>
             </label>
             <div class="goal-form-grid goal-form-grid-create">
-                <label class="goal-field">Area
+                <label class="goal-field">{{ _("Area") }}
                     <select name="area_id" required>{% for area in areas %}<option value="{{ area.id }}">{{ area.icon }} {{ area.name }}</option>{% endfor %}</select>
                 </label>
-                <label class="goal-field">Horizon
-                    <select name="horizon" required>{% for h_key, h_label in horizons %}<option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_label }}</option>{% endfor %}</select>
+                <label class="goal-field">{{ _("Horizon") }}
+                    <select name="horizon" required>{% for h_key, h_label in horizons %}<option value="{{ h_key }}" {{ 'selected' if h_key == horizon else '' }}>{{ h_key|label }}</option>{% endfor %}</select>
                 </label>
-                <label class="goal-field">Status
-                    <select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value|capitalize }}</option>{% endfor %}</select>
+                <label class="goal-field">{{ _("Status") }}
+                    <select name="status">{% for value in goal_statuses %}<option value="{{ value }}">{{ value|label }}</option>{% endfor %}</select>
                 </label>
-                <label class="goal-field">Starts
+                <label class="goal-field">{{ _("Starts") }}
                     <input type="date" name="start_date">
                 </label>
-                <label class="goal-field">Ends
+                <label class="goal-field">{{ _("Ends") }}
                     <input type="date" name="end_date">
                 </label>
             </div>
-            <button type="submit" class="btn btn-primary">Create goal</button>
+            <button type="submit" class="btn btn-primary">{{ _("Create goal") }}</button>
         </form>
     </details>
 </div>
@@ -259,10 +259,10 @@
 
 {% if rep_history %}
 <details class="card goal-history">
-    <summary>Execution history <span>{{ rep_history|length }} recent</span></summary>
+    <summary>{{ _("Execution history") }} <span>{% trans count=rep_history|length %}{{ count }} recent{% endtrans %}</span></summary>
     <div class="goal-history-list">
         {% for rep in rep_history %}
-        <div><span class="goal-status goal-status-{{ rep.status }}">{{ rep.status|capitalize }}</span><strong>{{ rep.content }}</strong><time>{{ rep.due_date }}</time></div>
+        <div><span class="goal-status goal-status-{{ rep.status }}">{{ rep.status|label }}</span><strong>{{ rep.content }}</strong><time>{{ rep.due_date }}</time></div>
         {% endfor %}
     </div>
 </details>
@@ -270,17 +270,17 @@
 
 {% if deleted_goals %}
 <details class="card goal-history" id="recently-deleted">
-    <summary>Recently deleted <span>{{ deleted_goals|length }}, kept {{ trash_days }} days</span></summary>
+    <summary>{{ _("Recently deleted") }} <span>{% trans count=deleted_goals|length, days=trash_days %}{{ count }}, kept {{ days }} days{% endtrans %}</span></summary>
     <div class="goal-history-list">
         {% for d in deleted_goals %}
         <div>
             <span class="goal-status">{{ d.horizon }}</span>
-            <strong>{{ d.content|strip_md }} <small class="text-muted">restorable until {{ d.restorable_until }}</small></strong>
+            <strong>{{ d.content|strip_md }} <small class="text-muted">{% trans date=d.restorable_until %}restorable until {{ date }}{% endtrans %}</small></strong>
             <form method="POST" action="/goals/restore">
                 <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
                 <input type="hidden" name="goal_id" value="{{ d.id }}">
                 <input type="hidden" name="horizon" value="{{ horizon }}">
-                <button type="submit" class="btn btn-secondary btn-sm" aria-label="Restore {{ d.content|strip_md|truncate(60) }}">Restore</button>
+                <button type="submit" class="btn btn-secondary btn-sm" aria-label="{% trans name=d.content|strip_md|truncate(60) %}Restore {{ name }}{% endtrans %}">{{ _("Restore") }}</button>
             </form>
         </div>
         {% endfor %}
@@ -290,7 +290,7 @@
 
 {% if areas_without_goals %}
 <section class="goal-empty-areas">
-    <div><h2>Open areas</h2><p>No goals in the selected horizon yet.</p></div>
+    <div><h2>{{ _("Open areas") }}</h2><p>{{ _("No goals in the selected horizon yet.") }}</p></div>
     <div class="goal-empty-area-list">
         {% for area in areas_without_goals %}
         <div class="goal-area-empty">{{ area.icon }} {{ area.name }}</div>

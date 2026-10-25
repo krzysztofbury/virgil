@@ -13,6 +13,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from app.feedback import error_redirect, success_redirect
+from app.i18n import _, localized, weekday_short
 from app.main import templates
 from app.services import habits as habit_service
 from app.services.freedom_log import (
@@ -84,7 +85,7 @@ async def freedom_page(request: Request):
     for i in range(7):
         d = monday + timedelta(days=i)
         state = "future" if d > today else "used" if d.isoformat() in relapse_dates else "clean"
-        week_days.append({"date": d.isoformat(), "label": "MTWTFSS"[i], "state": state})
+        week_days.append({"date": d.isoformat(), "label": weekday_short(i)[0], "state": state})
 
     bricks = [
         dict(r)
@@ -147,7 +148,7 @@ async def freedom_page(request: Request):
 async def _habit_or_redirect(request: Request, slug: str):
     habit = await habit_service.get_habit(get_user_db_from_request(request), slug)
     if habit is None:
-        return None, error_redirect(request, "/freedom", "That habit was not found.")
+        return None, error_redirect(request, "/freedom", _("That habit was not found."))
     return habit, None
 
 
@@ -158,8 +159,8 @@ async def add_habit(request: Request, slug: str = Form(""), name: str = Form("")
     try:
         habit = await habit_service.track(db, slug) if slug else await habit_service.add_custom(db, name)
     except (LookupError, habit_service.HabitError) as exc:
-        return error_redirect(request, "/freedom", str(exc))
-    return success_redirect(request, _page(habit["slug"]), f"Tracking {habit['name']}.")
+        return error_redirect(request, "/freedom", localized(exc))
+    return success_redirect(request, _page(habit["slug"]), _("Tracking {name}.").format(name=habit["name"]))
 
 
 @router.post("/freedom/{slug}/untrack")
@@ -168,7 +169,9 @@ async def untrack_habit(request: Request, slug: str):
     if refusal:
         return refusal
     await habit_service.untrack(get_user_db_from_request(request), slug)
-    return success_redirect(request, "/freedom", f"Stopped tracking {habit['name']}. Its history is kept.")
+    return success_redirect(
+        request, "/freedom", _("Stopped tracking {name}. Its history is kept.").format(name=habit["name"])
+    )
 
 
 @router.post("/freedom/{slug}/settings")
@@ -200,10 +203,10 @@ async def save_habit_settings(
     try:
         habit = await habit_service.update_habit(get_user_db_from_request(request), slug, changes)
     except LookupError as exc:
-        return error_redirect(request, "/freedom", str(exc))
+        return error_redirect(request, "/freedom", localized(exc))
     except habit_service.HabitError as exc:
-        return error_redirect(request, _page(slug), str(exc))
-    return success_redirect(request, _page(habit["slug"]), f"{habit['name']} settings saved.")
+        return error_redirect(request, _page(slug), localized(exc))
+    return success_redirect(request, _page(habit["slug"]), _("{name} settings saved.").format(name=habit["name"]))
 
 
 @router.post("/freedom/{slug}/daily")
@@ -230,7 +233,7 @@ async def save_daily(
         return refusal
     entry_date = past_or_today(date)
     if entry_date is None or slipped not in ("0", "1"):
-        return error_redirect(request, _page(slug), "Choose a valid date and day outcome.")
+        return error_redirect(request, _page(slug), _("Choose a valid date and day outcome."))
     try:
         await save_day(
             get_user_db_from_request(request),
@@ -242,11 +245,11 @@ async def save_daily(
             note=note,
         )
     except FreedomWriteError as exc:
-        return error_redirect(request, _page(slug, entry_date), str(exc))
+        return error_redirect(request, _page(slug, entry_date), localized(exc))
     return success_redirect(
         request,
         _page(view) if view else _page(slug, entry_date),
-        f"{habit['name']}: day saved.",
+        _("{name}: day saved.").format(name=habit["name"]),
         clear_draft=f"freedom-daily:{slug}:{entry_date}",
     )
 
@@ -272,9 +275,9 @@ async def clean_today(request: Request, slug: str):
         try:
             await save_day(db, habit, today, slipped=False, amount=None, near_miss=False, note="")
         except FreedomWriteError as exc:
-            return error_redirect(request, "/", str(exc))
+            return error_redirect(request, "/", localized(exc))
     if request.headers.get("HX-Request") != "true":
-        return success_redirect(request, "/", f"{habit['name']}: clean today.")
+        return success_redirect(request, "/", _("{name}: clean today.").format(name=habit["name"]))
     overviews = [await habit_overview(db, h) for h in await habit_service.list_habits(db)]
     return templates.TemplateResponse(
         request, "partials/freedom_today.html", {"request": request, "freedom_overviews": overviews}
@@ -298,9 +301,9 @@ async def save_brick(
     try:
         brick = await add_brick(get_user_db_from_request(request), habit, date, hook=hook, craving=craving, story=story)
     except FreedomWriteError as exc:
-        return error_redirect(request, _page(slug), str(exc))
+        return error_redirect(request, _page(slug), localized(exc))
     return success_redirect(
-        request, _page(slug, brick["date"]), "Brick added.", clear_draft=f"freedom-brick:{slug}:{brick['date']}"
+        request, _page(slug, brick["date"]), _("Brick added."), clear_draft=f"freedom-brick:{slug}:{brick['date']}"
     )
 
 
@@ -317,10 +320,10 @@ async def edit_brick(
     try:
         brick = await update_brick(db, brick_id, {"date": date, "hook": hook, "craving": craving, "story": story})
     except FreedomWriteError as exc:
-        return error_redirect(request, _page(day=past_or_today(date)), str(exc))
+        return error_redirect(request, _page(day=past_or_today(date)), localized(exc))
     except LookupError as exc:
-        return error_redirect(request, "/freedom", str(exc))
-    return success_redirect(request, _page(brick["habit"], brick["date"]), "Brick updated.")
+        return error_redirect(request, "/freedom", localized(exc))
+    return success_redirect(request, _page(brick["habit"], brick["date"]), _("Brick updated."))
 
 
 @router.post("/freedom/bricks/{brick_id}/delete")
@@ -328,8 +331,8 @@ async def remove_brick(request: Request, brick_id: int):
     try:
         removed = await delete_brick(get_user_db_from_request(request), brick_id)
     except LookupError as exc:
-        return error_redirect(request, "/freedom", str(exc))
-    return success_redirect(request, _page(removed["habit"], removed["date"]), "Brick removed from your history.")
+        return error_redirect(request, "/freedom", localized(exc))
+    return success_redirect(request, _page(removed["habit"], removed["date"]), _("Brick removed from your history."))
 
 
 def _records(slug: str) -> str:
@@ -344,12 +347,14 @@ async def remove_day(request: Request, slug: str, day: str):
         return refusal
     entry_date = past_or_today(day)
     if entry_date is None:
-        return error_redirect(request, _page(slug), "Choose a valid day.")
+        return error_redirect(request, _page(slug), _("Choose a valid day."))
     try:
         await delete_day(get_user_db_from_request(request), habit, entry_date)
     except LookupError as exc:
-        return error_redirect(request, _page(slug), str(exc))
-    return success_redirect(request, _page(slug), f"{habit['name']}: day {entry_date} deleted.")
+        return error_redirect(request, _page(slug), localized(exc))
+    return success_redirect(
+        request, _page(slug), _("{name}: day {date} deleted.").format(name=habit["name"], date=entry_date)
+    )
 
 
 @router.post("/freedom/{slug}/relapses/{event_id}/edit")
@@ -369,8 +374,8 @@ async def edit_relapse(
             get_user_db_from_request(request), habit, event_id, day=date, event_type=event_type, notes=notes
         )
     except (FreedomWriteError, LookupError) as exc:
-        return error_redirect(request, _records(slug), str(exc))
-    return success_redirect(request, _records(slug), "Record corrected.")
+        return error_redirect(request, _records(slug), localized(exc))
+    return success_redirect(request, _records(slug), _("Record corrected."))
 
 
 @router.post("/freedom/{slug}/relapses/{event_id}/delete")
@@ -381,5 +386,5 @@ async def remove_relapse(request: Request, slug: str, event_id: int):
     try:
         await delete_relapse_event(get_user_db_from_request(request), habit, event_id)
     except (FreedomWriteError, LookupError) as exc:
-        return error_redirect(request, _records(slug), str(exc))
-    return success_redirect(request, _records(slug), "Record deleted.")
+        return error_redirect(request, _records(slug), localized(exc))
+    return success_redirect(request, _records(slug), _("Record deleted."))
