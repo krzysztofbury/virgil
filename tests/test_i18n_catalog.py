@@ -105,3 +105,19 @@ def test_polish_plurals_accept_any_count_a_template_passes(count):
         assert ngettext("%(num)s day", "%(num)s days", count) == "%(num)s days"
     finally:
         reset_language(token)
+
+
+def test_enumeration_labels_follow_the_language_and_keep_english_as_it_was():
+    from app.i18n import enum_label, reset_language, set_language
+
+    assert [enum_label(v) for v in ("active", "quarter", "1yr", "something-new")] == [
+        "Active",
+        "Quarter",
+        "1 Year",
+        "Something-new",
+    ]
+    token = set_language("pl")
+    try:
+        assert [enum_label(v) for v in ("active", "quarter", "1yr")] == ["Aktywny", "Kwartał", "1 rok"]
+    finally:
+        reset_language(token)

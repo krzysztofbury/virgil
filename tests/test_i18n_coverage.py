@@ -23,17 +23,11 @@ TEMPLATES = APP / "templates"
 PENDING_TEMPLATES = {
     "admin_users.html",
     "bloodwork.html",
-    "experiment_detail.html",
-    "experiment_edit.html",
-    "experiment_new.html",
-    "experiments.html",
     "finance.html",
     "finance_setup.html",
     "freedom.html",
-    "goals.html",
     "onboarding.html",
     "oura.html",
-    "partials/experiment_card.html",
     "partials/freedom_today.html",
     "partials/job_notifications.html",
     "partials/job_status.html",
@@ -50,12 +44,9 @@ PENDING_PAGES = {
     "/admin/users",
     "/api/jobs/active",
     "/bloodwork",
-    "/experiments",
-    "/experiments/new",
     "/finance",
     "/finance/setup",
     "/freedom",
-    "/goals",
     "/onboarding",
     "/oura",
     "/settings?tab=general",
@@ -68,10 +59,8 @@ PENDING_PAGES = {
 PENDING_MODULES = {
     "routers/admin.py",
     "routers/bloodwork.py",
-    "routers/experiments.py",
     "routers/finance.py",
     "routers/freedom.py",
-    "routers/goals.py",
     "routers/jobs.py",
     "routers/onboarding.py",
     "routers/oura.py",
@@ -89,6 +78,9 @@ _TEXT_ATTRIBUTES = re.compile(
     r'\b(?:placeholder|title|aria-label|alt|data-confirm|data-label|data-pending-label)="([^"]*)"'
 )
 _TEXT_NODE = re.compile(r">([^<>]+)<")
+# Chart labels and titles written into inline scripts.
+_SCRIPT_TEXT = re.compile(r"""\b(?:label|title|text)\s*:\s*(['"])([A-Z][a-z][^'"]*)\1""")
+_SCRIPT = re.compile(r"<script\b.*?</script>", re.S | re.I)
 # Alpine expressions that render text: an English literal inside one is shown as is.
 _ALPINE_TEXT = re.compile(r"""\b(?:x-text|x-html|:aria-label|:title|:placeholder)=(["'])(.*?)\1""", re.S)
 # A quoted literal inside a Jinja tag that reads like a sentence or a label.
@@ -102,6 +94,8 @@ def _untranslated_template_text(source: str) -> list[str]:
     for tag in tags:
         unmarked = _MARKED_CALL.sub("", tag)
         found += [literal for _quote, literal in _JINJA_LITERAL.findall(unmarked)]
+    for script in _SCRIPT.findall(source):
+        found += [literal for _quote, literal in _SCRIPT_TEXT.findall(script)]
     for _quote, expression in _ALPINE_TEXT.findall(_JINJA.sub("", source)):
         found += [literal for _q, literal in _JINJA_LITERAL.findall(expression)]
     markup = _HIDDEN.sub("", _JINJA.sub("", _JINJA_TRANS.sub("", source)))
@@ -137,6 +131,7 @@ UI_MODULES = [
     "services/daily_log.py",
     "services/measurements.py",
     "services/training_log.py",
+    "services/goal_data.py",
 ]
 NOT_UI = {"routers/api.py", "routers/__init__.py", "routers/oura_webhook.py"}
 
@@ -281,6 +276,14 @@ def test_polish_pages_render(polish, modules_on, path):
         assert '<html lang="pl"' in response.text or "<html" not in response.text
     if path not in PENDING_PAGES:
         text = _visible_text(response.text)
+        # The account's own goal areas are its data (English starter content),
+        # even where one shares a word with a translated label.
+        from conftest import user_db_path
+
+        conn = sqlite3.connect(user_db_path())
+        for (area,) in conn.execute("SELECT name FROM goal_areas"):
+            text = text.replace(area, " ")
+        conn.close()
         assert [message for message in _translated_ids() if message in text] == []
 
 
@@ -377,3 +380,29 @@ def test_service_errors_follow_the_page_but_the_api_stays_english(polish):
         raise MeasurementError("{field} must be between {low} and {high}", field="weight", low=20, high=400)
     except MeasurementError as exc:
         assert str(exc) == "weight must be between 20 and 400"
+
+
+def test_no_module_shadows_the_translation_function():
+    """`x, _ = pair` in a module that imports _ turns the next _("...") into a call
+    on whatever was unpacked; ruff only sees the use-before-assignment half."""
+    offenders = []
+    for path in sorted(APP.rglob("*.py")):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        imports_gettext = any(
+            isinstance(node, ast.ImportFrom) and node.module == "app.i18n" and any(a.name == "_" for a in node.names)
+            for node in tree.body
+        )
+        if not imports_gettext:
+            continue
+        comprehension_targets = {
+            id(name) for node in ast.walk(tree) if isinstance(node, ast.comprehension) for name in ast.walk(node.target)
+        }
+        for node in ast.walk(tree):
+            if (
+                isinstance(node, ast.Name)
+                and node.id == "_"
+                and isinstance(node.ctx, ast.Store)
+                and id(node) not in comprehension_targets
+            ):
+                offenders.append(f"{path.relative_to(APP)}:{node.lineno}")
+    assert offenders == []

@@ -1,52 +1,52 @@
 {% extends "base.html" %}
-{% block title %}Virgil - Edit {{ experiment.title }}{% endblock %}
+{% block title %}{% trans title=experiment.title %}Virgil - Edit {{ title }}{% endtrans %}{% endblock %}
 
 {% block content %}
 <div class="page-header">
-    <h1>Edit Experiment</h1>
-    <p class="text-muted"><a href="/experiments/{{ experiment.id }}">&larr; Back to {{ experiment.title }}</a></p>
+    <h1>{{ _("Edit Experiment") }}</h1>
+    <p class="text-muted"><a href="/experiments/{{ experiment.id }}">&larr; {% trans title=experiment.title %}Back to {{ title }}{% endtrans %}</a></p>
 </div>
 
 {# One form and one Save for the basics and every metric: a Save per metric row
    next to "Save Changes" lost whatever was typed in the rows not saved. #}
 <form action="/experiments/{{ experiment.id }}/edit" method="post" id="experiment-edit" data-validate>
     <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>Basics</h3></div>
+        <div class="card-header"><h3>{{ _("Basics") }}</h3></div>
 
         <div style="margin-bottom: 0.75rem;">
-            <label for="title">Title</label>
+            <label for="title">{{ _("Title") }}</label>
             <input type="text" id="title" name="title" value="{{ experiment.title }}" required>
         </div>
 
         <div style="margin-bottom: 0.75rem;">
-            <label for="description">Description</label>
+            <label for="description">{{ _("Description") }}</label>
             <input type="text" id="description" name="description" value="{{ experiment.description }}">
         </div>
 
         <div style="margin-bottom: 0.75rem;">
-            <label for="goal_id">Linked goal <small class="text-muted">optional</small></label>
+            <label for="goal_id">{{ _("Linked goal") }} <small class="text-muted">{{ _("optional") }}</small></label>
             <select id="goal_id" name="goal_id">
-                <option value="">No linked goal</option>
+                <option value="">{{ _("No linked goal") }}</option>
                 {% for goal in goals %}<option value="{{ goal.id }}" {{ 'selected' if experiment.goal_id == goal.id else '' }}>{{ goal.content|strip_md }}{% if goal.status not in ('active', 'paused') %} ({{ goal.status }}){% endif %}</option>{% endfor %}
             </select>
         </div>
 
         <div class="grid">
             <div>
-                <label for="start_date">Start Date</label>
+                <label for="start_date">{{ _("Start Date") }}</label>
                 <input type="date" id="start_date" name="start_date" value="{{ experiment.start_date }}" required>
             </div>
             <div>
-                <label for="num_weeks">Number of Weeks</label>
+                <label for="num_weeks">{{ _("Number of Weeks") }}</label>
                 <input type="number" id="num_weeks" name="num_weeks" min="1" max="52" value="{{ experiment.num_weeks }}" required>
-                <small class="text-muted">Shrinking removes the trailing weeks' targets/labels.</small>
+                <small class="text-muted">{{ _("Shrinking removes the trailing weeks' targets/labels.") }}</small>
             </div>
             <div>
-                <label for="status">Status</label>
+                <label for="status">{{ _("Status") }}</label>
                 <select id="status" name="status">
-                    <option value="active" {{ 'selected' if experiment.status == 'active' else '' }}>active</option>
-                    <option value="completed" {{ 'selected' if experiment.status == 'completed' else '' }}>completed</option>
-                    <option value="abandoned" {{ 'selected' if experiment.status == 'abandoned' else '' }}>abandoned</option>
+                    <option value="active" {{ 'selected' if experiment.status == 'active' else '' }}>{{ _("active") }}</option>
+                    <option value="completed" {{ 'selected' if experiment.status == 'completed' else '' }}>{{ _("completed") }}</option>
+                    <option value="abandoned" {{ 'selected' if experiment.status == 'abandoned' else '' }}>{{ _("abandoned") }}</option>
                 </select>
             </div>
         </div>
@@ -54,30 +54,30 @@
     </div>
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Metrics</h3>
-        <small class="text-muted">Type is fixed after creation — logged values keep their meaning. Targets apply to Count and Yes/No metrics.</small>
+    <div class="card-header"><h3>{{ _("Metrics") }}</h3>
+        <small class="text-muted">{{ _("Type is fixed after creation — logged values keep their meaning. Targets apply to Count and Yes/No metrics.") }}</small>
     </div>
 
     {% for m in metrics %}
     <div class="exp-edit-metric-row" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-bottom: 0.6rem; padding-bottom: 0.6rem; border-bottom: 1px solid var(--border);">
         <div class="exp-edit-metric-fields" style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin: 0; flex: 1;">
-            <input type="text" name="metric_{{ m.id }}_name" value="{{ m.name }}" required aria-label="Metric name" style="width: 11rem; margin: 0;">
+            <input type="text" name="metric_{{ m.id }}_name" value="{{ m.name }}" required aria-label="{{ _("Metric name") }}" style="width: 11rem; margin: 0;">
             <input type="color" name="metric_{{ m.id }}_color" value="{{ m.color }}" style="width: 2.6rem; height: 2.2rem; padding: 0.15rem; margin: 0;">
-            <span class="text-muted" style="font-size: var(--text-xs); min-width: 5.5rem;">{{ {'duration': 'Minutes', 'count': 'Count', 'boolean': 'Yes/No', 'scale': 'Rating 0-10'}[m.kind] }}</span>
+            <span class="text-muted" style="font-size: var(--text-xs); min-width: 5.5rem;">{{ {'duration': _('Minutes'), 'count': _('Count'), 'boolean': 'Yes/No', 'scale': _('Rating 0-10')}[m.kind] }}</span>
             {% if m.kind in ('count', 'boolean') %}
-            <input type="number" name="metric_{{ m.id }}_target_value" value="{{ m.target_value }}" min="0" title="Target (0 = none)"
+            <input type="number" name="metric_{{ m.id }}_target_value" value="{{ m.target_value }}" min="0" title="{{ _("Target (0 = none)") }}"
                    style="width: 4.5rem; margin: 0; font-size: var(--text-xs);">
             <select name="metric_{{ m.id }}_target_period" style="width: auto; margin: 0; font-size: var(--text-xs);">
-                <option value="day" {{ 'selected' if m.target_period == 'day' else '' }}>per day</option>
-                <option value="week" {{ 'selected' if m.target_period == 'week' else '' }}>per week</option>
-                <option value="total" {{ 'selected' if m.target_period == 'total' else '' }}>total</option>
+                <option value="day" {{ 'selected' if m.target_period == 'day' else '' }}>{{ _("per day") }}</option>
+                <option value="week" {{ 'selected' if m.target_period == 'week' else '' }}>{{ _("per week") }}</option>
+                <option value="total" {{ 'selected' if m.target_period == 'total' else '' }}>{{ _("total") }}</option>
             </select>
             {% else %}
             <input type="hidden" name="metric_{{ m.id }}_target_value" value="0">
             <input type="hidden" name="metric_{{ m.id }}_target_period" value="week">
             {% endif %}
             {% if m.kind == 'duration' %}
-            <input type="text" name="metric_{{ m.id }}_source_match" value="{{ m.source_match }}" placeholder="Oura names, comma-separated"
+            <input type="text" name="metric_{{ m.id }}_source_match" value="{{ m.source_match }}" placeholder="{{ _("Oura names, comma-separated") }}"
                    style="width: 13rem; margin: 0; font-size: var(--text-xs);">
             {% else %}
             <input type="hidden" name="metric_{{ m.id }}_source_match" value="">
@@ -86,39 +86,39 @@
         {# Last in the row, and asks first: the delete takes the metric's entries. #}
         <button type="submit" class="btn btn-danger btn-sm exp-edit-metric-delete"
                 formaction="/experiments/{{ experiment.id }}/metric/{{ m.id }}/delete" formnovalidate
-                data-confirm="Delete metric {{ m.name }} and its {{ m.entry_count }} logged entr{{ 'y' if m.entry_count == 1 else 'ies' }}? Unsaved changes on this page are lost.">Delete</button>
+                data-confirm="{% trans name=m.name, count=m.entry_count %}Delete metric {{ name }} and its {{ count }} logged entry? Unsaved changes on this page are lost.{% pluralize %}Delete metric {{ name }} and its {{ count }} logged entries? Unsaved changes on this page are lost.{% endtrans %}">{{ _("Delete") }}</button>
     </div>
     {% endfor %}
 </div>
 
 <div class="form-save-bar">
     <span class="form-errors" data-form-errors role="alert"></span>
-    <button type="submit" class="btn btn-primary">Save changes</button>
+    <button type="submit" class="btn btn-primary">{{ _("Save changes") }}</button>
 </div>
 </form>
 
 <div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>Add a metric</h3></div>
+    <div class="card-header"><h3>{{ _("Add a metric") }}</h3></div>
 
     <form action="/experiments/{{ experiment.id }}/metric/add" method="post"
           style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.75rem;">
-        <input type="text" name="name" placeholder="New metric name" required style="width: 11rem; margin: 0;">
+        <input type="text" name="name" placeholder="{{ _("New metric name") }}" required style="width: 11rem; margin: 0;">
         <select name="kind" style="width: auto; margin: 0;">
-            <option value="duration">Minutes</option>
-            <option value="count">Count</option>
-            <option value="boolean">Yes / No (daily)</option>
-            <option value="scale">Rating 0-10</option>
+            <option value="duration">{{ _("Minutes") }}</option>
+            <option value="count">{{ _("Count") }}</option>
+            <option value="boolean">{{ _("Yes / No (daily)") }}</option>
+            <option value="scale">{{ _("Rating 0-10") }}</option>
         </select>
         <input type="color" name="color" value="#3b82f6" style="width: 2.6rem; height: 2.2rem; padding: 0.15rem; margin: 0;">
-        <input type="number" name="target_value" value="0" min="0" title="Target (0 = none; Count/Yes-No only)"
+        <input type="number" name="target_value" value="0" min="0" title="{{ _("Target (0 = none; Count/Yes-No only)") }}"
                style="width: 4.5rem; margin: 0; font-size: var(--text-xs);">
         <select name="target_period" style="width: auto; margin: 0; font-size: var(--text-xs);">
-            <option value="day">per day</option>
-            <option value="week" selected>per week</option>
-            <option value="total">total</option>
+            <option value="day">{{ _("per day") }}</option>
+            <option value="week" selected>{{ _("per week") }}</option>
+            <option value="total">{{ _("total") }}</option>
         </select>
-        <input type="text" name="source_match" placeholder="Oura names (Minutes only)" style="width: 13rem; margin: 0; font-size: var(--text-xs);">
-        <button type="submit" class="btn btn-primary btn-sm">+ Add Metric</button>
+        <input type="text" name="source_match" placeholder="{{ _("Oura names (Minutes only)") }}" style="width: 13rem; margin: 0; font-size: var(--text-xs);">
+        <button type="submit" class="btn btn-primary btn-sm">{{ _("+ Add Metric") }}</button>
     </form>
 </div>
 

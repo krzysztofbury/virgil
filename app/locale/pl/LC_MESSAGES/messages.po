@@ -79,33 +79,53 @@ msgstr[2] "{num} minut temu"
 msgid "just now"
 msgstr "przed chwilą"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Mon"
-msgstr "Pon"
+#: app/i18n.py
+msgid "Active"
+msgstr "Aktywny"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Tue"
-msgstr "Wt"
+#: app/i18n.py
+msgid "Paused"
+msgstr "Wstrzymany"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Wed"
-msgstr "Śr"
+#: app/i18n.py
+msgid "Completed"
+msgstr "Ukończony"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Thu"
-msgstr "Czw"
+#: app/i18n.py
+msgid "Abandoned"
+msgstr "Porzucony"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Fri"
-msgstr "Pt"
+#: app/i18n.py
+msgid "Carried"
+msgstr "Przeniesiony"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Sat"
-msgstr "Sob"
+#: app/i18n.py
+msgid "Day"
+msgstr "Dzień"
 
-#: app/i18n.py app/static/js/app.js
-msgid "Sun"
-msgstr "Niedz"
+#: app/i18n.py
+msgid "Month"
+msgstr "Miesiąc"
+
+#: app/i18n.py
+msgid "Quarter"
+msgstr "Kwartał"
+
+#: app/i18n.py
+msgid "Year"
+msgstr "Rok"
+
+#: app/i18n.py
+msgid "1 Year"
+msgstr "1 rok"
+
+#: app/i18n.py
+msgid "3 Years"
+msgstr "3 lata"
+
+#: app/i18n.py
+msgid "10 Years"
+msgstr "10 lat"
 
 #: app/i18n.py app/static/js/app.js
 msgid "Jan"
@@ -182,6 +202,48 @@ msgstr "Piątek"
 #: app/i18n.py app/static/js/app.js app/templates/daily.html
 msgid "Saturday"
 msgstr "Sobota"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Pending"
+msgstr "Do zrobienia"
+
+#: app/i18n.py app/static/js/app.js app/templates/daily.html
+#: app/templates/partials/today_block.html
+msgid "Skipped"
+msgstr "Pominięte"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Mon"
+msgstr "Pon"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Tue"
+msgstr "Wt"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Wed"
+msgstr "Śr"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Thu"
+msgstr "Czw"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Fri"
+msgstr "Pt"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Sat"
+msgstr "Sob"
+
+#: app/i18n.py app/static/js/app.js app/templates/experiment_detail.html
+msgid "Sun"
+msgstr "Niedz"
+
+#: app/i18n.py app/templates/dashboard.html app/templates/experiments.html
+msgid "Week"
+msgstr "Tydzień"
 
 #: app/library_validation.py
 #, python-brace-format
@@ -397,12 +459,12 @@ msgid "Measurements saved."
 msgstr "Pomiary zapisane."
 
 #: app/routers/daily.py app/routers/dashboard.py
-msgid "No AI provider is configured. Add one in Settings."
-msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
-
-#: app/routers/daily.py app/routers/dashboard.py
 msgid "Reload the page and try again."
 msgstr "Odśwież stronę i spróbuj ponownie."
+
+#: app/routers/daily.py app/routers/dashboard.py app/routers/experiments.py
+msgid "No AI provider is configured. Add one in Settings."
+msgstr "Nie skonfigurowano dostawcy AI. Dodaj go w Ustawieniach."
 
 #: app/routers/daily.py app/static/js/app.js
 msgid "Saved"
@@ -455,6 +517,241 @@ msgstr "Briefing dodany do kolejki."
 #: app/routers/dashboard.py app/templates/dashboard.html
 msgid "Power level"
 msgstr "Poziom mocy"
+
+#: app/routers/experiments.py
+msgid "upcoming"
+msgstr "wkrótce"
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "{num} logged"
+msgstr "zapisano: {num}"
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "{num}m logged"
+msgstr "zapisano: {num} min"
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "{num}m left"
+msgstr "zostało {num} min"
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "need {name}"
+msgstr "brakuje: {name}"
+
+#: app/routers/experiments.py
+msgid "Choose a valid experiment start date."
+msgstr "Wybierz prawidłową datę startu eksperymentu."
+
+#: app/routers/experiments.py
+msgid "Experiment duration must be between 1 and 52 weeks."
+msgstr "Eksperyment musi trwać od 1 do 52 tygodni."
+
+#: app/routers/experiments.py
+msgid "Experiment title is required."
+msgstr "Tytuł eksperymentu jest wymagany."
+
+#: app/routers/experiments.py
+msgid "Metric names must be unique within an experiment."
+msgstr "Nazwy wskaźników w eksperymencie muszą być unikalne."
+
+#: app/routers/experiments.py
+msgid "Linked goal was not found."
+msgstr "Nie znaleziono powiązanego celu."
+
+#: app/routers/experiments.py
+msgid "Experiment created."
+msgstr "Eksperyment utworzony."
+
+#: app/routers/experiments.py
+msgid "Choose a valid experiment status."
+msgstr "Wybierz prawidłowy status eksperymentu."
+
+#: app/routers/experiments.py
+msgid "Experiment not found."
+msgstr "Nie znaleziono eksperymentu."
+
+#: app/routers/experiments.py
+msgid "Experiment updated."
+msgstr "Eksperyment zaktualizowany."
+
+#: app/routers/experiments.py
+msgid "Metric name is required."
+msgstr "Nazwa wskaźnika jest wymagana."
+
+#: app/routers/experiments.py
+msgid "Metric added."
+msgstr "Wskaźnik dodany."
+
+#: app/routers/experiments.py
+msgid "Metric not found."
+msgstr "Nie znaleziono wskaźnika."
+
+#: app/routers/experiments.py
+msgid "Metric updated."
+msgstr "Wskaźnik zaktualizowany."
+
+#: app/routers/experiments.py
+msgid "Every metric needs a name."
+msgstr "Każdy wskaźnik potrzebuje nazwy."
+
+#: app/routers/experiments.py
+msgid "Metric deleted."
+msgstr "Wskaźnik usunięty."
+
+#: app/routers/experiments.py
+msgid "Choose a valid entry date."
+msgstr "Wybierz prawidłową datę wpisu."
+
+#: app/routers/experiments.py
+msgid "Only active experiments accept entries."
+msgstr "Wpisy przyjmują tylko aktywne eksperymenty."
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "Entry date must be between {start} and {end}."
+msgstr "Data wpisu musi mieścić się między {start} a {end}."
+
+#: app/routers/experiments.py
+msgid "Entry value must be a whole number."
+msgstr "Wartość wpisu musi być liczbą całkowitą."
+
+#: app/routers/experiments.py
+msgid "Entry value is outside the allowed range."
+msgstr "Wartość wpisu jest poza dozwolonym zakresem."
+
+#: app/routers/experiments.py
+msgid "Entry logged."
+msgstr "Wpis zapisany."
+
+#: app/routers/experiments.py
+msgid "Experiment week not found."
+msgstr "Nie znaleziono tygodnia eksperymentu."
+
+#: app/routers/experiments.py
+msgid "Another week summary is already queued."
+msgstr "Inne podsumowanie tygodnia jest już w kolejce."
+
+#: app/routers/experiments.py
+msgid "The week summary could not be queued. Try again."
+msgstr "Nie udało się dodać podsumowania tygodnia do kolejki. Spróbuj ponownie."
+
+#: app/routers/experiments.py
+msgid "Week summary queued."
+msgstr "Podsumowanie tygodnia dodane do kolejki."
+
+#: app/routers/experiments.py
+msgid "Could not import Oura workouts. Try again."
+msgstr "Nie udało się zaimportować treningów z Oura. Spróbuj ponownie."
+
+#: app/routers/experiments.py
+msgid "Oura workout import completed."
+msgstr "Import treningów z Oura zakończony."
+
+#: app/routers/experiments.py
+msgid "That entry no longer exists."
+msgstr "Ten wpis już nie istnieje."
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "That metric already has an answer on {date}. Edit or delete that one instead."
+msgstr "Ten wskaźnik ma już odpowiedź z {date}. Zamiast tego edytuj ją albo usuń."
+
+#: app/routers/experiments.py
+msgid "Entry corrected."
+msgstr "Wpis poprawiony."
+
+#: app/routers/experiments.py
+msgid "Entry not found."
+msgstr "Nie znaleziono wpisu."
+
+#: app/routers/experiments.py
+msgid "Entry deleted."
+msgstr "Wpis usunięty."
+
+#: app/routers/experiments.py
+msgid "Experiment marked as completed."
+msgstr "Eksperyment oznaczony jako ukończony."
+
+#: app/routers/experiments.py
+msgid "Experiment marked as abandoned."
+msgstr "Eksperyment oznaczony jako porzucony."
+
+#: app/routers/experiments.py
+msgid "Experiment reopened."
+msgstr "Eksperyment wznowiony."
+
+#: app/routers/experiments.py
+msgid "Experiment deleted."
+msgstr "Eksperyment usunięty."
+
+#: app/routers/experiments.py
+#, python-brace-format
+msgid "Week {number} targets updated."
+msgstr "Cele tygodnia {number} zaktualizowane."
+
+#: app/routers/experiments.py app/templates/experiment_detail.html
+msgid "no target"
+msgstr "bez celu"
+
+#: app/routers/goals.py
+msgid "Goal was not found."
+msgstr "Nie znaleziono celu."
+
+#: app/routers/goals.py
+msgid "Only active goals can be added to current focus."
+msgstr "Do fokusu można dodać tylko aktywne cele."
+
+#: app/routers/goals.py
+msgid "Goal focus changed concurrently. Try again."
+msgstr "Fokus celów zmienił się w międzyczasie. Spróbuj ponownie."
+
+#: app/routers/goals.py
+msgid "Goal focus updated."
+msgstr "Fokus celów zaktualizowany."
+
+#: app/routers/goals.py
+msgid "Goal saved."
+msgstr "Cel zapisany."
+
+#: app/routers/goals.py
+msgid "Goal details saved."
+msgstr "Szczegóły celu zapisane."
+
+#: app/routers/goals.py
+#, python-brace-format
+msgid "Goal deleted. Restore it under Recently deleted for {num} day."
+msgid_plural "Goal deleted. Restore it under Recently deleted for {num} days."
+msgstr[0] "Cel usunięty. Możesz go przywrócić w sekcji Ostatnio usunięte przez {num} dzień."
+msgstr[1] "Cel usunięty. Możesz go przywrócić w sekcji Ostatnio usunięte przez {num} dni."
+msgstr[2] "Cel usunięty. Możesz go przywrócić w sekcji Ostatnio usunięte przez {num} dni."
+
+#: app/routers/goals.py
+msgid "Goal restored."
+msgstr "Cel przywrócony."
+
+#: app/routers/goals.py
+msgid "Execution rep saved."
+msgstr "Krok zapisany."
+
+#: app/routers/goals.py
+msgid "Execution rep completed."
+msgstr "Krok wykonany."
+
+#: app/routers/goals.py
+msgid "Execution rep skipped."
+msgstr "Krok pominięty."
+
+#: app/routers/goals.py
+msgid "Execution rep carried over."
+msgstr "Krok przeniesiony."
+
+#: app/routers/goals.py
+msgid "Execution rep removed."
+msgstr "Krok usunięty."
 
 #: app/routers/life_scores.py
 msgid "Choose a valid life-score date."
@@ -648,11 +945,6 @@ msgstr "{field} musi mieć jedną z wartości: {choices}"
 
 #: app/services/daily_log.py
 #, python-brace-format
-msgid "{field} must be text"
-msgstr "{field} musi być tekstem"
-
-#: app/services/daily_log.py
-#, python-brace-format
 msgid "{field} must be at most {limit} characters"
 msgstr "{field} może mieć najwyżej {limit} znaków"
 
@@ -660,6 +952,182 @@ msgstr "{field} może mieć najwyżej {limit} znaków"
 #, python-brace-format
 msgid "{field} is not a daily-log status"
 msgstr "{field} nie jest statusem dziennika"
+
+#: app/services/daily_log.py app/services/goal_data.py
+#, python-brace-format
+msgid "{field} must be text"
+msgstr "{field} musi być tekstem"
+
+#: app/services/goal_data.py
+msgid "Content"
+msgstr "Treść"
+
+#: app/services/goal_data.py
+msgid "Start date"
+msgstr "Data startu"
+
+#: app/services/goal_data.py
+msgid "End date"
+msgstr "Data końca"
+
+#: app/services/goal_data.py
+msgid "Due date"
+msgstr "Termin"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "{field} is required"
+msgstr "{field} jest wymagane"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "{field} must use YYYY-MM-DD"
+msgstr "{field} musi mieć format RRRR-MM-DD"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "period must be one of: {choices}"
+msgstr "okres musi być jednym z: {choices}"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "horizon must be one of: {choices}"
+msgstr "horyzont musi być jednym z: {choices}"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "status must be one of: {choices}"
+msgstr "status musi być jednym z: {choices}"
+
+#: app/services/goal_data.py
+msgid "start_date must not be after end_date"
+msgstr "Data startu nie może być późniejsza niż data końca"
+
+#: app/services/goal_data.py
+msgid "Goal area not found"
+msgstr "Nie znaleziono obszaru celu"
+
+#: app/services/goal_data.py
+msgid "Parent goal not found"
+msgstr "Nie znaleziono celu nadrzędnego"
+
+#: app/services/goal_data.py
+msgid "Idempotency key already belongs to a different goal write"
+msgstr "Klucz idempotencji należy już do innego zapisu celu"
+
+#: app/services/goal_data.py
+msgid "Goal write conflicts with existing data"
+msgstr "Zapis celu koliduje z istniejącymi danymi"
+
+#: app/services/goal_data.py
+msgid "Goal not found"
+msgstr "Nie znaleziono celu"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "Unsupported goal fields: {choices}"
+msgstr "Nieobsługiwane pola celu: {choices}"
+
+#: app/services/goal_data.py
+msgid "A goal cannot be its own parent"
+msgstr "Cel nie może być swoim własnym celem nadrzędnym"
+
+#: app/services/goal_data.py
+msgid "Complete, skip, or remove pending reps before closing this goal"
+msgstr "Zanim zamkniesz ten cel, wykonaj, pomiń albo usuń oczekujące kroki"
+
+#: app/services/goal_data.py
+msgid "Goal hierarchy changed concurrently; retry the update"
+msgstr "Hierarchia celów zmieniła się w międzyczasie; ponów zmianę"
+
+#: app/services/goal_data.py
+msgid "Goals with execution history cannot be deleted; mark the goal abandoned instead"
+msgstr "Celów z historią wykonania nie można usunąć; zamiast tego oznacz cel jako porzucony"
+
+#: app/services/goal_data.py
+msgid "This goal was already restored or can no longer be"
+msgstr "Ten cel został już przywrócony albo nie da się go już przywrócić"
+
+#: app/services/goal_data.py
+msgid "The goal's area no longer exists"
+msgstr "Obszar tego celu już nie istnieje"
+
+#: app/services/goal_data.py
+msgid "This goal no longer fits the current data and cannot be restored"
+msgstr "Ten cel nie pasuje już do obecnych danych i nie da się go przywrócić"
+
+#: app/services/goal_data.py
+msgid "Reps can only be added to active or paused goals"
+msgstr "Kroki można dodawać tylko do aktywnych albo wstrzymanych celów"
+
+#: app/services/goal_data.py
+msgid "due_date is before the goal window"
+msgstr "Termin jest przed okresem celu"
+
+#: app/services/goal_data.py
+msgid "due_date is after the goal window"
+msgstr "Termin jest po okresie celu"
+
+#: app/services/goal_data.py
+msgid "Idempotency key already belongs to a different rep write"
+msgstr "Klucz idempotencji należy już do innego zapisu kroku"
+
+#: app/services/goal_data.py
+msgid "Rep was already carried"
+msgstr "Krok został już przeniesiony"
+
+#: app/services/goal_data.py
+msgid "Goal rep write conflicts with existing data"
+msgstr "Zapis kroku koliduje z istniejącymi danymi"
+
+#: app/services/goal_data.py
+msgid "Goal changed concurrently; retry the rep write"
+msgstr "Cel zmienił się w międzyczasie; ponów zapis kroku"
+
+#: app/services/goal_data.py
+msgid "Goal rep not found"
+msgstr "Nie znaleziono kroku"
+
+#: app/services/goal_data.py
+msgid "Only pending reps can be edited"
+msgstr "Edytować można tylko oczekujące kroki"
+
+#: app/services/goal_data.py
+#, python-brace-format
+msgid "Unsupported rep fields: {choices}"
+msgstr "Nieobsługiwane pola kroku: {choices}"
+
+#: app/services/goal_data.py
+msgid "Reps can only be moved to active or paused goals"
+msgstr "Kroki można przenosić tylko do aktywnych albo wstrzymanych celów"
+
+#: app/services/goal_data.py
+msgid "Goal or rep changed concurrently; retry the update"
+msgstr "Cel albo krok zmienił się w międzyczasie; ponów zmianę"
+
+#: app/services/goal_data.py
+msgid "Only pending reps outside a carry chain can be deleted"
+msgstr "Usunąć można tylko oczekujące kroki spoza łańcucha przeniesień"
+
+#: app/services/goal_data.py
+msgid "Only pending reps can transition"
+msgstr "Zmienić stan można tylko oczekującym krokom"
+
+#: app/services/goal_data.py
+msgid "Reps on a closed goal cannot transition"
+msgstr "Kroki zamkniętego celu nie mogą zmienić stanu"
+
+#: app/services/goal_data.py
+msgid "Rep changed concurrently. Retry the transition."
+msgstr "Krok zmienił się w międzyczasie. Ponów zmianę stanu."
+
+#: app/services/goal_data.py
+msgid "due_date is required when carrying a rep"
+msgstr "Przy przenoszeniu kroku termin jest wymagany"
+
+#: app/services/goal_data.py
+msgid "action must be complete, carry, or skip"
+msgstr "Akcja musi być jedną z: complete, carry, skip"
 
 #: app/services/measurements.py
 msgid "Arm"
@@ -889,16 +1357,8 @@ msgid "Freedom"
 msgstr "Freedom"
 
 #: app/static/js/app.js app/templates/base.html
-msgid "Dashboard"
-msgstr "Pulpit"
-
-#: app/static/js/app.js app/templates/base.html
 msgid "Daily"
 msgstr "Dziennik"
-
-#: app/static/js/app.js app/templates/base.html
-msgid "Experiments"
-msgstr "Eksperymenty"
 
 #: app/static/js/app.js app/templates/base.html
 msgid "Goals"
@@ -907,6 +1367,15 @@ msgstr "Cele"
 #: app/static/js/app.js app/templates/base.html
 msgid "Settings"
 msgstr "Ustawienia"
+
+#: app/static/js/app.js app/templates/base.html
+#: app/templates/experiment_detail.html
+msgid "Dashboard"
+msgstr "Pulpit"
+
+#: app/static/js/app.js app/templates/base.html app/templates/experiments.html
+msgid "Experiments"
+msgstr "Eksperymenty"
 
 #: app/static/js/app.js app/templates/base.html app/templates/training.html
 msgid "Training"
@@ -922,18 +1391,8 @@ msgstr "Następny dzień"
 
 #: app/static/js/app.js app/templates/daily.html
 #: app/templates/partials/today_block.html
-msgid "Pending"
-msgstr "Do zrobienia"
-
-#: app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
 msgid "Done"
 msgstr "Zrobione"
-
-#: app/static/js/app.js app/templates/daily.html
-#: app/templates/partials/today_block.html
-msgid "Skipped"
-msgstr "Pominięte"
 
 #: app/static/js/app.js app/templates/partials/feedback.html
 msgid "Dismiss error"
@@ -1178,10 +1637,6 @@ msgid "What will you do?"
 msgstr "Co zrobisz?"
 
 #: app/templates/daily.html
-msgid "Notes"
-msgstr "Notatki"
-
-#: app/templates/daily.html
 msgid "Notes for the day..."
 msgstr "Notatki na dziś..."
 
@@ -1246,10 +1701,6 @@ msgid "Queueing..."
 msgstr "Dodawanie do kolejki..."
 
 #: app/templates/daily.html app/templates/dashboard.html
-msgid "Save"
-msgstr "Zapisz"
-
-#: app/templates/daily.html app/templates/dashboard.html
 msgid "Arm (cm)"
 msgstr "Ramię (cm)"
 
@@ -1266,12 +1717,22 @@ msgid "Thighs (cm)"
 msgstr "Uda (cm)"
 
 #: app/templates/daily.html app/templates/dashboard.html
+#: app/templates/experiment_detail.html
+msgid "Save"
+msgstr "Zapisz"
+
+#: app/templates/daily.html app/templates/dashboard.html
 #: app/templates/partials/wod_row.html app/templates/training.html
 #: app/templates/wod_confirm.html
 msgid "Weight (kg)"
 msgstr "Waga (kg)"
 
-#: app/templates/daily.html app/templates/training.html
+#: app/templates/daily.html app/templates/experiment_detail.html
+msgid "Notes"
+msgstr "Notatki"
+
+#: app/templates/daily.html app/templates/experiment_detail.html
+#: app/templates/training.html
 msgid "Edit"
 msgstr "Edytuj"
 
@@ -1310,10 +1771,6 @@ msgstr "Wygeneruj ponownie"
 #: app/templates/dashboard.html
 msgid "Generate Briefing"
 msgstr "Wygeneruj briefing"
-
-#: app/templates/dashboard.html
-msgid "Week"
-msgstr "Tydzień"
 
 #: app/templates/dashboard.html
 msgid "not logged"
@@ -1383,10 +1840,6 @@ msgid "Recovery:"
 msgstr "Regeneracja:"
 
 #: app/templates/dashboard.html
-msgid "Today"
-msgstr "Dzisiaj"
-
-#: app/templates/dashboard.html
 msgid "No Oura data yet."
 msgstr "Brak danych z Oura."
 
@@ -1454,10 +1907,6 @@ msgid "Energy Avg"
 msgstr "Średnia energia"
 
 #: app/templates/dashboard.html
-msgid "Metrics"
-msgstr "Wskaźniki"
-
-#: app/templates/dashboard.html
 msgid "PMO Status"
 msgstr "Status PMO"
 
@@ -1521,9 +1970,768 @@ msgstr "dzisiaj"
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
-#: app/templates/dashboard.html app/templates/training.html
+#: app/templates/dashboard.html app/templates/experiment_detail.html
+msgid "Today"
+msgstr "Dzisiaj"
+
+#: app/templates/dashboard.html app/templates/experiment_detail.html
+#: app/templates/training.html
 msgid "Date"
 msgstr "Data"
+
+#: app/templates/dashboard.html app/templates/experiment_edit.html
+#: app/templates/experiment_new.html
+msgid "Metrics"
+msgstr "Wskaźniki"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "This experiment ended on %(date)s."
+msgstr "Ten eksperyment zakończył się %(date)s."
+
+#: app/templates/experiment_detail.html
+msgid "Review the results below, then mark it completed, or extend it with more weeks if you want to keep going."
+msgstr "Przejrzyj wyniki poniżej, a potem oznacz go jako ukończony albo przedłuż o kolejne tygodnie, jeśli chcesz kontynuować."
+
+#: app/templates/experiment_detail.html
+msgid "Mark completed"
+msgstr "Oznacz jako ukończony"
+
+#: app/templates/experiment_detail.html
+msgid "Extend"
+msgstr "Przedłuż"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "TARGET %(name)s"
+msgstr "CEL %(name)s"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "TARGET, ALL %(count)s WEEK"
+msgid_plural "TARGET, ALL %(count)s WEEKS"
+msgstr[0] "CEL NA CAŁY %(count)s TYDZIEŃ"
+msgstr[1] "CEL NA WSZYSTKIE %(count)s TYGODNIE"
+msgstr[2] "CEL NA WSZYSTKIE %(count)s TYGODNI"
+
+#: app/templates/experiment_detail.html
+msgid "DAYS LEFT"
+msgstr "POZOSTAŁE DNI"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "Week %(week)s of %(total)s"
+msgstr "Tydzień %(week)s z %(total)s"
+
+#: app/templates/experiment_detail.html
+msgid "All metrics"
+msgstr "Wszystkie wskaźniki"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "TOTAL %(name)s"
+msgstr "RAZEM %(name)s"
+
+#: app/templates/experiment_detail.html
+msgid "Mark as not done"
+msgstr "Oznacz jako niezrobione"
+
+#: app/templates/experiment_detail.html
+msgid "note (optional)"
+msgstr "notatka (opcjonalnie)"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "Week %(number)s"
+msgstr "Tydzień %(number)s"
+
+#: app/templates/experiment_detail.html
+msgid "Double-click to edit targets"
+msgstr "Kliknij dwukrotnie, żeby edytować cele"
+
+#: app/templates/experiment_detail.html
+msgid "complete ✓"
+msgstr "zrobione ✓"
+
+#: app/templates/experiment_detail.html
+msgid "label"
+msgstr "etykieta"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "AI Summary, week %(number)s"
+msgstr "Podsumowanie AI, tydzień %(number)s"
+
+#: app/templates/experiment_detail.html
+msgid "Generate AI Summary"
+msgstr "Wygeneruj podsumowanie AI"
+
+#: app/templates/experiment_detail.html
+msgid "⌚ Import Oura Workouts"
+msgstr "⌚ Importuj treningi z Oura"
+
+#: app/templates/experiment_detail.html
+msgid "Different date or more detail"
+msgstr "Inna data albo więcej szczegółów"
+
+#: app/templates/experiment_detail.html
+msgid "minutes, e.g. 45"
+msgstr "minuty, np. 45"
+
+#: app/templates/experiment_detail.html
+msgid "events, e.g. 1"
+msgstr "zdarzenia, np. 1"
+
+#: app/templates/experiment_detail.html
+msgid "1 = yes, 0 = no"
+msgstr "1 = tak, 0 = nie"
+
+#: app/templates/experiment_detail.html
+msgid "rating 0-10"
+msgstr "ocena 0-10"
+
+#: app/templates/experiment_detail.html
+msgid "Log Entry"
+msgstr "Zapisz wpis"
+
+#: app/templates/experiment_detail.html
+msgid "Metric"
+msgstr "Wskaźnik"
+
+#: app/templates/experiment_detail.html
+msgid "Value"
+msgstr "Wartość"
+
+#: app/templates/experiment_detail.html
+msgid "easy pace / TENSION, 7→3"
+msgstr "spokojne tempo / NAPIĘCIE, 7→3"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "Recent Entries (%(count)s)"
+msgstr "Ostatnie wpisy (%(count)s)"
+
+#: app/templates/experiment_detail.html
+msgid "Auto-imported from Oura"
+msgstr "Zaimportowane automatycznie z Oura"
+
+#: app/templates/experiment_detail.html
+msgid "Logged via API/MCP"
+msgstr "Zapisane przez API/MCP"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "Edit the %(name)s entry from %(date)s"
+msgstr "Edytuj wpis %(name)s z %(date)s"
+
+#: app/templates/experiment_detail.html
+msgid "(1 yes, 0 no)"
+msgstr "(1 tak, 0 nie)"
+
+#: app/templates/experiment_detail.html
+msgid "(minutes)"
+msgstr "(minuty)"
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "Delete the %(name)s entry from %(date)s?"
+msgstr "Usunąć wpis %(name)s z %(date)s?"
+
+#: app/templates/experiment_detail.html
+msgid "It was imported from Oura and comes back on the next sync; edit it instead to change it."
+msgstr "Został zaimportowany z Oura i wróci przy następnej synchronizacji; żeby go zmienić, edytuj go."
+
+#: app/templates/experiment_detail.html
+#, python-format
+msgid "Delete the %(name)s entry from %(date)s"
+msgstr "Usuń wpis %(name)s z %(date)s"
+
+#: app/templates/experiment_detail.html
+msgid "Actions"
+msgstr "Akcje"
+
+#: app/templates/experiment_detail.html
+msgid "Mark this experiment as completed? You can reopen it later."
+msgstr "Oznaczyć ten eksperyment jako ukończony? Możesz go później wznowić."
+
+#: app/templates/experiment_detail.html
+msgid "Mark Completed"
+msgstr "Oznacz jako ukończony"
+
+#: app/templates/experiment_detail.html
+msgid "Abandon this experiment? You can reopen it later."
+msgstr "Porzucić ten eksperyment? Możesz go później wznowić."
+
+#: app/templates/experiment_detail.html
+msgid "Abandon"
+msgstr "Porzuć"
+
+#: app/templates/experiment_detail.html
+msgid "Delete this experiment and all its data?"
+msgstr "Usunąć ten eksperyment i wszystkie jego dane?"
+
+#: app/templates/experiment_detail.html
+msgid "Reopen"
+msgstr "Wznów"
+
+#: app/templates/experiment_detail.html app/templates/experiment_edit.html
+msgid "Delete"
+msgstr "Usuń"
+
+#: app/templates/experiment_detail.html app/templates/experiments.html
+#: app/templates/goals.html
+#, python-format
+msgid "%(start)s to %(end)s"
+msgstr "%(start)s do %(end)s"
+
+#: app/templates/experiment_edit.html
+#, python-format
+msgid "Virgil - Edit %(title)s"
+msgstr "Virgil - Edycja: %(title)s"
+
+#: app/templates/experiment_edit.html
+msgid "Edit Experiment"
+msgstr "Edytuj eksperyment"
+
+#: app/templates/experiment_edit.html
+#, python-format
+msgid "Back to %(title)s"
+msgstr "Wróć do: %(title)s"
+
+#: app/templates/experiment_edit.html
+msgid "Shrinking removes the trailing weeks' targets/labels."
+msgstr "Skrócenie usuwa cele i etykiety ostatnich tygodni."
+
+#: app/templates/experiment_edit.html
+msgid "active"
+msgstr "aktywny"
+
+#: app/templates/experiment_edit.html
+msgid "completed"
+msgstr "ukończony"
+
+#: app/templates/experiment_edit.html
+msgid "abandoned"
+msgstr "porzucony"
+
+#: app/templates/experiment_edit.html
+msgid "Type is fixed after creation — logged values keep their meaning. Targets apply to Count and Yes/No metrics."
+msgstr "Typu nie można zmienić po utworzeniu, żeby zapisane wartości zachowały znaczenie. Cele dotyczą wskaźników Liczba i Tak/Nie."
+
+#: app/templates/experiment_edit.html
+msgid "Metric name"
+msgstr "Nazwa wskaźnika"
+
+#: app/templates/experiment_edit.html
+msgid "Target (0 = none)"
+msgstr "Cel (0 = brak)"
+
+#: app/templates/experiment_edit.html
+msgid "per day"
+msgstr "na dzień"
+
+#: app/templates/experiment_edit.html
+msgid "per week"
+msgstr "na tydzień"
+
+#: app/templates/experiment_edit.html
+msgid "total"
+msgstr "łącznie"
+
+#: app/templates/experiment_edit.html
+msgid "Oura names, comma-separated"
+msgstr "Nazwy z Oura, oddzielone przecinkami"
+
+#: app/templates/experiment_edit.html
+#, python-format
+msgid "Delete metric %(name)s and its %(count)s logged entry? Unsaved changes on this page are lost."
+msgid_plural "Delete metric %(name)s and its %(count)s logged entries? Unsaved changes on this page are lost."
+msgstr[0] "Usunąć wskaźnik %(name)s i jego %(count)s wpis? Niezapisane zmiany na tej stronie przepadną."
+msgstr[1] "Usunąć wskaźnik %(name)s i jego %(count)s wpisy? Niezapisane zmiany na tej stronie przepadną."
+msgstr[2] "Usunąć wskaźnik %(name)s i jego %(count)s wpisów? Niezapisane zmiany na tej stronie przepadną."
+
+#: app/templates/experiment_edit.html
+msgid "Save changes"
+msgstr "Zapisz zmiany"
+
+#: app/templates/experiment_edit.html
+msgid "Add a metric"
+msgstr "Dodaj wskaźnik"
+
+#: app/templates/experiment_edit.html
+msgid "New metric name"
+msgstr "Nazwa nowego wskaźnika"
+
+#: app/templates/experiment_edit.html
+msgid "Target (0 = none; Count/Yes-No only)"
+msgstr "Cel (0 = brak; tylko Liczba i Tak/Nie)"
+
+#: app/templates/experiment_edit.html
+msgid "Oura names (Minutes only)"
+msgstr "Nazwy z Oura (tylko Minuty)"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Basics"
+msgstr "Podstawy"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Title"
+msgstr "Tytuł"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Description"
+msgstr "Opis"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Linked goal"
+msgstr "Powiązany cel"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "optional"
+msgstr "opcjonalnie"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "No linked goal"
+msgstr "Bez powiązanego celu"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Start Date"
+msgstr "Data startu"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Number of Weeks"
+msgstr "Liczba tygodni"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Minutes"
+msgstr "Minuty"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Count"
+msgstr "Liczba"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Rating 0-10"
+msgstr "Ocena 0-10"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Yes / No (daily)"
+msgstr "Tak / Nie (codziennie)"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "+ Add Metric"
+msgstr "+ Dodaj wskaźnik"
+
+#: app/templates/experiment_edit.html app/templates/goals.html
+msgid "Status"
+msgstr "Status"
+
+#: app/templates/experiment_new.html
+msgid "Virgil - New Experiment"
+msgstr "Virgil - Nowy eksperyment"
+
+#: app/templates/experiment_new.html
+msgid "New Experiment"
+msgstr "Nowy eksperyment"
+
+#: app/templates/experiment_new.html
+msgid "RHR 50 -> 45"
+msgstr "Tętno spoczynkowe 50 -> 45"
+
+#: app/templates/experiment_new.html
+msgid "8-week zone 2 + HIIT plan"
+msgstr "8-tygodniowy plan strefa 2 + HIIT"
+
+#: app/templates/experiment_new.html
+msgid "What this experiment tracks: minutes of activity, event counts, daily yes/no checks or 0-10 ratings."
+msgstr "Co śledzi ten eksperyment: minuty aktywności, liczbę zdarzeń, codzienne odpowiedzi tak/nie albo oceny 0-10."
+
+#: app/templates/experiment_new.html
+msgid "Name"
+msgstr "Nazwa"
+
+#: app/templates/experiment_new.html
+msgid "Zone 2 / Meditation / Urge logged"
+msgstr "Strefa 2 / Medytacja / Zapisana pokusa"
+
+#: app/templates/experiment_new.html
+msgid "Type"
+msgstr "Typ"
+
+#: app/templates/experiment_new.html
+msgid "Color"
+msgstr "Kolor"
+
+#: app/templates/experiment_new.html
+msgid "0 = no target"
+msgstr "0 = bez celu"
+
+#: app/templates/experiment_new.html
+msgid "per"
+msgstr "na"
+
+#: app/templates/experiment_new.html
+msgid "day"
+msgstr "dzień"
+
+#: app/templates/experiment_new.html
+msgid "week"
+msgstr "tydzień"
+
+#: app/templates/experiment_new.html
+msgid "whole experiment"
+msgstr "cały eksperyment"
+
+#: app/templates/experiment_new.html
+msgid "= every day"
+msgstr "= każdego dnia"
+
+#: app/templates/experiment_new.html
+msgid "walking,hiking,running"
+msgstr "walking,hiking,running"
+
+#: app/templates/experiment_new.html
+msgid "Oura activity names to auto-import (comma-separated)"
+msgstr "Nazwy aktywności z Oura do automatycznego importu (oddzielone przecinkami)"
+
+#: app/templates/experiment_new.html
+msgid "Weekly Minutes Target"
+msgstr "Tygodniowy cel minut"
+
+#: app/templates/experiment_new.html
+msgid "Applies to the sum of all \"Minutes\" metrics per week."
+msgstr "Dotyczy sumy wszystkich wskaźników \"Minuty\" w tygodniu."
+
+#: app/templates/experiment_new.html
+msgid "Weekly Target Min (minutes)"
+msgstr "Tygodniowy cel minimum (minuty)"
+
+#: app/templates/experiment_new.html
+msgid "Weekly Target Max (minutes)"
+msgstr "Tygodniowy cel maksimum (minuty)"
+
+#: app/templates/experiment_new.html
+msgid "Week Labels"
+msgstr "Etykiety tygodni"
+
+#: app/templates/experiment_new.html
+msgid "Optional, comma-separated: e.g. \",,DELOAD,,,,TAPER,\""
+msgstr "Opcjonalnie, oddzielone przecinkami: np. \",,DELOAD,,,,TAPER,\""
+
+#: app/templates/experiment_new.html
+msgid ",,DELOAD,,,,TAPER,"
+msgstr ",,DELOAD,,,,TAPER,"
+
+#: app/templates/experiment_new.html
+msgid "Create Experiment"
+msgstr "Utwórz eksperyment"
+
+#: app/templates/experiment_new.html
+msgid "Cancel"
+msgstr "Anuluj"
+
+#: app/templates/experiments.html
+msgid "Virgil - Experiments"
+msgstr "Virgil - Eksperymenty"
+
+#: app/templates/experiments.html
+msgid "New"
+msgstr "Nowy"
+
+#: app/templates/experiments.html
+msgid "Logged"
+msgstr "Zapisane"
+
+#: app/templates/experiments.html
+msgid "Target"
+msgstr "Cel"
+
+#: app/templates/experiments.html
+#, python-format
+msgid "%(pct)s%% elapsed"
+msgstr "upłynęło %(pct)s%%"
+
+#: app/templates/experiments.html
+msgid "No experiments yet."
+msgstr "Brak eksperymentów."
+
+#: app/templates/experiments.html
+msgid "Track structured, time-boxed health experiments with weekly targets and activity logging."
+msgstr "Prowadź uporządkowane eksperymenty zdrowotne z określonym czasem trwania, tygodniowymi celami i zapisem aktywności."
+
+#: app/templates/experiments.html
+msgid "Create Your First Experiment"
+msgstr "Utwórz pierwszy eksperyment"
+
+#: app/templates/goals.html
+msgid "Virgil - Goals"
+msgstr "Virgil - Cele"
+
+#: app/templates/goals.html
+msgid "Remove from current focus"
+msgstr "Usuń z fokusu"
+
+#: app/templates/goals.html
+msgid "Add to current focus"
+msgstr "Dodaj do fokusu"
+
+#: app/templates/goals.html
+msgid "Goal"
+msgstr "Cel"
+
+#: app/templates/goals.html
+#, python-format
+msgid "Delete this goal? You can restore it under Recently deleted for %(count)s day. Goals with execution history must be marked abandoned instead."
+msgid_plural "Delete this goal? You can restore it under Recently deleted for %(count)s days. Goals with execution history must be marked abandoned instead."
+msgstr[0] "Usunąć ten cel? Możesz go przywrócić w sekcji Ostatnio usunięte przez %(count)s dzień. Cele z historią wykonania trzeba zamiast tego oznaczyć jako porzucone."
+msgstr[1] "Usunąć ten cel? Możesz go przywrócić w sekcji Ostatnio usunięte przez %(count)s dni. Cele z historią wykonania trzeba zamiast tego oznaczyć jako porzucone."
+msgstr[2] "Usunąć ten cel? Możesz go przywrócić w sekcji Ostatnio usunięte przez %(count)s dni. Cele z historią wykonania trzeba zamiast tego oznaczyć jako porzucone."
+
+#: app/templates/goals.html
+msgid "Delete goal"
+msgstr "Usuń cel"
+
+#: app/templates/goals.html
+msgid "Details and execution"
+msgstr "Szczegóły i wykonanie"
+
+#: app/templates/goals.html
+msgid "Starts"
+msgstr "Start"
+
+#: app/templates/goals.html
+msgid "Ends"
+msgstr "Koniec"
+
+#: app/templates/goals.html
+msgid "Save details"
+msgstr "Zapisz szczegóły"
+
+#: app/templates/goals.html
+msgid "New execution rep"
+msgstr "Nowy krok"
+
+#: app/templates/goals.html
+msgid "What is the next concrete action?"
+msgstr "Jaki jest następny konkretny krok?"
+
+#: app/templates/goals.html
+msgid "Period"
+msgstr "Okres"
+
+#: app/templates/goals.html
+msgid "Due"
+msgstr "Termin"
+
+#: app/templates/goals.html
+msgid "Add rep"
+msgstr "Dodaj krok"
+
+#: app/templates/goals.html
+msgid "Changes"
+msgstr "Zmiany"
+
+#: app/templates/goals.html
+msgid "Created"
+msgstr "Utworzono"
+
+#: app/templates/goals.html
+msgid "Added to focus"
+msgstr "Dodano do fokusu"
+
+#: app/templates/goals.html
+msgid "Removed from focus"
+msgstr "Usunięto z fokusu"
+
+#: app/templates/goals.html
+msgid "Deleted"
+msgstr "Usunięto"
+
+#: app/templates/goals.html
+msgid "Restored"
+msgstr "Przywrócono"
+
+#: app/templates/goals.html
+#, python-format
+msgid "Changed %(fields)s"
+msgstr "Zmieniono: %(fields)s"
+
+#: app/templates/goals.html
+msgid "Direction and execution"
+msgstr "Kierunek i wykonanie"
+
+#: app/templates/goals.html
+msgid "Life Goals Map"
+msgstr "Mapa celów życiowych"
+
+#: app/templates/goals.html
+msgid "Keep the destination visible, then turn it into the next concrete rep."
+msgstr "Miej cel przed oczami, a potem zamień go w następny konkretny krok."
+
+#: app/templates/goals.html
+msgid "Current focus"
+msgstr "Fokus"
+
+#: app/templates/goals.html
+#, python-format
+msgid "Star up to %(focus_limit)s goals you are actively moving now."
+msgstr "Oznacz gwiazdką do %(focus_limit)s celów, nad którymi teraz aktywnie pracujesz."
+
+#: app/templates/goals.html
+#, python-format
+msgid "%(count)s goal starred. Focus works best at %(focus_limit)s or fewer."
+msgid_plural "%(count)s goals starred. Focus works best at %(focus_limit)s or fewer."
+msgstr[0] "Gwiazdkę ma %(count)s cel. Fokus działa najlepiej przy %(focus_limit)s lub mniej."
+msgstr[1] "Gwiazdkę mają %(count)s cele. Fokus działa najlepiej przy %(focus_limit)s lub mniej."
+msgstr[2] "Gwiazdkę ma %(count)s celów. Fokus działa najlepiej przy %(focus_limit)s lub mniej."
+
+#: app/templates/goals.html
+msgid "No goals in focus"
+msgstr "Brak celów w fokusie"
+
+#: app/templates/goals.html
+msgid "Star a goal below to keep it within reach."
+msgstr "Oznacz cel gwiazdką poniżej, żeby mieć go pod ręką."
+
+#: app/templates/goals.html
+msgid "Execution queue"
+msgstr "Kolejka kroków"
+
+#: app/templates/goals.html
+msgid "Concrete commitments, ordered by due date."
+msgstr "Konkretne zobowiązania, według terminu."
+
+#: app/templates/goals.html
+msgid "Complete"
+msgstr "Wykonaj"
+
+#: app/templates/goals.html
+msgid "Skip"
+msgstr "Pomiń"
+
+#: app/templates/goals.html
+msgid "Carry"
+msgstr "Przenieś"
+
+#: app/templates/goals.html
+msgid "New due date"
+msgstr "Nowy termin"
+
+#: app/templates/goals.html
+msgid "Move rep"
+msgstr "Przenieś krok"
+
+#: app/templates/goals.html
+msgid "Goal horizon"
+msgstr "Horyzont celów"
+
+#: app/templates/goals.html
+msgid "Horizon"
+msgstr "Horyzont"
+
+#: app/templates/goals.html
+msgid "Add goal"
+msgstr "Dodaj cel"
+
+#: app/templates/goals.html
+msgid "New goal..."
+msgstr "Nowy cel..."
+
+#: app/templates/goals.html
+msgid "Area"
+msgstr "Obszar"
+
+#: app/templates/goals.html
+msgid "Create goal"
+msgstr "Utwórz cel"
+
+#: app/templates/goals.html
+msgid "Execution history"
+msgstr "Historia wykonania"
+
+#: app/templates/goals.html
+#, python-format
+msgid "%(count)s recent"
+msgstr "ostatnie: %(count)s"
+
+#: app/templates/goals.html
+msgid "Recently deleted"
+msgstr "Ostatnio usunięte"
+
+#: app/templates/goals.html
+#, python-format
+msgid "%(count)s, kept %(days)s days"
+msgstr "%(count)s, przechowywane przez %(days)s dni"
+
+#: app/templates/goals.html
+#, python-format
+msgid "restorable until %(date)s"
+msgstr "do przywrócenia do %(date)s"
+
+#: app/templates/goals.html
+#, python-format
+msgid "Restore %(name)s"
+msgstr "Przywróć %(name)s"
+
+#: app/templates/goals.html
+msgid "Restore"
+msgstr "Przywróć"
+
+#: app/templates/goals.html
+msgid "Open areas"
+msgstr "Otwórz obszary"
+
+#: app/templates/goals.html
+msgid "No goals in the selected horizon yet."
+msgstr "Brak celów w wybranym horyzoncie."
+
+#: app/templates/goals.html app/templates/training.html
+msgid "Open"
+msgstr "Otwórz"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "Starts %(date)s"
+msgstr "Start %(date)s"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "Week %(week)s/%(total)s"
+msgstr "Tydzień %(week)s/%(total)s"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "%(title)s: log today"
+msgstr "%(title)s: zapisz dzisiaj"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "%(name)s: not done today"
+msgstr "%(name)s: dziś niezrobione"
+
+#: app/templates/partials/experiment_card.html
+msgid "Not done today"
+msgstr "Dziś niezrobione"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "%(value)s today"
+msgstr "dziś %(value)s"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "%(name)s, 0 to 10"
+msgstr "%(name)s, od 0 do 10"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "%(name)s, minutes"
+msgstr "%(name)s, minuty"
+
+#: app/templates/partials/experiment_card.html
+#, python-format
+msgid "%(value)sm today"
+msgstr "dziś %(value)s min"
 
 #: app/templates/partials/feedback.html
 msgid "Action feedback"
@@ -1776,10 +2984,6 @@ msgid_plural "%(date)s - %(count)s sessions"
 msgstr[0] "%(date)s - %(count)s sesja"
 msgstr[1] "%(date)s - %(count)s sesje"
 msgstr[2] "%(date)s - %(count)s sesji"
-
-#: app/templates/training.html
-msgid "Open"
-msgstr "Otwórz"
 
 #: app/templates/training.html
 #, python-format

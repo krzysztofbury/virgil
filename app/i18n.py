@@ -106,6 +106,32 @@ MONTHS_SHORT = (
 )
 
 
+# Stored enumeration values a page shows as words: statuses, periods, horizons.
+_ENUM_LABELS = {
+    "active": N_("Active"),
+    "paused": N_("Paused"),
+    "completed": N_("Completed"),
+    "abandoned": N_("Abandoned"),
+    "pending": N_("Pending"),
+    "carried": N_("Carried"),
+    "skipped": N_("Skipped"),
+    "day": N_("Day"),
+    "week": N_("Week"),
+    "month": N_("Month"),
+    "quarter": N_("Quarter"),
+    "year": N_("Year"),
+    "1yr": N_("1 Year"),
+    "3yr": N_("3 Years"),
+    "10yr": N_("10 Years"),
+}
+
+
+def enum_label(value) -> str:
+    """A stored value as a word: translated when known, capitalized as before when not."""
+    text = str(value)
+    return _(_ENUM_LABELS[text]) if text in _ENUM_LABELS else text.capitalize()
+
+
 def weekday_short(index: int) -> str:
     """Monday is 0, as date.weekday() counts."""
     return _(WEEKDAYS_SHORT[index])

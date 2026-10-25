@@ -322,6 +322,7 @@ templates.env.add_extension("jinja2.ext.i18n")
 templates.env.install_gettext_callables(i18n._, i18n.ngettext, newstyle=True)
 templates.env.globals["current_language"] = i18n.current_language
 templates.env.globals["js_catalog"] = i18n.js_catalog
+templates.env.filters["label"] = i18n.enum_label
 
 
 @app.get("/healthz")
