@@ -835,10 +835,13 @@
             <label>{{ _("Your password") }}
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
-            {% else %}
+            {% elif mfa_enabled %}
             <label>{{ _("Code from your authenticator app, or a recovery code") }}
                 <input type="text" name="totp_code" autocomplete="one-time-code" required>
             </label>
+            {% else %}
+            {# No password and no authenticator (#168): a recent link sign-in is the proof. #}
+            <p class="text-muted" style="font-size:0.85rem;">{{ _("A sign-in from a link in the last 15 minutes confirms it.") }}</p>
             {% endif %}
             <button type="submit" class="btn btn-primary btn-sm">{{ _("Create token") }}</button>
         </form>
@@ -924,10 +927,13 @@
             <label>{{ _("Your password") }}
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
-            {% else %}
+            {% elif mfa_enabled %}
             <label>{{ _("Code from your authenticator app, or a recovery code") }}
                 <input type="text" name="totp_code" autocomplete="one-time-code" required>
             </label>
+            {% else %}
+            {# No password and no authenticator (#168): a recent link sign-in is the proof. #}
+            <p class="text-muted" style="font-size:0.85rem;">{{ _("A sign-in from a link in the last 15 minutes confirms it.") }}</p>
             {% endif %}
             <button type="submit" class="btn btn-danger">{{ _("Reset All Data") }}</button>
         </form>

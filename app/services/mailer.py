@@ -115,6 +115,10 @@ def schedule(mail: Mail) -> None:
 
 
 async def drain() -> None:
-    """Wait for every scheduled message (tests and shutdown)."""
-    while _pending:
-        await asyncio.gather(*list(_pending), return_exceptions=True)
+    """Wait for every message scheduled on this event loop (tests and shutdown).
+
+    Tasks of another loop cannot be awaited here; they finish, or die, with it.
+    """
+    loop = asyncio.get_running_loop()
+    while mine := [task for task in _pending if task.get_loop() is loop]:
+        await asyncio.gather(*mine, return_exceptions=True)

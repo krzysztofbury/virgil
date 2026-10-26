@@ -209,6 +209,7 @@ async def signup_submit(
             display_name=display_name,
             invite=invite,
             email_locked=bool(invite_email),
+            sign_in_method="link" if link_only else "password",
         )
 
     if not valid_email(email):

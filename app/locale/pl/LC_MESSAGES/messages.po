@@ -6988,6 +6988,10 @@ msgid "Your password"
 msgstr "Twoje hasło"
 
 #: app/templates/settings.html
+msgid "A sign-in from a link in the last 15 minutes confirms it."
+msgstr "Potwierdza to logowanie linkiem w ciągu ostatnich 15 minut."
+
+#: app/templates/settings.html
 msgid "Create token"
 msgstr "Utwórz token"
 

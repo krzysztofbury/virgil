@@ -303,3 +303,34 @@ def _finish_onboarding(email: str) -> None:
     user_db.execute("INSERT OR REPLACE INTO app_settings (key, value) VALUES ('onboarding_completed', '1')")
     user_db.commit()
     user_db.close()
+
+
+def test_forms_ask_a_link_only_account_without_two_factor_for_no_code(auth_client, browser, sent_mail, cleanup):
+    """It has no authenticator: a required code field would block the token and
+    reset forms; a recent link sign-in is its proof instead."""
+    email = f"noform-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(email), email)
+    _finish_onboarding(email)
+    page = browser.get("/settings?tab=security").text
+    assert 'name="totp_code"' not in page
+    assert "A sign-in from a link in the last 15 minutes confirms it." in page
+
+
+def test_a_signup_error_keeps_the_chosen_method(auth_client, browser, sent_mail):
+    """After "Passwords do not match" the form came back on links with the
+    password fields hidden, and a resubmit made an account without a password."""
+    page = browser.post(
+        "/signup",
+        data={
+            "email": "chooser@example.com",
+            "sign_in_method": "password",
+            "password": "first-password-1",  # pragma: allowlist secret - synthetic fixture
+            "password_confirm": "other-password-2",  # pragma: allowlist secret - synthetic fixture
+            "invite": _invite(""),
+            "_csrf_token": csrf_token(browser, "/signup"),
+        },
+    ).text
+    assert "Passwords do not match." in page
+    assert re.search(r'value="password"[^>]*checked', page)
+    assert not re.search(r'value="link"[^>]*checked', page)

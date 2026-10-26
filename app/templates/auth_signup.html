@@ -50,8 +50,9 @@
             {# No password needed (#168): sign in with emailed links, or set one. #}
             <fieldset class="signup-method">
                 <legend>{{ _("How do you want to sign in?") }}</legend>
-                <label class="checkbox-label"><input type="radio" name="sign_in_method" value="link" checked> {{ _("With links sent to my email (no password)") }}</label>
-                <label class="checkbox-label"><input type="radio" name="sign_in_method" value="password" id="signup-method-password"> {{ _("With a password") }}</label>
+                {# A form sent back with an error keeps the method chosen. #}
+                <label class="checkbox-label"><input type="radio" name="sign_in_method" value="link"{% if sign_in_method != "password" %} checked{% endif %}> {{ _("With links sent to my email (no password)") }}</label>
+                <label class="checkbox-label"><input type="radio" name="sign_in_method" value="password" id="signup-method-password"{% if sign_in_method == "password" %} checked{% endif %}> {{ _("With a password") }}</label>
             </fieldset>
             {% endif %}
             <div class="signup-password{% if mail_on %} signup-password-optional{% endif %}">
