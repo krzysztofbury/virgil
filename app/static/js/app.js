@@ -874,33 +874,52 @@ function toggleShortcutOverlay() {
         if (e.key === 'Tab') e.preventDefault();
     });
     var feat = JSON.parse(document.body.getAttribute('data-features') || '{}');
-    var freedomRow = feat.freedom ? '<div class="shortcut-row"><span>' + gettext('Freedom') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>f</kbd></span></div>' : '';
-    overlay.innerHTML =
-        '<div class="shortcut-card" role="dialog" aria-modal="true" aria-labelledby="shortcut-title" tabindex="-1">' +
-        '<h3 id="shortcut-title">' + gettext('Keyboard Shortcuts') + '</h3>' +
-        '<div class="shortcut-section">' +
-        '<div class="shortcut-section-title">' + gettext('Navigation (press g then...)') + '</div>' +
-        '<div class="shortcut-row"><span>' + gettext('Dashboard') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>d</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Daily') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>l</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Training') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>t</kbd></span></div>' +
-        freedomRow +
-        '<div class="shortcut-row"><span>' + gettext('Oura') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>o</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Bloodwork') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>b</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Experiments') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>e</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Goals') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>g</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Settings') + '</span><span class="kbd-combo"><kbd>g</kbd><kbd>s</kbd></span></div>' +
-        '</div>' +
-        '<div class="shortcut-section">' +
-        '<div class="shortcut-section-title">' + gettext('Daily Page') + '</div>' +
-        '<div class="shortcut-row"><span>' + gettext('Previous day') + '</span><span class="kbd-combo"><kbd>&larr;</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Next day') + '</span><span class="kbd-combo"><kbd>&rarr;</kbd></span></div>' +
-        '</div>' +
-        '<div class="shortcut-section">' +
-        '<div class="shortcut-section-title">' + gettext('General') + '</div>' +
-        '<div class="shortcut-row"><span>' + gettext('Show shortcuts') + '</span><span class="kbd-combo"><kbd>?</kbd></span></div>' +
-        '<div class="shortcut-row"><span>' + gettext('Close overlay') + '</span><span class="kbd-combo"><kbd>Esc</kbd></span></div>' +
-        '</div>' +
-        '</div>';
+    // Built from elements, never innerHTML: a translation is text, and markup
+    // in one must not become part of the page.
+    function el(tag, attrs, children) {
+        var node = document.createElement(tag);
+        Object.keys(attrs || {}).forEach(function(name) { node.setAttribute(name, attrs[name]); });
+        (children || []).forEach(function(child) {
+            node.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+        });
+        return node;
+    }
+    function row(label, keys) {
+        return el('div', { 'class': 'shortcut-row' }, [
+            el('span', null, [label]),
+            el('span', { 'class': 'kbd-combo' }, keys.map(function(key) { return el('kbd', null, [key]); }))
+        ]);
+    }
+    function section(title, rows) {
+        return el('div', { 'class': 'shortcut-section' }, [el('div', { 'class': 'shortcut-section-title' }, [title])].concat(rows));
+    }
+    var navigation = [
+        row(gettext('Dashboard'), ['g', 'd']),
+        row(gettext('Daily'), ['g', 'l']),
+        row(gettext('Training'), ['g', 't'])
+    ];
+    if (feat.freedom) navigation.push(row(gettext('Freedom'), ['g', 'f']));
+    navigation.push(
+        row(gettext('Oura'), ['g', 'o']),
+        row(gettext('Bloodwork'), ['g', 'b']),
+        row(gettext('Experiments'), ['g', 'e']),
+        row(gettext('Goals'), ['g', 'g']),
+        row(gettext('Settings'), ['g', 's'])
+    );
+    overlay.appendChild(el('div', {
+        'class': 'shortcut-card', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'shortcut-title', tabindex: '-1'
+    }, [
+        el('h3', { id: 'shortcut-title' }, [gettext('Keyboard Shortcuts')]),
+        section(gettext('Navigation (press g then...)'), navigation),
+        section(gettext('Daily Page'), [
+            row(gettext('Previous day'), ['←']),
+            row(gettext('Next day'), ['→'])
+        ]),
+        section(gettext('General'), [
+            row(gettext('Show shortcuts'), ['?']),
+            row(gettext('Close overlay'), ['Esc'])
+        ])
+    ]));
     document.body.appendChild(overlay);
     overlay.querySelector('.shortcut-card').focus();
 }
@@ -939,7 +958,9 @@ function closeShortcutOverlay() {
         var el = e.target;
         while (el && el !== document.body) {
             if (el.hasAttribute && el.hasAttribute(attr)) {
-                window.location.href = el.getAttribute(attr);
+                // Only a link on this site: the attribute is page data, not a trusted URL.
+                var target = new URL(el.getAttribute(attr), window.location.href);
+                if (target.origin === window.location.origin) window.location.href = target.pathname + target.search;
                 return;
             }
             el = el.parentElement;

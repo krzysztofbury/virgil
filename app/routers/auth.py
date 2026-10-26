@@ -1,6 +1,5 @@
 import io
 import logging
-import re
 from datetime import UTC, datetime
 
 import pyotp
@@ -45,6 +44,7 @@ from app.i18n import LANGUAGE_COOKIE, N_, _, current_language, ngettext, normali
 from app.main import templates
 from app.rate_limit import client_ip
 from app.user_db import create_user_db
+from app.validation import valid_email
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -186,7 +186,7 @@ async def signup_submit(
             email_locked=bool(invite_email),
         )
 
-    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+    if not valid_email(email):
         return _render_error(_("Please enter a valid email address."))
 
     if len(password) < 8:

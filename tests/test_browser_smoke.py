@@ -298,3 +298,54 @@ def test_a_json_export_restores_through_the_check_page(site, tmp_path):
         assert problems == []
     finally:
         context.close()
+
+
+def test_the_shortcut_overlay_shows_translations_as_text(site):
+    """A translation is data: markup in one must not become elements."""
+    context, page, problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        page.goto(f"{base}/daily")
+        page.evaluate("""() => { i18nCatalog = {Dashboard: '<b id="injected">x</b>'}; }""")
+        page.keyboard.press("?")
+        overlay = page.locator(".shortcut-overlay")
+        overlay.wait_for()
+        assert '<b id="injected">x</b>' in overlay.inner_text()
+        assert page.locator("#injected").count() == 0
+        assert overlay.locator("kbd").count() >= 20 and "←" in overlay.inner_text()
+        assert problems == []
+    finally:
+        context.close()
+
+
+def _swipe_left(page):
+    page.evaluate(
+        """() => {
+            const target = document.querySelector('[data-swipe-left]');
+            const at = (x) => [new Touch({identifier: 1, target, clientX: x, clientY: 200})];
+            target.dispatchEvent(new TouchEvent('touchstart', {bubbles: true, touches: at(300), changedTouches: at(300)}));
+            target.dispatchEvent(new TouchEvent('touchend', {bubbles: true, touches: [], changedTouches: at(100)}));
+        }"""
+    )
+
+
+def test_a_swipe_only_follows_a_link_on_this_site(site):
+    browser, base, session = site
+    context = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, storage_state=session)
+    try:
+        page = context.new_page()
+        page.goto(f"{base}/daily/2026-01-10")
+        # The Content-Security-Policy already stops a javascript: URL; another site is the open door.
+        page.evaluate("""() => document.querySelector('[data-swipe-left]')
+            .setAttribute('data-swipe-left', 'https://example.invalid/')""")
+        _swipe_left(page)
+        page.wait_for_timeout(500)
+        assert page.url == f"{base}/daily/2026-01-10"
+
+        page.evaluate(
+            """() => document.querySelector('[data-swipe-left]').setAttribute('data-swipe-left', '/daily/2026-01-11')"""
+        )
+        with page.expect_navigation():
+            _swipe_left(page)
+        assert page.url.endswith("/daily/2026-01-11")
+    finally:
+        context.close()

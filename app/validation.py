@@ -1,5 +1,6 @@
 """Shared input validation helpers for form endpoints."""
 
+import re
 from datetime import date
 from typing import Annotated
 from uuid import UUID
@@ -117,3 +118,23 @@ def clamp_int(raw: str, minimum: int, maximum: int) -> int:
     except (ValueError, TypeError):
         return minimum
     return max(minimum, min(maximum, value))
+
+
+# --- Email addresses ------------------------------------------------------
+
+EMAIL_MAX_LENGTH = 254  # RFC 5321's limit on a forward path
+
+_EMAIL = re.compile(r"[^@\s]+@[^@\s]+")
+
+
+def valid_email(value: str) -> bool:
+    """One @, no whitespace, and a dot inside the domain.
+
+    The pattern has a single way to split, so it runs in linear time. The
+    earlier `[^@\\s]+@[^@\\s]+\\.[^@\\s]+` backtracked quadratically on a run
+    of dots, and signup is reachable without an account.
+    """
+    if len(value) > EMAIL_MAX_LENGTH or not _EMAIL.fullmatch(value):
+        return False
+    domain = value.partition("@")[2]
+    return "." in domain[1:-1]

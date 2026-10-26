@@ -1,7 +1,6 @@
 """Admin panel — user management."""
 
 import logging
-import re
 
 from fastapi import APIRouter, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -29,7 +28,7 @@ from app.main import templates
 from app.rate_limit import client_ip
 from app.services.backup import delete_user_backups
 from app.user_db import delete_user_db
-from app.validation import valid_uuid
+from app.validation import valid_email, valid_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -101,7 +100,7 @@ async def create_invite_route(
     """Shows the link once, on this response. Only its hash is stored, so it cannot be shown again."""
     admin = _require_admin(request)
     email = email.strip().lower()
-    if email and not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", email):
+    if email and not valid_email(email):
         return error_redirect(request, "/admin/users", _("Enter a valid email address, or leave it empty."))
     if role not in ("user", "admin"):
         return error_redirect(request, "/admin/users", _("Unknown role."))

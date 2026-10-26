@@ -3,7 +3,8 @@
 The upload never travels inside a job payload. Payloads are bounded and land in
 the jobs table, the status UI and the logs; a blood panel belongs in none of
 those. The payload carries an opaque token, and the bytes wait in a per-user
-staging directory that the handler deletes once the markers are stored.
+staging directory, encrypted with the app key, until the handler deletes them
+once the markers are stored.
 """
 
 import json
@@ -14,7 +15,10 @@ import time
 from pathlib import Path
 from typing import Any
 
+from cryptography.fernet import InvalidToken
+
 from app.config import CENTRAL_DB_PATH
+from app.services.encryption import get_fernet
 
 logger = logging.getLogger(__name__)
 
@@ -65,15 +69,27 @@ def stage_upload(user_id: str, data: bytes) -> str:
     directory = _user_dir(user_id)
     directory.mkdir(parents=True, exist_ok=True)
     token = secrets.token_hex(16)
-    staged_path(user_id, token).write_bytes(data)
+    _write_sealed(staged_path(user_id, token), data)
     return token
 
 
-def read_staged(user_id: str, token: str) -> bytes:
-    path = staged_path(user_id, token)
+def _write_sealed(path: Path, data: bytes) -> None:
+    path.write_bytes(get_fernet().encrypt(data))
+
+
+def _read_sealed(path: Path, missing: str) -> bytes:
+    """A file that will not decrypt (staged before encryption, or damaged) is
+    as gone as an expired one: the user uploads again."""
     if not path.is_file():
-        raise ValueError("The staged medical upload is no longer available")
-    return path.read_bytes()
+        raise ValueError(missing)
+    try:
+        return get_fernet().decrypt(path.read_bytes())
+    except InvalidToken:
+        raise ValueError(missing) from None
+
+
+def read_staged(user_id: str, token: str) -> bytes:
+    return _read_sealed(staged_path(user_id, token), "The staged medical upload is no longer available")
 
 
 def extracted_text_path(user_id: str, token: str) -> Path:
@@ -82,14 +98,12 @@ def extracted_text_path(user_id: str, token: str) -> Path:
 
 
 def store_extracted_text(user_id: str, token: str, text: str) -> None:
-    extracted_text_path(user_id, token).write_text(text, encoding="utf-8")
+    _write_sealed(extracted_text_path(user_id, token), text.encode("utf-8"))
 
 
 def read_extracted_text(user_id: str, token: str) -> str:
     path = extracted_text_path(user_id, token)
-    if not path.is_file():
-        raise ValueError("The extracted medical text is no longer available")
-    return path.read_text(encoding="utf-8")
+    return _read_sealed(path, "The extracted medical text is no longer available").decode("utf-8")
 
 
 def discard_staged(user_id: str, token: str) -> None:
