@@ -380,6 +380,14 @@ AUTH_EVENTS = frozenset(
         "user_disable",
         "user_enable",
         "user_delete",
+        "link_request",
+        "link_sign_in",
+        "recovery_code_use",
+        "recovery_codes_create",
+        "mfa_admin_reset",
+        "password_add",
+        "password_remove",
+        "invite_email",
     }
 )
 AUTH_EVENT_RETENTION_DAYS = 180
@@ -618,6 +626,154 @@ async def complete_password_reset(token: str, password: str) -> str | None:
             await db.rollback()
             raise
     return user_id
+
+
+# --- Emailed sign-in links (#168) ---
+
+SIGN_IN_LINK_TTL_MINUTES = 15
+# Links per address per TTL window: enough for a retry or two, not a mail bomb.
+SIGN_IN_LINKS_PER_WINDOW = 3
+
+_OPEN_LINK = """SELECT l.* FROM sign_in_links l LEFT JOIN users u ON u.id = l.user_id
+                WHERE l.token_hash = ? AND l.used_at = '' AND l.expires_at > ?
+                  AND (l.purpose = 'signup' OR u.is_active = 1)"""
+
+
+async def create_sign_in_link(
+    email: str,
+    *,
+    user_id: str | None,
+    purpose: str = "sign_in",
+    invite_id: str = "",
+    display_name: str = "",
+    language: str = "en",
+) -> str | None:
+    """Store a one-time sign-in (or signup) link and return its secret, or None
+    when the address already had SIGN_IN_LINKS_PER_WINDOW links in the window."""
+    if purpose not in ("sign_in", "signup"):
+        raise ValueError(f"Unknown link purpose: {purpose}")
+    email = email.strip().lower()
+    now = datetime.now(UTC)
+    token = secrets.token_urlsafe(32)
+    async with _subscription_connection() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            rows = await db.execute_fetchall(
+                "SELECT COUNT(*) AS n FROM sign_in_links WHERE email = ? AND created_at > ?",
+                (email, _utc_stamp(now - timedelta(minutes=SIGN_IN_LINK_TTL_MINUTES))),
+            )
+            if rows[0]["n"] >= SIGN_IN_LINKS_PER_WINDOW:
+                await db.rollback()
+                return None
+            await db.execute(
+                """INSERT INTO sign_in_links
+                   (id, purpose, user_id, email, token_hash, invite_id, display_name, language, created_at, expires_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    str(uuid.uuid4()),
+                    purpose,
+                    user_id,
+                    email,
+                    _token_hash(token),
+                    invite_id,
+                    display_name,
+                    language,
+                    _utc_stamp(now),
+                    _utc_stamp(now + timedelta(minutes=SIGN_IN_LINK_TTL_MINUTES)),
+                ),
+            )
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
+    return token
+
+
+async def get_open_sign_in_link(token: str) -> dict | None:
+    """The usable link behind a token, or None (used, expired, or its account disabled)."""
+    if not token:
+        return None
+    db = await get_central_db()
+    rows = await db.execute_fetchall(_OPEN_LINK, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
+    return dict(rows[0]) if rows else None
+
+
+async def use_sign_in_link(token: str) -> dict | None:
+    """Use a link up and return it, to exactly one caller: a double submit or a
+    second tab gets None."""
+    if not token:
+        return None
+    async with _subscription_connection() as db:
+        await db.execute("BEGIN IMMEDIATE")
+        try:
+            now = _utc_stamp(datetime.now(UTC))
+            rows = await db.execute_fetchall(_OPEN_LINK, (_token_hash(token), now))
+            if not rows:
+                await db.rollback()
+                return None
+            await db.execute("UPDATE sign_in_links SET used_at = ? WHERE id = ?", (now, rows[0]["id"]))
+            await db.commit()
+        except BaseException:
+            await db.rollback()
+            raise
+    return dict(rows[0])
+
+
+# --- MFA recovery codes (#168) ---
+
+RECOVERY_CODE_COUNT = 10
+# No 0/o, 1/l/i: a code is read off a screen or a printout and typed back.
+_RECOVERY_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
+
+
+def normalize_recovery_code(code: str) -> str:
+    return "".join(code.split()).replace("-", "").lower()
+
+
+def _new_recovery_code() -> str:
+    raw = "".join(secrets.choice(_RECOVERY_ALPHABET) for _ in range(10))
+    return f"{raw[:5]}-{raw[5:]}"
+
+
+async def replace_recovery_codes(user_id: str) -> list[str]:
+    """A new set of codes for the account; the old set stops working."""
+    codes = [_new_recovery_code() for _ in range(RECOVERY_CODE_COUNT)]
+    db = await get_central_db()
+    await db.execute("DELETE FROM mfa_recovery_codes WHERE user_id = ?", (user_id,))
+    await db.executemany(
+        "INSERT INTO mfa_recovery_codes (id, user_id, code_hash) VALUES (?, ?, ?)",
+        [(str(uuid.uuid4()), user_id, _token_hash(normalize_recovery_code(code))) for code in codes],
+    )
+    await db.commit()
+    return codes
+
+
+async def use_recovery_code(user_id: str, code: str) -> bool:
+    """True once per code."""
+    normalized = normalize_recovery_code(code)
+    if not normalized:
+        return False
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        "UPDATE mfa_recovery_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at = '' RETURNING id",
+        (_utc_stamp(datetime.now(UTC)), user_id, _token_hash(normalized)),
+    )
+    await db.commit()
+    return bool(rows)
+
+
+async def count_recovery_codes(user_id: str) -> int:
+    db = await get_central_db()
+    rows = await db.execute_fetchall(
+        "SELECT COUNT(*) AS n FROM mfa_recovery_codes WHERE user_id = ? AND used_at = ''", (user_id,)
+    )
+    return rows[0]["n"]
+
+
+async def delete_recovery_codes(user_id: str) -> None:
+    db = await get_central_db()
+    await db.execute("DELETE FROM mfa_recovery_codes WHERE user_id = ?", (user_id,))
+    await db.commit()
 
 
 async def shared_llm_allowed(db_filename: str) -> bool:
