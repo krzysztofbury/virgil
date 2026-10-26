@@ -22,6 +22,7 @@ AUTH_WINDOW_SECONDS = 60
 AUTH_PATHS = frozenset(
     {
         "/login",
+        "/login/link",
         "/signup",
         "/mfa/verify",
         "/reset",

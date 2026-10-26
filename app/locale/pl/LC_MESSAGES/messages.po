@@ -3073,6 +3073,19 @@ msgstr "Virgil - Logowanie"
 msgid "Sign in to continue."
 msgstr "Zaloguj się, żeby kontynuować."
 
+#: app/templates/auth_login.html
+msgid "Check your email"
+msgstr "Sprawdź pocztę"
+
+#: app/templates/auth_login.html
+#, python-format
+msgid "If %(email)s can sign in here, a sign-in link is on its way. It works once and expires in %(minutes)s minutes."
+msgstr "Jeśli %(email)s może się tu zalogować, link do logowania jest już w drodze. Działa raz i wygasa po %(minutes)s minutach."
+
+#: app/templates/auth_login.html
+msgid "Use a different email"
+msgstr "Użyj innego adresu e-mail"
+
 #: app/templates/auth_login.html app/templates/auth_signup.html
 #: app/templates/settings.html
 msgid "Password"
@@ -3081,6 +3094,14 @@ msgstr "Hasło"
 #: app/templates/auth_login.html
 msgid "Sign In"
 msgstr "Zaloguj się"
+
+#: app/templates/auth_login.html
+msgid "Email me a sign-in link instead"
+msgstr "Wyślij mi zamiast tego link do logowania"
+
+#: app/templates/auth_login.html
+msgid "Continue"
+msgstr "Dalej"
 
 #: app/templates/auth_login.html
 msgid "Don't have an account?"
@@ -3801,6 +3822,27 @@ msgstr "dzisiaj"
 #, python-format
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
+
+#: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+msgid "Open this link to sign in to Virgil:"
+msgstr "Otwórz ten link, aby zalogować się do Virgila:"
+
+#: app/templates/email/sign_in.html
+msgid "Sign in to Virgil"
+msgstr "Zaloguj się do Virgila"
+
+#: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+#, python-format
+msgid "It works once and expires in %(minutes)s minutes."
+msgstr "Działa raz i wygasa po %(minutes)s minutach."
+
+#: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+msgid "If you did not ask for it, ignore this email."
+msgstr "Jeśli to nie Ty prosisz o ten link, zignoruj tę wiadomość."
+
+#: app/templates/email/sign_in.txt
+msgid "Your Virgil sign-in link"
+msgstr "Twój link do logowania w Virgil"
 
 #: app/templates/experiment_detail.html app/templates/experiments.html
 #: app/templates/goals.html

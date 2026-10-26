@@ -7,6 +7,7 @@ import qrcode
 from fastapi import APIRouter, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
+from app import config
 from app.auth import (
     LANGUAGE_CHOSEN_COOKIE,
     SESSION_COOKIE,
@@ -23,10 +24,12 @@ from app.auth import (
     verify_password_async,
 )
 from app.central_db import (
+    SIGN_IN_LINK_TTL_MINUTES,
     bump_session_epoch,
     claim_mfa_attempt,
     complete_password_reset,
     count_users,
+    create_sign_in_link,
     create_user,
     create_user_from_invite,
     finish_mfa_attempt,
@@ -43,6 +46,7 @@ from app.feedback import error_redirect, feedback_url, success_redirect
 from app.i18n import LANGUAGE_COOKIE, N_, _, current_language, ngettext, normalize_language, set_language
 from app.main import templates
 from app.rate_limit import client_ip
+from app.services import mailer
 from app.user_db import create_user_db
 from app.validation import valid_email
 
@@ -293,14 +297,46 @@ async def reset_submit(
 # --- Login ---
 
 
+async def _login_page(request: Request, step: str = "email", email: str = "", **context):
+    """The sign-in page at one of its steps: "email", "password" or "check_email"."""
+    return templates.TemplateResponse(
+        request,
+        "auth_login.html",
+        {
+            "request": request,
+            "step": step,
+            "email": email,
+            "mail_on": mailer.mail_enabled(),
+            "registration_open": await registration_allowed(),
+            **context,
+        },
+    )
+
+
+async def _send_sign_in_link(request: Request, user: dict) -> None:
+    """Email a one-time sign-in link, in the account's language, after the response.
+
+    Past the per-address limit nothing is sent; the page reads the same either way.
+    """
+    token = await create_sign_in_link(user["email"], user_id=user["id"], language=user["language"])
+    if not token:
+        return
+    mail = mailer.render_mail(
+        "sign_in",
+        user["language"],
+        to=user["email"],
+        link=f"{config.BASE_URL}/login/link?token={token}",
+        minutes=SIGN_IN_LINK_TTL_MINUTES,
+    )
+    mailer.schedule(mail)
+    await _event(request, "link_request", user["id"])
+
+
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     if await signed_in_user(request.cookies.get(SESSION_COOKIE, "")):
         return RedirectResponse("/", status_code=303)
-
-    return templates.TemplateResponse(
-        request, "auth_login.html", {"request": request, "registration_open": await registration_allowed()}
-    )
+    return await _login_page(request)
 
 
 @router.post("/login")
@@ -309,52 +345,39 @@ async def login_submit(
     username: str = Form(...),
     password: str = Form(""),
 ):
+    """Email first (#168). Without a password, the next step is the password for
+    an account that has one, and an emailed link for any other. An unknown
+    address gets the same "check your email" page and no mail, so the page does
+    not say which addresses have link-only accounts. With mail off there are no
+    links: every address gets the password step, as before."""
     email = username.strip().lower()
 
-    # verify_password raises on empty input — reject it up front with the same
-    # generic error instead of a 500.
     if not password:
-        return templates.TemplateResponse(
-            request,
-            "auth_login.html",
-            {
-                "request": request,
-                "error": _("Invalid email or password."),
-                "registration_open": await registration_allowed(),
-            },
-        )
+        if not mailer.mail_enabled():
+            return await _login_page(request, "password", email)
+        user = await get_user_by_email(email)
+        if user and user["is_active"] and user["password_hash"]:
+            return await _login_page(request, "password", email)
+        if user and user["is_active"]:
+            await _send_sign_in_link(request, user)
+        return await _login_page(request, "check_email", email)
 
     user = await get_user_by_email(email)
 
-    # Burn a bcrypt verify even for unknown emails so timing stays uniform.
-    password_hash = user["password_hash"] if user else _DUMMY_PASSWORD_HASH
-    password_ok = await verify_password_async(password, password_hash)
+    # Burn a bcrypt verify even for unknown emails, and for accounts without a
+    # password, so timing stays uniform. An empty hash is never a match.
+    password_hash = user["password_hash"] if user and user["password_hash"] else _DUMMY_PASSWORD_HASH
+    password_ok = await verify_password_async(password, password_hash) and bool(user and user["password_hash"])
 
     if not user or not password_ok:
         await _event(
             request, "login_fail", user["id"] if user else None, "wrong password" if user else "unknown account"
         )
-        return templates.TemplateResponse(
-            request,
-            "auth_login.html",
-            {
-                "request": request,
-                "error": _("Invalid email or password."),
-                "registration_open": await registration_allowed(),
-            },
-        )
+        return await _login_page(request, "password", email, error=_("Invalid email or password."))
 
     if not user["is_active"]:
         await _event(request, "login_fail", user["id"], "account disabled")
-        return templates.TemplateResponse(
-            request,
-            "auth_login.html",
-            {
-                "request": request,
-                "error": _("This account has been deactivated."),
-                "registration_open": await registration_allowed(),
-            },
-        )
+        return await _login_page(request, "password", email, error=_("This account has been deactivated."))
 
     # If MFA is enabled, redirect to MFA verification
     if user["totp_enabled"]:
@@ -366,6 +389,23 @@ async def login_submit(
     # No MFA — create full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"])
+    return await _signed_in_response(request, user)
+
+
+@router.post("/login/link")
+async def login_link_request(request: Request, username: str = Form("")):
+    """ "Email me a sign-in link instead", from the password step."""
+    email = username.strip().lower()
+    if not mailer.mail_enabled():
+        return await _login_page(request, "password", email)
+    user = await get_user_by_email(email)
+    if user and user["is_active"]:
+        await _send_sign_in_link(request, user)
+    return await _login_page(request, "check_email", email)
+
+
+async def _signed_in_response(request: Request, user: dict) -> RedirectResponse:
+    """A full session for an account that has passed every check, and the dashboard."""
     token = create_session(user["id"], user["session_epoch"])
     language = await _signed_in_language(request, user)
     set_language(language)
@@ -535,14 +575,7 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
     # MFA verified — upgrade to full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"], "with MFA")
-    token = create_session(user["id"], user["session_epoch"])
-    language = await _signed_in_language(request, user)
-    set_language(language)
-    response = RedirectResponse(feedback_url("/", msg=_("Signed in.")), status_code=303)
-    response.headers["set-cookie"] = session_cookie_header(token)
-    response.headers.append("set-cookie", language_cookie_header(language))
-    response.headers.append("set-cookie", language_chosen_cookie_header(clear=True))
-    return response
+    return await _signed_in_response(request, user)
 
 
 # --- Interface language (#152) ---

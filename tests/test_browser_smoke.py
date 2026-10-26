@@ -128,9 +128,11 @@ def _sign_in(browser, base):
     try:
         page = context.new_page()
         page.goto(f"{base}/login")
+        # Email first, then the password (#168).
         page.fill("input[name=username]", DEMO_EMAIL)
-        page.fill("input[name=password]", DEMO_PASSWORD)
         page.click("button[type=submit]")
+        page.fill("input[name=password]", DEMO_PASSWORD)
+        page.click("form[action='/login'] button[type=submit]")
         page.wait_for_url(lambda url: "/login" not in url)
         return context.storage_state()
     finally:
