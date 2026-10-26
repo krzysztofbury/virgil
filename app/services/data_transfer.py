@@ -180,7 +180,7 @@ def is_portable_setting(key: str) -> bool:
 def _number(value: str, kind: type, low: float, high: float) -> bool:
     try:
         number = kind(value)
-    except (TypeError, ValueError, OverflowError):
+    except TypeError, ValueError, OverflowError:
         return False
     return isfinite(number) and low <= number <= high
 
@@ -465,7 +465,7 @@ def staged_report(stem: str, token: str) -> dict | None:
     _upload, staged, report_path = _paths(stem, token)
     try:
         report = json.loads(report_path.read_text())
-    except (FileNotFoundError, json.JSONDecodeError):
+    except FileNotFoundError, json.JSONDecodeError:
         return None
     if time.time() - report.get("created_at", 0) > IMPORT_TTL_SECONDS or not staged.exists():
         discard(stem, token)

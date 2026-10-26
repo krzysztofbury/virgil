@@ -33,7 +33,7 @@ def past_or_today(value: str) -> str | None:
     """
     try:
         parsed = calendar_date.fromisoformat(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     return parsed.isoformat() if parsed <= calendar_date.today() else None
 

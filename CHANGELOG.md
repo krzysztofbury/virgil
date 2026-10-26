@@ -32,6 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   language; the API keeps its English wording.
 - Messages that htmx receives in a response header are percent-encoded, so
   they can carry Polish letters.
+- Python 3.14.7 in the image, CI and development (was 3.12.14), and the
+  project requires 3.14. Ruff targets py314. The MCP stdio script still runs
+  on 3.12 or later, since it runs on the client's machine.
 
 ### Fixed
 - Goal rep messages read "Execution rep skipd" and "carryd"; they now say

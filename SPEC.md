@@ -6,9 +6,9 @@ This document describes the architecture, conventions, and design decisions for 
 
 **Virgil** is a multi-user, self-hosted life-tracking dashboard built with FastAPI, SQLite, Jinja2, and HTMX. Identities live in a central registry database; each user's data lives in an isolated per-user SQLite database.
 
-- **Language:** Python 3.12+
+- **Language:** Python 3.14
 - **Package manager:** [uv](https://github.com/astral-sh/uv)
-- **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 120, target: py312)
+- **Formatter/Linter:** [ruff](https://github.com/astral-sh/ruff) (line-length: 120, target: py314)
 - **Security scanner:** [bandit](https://github.com/PyCQA/bandit)
 - **Database:** SQLite with WAL mode, versioned migration system
 - **Frontend:** Jinja2 templates + HTMX + Alpine.js + Chart.js
@@ -90,7 +90,7 @@ app/
 ### Setup
 
 ```bash
-uv sync --locked --extra dev --python 3.12.14
+uv sync --locked --extra dev --python 3.14.7
 cp .env.example .env  # Fill in optional API keys
 ```
 

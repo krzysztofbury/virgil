@@ -41,7 +41,7 @@ class TrainingWriteError(LocalizedError):
         self.status = status
         self.unknown_movements = unknown_movements or []
 
-    def for_one_set(self) -> "TrainingWriteError":
+    def for_one_set(self) -> TrainingWriteError:
         """The same failure about one set: "reps must be ...", not "entries[0].reps must be ..."."""
         params = {key: value for key, value in self.params.items() if key != "row"}
         return TrainingWriteError(

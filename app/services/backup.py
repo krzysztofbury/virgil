@@ -517,7 +517,7 @@ async def maybe_backup_central() -> Path | None:
             break
         try:
             await asyncio.to_thread(_validate_backup, path)
-        except (sqlite3.DatabaseError, RuntimeError):
+        except sqlite3.DatabaseError, RuntimeError:
             logger.warning("Ignoring invalid central backup: %s", path.name)
             continue
         return None

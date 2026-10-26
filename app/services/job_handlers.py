@@ -41,7 +41,7 @@ def _trigger(payload: Mapping[str, Any]) -> str:
     return trigger
 
 
-async def handle_backup(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_backup(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     from app.services.backup import run_backup
 
     _exact_payload(payload, {"trigger"})
@@ -61,7 +61,7 @@ async def handle_backup(context: "JobContext", payload: Mapping[str, Any]) -> Ma
     return {"filename": path.name}
 
 
-async def handle_oura_sync(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_oura_sync(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     from app.services.oura_api import sync_oura_from_api
 
     _exact_payload(payload, {"days_back", "trigger"})
@@ -80,7 +80,7 @@ async def handle_oura_sync(context: "JobContext", payload: Mapping[str, Any]) ->
     }
 
 
-async def handle_morning_briefing(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_morning_briefing(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     from app.services.briefing import generate_briefing_text, save_briefing
 
     _exact_payload(payload, {"day", "key_part", "trigger"})
@@ -111,7 +111,7 @@ def _positive_id(value: Any, field: str) -> int:
     return value
 
 
-async def handle_wod_parse(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_wod_parse(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Parse one captured training note into library-constrained entries.
 
     A deterministic parse failure still publishes: the provider was already
@@ -170,7 +170,7 @@ async def handle_wod_parse(context: "JobContext", payload: Mapping[str, Any]) ->
     return await run_paid_llm_job(context, "wod_parse", key, produce, publish)
 
 
-async def handle_andy_generation(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_andy_generation(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     from app.services.andy import generate_andy_suggestions, save_andy_suggestions
 
     _exact_payload(payload, {"day", "key_part"})
@@ -189,7 +189,7 @@ async def handle_andy_generation(context: "JobContext", payload: Mapping[str, An
     )
 
 
-async def handle_experiment_summary(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_experiment_summary(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     from app.services.experiment_summary import build_week_summary, save_week_summary
 
     _exact_payload(payload, {"experiment_id", "week_number", "trigger"})
@@ -214,7 +214,7 @@ async def handle_experiment_summary(context: "JobContext", payload: Mapping[str,
     )
 
 
-async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_medical_import(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Import one staged blood panel.
 
     A PDF is two paid calls. Extraction publishes through the same ledger path
@@ -287,7 +287,7 @@ async def handle_medical_import(context: "JobContext", payload: Mapping[str, Any
     return result
 
 
-async def handle_onboarding_enrichment(context: "JobContext", payload: Mapping[str, Any]) -> Mapping[str, Any]:
+async def handle_onboarding_enrichment(context: JobContext, payload: Mapping[str, Any]) -> Mapping[str, Any]:
     """Run every enrichment step that still owes work, one purchase at a time.
 
     The steps are independent, so one failure must not cost the others. Each

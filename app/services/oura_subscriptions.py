@@ -157,7 +157,7 @@ class OuraSubscriptionAdapter:
             return True
         try:
             callback_url = json.loads(item.provider_data)["callback_url"]
-        except (KeyError, TypeError, json.JSONDecodeError):
+        except KeyError, TypeError, json.JSONDecodeError:
             return False
         return callback_url in context.owned_callback_urls
 
@@ -171,7 +171,7 @@ class OuraSubscriptionAdapter:
             return False
         try:
             return json.loads(item.provider_data)["callback_url"] == context.callback_url
-        except (KeyError, TypeError, json.JSONDecodeError):
+        except KeyError, TypeError, json.JSONDecodeError:
             return False
 
     async def list_remote(self, context: OuraSubscriptionContext) -> list[RemoteSubscription]:

@@ -161,7 +161,7 @@ def _coerce(value, caster):
         return None
     try:
         return caster(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         raise
 
 
@@ -244,7 +244,7 @@ async def parse_wod(db, text: str) -> ParsedWod:
                 note=str(item.get("note") or "")[:200],
                 equipment=item.get("equipment") if item.get("equipment") in EQUIPMENT else None,
             )
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             # One malformed row must not lose the rest of the workout — but it
             # must not vanish either. `continue` alone put the movement in
             # neither `entries` nor `unmatched`, so the confirm screen showed no

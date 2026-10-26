@@ -27,7 +27,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 ## Tech Stack
 
-- **Backend**: Python 3.12, FastAPI, aiosqlite
+- **Backend**: Python 3.14, FastAPI, aiosqlite
 - **Frontend**: Jinja2 templates, HTMX, Alpine.js (CSP build), Chart.js, Lucide icons, all served from `app/static/vendor` (sources and hashes in `SOURCES.json`), with no CDN or Google Fonts request
 - **Styling**: Custom CSS with dark/light theme via CSS custom properties
 - **Database**: SQLite with WAL mode, versioned migration system
@@ -42,7 +42,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 ```bash
 # Install dependencies
-uv sync --locked --extra dev --python 3.12.14
+uv sync --locked --extra dev --python 3.14.7
 
 # Run the app (hot reload enabled, port 8123)
 uv run python -m app
@@ -889,7 +889,7 @@ virgil/
 ├── data/                     # SQLite databases + encryption key (gitignored)
 ├── backups/                  # Backups and pre-migration snapshots in compose (gitignored)
 ├── docker-compose.yml        # Virgil + Cloudflare Tunnel (QNAP-compatible)
-├── Dockerfile                # Python 3.12 + uv, prod mode
+├── Dockerfile                # Python 3.14 + uv, prod mode
 ├── .env.example              # Environment variable template
 ├── pyproject.toml
 ├── CHANGELOG.md

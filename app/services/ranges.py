@@ -19,7 +19,7 @@ def range_weeks(value) -> int:
     """The requested window, or the default for anything that is not one of the offered ones."""
     try:
         weeks = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return DEFAULT_RANGE_WEEKS
     return weeks if weeks in RANGE_WEEKS else DEFAULT_RANGE_WEEKS
 

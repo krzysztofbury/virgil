@@ -47,7 +47,7 @@ DONE_FIELDS = (
 async def daily_page(request: Request, day: str | None = None, job_id: int | None = Query(None, ge=1)):
     try:
         target = date_module.fromisoformat(day) if day else date_module.today()
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return RedirectResponse("/daily", status_code=303)
     db = get_user_db_from_request(request)
 

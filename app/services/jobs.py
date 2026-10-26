@@ -289,7 +289,7 @@ def _successor_covers_running(kind: str, running_json: str, successor_json: str)
     try:
         running = json.loads(running_json)
         successor = json.loads(successor_json)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     if not isinstance(running, dict) or not isinstance(successor, dict):
         return False
@@ -575,7 +575,7 @@ def _job_status_projection(row: Mapping[str, Any]) -> dict[str, Any]:
     if projected["kind"] == "oura_sync" and projected["status"] == "succeeded":
         try:
             result = json.loads(raw_result)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             result = {}
         if isinstance(result, dict) and result.get("complete") is False:
             projected["outcome"] = "partial"

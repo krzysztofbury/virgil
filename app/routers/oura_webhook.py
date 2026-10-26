@@ -109,7 +109,7 @@ async def oura_webhook_event(request: Request, webhook_id: str):
             return Response("Missing signature", status_code=403)
         try:
             delivered_at = int(timestamp)
-        except (TypeError, ValueError):
+        except TypeError, ValueError:
             return Response("Invalid timestamp", status_code=403)
         if abs(int(time.time()) - delivered_at) > WEBHOOK_TIMESTAMP_SKEW_SECONDS:
             return Response("Stale timestamp", status_code=403)
