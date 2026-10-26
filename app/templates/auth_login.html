@@ -34,7 +34,14 @@
         {# Email first (#168): the next step depends on the account, and a password
            manager sees the email as the username on both steps. #}
         {% set step = step or 'email' %}
-        {% if step == 'check_email' %}
+        {% if step == 'confirm_link' %}
+        <form method="POST" action="/login/link/confirm">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="token" value="{{ token }}">
+            <p class="auth-subtitle">{{ _("Your sign-in link is ready.") }}</p>
+            <button type="submit" class="btn btn-primary" style="width:100%;" autofocus>{{ _("Sign In") }}</button>
+        </form>
+        {% elif step == 'check_email' %}
         <div class="auth-info" role="status">
             <strong>{{ _("Check your email") }}</strong><br>
             {% trans email=email, minutes=15 %}If {{ email }} can sign in here, a sign-in link is on its way. It works once and expires in {{ minutes }} minutes.{% endtrans %}

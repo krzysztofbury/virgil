@@ -482,6 +482,10 @@ msgid "This reset link is invalid, used or expired. Ask an admin for a new one."
 msgstr "Ten link do resetu hasła jest nieprawidłowy, wykorzystany albo wygasł. Poproś administratora o nowy."
 
 #: app/routers/auth.py
+msgid "That link has expired. Ask for a new one."
+msgstr "Ten link wygasł. Poproś o nowy."
+
+#: app/routers/auth.py
 msgid "Registration is closed on this server."
 msgstr "Rejestracja na tym serwerze jest zamknięta."
 
@@ -3074,6 +3078,14 @@ msgid "Sign in to continue."
 msgstr "Zaloguj się, żeby kontynuować."
 
 #: app/templates/auth_login.html
+msgid "Your sign-in link is ready."
+msgstr "Twój link do logowania jest gotowy."
+
+#: app/templates/auth_login.html
+msgid "Sign In"
+msgstr "Zaloguj się"
+
+#: app/templates/auth_login.html
 msgid "Check your email"
 msgstr "Sprawdź pocztę"
 
@@ -3090,10 +3102,6 @@ msgstr "Użyj innego adresu e-mail"
 #: app/templates/settings.html
 msgid "Password"
 msgstr "Hasło"
-
-#: app/templates/auth_login.html
-msgid "Sign In"
-msgstr "Zaloguj się"
 
 #: app/templates/auth_login.html
 msgid "Email me a sign-in link instead"

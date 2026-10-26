@@ -23,6 +23,7 @@ AUTH_PATHS = frozenset(
     {
         "/login",
         "/login/link",
+        "/login/link/confirm",
         "/signup",
         "/mfa/verify",
         "/reset",

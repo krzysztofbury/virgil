@@ -35,11 +35,13 @@ from app.central_db import (
     finish_mfa_attempt,
     get_open_invite,
     get_open_reset,
+    get_open_sign_in_link,
     get_user_by_email,
     get_user_by_id,
     record_auth_event,
     reopen_invite_used_by,
     update_user,
+    use_sign_in_link,
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
@@ -119,6 +121,7 @@ async def registration_allowed() -> bool:
 INVITE_UNUSABLE = N_("This invite link is invalid, used or expired. Ask for a new one.")
 RESERVED_ADDRESS = N_("This address is reserved on this server. Ask an admin for an invite made for it.")
 RESET_UNUSABLE = N_("This reset link is invalid, used or expired. Ask an admin for a new one.")
+LINK_UNUSABLE = N_("That link has expired. Ask for a new one.")
 
 
 def _signup_response(request: Request, **context):
@@ -402,6 +405,42 @@ async def login_link_request(request: Request, username: str = Form("")):
     if user and user["is_active"]:
         await _send_sign_in_link(request, user)
     return await _login_page(request, "check_email", email)
+
+
+@router.get("/login/link", response_class=HTMLResponse)
+async def login_link_page(request: Request, token: str = ""):
+    """The page an emailed link opens. It signs nothing in by itself: mail apps
+    that open links to scan them would use the link up before its owner."""
+    if not await get_open_sign_in_link(token):
+        return error_redirect(request, "/login", _(LINK_UNUSABLE))
+    response = await _login_page(request, "confirm_link", token=token)
+    response.headers["Cache-Control"] = "no-store"
+    return response
+
+
+@router.post("/login/link/confirm")
+async def login_link_confirm(request: Request, token: str = Form("")):
+    link = await use_sign_in_link(token)
+    if not link:
+        return error_redirect(request, "/login", _(LINK_UNUSABLE))
+    if link["purpose"] == "signup":
+        return await _finish_link_signup(request, link)
+    user = await get_user_by_id(link["user_id"])
+    if not user or not user["is_active"]:
+        return error_redirect(request, "/login", _(LINK_UNUSABLE))
+    await _event(request, "link_sign_in", user["id"])
+    if user["totp_enabled"]:
+        response = RedirectResponse("/mfa/verify", status_code=303)
+        response.headers["set-cookie"] = session_cookie_header(create_mfa_pending_session(user["id"]))
+        return response
+    await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
+    await _event(request, "login_ok", user["id"], "with a sign-in link")
+    return await _signed_in_response(request, user)
+
+
+async def _finish_link_signup(request: Request, link: dict):
+    """A signup link: the account is created when its address is proven (Task 6)."""
+    return error_redirect(request, "/login", _(LINK_UNUSABLE))
 
 
 async def _signed_in_response(request: Request, user: dict) -> RedirectResponse:
