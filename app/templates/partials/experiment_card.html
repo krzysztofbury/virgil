@@ -4,7 +4,7 @@
    form posts and comes back to the dashboard. #}
 <div class="card exp-card-dash" id="exp-card-{{ exp.id }}" style="margin-bottom: 0.75rem;">
     <div class="flex-between">
-        <a href="/experiments/{{ exp.id }}" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
+        <a href="/experiments/{{ exp.id }}" class="exp-card-title" style="color: var(--accent); font-weight: 600;">{{ exp.title }}</a>
         {% if exp.not_started %}
         <small class="text-muted">{% trans date=exp.start_date %}Starts {{ date }}{% endtrans %}</small>
         {% else %}

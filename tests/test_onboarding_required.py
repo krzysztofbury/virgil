@@ -72,3 +72,13 @@ def test_medical_step_without_a_key_offers_next_not_an_upload(auth_client, monke
     page = auth_client.get("/onboarding?step=5").text
     assert 'type="file"' in page
     assert "Skip this step" in page
+
+
+def test_the_summary_lists_every_section_even_when_one_is_empty(auth_client):
+    """An empty Summary card gave a new user nothing to review or fix (#163).
+    Each section shows, with its Edit link, filled in or not."""
+    page = auth_client.get("/onboarding?step=6").text
+    summary = page[page.index("<h2") : page.index('href="/onboarding?step=5"')]
+    for step, title in [(1, "About You"), (2, "Your Ideal Day"), (3, "End Goals"), (4, "Habits & Training")]:
+        assert title in summary, title
+        assert f'href="/onboarding?step={step}"' in summary, step

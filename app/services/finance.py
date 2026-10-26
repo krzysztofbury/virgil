@@ -40,7 +40,9 @@ def to_minor(value: object, field: str = "amount") -> int:
     if isinstance(value, bool) or not isinstance(value, int | float | str | Decimal):
         raise FinanceError(N_("{field} must be a number"), field=field)
     try:
-        number = Decimal(str(value).strip().replace(" ", "").replace(",", "."))
+        # Any whitespace groups thousands, including the no-break spaces a bank
+        # statement copies with; a comma is the Polish decimal mark.
+        number = Decimal("".join(str(value).split()).replace(",", "."))
     except InvalidOperation as exc:
         raise FinanceError(N_("{field} must be a number"), field=field) from exc
     if not number.is_finite():

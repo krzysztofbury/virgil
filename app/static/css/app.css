@@ -24,7 +24,7 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   /* Text Colors */
   --text-primary: #e8ecf4;
   --text-secondary: #a1abbd; /* small helper text read as too faint at #8b95a8 */
-  --text-tertiary: #6f7a8e; /* 4.5:1 on --bg-primary */
+  --text-tertiary: #8b95a8; /* 6.3:1 on a card; #6f7a8e fell to 4.4:1 there (#163) */
 
   /* Accents — Warm teal, distinctive from generic indigo */
   --accent: #2cb67d;
@@ -103,7 +103,7 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
 
   --text-primary: #1a2332;
   --text-secondary: #5c6b7e;
-  --text-tertiary: #637083; /* 4.5:1 on --bg-primary */
+  --text-tertiary: #56637a; /* 6:1 on a card, 5.6:1 on --bg-primary */
 
   --accent: #1f9e6b;
   --accent-glow: rgba(31, 158, 107, 0.2);
@@ -548,6 +548,8 @@ label {
 /* A hint under a field is its own line; the submit sits on the next row,
    never inline with prose that then wraps around it. */
 .form-hint { display: block; margin-top: 0.5rem; line-height: 1.45; }
+/* Helper text stays readable: no muted hint below 13px (#163). */
+small.text-muted, .form-hint, .onboarding-skip { font-size: 0.8125rem; }
 .form-actions { display: flex; justify-content: flex-end; margin-top: 0.75rem; }
 @media (max-width: 768px) {
   .form-actions .btn { width: 100%; }
@@ -2662,6 +2664,9 @@ kbd {
      an entry's delete, section toggles, the Settings checkboxes and small
      pills. Bigger hit areas by padding, not bigger text. */
   .btn-sm, .habit-chip { min-height: 44px; }
+  /* Text links and labels that act as controls get a full touch row (#163). */
+  .section-link, .exp-card-title, .timeline-date, .onboarding-skip { display: inline-flex; align-items: center; min-height: 44px; }
+  .module-habit { min-height: 44px; }
   .goal-focus-btn, .goal-delete-btn, .exp-delete-btn { min-width: 44px; min-height: 44px; }
   main summary { min-height: 44px; display: flex; align-items: center; gap: 0.35rem; }
   main label:has(> input[type="checkbox"]) { min-height: 44px; display: inline-flex; align-items: center; }
@@ -2679,6 +2684,10 @@ kbd {
     padding-inline: 1.5rem;
   }
   .tabs::-webkit-scrollbar { display: none; }
+  /* Settings has six tabs, and the last ones hid past the edge (#163): on a
+     phone they sit in a grid, every one in view. */
+  .tabs.settings-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); overflow: visible; margin-inline: 0; padding-inline: 0; mask-image: none; }
+  .settings-tabs a { display: flex; align-items: center; justify-content: center; min-height: 44px; padding: 0.4rem 0.25rem; text-align: center; overflow-wrap: anywhere; }
   /* Tabs hidden past an edge fade out there, so the row reads as scrollable. */
   .tabs.has-more-right { mask-image: linear-gradient(to right, #000 calc(100% - 2.5rem), transparent); }
   .tabs.has-more-left { mask-image: linear-gradient(to left, #000 calc(100% - 2.5rem), transparent); }

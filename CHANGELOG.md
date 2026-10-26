@@ -37,6 +37,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on 3.12 or later, since it runs on the client's machine.
 
 ### Fixed
+- From the design re-check (#163):
+  - The dashboard no longer lists an experiment past its last day; the
+    Experiments page already showed it as ended.
+  - The onboarding Summary shows every section, with "Not filled in yet."
+    and an Add link for an empty one, instead of an empty card.
+  - Record balances shows amounts grouped by thousands (9 500.00), and an
+    amount pasted with no-break spaces saves.
+  - The cushion chart says its unit: months of essential cost.
+  - Monthly Oura charts other than the scores leave headroom around the line.
+  - A load on a bodyweight movement reads as added: +20.0 kg.
+  - Helper text is brighter in both themes and at least 13px; Settings tabs
+    sit in a grid on a phone; text links that act as controls get a 44px
+    touch row.
 - Onboarding step 2 failed with an Internal Server Error since the Polish
   interface (#163): a literal percent sign in its example text was read as a
   format code. Every onboarding step is now rendered in both languages by the

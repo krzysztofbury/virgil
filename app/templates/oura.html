@@ -145,6 +145,10 @@
         var ctx = document.getElementById('ouraChart');
         if (!ctx) return;
         var colors = getChartColors();
+        var known = {{ values | tojson }}.filter(function(v) { return v !== null; });
+        var lo = Math.min.apply(null, known), hi = Math.max.apply(null, known);
+        var pad = Math.max((hi - lo) * 0.4, Math.abs(hi) * 0.05, 1);
+        var padded = known.length ? { min: Math.max(0, lo - pad), max: hi + pad } : {};
         var chart = new Chart(ctx, {
             type: 'line',
             data: { labels: {{ labels | tojson }}, datasets: [{
@@ -163,8 +167,11 @@
                 scales: {
                     x: { grid: { color: colors.grid }, ticks: { color: colors.text } },
                     {# Oura's 0-100 scores on a 50-100 axis: fitted to the data, an
-                       80-85 axis made a five-point drift look like a cliff. #}
-                    y: {% if current_metric in ('sleep_score', 'readiness', 'activity') %}{ suggestedMin: 50, suggestedMax: 100,{% else %}{ grace: '10%',{% endif %} grid: { color: colors.grid }, ticks: { color: colors.text } }
+                       80-85 axis made a five-point drift look like a cliff. Other
+                       metrics get 40% of their range as headroom each way, never below
+                       zero: at 10%, monthly HRV of 44-58 ms filled the chart edge to
+                       edge (#163). #}
+                    y: {% if current_metric in ('sleep_score', 'readiness', 'activity') %}{ suggestedMin: 50, suggestedMax: 100,{% else %}{ suggestedMin: padded.min, suggestedMax: padded.max,{% endif %} grid: { color: colors.grid }, ticks: { color: colors.text } }
                 },
                 plugins: { legend: { display: false } }
             }

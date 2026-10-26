@@ -36,6 +36,12 @@ def d(offset: int) -> str:
     return (TODAY - timedelta(days=offset)).isoformat()
 
 
+# A plausible load per kettlebell movement; anything else (pull-ups, the ab
+# wheel) is bodyweight and carries none, so Personal Bests do not show a
+# "20 kg pull-up" in screenshots (#163).
+DEMO_LOADS_KG = {"Double KB Swing": 24.0, "Double KB Front Squat": 20.0, "KB Press": 16.0, "Gorilla Row": 24.0}
+
+
 async def _seed(db) -> None:
     # --- account state: skip onboarding, enable the No Porn module ---
     await db.executemany(
@@ -217,7 +223,7 @@ async def _seed(db) -> None:
                     await db.execute(
                         "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) "
                         "VALUES (?,?,?,?,?)",
-                        (sid, ex["id"], s, 12, 20.0),
+                        (sid, ex["id"], s, 12, DEMO_LOADS_KG.get(ex["name"])),
                     )
 
     # --- Life scores: two assessments for the radar comparison ---
