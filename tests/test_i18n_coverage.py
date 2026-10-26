@@ -184,7 +184,8 @@ def _html_pages() -> list[str]:
         }
     )
     tabs = ["general", "configuration", "integrations", "data", "automation", "security"]
-    return [path for path in paths if path != "/settings"] + [f"/settings?tab={tab}" for tab in tabs]
+    steps = [f"/onboarding?step={step}" for step in range(2, 7)]
+    return [path for path in paths if path != "/settings"] + [f"/settings?tab={tab}" for tab in tabs] + steps
 
 
 def _set_language(language: str) -> None:
@@ -390,6 +391,27 @@ def test_no_template_shadows_the_translation_function():
         for match in pattern.finditer(source)
     ]
     assert offenders == []
+
+
+_GETTEXT_LITERAL = re.compile(r"""\b(?:_|gettext|ngettext)\(\s*(?:"([^"]*)"|'([^']*)')""")
+
+
+def test_template_gettext_strings_escape_a_literal_percent():
+    """Jinja's newstyle gettext always applies %-formatting, so "100% presence"
+    raised on render ("% p" is not a conversion). A literal percent is %%."""
+    bare = []
+    for path in sorted(TEMPLATES.rglob("*.html")):
+        for match in _GETTEXT_LITERAL.finditer(path.read_text(encoding="utf-8")):
+            text = match.group(1) if match.group(1) is not None else match.group(2)
+            if re.search(r"%(?!%|\()", text.replace("%%", "")):
+                bare.append(f"{path.name}: {text}")
+    assert bare == []
+
+
+def test_every_onboarding_step_renders_in_english(auth_client):
+    for step in range(1, 7):
+        response = auth_client.get(f"/onboarding?step={step}", follow_redirects=False)
+        assert response.status_code == 200, step
 
 
 def test_every_template_compiles():
