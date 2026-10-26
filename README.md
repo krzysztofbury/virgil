@@ -229,6 +229,13 @@ All configuration via environment variables:
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for encrypting secrets |
 | `VIRGIL_ADMIN_EMAILS` | (empty) | Comma-separated admin emails (always have admin role) |
 | `VIRGIL_REGISTRATION_OPEN` | `false` | Allow new user signups. The first account (bootstrap owner) can always be created |
+| `VIRGIL_MAIL_BACKEND` | (empty) | Outgoing email: empty sends nothing, `smtp` sends through the server below, `log` writes each message to the log (development only). Sign-in links need it |
+| `VIRGIL_SMTP_HOST` | (empty) | SMTP server for outgoing email (STARTTLS) |
+| `VIRGIL_SMTP_PORT` | `587` | SMTP port |
+| `VIRGIL_SMTP_USERNAME` | (empty) | SMTP login |
+| `VIRGIL_SMTP_PASSWORD` | (empty) | SMTP password |
+| `VIRGIL_MAIL_FROM` | (empty) | Sender, for example `Virgil <no-reply@example.com>` |
+| `VIRGIL_MAIL_REPLY_TO` | (empty) | Optional Reply-To address for every email |
 | `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Trust `CF-Connecting-IP` for rate limiting. Enable only when Cloudflare Tunnel is the sole ingress |
 | `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated proxy IPs or CIDR ranges allowed to supply `CF-Connecting-IP`. Behind the compose tunnel, use the `virgil-net` subnet: cloudflared changes address when recreated. Without trust, every visitor shares one rate-limit bucket, and the log warns the first time the header arrives untrusted |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
