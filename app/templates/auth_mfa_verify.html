@@ -37,6 +37,18 @@
             </label>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Verify") }}</button>
         </form>
+        {# A lost authenticator (#168): one recovery code signs in once. #}
+        <details class="recovery-alt" style="margin-top:1rem;">
+            <summary>{{ _("Use a recovery code instead") }}</summary>
+            <form method="POST" action="/mfa/verify" style="margin-top:0.75rem;">
+                <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+                <label>
+                    {{ _("Recovery code") }}
+                    <input type="text" name="recovery_code" required autocomplete="off" autocapitalize="off" spellcheck="false">
+                </label>
+                <button type="submit" class="btn btn-outline" style="width:100%;margin-top:0.5rem;">{{ _("Verify") }}</button>
+            </form>
+        </details>
         {% include "partials/language_switch.html" %}
     </div>
 </div>

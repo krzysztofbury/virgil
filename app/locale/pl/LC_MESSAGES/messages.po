@@ -546,8 +546,8 @@ msgid "Invalid code. Please try again."
 msgstr "Nieprawidłowy kod. Spróbuj ponownie."
 
 #: app/routers/auth.py
-msgid "MFA enabled."
-msgstr "MFA włączone."
+msgid "Two-factor authentication is not on."
+msgstr "Uwierzytelnianie dwuskładnikowe nie jest włączone."
 
 #: app/routers/auth.py
 msgid "MFA could not be disabled."
@@ -3144,6 +3144,10 @@ msgid "Confirm your password"
 msgstr "Potwierdź hasło"
 
 #: app/templates/auth_mfa_setup.html
+msgid "Code from your authenticator app, or a recovery code"
+msgstr "Kod z aplikacji uwierzytelniającej albo kod odzyskiwania"
+
+#: app/templates/auth_mfa_setup.html
 msgid "Set up MFA"
 msgstr "Skonfiguruj MFA"
 
@@ -3186,6 +3190,34 @@ msgstr "Kod"
 #: app/templates/auth_mfa_verify.html
 msgid "Verify"
 msgstr "Potwierdź"
+
+#: app/templates/auth_mfa_verify.html
+msgid "Use a recovery code instead"
+msgstr "Użyj zamiast tego kodu odzyskiwania"
+
+#: app/templates/auth_mfa_verify.html
+msgid "Recovery code"
+msgstr "Kod odzyskiwania"
+
+#: app/templates/auth_recovery_codes.html
+msgid "Virgil - Recovery codes"
+msgstr "Virgil - Kody odzyskiwania"
+
+#: app/templates/auth_recovery_codes.html
+msgid "Your recovery codes"
+msgstr "Twoje kody odzyskiwania"
+
+#: app/templates/auth_recovery_codes.html
+msgid "Save these in your password manager. Each works once, in place of the code from your authenticator app, if you lose it. They are shown only now."
+msgstr "Zapisz je w menedżerze haseł. Każdy działa raz, zamiast kodu z aplikacji uwierzytelniającej, na wypadek jej utraty. Widać je tylko teraz."
+
+#: app/templates/auth_recovery_codes.html
+msgid "Copy all"
+msgstr "Kopiuj wszystkie"
+
+#: app/templates/auth_recovery_codes.html
+msgid "I saved them"
+msgstr "Gotowe, zapisane"
 
 #: app/templates/auth_reset.html
 msgid "Virgil - Reset password"
@@ -6686,6 +6718,26 @@ msgstr "Skonfiguruj MFA"
 #: app/templates/settings.html
 msgid "Enabled"
 msgstr "Włączone"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Recovery codes: %(count)s left"
+msgid_plural "Recovery codes: %(count)s left"
+msgstr[0] "Kody odzyskiwania: został %(count)s"
+msgstr[1] "Kody odzyskiwania: zostały %(count)s"
+msgstr[2] "Kody odzyskiwania: zostało %(count)s"
+
+#: app/templates/settings.html
+msgid "Code from your authenticator app"
+msgstr "Kod z aplikacji uwierzytelniającej"
+
+#: app/templates/settings.html
+msgid "Create recovery codes"
+msgstr "Utwórz kody odzyskiwania"
+
+#: app/templates/settings.html
+msgid "Create new recovery codes"
+msgstr "Utwórz nowe kody odzyskiwania"
 
 #: app/templates/settings.html
 msgid "Sync Log"

@@ -19,10 +19,18 @@
         <summary style="cursor:pointer;font-weight:500;color:var(--flag-h);">{{ _("Disable MFA") }}</summary>
         <form method="POST" action="/settings/mfa/disable" style="margin-top:0.75rem;">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            {% if request.state.user and request.state.user.password_hash %}
             <label>
                 {{ _("Confirm your password") }}
                 <input type="password" name="password" required autocomplete="current-password">
             </label>
+            {% else %}
+            {# No password on this account (#168): the second factor confirms its own removal. #}
+            <label>
+                {{ _("Code from your authenticator app, or a recovery code") }}
+                <input type="text" name="totp_code" required autocomplete="one-time-code">
+            </label>
+            {% endif %}
             <button type="submit" class="btn btn-outline" style="color:var(--flag-h);margin-top:0.5rem;">{{ _("Disable MFA") }}</button>
         </form>
     </details>

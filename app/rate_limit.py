@@ -29,6 +29,7 @@ AUTH_PATHS = frozenset(
         "/reset",
         "/settings/password",
         "/settings/mfa/disable",
+        "/settings/mfa/recovery-codes",
         "/settings/factory-reset",
         "/settings/tokens",
     }

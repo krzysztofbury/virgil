@@ -162,6 +162,10 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         # MFA status lives in the central users table, not per-user DB.
         user = getattr(request.state, "user", {})
         context["mfa_enabled"] = bool(user.get("totp_enabled"))
+        if context["mfa_enabled"]:
+            from app.central_db import count_recovery_codes
+
+            context["recovery_codes_left"] = await count_recovery_codes(user["id"])
         # The reset deletes the server's backups, so the card says what is lost.
         context["backup_status"] = await backup_status(db)
         logs = await db.execute_fetchall("SELECT * FROM sync_log ORDER BY created_at DESC LIMIT 50")

@@ -32,6 +32,7 @@ from app.central_db import (
     create_sign_in_link,
     create_user,
     create_user_from_invite,
+    delete_recovery_codes,
     finish_mfa_attempt,
     get_open_invite,
     get_open_reset,
@@ -40,7 +41,9 @@ from app.central_db import (
     get_user_by_id,
     record_auth_event,
     reopen_invite_used_by,
+    replace_recovery_codes,
     update_user,
+    use_recovery_code,
     use_sign_in_link,
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
@@ -511,20 +514,60 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
     # Re-writing the secret lazily migrates legacy plaintext rows to encrypted.
     await update_user(user["id"], totp_enabled=1, totp_secret=_totp_secret_stored(secret))
     await _event(request, "mfa_enable", user["id"])
-    return _resign(request, user["id"], await bump_session_epoch(user["id"]), _("MFA enabled."))
+    return await _recovery_codes_response(request, user, await bump_session_epoch(user["id"]))
+
+
+async def _recovery_codes_response(request: Request, user: dict, epoch: int | None = None):
+    """A new set of recovery codes, shown once (#168). With an epoch, every other
+    session is signed out and this browser gets a fresh one."""
+    codes = await replace_recovery_codes(user["id"])
+    await _event(request, "recovery_codes_create", user["id"])
+    response = templates.TemplateResponse(
+        request, "auth_recovery_codes.html", {"request": request, "codes": codes}, headers=_NO_STORE
+    )
+    if epoch is not None:
+        response.headers.append("set-cookie", session_cookie_header(create_session(user["id"], epoch)))
+    return response
+
+
+async def _second_factor_ok(user: dict, code: str) -> bool:
+    """A current authenticator code, or an unused recovery code (which it uses up)."""
+    code = code.strip()
+    if not code or not user["totp_enabled"]:
+        return False
+    if pyotp.TOTP(_totp_secret_plain(user["totp_secret"])).verify(code, valid_window=1):
+        return True
+    return await use_recovery_code(user["id"], code)
+
+
+@router.post("/settings/mfa/recovery-codes")
+async def regenerate_recovery_codes(request: Request, totp_code: str = Form("")):
+    """New codes, confirmed with the second factor itself: an account without a
+    password has nothing else to confirm with."""
+    user = getattr(request.state, "user", None)
+    if not user or not user["totp_enabled"]:
+        return error_redirect(request, SECURITY, _("Two-factor authentication is not on."))
+    if not await _second_factor_ok(user, totp_code):
+        return error_redirect(request, SECURITY, _("Invalid code. Please try again."))
+    return await _recovery_codes_response(request, user)
 
 
 @router.post("/settings/mfa/disable")
-async def mfa_disable(request: Request, password: str = Form(...)):
+async def mfa_disable(request: Request, password: str = Form(""), totp_code: str = Form("")):
     user = getattr(request.state, "user", None)
     if not user:
         return error_redirect(request, "/settings", _("MFA could not be disabled."))
 
-    # verify_password raises on empty input — treat it as a wrong password.
-    if not password or not await verify_password_async(password, user["password_hash"]):
-        return _mfa_setup_response(request, mfa_enabled=True, error=_("Invalid password."))
+    if user["password_hash"]:
+        # verify_password raises on empty input — treat it as a wrong password.
+        if not password or not await verify_password_async(password, user["password_hash"]):
+            return _mfa_setup_response(request, mfa_enabled=True, error=_("Invalid password."))
+    elif not await _second_factor_ok(user, totp_code):
+        # No password to confirm with: the second factor confirms its own removal.
+        return _mfa_setup_response(request, mfa_enabled=True, error=_("Invalid code. Please try again."))
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
+    await delete_recovery_codes(user["id"])
     await _event(request, "mfa_disable", user["id"])
     return _resign(request, user["id"], await bump_session_epoch(user["id"]), _("MFA disabled."))
 
@@ -574,7 +617,7 @@ async def mfa_verify_page(request: Request):
 
 
 @router.post("/mfa/verify")
-async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
+async def mfa_verify_submit(request: Request, totp_code: str = Form(""), recovery_code: str = Form("")):
     user_id = mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, ""))
     if not user_id:
         return error_redirect(request, "/login", _("MFA session expired. Sign in again."))
@@ -600,8 +643,14 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(...)):
             status_code=429,
         )
 
-    totp = pyotp.TOTP(_totp_secret_plain(user["totp_secret"]))
-    code_ok = totp.verify(totp_code, valid_window=1)
+    # A recovery code stands in for the authenticator once (#168); a wrong one
+    # counts toward the same lockout as a wrong six-digit code.
+    if recovery_code.strip():
+        code_ok = await use_recovery_code(user["id"], recovery_code)
+        if code_ok:
+            await _event(request, "recovery_code_use", user["id"])
+    else:
+        code_ok = pyotp.TOTP(_totp_secret_plain(user["totp_secret"])).verify(totp_code, valid_window=1)
     await finish_mfa_attempt(user["id"], code_ok, now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS)
     if not code_ok:
         await _event(request, "mfa_fail", user["id"])

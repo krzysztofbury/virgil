@@ -813,6 +813,22 @@
         <span class="text-muted">{{ _("Disabled") }}</span>
         {% endif %}
     </div>
+    {% if mfa_enabled %}
+    {# One-time codes for a lost authenticator (#168), confirmed with the second factor. #}
+    <div class="recovery-codes-settings">
+        <p class="text-muted" style="margin:0.75rem 0 0.5rem;">
+            {% trans count=recovery_codes_left %}Recovery codes: {{ count }} left{% pluralize %}Recovery codes: {{ count }} left{% endtrans %}
+        </p>
+        <form method="POST" action="/settings/mfa/recovery-codes" class="inline-form">
+            <label>{{ _("Code from your authenticator app") }}
+                <input type="text" name="totp_code" required autocomplete="one-time-code" inputmode="numeric">
+            </label>
+            <button type="submit" class="btn btn-outline btn-sm">
+                {{ _("Create recovery codes") if not recovery_codes_left else _("Create new recovery codes") }}
+            </button>
+        </form>
+    </div>
+    {% endif %}
 </div>
 
 <div class="card">
