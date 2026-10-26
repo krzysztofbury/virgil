@@ -98,7 +98,7 @@ def _needs_refresh(integration: dict, now: datetime) -> bool:
         return False
     try:
         exp_dt = datetime.fromisoformat(expires_at)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         # Corrupted expiry timestamp: we cannot tell whether the token is still
         # valid, so use it as-is and let the API answer.
         logger.warning("Could not parse token_expires_at=%r, using token as-is", expires_at)
@@ -124,7 +124,7 @@ async def oura_sync_freshness(db, now: datetime | None = None) -> dict | None:
     now = now or datetime.now(UTC)
     try:
         synced = datetime.fromisoformat(integration["last_sync_at"])
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return {"age": None, "local": None, "stale": True}
     if synced.tzinfo is None:
         synced = synced.replace(tzinfo=UTC)
@@ -238,7 +238,7 @@ def _parse_retry_after(header_value: str | None, fallback: int) -> int:
     """Parse a Retry-After header into a bounded sleep in seconds."""
     try:
         seconds = int(header_value) if header_value else fallback
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         seconds = fallback
     return max(1, min(RETRY_AFTER_SECONDS_MAX, seconds))
 
@@ -468,7 +468,7 @@ async def fetch_oura_workouts(access_token: str, start_date: str, end_date: str)
                 s = datetime.fromisoformat(start_dt)
                 e = datetime.fromisoformat(end_dt)
                 duration = max(0, int((e - s).total_seconds() / 60))
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
         workouts.append(
             {

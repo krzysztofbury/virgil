@@ -142,7 +142,7 @@ async def enqueue_paid_llm_job(
 
 
 async def run_paid_llm_job(
-    context: "JobContext",
+    context: JobContext,
     kind: str,
     idempotency_key: str,
     produce: Callable[[], Awaitable[Any]],

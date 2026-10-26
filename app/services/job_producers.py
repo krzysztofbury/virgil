@@ -121,7 +121,7 @@ def _successor_payload(kind: str, running_payload_json: str, requested: dict) ->
 def _queued_job_satisfies(kind: str, existing_payload_json: str, requested_payload: dict) -> bool:
     try:
         existing = json.loads(existing_payload_json)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return False
     if not isinstance(existing, dict):
         return False

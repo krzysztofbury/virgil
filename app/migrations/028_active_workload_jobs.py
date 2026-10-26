@@ -17,7 +17,7 @@ def _normalized(sql: str) -> str:
 def _oura_range(payload_json: str) -> int:
     try:
         payload = json.loads(payload_json)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return -1
     days_back = payload.get("days_back") if isinstance(payload, dict) else None
     return days_back if isinstance(days_back, int) and not isinstance(days_back, bool) else -1

@@ -23,7 +23,7 @@ def format_duration_seconds(value) -> str:
     """
     try:
         total = float(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return ""
     if total <= 0:
         return ""
@@ -40,7 +40,7 @@ def format_thousands(value) -> str:
     """Group the digits of a count, 11089 -> "11,089". Returns "" when absent."""
     try:
         return f"{int(round(float(value))):,}"
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return ""
 
 

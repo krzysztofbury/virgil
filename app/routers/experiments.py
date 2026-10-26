@@ -41,7 +41,7 @@ def _normalize_metric(name: str, color: str, kind: str, target: str, period: str
     period = period if period in TARGET_PERIODS else "week"
     try:
         target_value = max(0, int(target))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         target_value = 0
     if kind not in ("count", "boolean"):
         target_value = 0  # targets only defined for count/boolean metrics
@@ -924,7 +924,7 @@ async def add_entry(
     kind = rows[0]["kind"]
     try:
         v = int(value)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return error_redirect(request, f"/experiments/{experiment_id}", _("Entry value must be a whole number."))
     v = clamp_metric_value(kind, v)
     if v is None:
@@ -1059,7 +1059,7 @@ async def edit_entry(
         )
     try:
         v = clamp_metric_value(entry["kind"], int(value))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return error_redirect(request, destination, _("Entry value must be a whole number."))
     if v is None:
         return error_redirect(request, destination, _("Entry value is outside the allowed range."))

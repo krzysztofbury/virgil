@@ -122,7 +122,7 @@ def _pending_dir() -> Path:
 def read_state() -> dict:
     try:
         state = json.loads((_state_dir() / "state.json").read_text())
-    except (OSError, ValueError):
+    except OSError, ValueError:
         return {}
     return state if isinstance(state, dict) else {}
 

@@ -63,7 +63,7 @@ def valid_date(s: str) -> str | None:
     """
     try:
         return date.fromisoformat(s).isoformat()
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
 
 
@@ -83,7 +83,7 @@ def valid_uuid(value: str) -> bool:
     """Return True only for the canonical lowercase, hyphenated UUID form."""
     try:
         return str(UUID(value)) == value
-    except (AttributeError, TypeError, ValueError):
+    except AttributeError, TypeError, ValueError:
         return False
 
 
@@ -105,7 +105,7 @@ def clamp_float(raw: str, minimum: float, maximum: float) -> float:
     """Parse a string as float and clamp to [minimum, maximum]. Returns minimum on failure."""
     try:
         value = float(raw)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return minimum
     return max(minimum, min(maximum, value))
 
@@ -114,7 +114,7 @@ def clamp_int(raw: str, minimum: int, maximum: int) -> int:
     """Parse a string as int and clamp to [minimum, maximum]. Returns minimum on failure."""
     try:
         value = int(raw)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return minimum
     return max(minimum, min(maximum, value))
 

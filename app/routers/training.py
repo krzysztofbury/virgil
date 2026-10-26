@@ -189,7 +189,7 @@ def _parse_int_in_range(raw, minimum: int, maximum: int) -> int | None:
     """Parse a form value as int within [minimum, maximum]; None if invalid."""
     try:
         value = int(raw)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return None
     if value < minimum or value > maximum:
         return None
@@ -230,7 +230,7 @@ def _confirm_int(raw, minimum: int, maximum: int, field: str, row: int) -> int |
         return None
     try:
         value = int(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         raise _ConfirmRejected(
             N_('row {row}: {field} "{raw}" is not a whole number'), row=row + 1, field=field, raw=raw
         ) from None
@@ -252,7 +252,7 @@ def _confirm_float(raw, minimum: float, maximum: float, field: str, row: int) ->
         return None
     try:
         value = float(raw)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         raise _ConfirmRejected(
             N_('row {row}: {field} "{raw}" is not a number'), row=row + 1, field=field, raw=raw
         ) from None
@@ -780,7 +780,7 @@ async def wod_confirm_page(request: Request, session_id: int, job_id: int | None
     unusable = ""
     try:
         parsed = json.loads(session["wod_parsed"])
-    except (json.JSONDecodeError, TypeError, ValueError):
+    except json.JSONDecodeError, TypeError, ValueError:
         # A corrupt stored value must not 500 this GET forever (M3, rides
         # along with I3).
         unusable = "corrupt JSON"

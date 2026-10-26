@@ -40,7 +40,7 @@ def _hours_since(iso_str: str) -> float:
         if then.tzinfo is None:
             then = then.replace(tzinfo=UTC)
         return (datetime.now(UTC) - then).total_seconds() / 3600
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return float("inf")
 
 

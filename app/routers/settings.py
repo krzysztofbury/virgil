@@ -441,14 +441,14 @@ async def save_automation(request: Request):
     # Validate every value before the first set_setting(), which commits independently.
     try:
         backup_interval = float(form.get("backup_interval_hours", "24"))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return error_redirect(request, "/settings?tab=automation", _("Backup interval must be a number from 1 to 168."))
     if not isfinite(backup_interval) or not 1 <= backup_interval <= 168:
         return error_redirect(request, "/settings?tab=automation", _("Backup interval must be a number from 1 to 168."))
 
     try:
         backup_max = int(form.get("backup_max_copies", "7"))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return error_redirect(
             request, "/settings?tab=automation", _("Backup copies must be a whole number from 1 to 100.")
         )
@@ -459,7 +459,7 @@ async def save_automation(request: Request):
 
     try:
         oura_interval = float(form.get("oura_sync_interval_hours", "6"))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return error_redirect(
             request, "/settings?tab=automation", _("Oura sync interval must be a number from 1 to 168.")
         )

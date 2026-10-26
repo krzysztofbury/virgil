@@ -299,7 +299,7 @@ async def _execute_claimed_job(
 
     try:
         payload = decode_job_payload(job)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         status = await fail_job(
             control_db,
             job["id"],

@@ -51,7 +51,7 @@ def parse_swim_per_week(raw: str) -> int:
     """Weekly swim target. Unset, negative or unparseable all mean 0 (no target)."""
     try:
         value = int(str(raw).strip())
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return 0
     return min(max(value, 0), SWIM_PER_WEEK_MAX)
 

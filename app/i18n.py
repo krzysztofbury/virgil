@@ -78,7 +78,7 @@ def ngettext(singular: str, plural: str, n: int) -> str:
     # the Polish plural rule needs a number where English never looked.
     try:
         n = int(float(n))
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         n = 0
     return _translations().ngettext(singular, plural, n)
 

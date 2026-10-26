@@ -314,7 +314,7 @@ def _coerce_minutes(value, default: int) -> int:
     """LLM output → bounded weekly minutes (0..10080, one week)."""
     try:
         minutes = int(value)
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         return default
     return max(0, min(10080, minutes))
 

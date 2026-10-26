@@ -2,11 +2,11 @@
 
 ## Setup
 
-Use Python 3.12.14 and uv 0.12.7, matching the production image and CI.
+Use Python 3.14.7 and uv 0.12.7, matching the production image and CI.
 
 ```bash
-uv python install 3.12.14
-uv sync --locked --extra dev --python 3.12.14
+uv python install 3.14.7
+uv sync --locked --extra dev --python 3.14.7
 uv run --locked --extra dev pre-commit install
 git switch -c your-change
 ```

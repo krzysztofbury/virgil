@@ -302,7 +302,7 @@ async def save_step5(
     prune_staged(user_id)
     try:
         token = stage_upload(user_id, payload_bytes)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         logger.exception("Could not stage the medical upload")
         return error_redirect(request, "/onboarding?step=5", _("Could not accept that upload. Try again."))
 
@@ -337,7 +337,7 @@ def _discard(user_id: str, token: str) -> None:
 
     try:
         discard_staged(user_id, token)
-    except (OSError, ValueError):
+    except OSError, ValueError:
         logger.warning("Could not discard a staged medical upload")
 
 
