@@ -1,0 +1,9 @@
+{% autoescape false %}Subject: {{ _("You're invited to Virgil") }}
+{{ _("You're invited to Virgil: one place for your days, training, sleep and goals, which your AI assistant can read too.") }}
+
+{{ _("Create your account with this link:") }}
+
+{{ link }}
+
+{% trans days=days %}It works once and expires in {{ days }} days.{% endtrans %}
+{% endautoescape %}

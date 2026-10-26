@@ -3027,6 +3027,11 @@ msgid "Invites"
 msgstr "Zaproszenia"
 
 #: app/templates/admin_users.html
+#, python-format
+msgid "Sent to %(email)s."
+msgstr "Wysłano na adres %(email)s."
+
+#: app/templates/admin_users.html
 msgid "Send this link."
 msgstr "Wyślij ten link."
 
@@ -3054,6 +3059,10 @@ msgstr "Utwórz zaproszenie"
 #: app/templates/admin_users.html
 msgid "(optional: only this address can use it)"
 msgstr "(opcjonalnie: tylko ten adres może go użyć)"
+
+#: app/templates/admin_users.html
+msgid "Invite email language"
+msgstr "Język e-maila z zaproszeniem"
 
 #: app/templates/admin_users.html
 msgid "May use this server's LLM key when they have none of their own"
@@ -3930,6 +3939,27 @@ msgstr "dzisiaj"
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
+#: app/templates/email/invite.html app/templates/email/invite.txt
+msgid "You're invited to Virgil: one place for your days, training, sleep and goals, which your AI assistant can read too."
+msgstr "Zapraszamy do Virgila: jednego miejsca na Twoje dni, treningi, sen i cele, które może czytać także Twój asystent AI."
+
+#: app/templates/email/invite.html app/templates/email/signup.html
+msgid "Create my account"
+msgstr "Załóż moje konto"
+
+#: app/templates/email/invite.html app/templates/email/invite.txt
+#, python-format
+msgid "It works once and expires in %(days)s days."
+msgstr "Działa raz i wygasa po %(days)s dniach."
+
+#: app/templates/email/invite.txt
+msgid "You're invited to Virgil"
+msgstr "Zaproszenie do Virgila"
+
+#: app/templates/email/invite.txt
+msgid "Create your account with this link:"
+msgstr "Załóż konto, korzystając z tego linku:"
+
 #: app/templates/email/sign_in.html app/templates/email/sign_in.txt
 msgid "Open this link to sign in to Virgil:"
 msgstr "Otwórz ten link, aby zalogować się do Virgila:"
@@ -3955,10 +3985,6 @@ msgstr "Twój link do logowania w Virgil"
 #: app/templates/email/signup.html app/templates/email/signup.txt
 msgid "Open this link to finish creating your Virgil account:"
 msgstr "Otwórz ten link, aby dokończyć zakładanie konta w Virgil:"
-
-#: app/templates/email/signup.html
-msgid "Create my account"
-msgstr "Załóż moje konto"
 
 #: app/templates/email/signup.html app/templates/email/signup.txt
 msgid "If you did not ask for it, ignore this email and nothing is created."
