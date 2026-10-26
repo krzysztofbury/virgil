@@ -70,9 +70,7 @@ def test_a_link_signs_in_once_even_when_confirmed_twice(client, account):
     assert "virgil_session=" in first.headers["set-cookie"]
     client.cookies.clear()
     second = _confirm(client, token)
-    assert "virgil_session=" not in second.headers.get("set-cookie", "") or "Max-Age=0" in second.headers.get(
-        "set-cookie", ""
-    )
+    assert "virgil_session" not in second.cookies
     assert EXPIRED in client.get(second.headers["location"]).text
     events = central.execute(
         "SELECT COUNT(*) FROM auth_events WHERE user_id = ? AND event = 'link_sign_in'", (user_id,)
@@ -106,6 +104,5 @@ def test_a_link_for_a_disabled_account_does_not_sign_in(client, account):
     central.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
     central.commit()
     response = _confirm(client, token)
-    assert "virgil_session=" not in response.headers.get("set-cookie", "") or "Max-Age=0" in response.headers.get(
-        "set-cookie", ""
-    )
+    assert "virgil_session" not in response.cookies
+    assert response.headers["location"].startswith("/login")

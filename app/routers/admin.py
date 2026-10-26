@@ -162,7 +162,7 @@ async def create_reset_link(request: Request, user_id: str):
 async def reset_two_factor(request: Request, user_id: str):
     """The way back for someone who lost their authenticator and recovery codes
     (#168): two-factor off, codes void, every session signed out."""
-    from app.central_db import bump_session_epoch, delete_recovery_codes, update_user
+    from app.central_db import bump_session_epoch, delete_recovery_codes, update_user, void_sign_in_links
 
     admin = _require_admin(request)
     _validate_user_id(user_id)
@@ -180,6 +180,7 @@ async def reset_two_factor(request: Request, user_id: str):
         return error_redirect(request, "/admin/users", _("User account was not found."))
     await update_user(user_id, totp_enabled=0, totp_secret="")
     await delete_recovery_codes(user_id)
+    await void_sign_in_links(user_id)
     await bump_session_epoch(user_id)
     await _event(request, "mfa_admin_reset", user_id, admin)
     return success_redirect(request, "/admin/users", _("Two-factor reset for {email}.").format(email=user["email"]))

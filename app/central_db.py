@@ -724,6 +724,17 @@ async def use_sign_in_link(token: str) -> dict | None:
     return dict(rows[0])
 
 
+async def void_sign_in_links(user_id: str) -> None:
+    """Use up an account's open sign-in links: after a security change (a reset
+    two-factor, a new or removed password), a link sent before it must not work."""
+    db = await get_central_db()
+    await db.execute(
+        "UPDATE sign_in_links SET used_at = ? WHERE user_id = ? AND used_at = ''",
+        (_utc_stamp(datetime.now(UTC)), user_id),
+    )
+    await db.commit()
+
+
 # --- MFA recovery codes (#168) ---
 
 RECOVERY_CODE_COUNT = 10

@@ -159,3 +159,100 @@ def test_a_break_glass_admin_keeps_their_two_factor(auth_client, make_account, m
     assert "err=" in response.headers["location"]
     assert central.execute("SELECT totp_enabled FROM users WHERE id = ?", (user_id,)).fetchone()[0] == 1
     central.close()
+
+
+def test_a_new_password_account_can_set_up_totp_before_onboarding(auth_client, client, monkeypatch):
+    """The gate and the onboarding redirect sent each other's pages back: an
+    account that had not finished onboarding could never enroll."""
+    from app.main import app
+
+    monkeypatch.setattr(config, "REQUIRE_TOTP", True)
+    email = f"fresh-{uuid.uuid4().hex[:8]}@example.com"
+    central = _central()
+    admin_id = central.execute("SELECT id FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()["id"]
+    browser = TestClient(app)
+    browser.portal = client.portal
+    try:
+        invite = asyncio.run(create_invite(admin_id, email=email))
+        password = "fresh-password-1"  # pragma: allowlist secret - synthetic fixture
+        browser.post(
+            "/signup",
+            data={
+                "email": email,
+                "invite": invite,
+                "password": password,
+                "password_confirm": password,
+                "_csrf_token": csrf_token(browser, f"/signup?invite={invite}"),
+            },
+        )
+        for path in ("/", "/onboarding"):
+            assert browser.get(path, follow_redirects=False).headers["location"] == "/settings/mfa", path
+        assert browser.get("/settings/mfa", follow_redirects=False).status_code == 200
+    finally:
+        browser.close()
+        row = central.execute("SELECT id, db_filename FROM users WHERE email = ?", (email,)).fetchone()
+        if row:
+            central.execute("DELETE FROM users WHERE id = ?", (row["id"],))
+            central.commit()
+            (Path(_TMP) / "users" / row["db_filename"]).unlink(missing_ok=True)
+        central.close()
+
+
+def _reset(auth_client, user_id: str):
+    return auth_client.post(
+        f"/admin/users/{user_id}/reset-two-factor",
+        data={"_csrf_token": csrf_token(auth_client, "/admin/users")},
+        follow_redirects=False,
+    )
+
+
+def test_a_link_from_before_a_two_factor_reset_does_not_sign_in(auth_client, make_account, client):
+    from app.central_db import create_sign_in_link
+
+    user_id, _browser = make_account()
+    central = _central()
+    email = central.execute("SELECT email FROM users WHERE id = ?", (user_id,)).fetchone()["email"]
+    central.execute("UPDATE users SET totp_enabled = 1, totp_secret = 'x' WHERE id = ?", (user_id,))
+    central.commit()
+    central.close()
+    token = asyncio.run(create_sign_in_link(email, user_id=user_id))
+    _reset(auth_client, user_id)
+    client.cookies.clear()
+    assert "That link has expired" in client.get(f"/login/link?token={token}").text
+
+
+def test_a_pending_two_factor_sign_in_from_before_a_reset_cannot_finish(auth_client, make_account, client):
+    """The reset turns two-factor off; a half-finished sign-in must not then pass
+    with the code an empty secret makes."""
+    import pyotp
+
+    from app.services.encryption import encrypt
+
+    password = "member-password-1"  # pragma: allowlist secret - synthetic fixture
+    user_id, _browser = make_account(password=password)
+    central = _central()
+    email = central.execute("SELECT email FROM users WHERE id = ?", (user_id,)).fetchone()["email"]
+    central.execute(
+        "UPDATE users SET totp_enabled = 1, totp_secret = ? WHERE id = ?", (encrypt(pyotp.random_base32()), user_id)
+    )
+    central.commit()
+    central.close()
+    client.cookies.clear()
+    try:
+        client.post(
+            "/login",
+            data={"username": email, "password": password, "_csrf_token": csrf_token(client, "/login")},
+            follow_redirects=False,
+        )
+        token = csrf_token(client, "/mfa/verify")
+        _reset(auth_client, user_id)
+        # After the reset the secret is empty, and pyotp still makes a code for it.
+        response = client.post(
+            "/mfa/verify",
+            data={"totp_code": pyotp.TOTP("").now(), "_csrf_token": token},
+            follow_redirects=False,
+        )
+        assert "virgil_session" not in response.cookies
+        assert response.headers.get("location", "").startswith("/login")
+    finally:
+        client.cookies.clear()

@@ -143,9 +143,11 @@ MFA_PENDING_PREFIX = "_mfa_pending:"
 MFA_PENDING_MAX_AGE_SECONDS = 600
 
 
-def create_mfa_pending_session(user_id: str) -> str:
-    """A password-verified login that may only reach /mfa/verify."""
-    return _get_signer().sign(f"{MFA_PENDING_PREFIX}{user_id}").decode()
+def create_mfa_pending_session(user_id: str, epoch: int = 0) -> str:
+    """A password-verified login that may only reach /mfa/verify. It carries the
+    account's session epoch, so a password change, a two-factor reset or a
+    sign-out everywhere ends it too (#168)."""
+    return _get_signer().sign(f"{MFA_PENDING_PREFIX}{user_id}{_EPOCH_SEPARATOR}{epoch}").decode()
 
 
 def session_identity(token: str) -> tuple[str, int] | None:
@@ -179,10 +181,21 @@ async def signed_in_user(token: str) -> dict | None:
     return user
 
 
+def mfa_pending_identity(token: str) -> tuple[str, int] | None:
+    """The user and session epoch of a still-fresh pending MFA login, or None."""
+    value = validate_session(token, max_age=MFA_PENDING_MAX_AGE_SECONDS) if token else None
+    if not value or not value.startswith(MFA_PENDING_PREFIX):
+        return None
+    user_id, separator, epoch = value.removeprefix(MFA_PENDING_PREFIX).rpartition(_EPOCH_SEPARATOR)
+    if not separator or not epoch.isascii() or not epoch.isdigit():
+        return None
+    return user_id, int(epoch)
+
+
 def mfa_pending_user_id(token: str) -> str | None:
     """The user a still-fresh pending MFA login belongs to, or None."""
-    value = validate_session(token, max_age=MFA_PENDING_MAX_AGE_SECONDS) if token else None
-    return value.removeprefix(MFA_PENDING_PREFIX) if value and value.startswith(MFA_PENDING_PREFIX) else None
+    identity = mfa_pending_identity(token)
+    return identity[0] if identity else None
 
 
 def session_cookie_header(token: str) -> str:
@@ -335,7 +348,9 @@ class AuthMiddleware:
 
             # Check onboarding for this user.
             done = await get_setting(user_db, "onboarding_completed", "0")
-            if done != "1" and not path.startswith(("/onboarding", "/static/", "/api/", "/logout", "/service-worker")):
+            # The TOTP setup stays reachable before onboarding, or the two gates
+            # would send each other's pages back forever.
+            if done != "1" and not path.startswith(("/onboarding", "/api/", *TOTP_SETUP_PATHS)):
                 response = RedirectResponse("/onboarding", status_code=303)
                 await response(scope, receive, send)
                 return

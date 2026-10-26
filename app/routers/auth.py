@@ -18,6 +18,7 @@ from app.auth import (
     hash_password_async,
     language_chosen_cookie_header,
     language_cookie_header,
+    mfa_pending_identity,
     mfa_pending_user_id,
     session_cookie_header,
     session_is_fresh,
@@ -46,6 +47,7 @@ from app.central_db import (
     update_user,
     use_recovery_code,
     use_sign_in_link,
+    void_sign_in_links,
 )
 from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
 from app.feedback import error_redirect, feedback_url, success_redirect
@@ -437,7 +439,7 @@ async def login_submit(
 
     # If MFA is enabled, redirect to MFA verification
     if user["totp_enabled"]:
-        token = create_mfa_pending_session(user["id"])
+        token = create_mfa_pending_session(user["id"], user["session_epoch"])
         response = RedirectResponse("/mfa/verify", status_code=303)
         response.headers["set-cookie"] = session_cookie_header(token)
         return response
@@ -484,7 +486,9 @@ async def login_link_confirm(request: Request, token: str = Form("")):
     await _event(request, "link_sign_in", user["id"])
     if user["totp_enabled"]:
         response = RedirectResponse("/mfa/verify", status_code=303)
-        response.headers["set-cookie"] = session_cookie_header(create_mfa_pending_session(user["id"]))
+        response.headers["set-cookie"] = session_cookie_header(
+            create_mfa_pending_session(user["id"], user["session_epoch"])
+        )
         return response
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"], "with a sign-in link")
@@ -678,6 +682,7 @@ async def mfa_disable(request: Request, password: str = Form(""), totp_code: str
 
     await update_user(user["id"], totp_enabled=0, totp_secret="")
     await delete_recovery_codes(user["id"])
+    await void_sign_in_links(user["id"])
     await _event(request, "mfa_disable", user["id"])
     return _resign(request, user["id"], await bump_session_epoch(user["id"]), _("MFA disabled."))
 
@@ -716,6 +721,7 @@ async def change_password(
         return error_redirect(request, SECURITY, _("New passwords do not match."))
 
     await update_user(user["id"], password_hash=await hash_password_async(new_password))
+    await void_sign_in_links(user["id"])
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_change", user["id"])
     return _resign(request, user["id"], epoch, _("Password changed. Other devices are signed out."), SECURITY)
@@ -747,6 +753,7 @@ async def add_password(
     if new_password != new_password_confirm:
         return error_redirect(request, SECURITY, _("New passwords do not match."))
     await update_user(user["id"], password_hash=await hash_password_async(new_password))
+    await void_sign_in_links(user["id"])
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_add", user["id"])
     return _resign(request, user["id"], epoch, _("Password set. Other devices are signed out."), SECURITY)
@@ -785,12 +792,15 @@ async def mfa_verify_page(request: Request):
 
 @router.post("/mfa/verify")
 async def mfa_verify_submit(request: Request, totp_code: str = Form(""), recovery_code: str = Form("")):
-    user_id = mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, ""))
-    if not user_id:
+    pending = mfa_pending_identity(request.cookies.get(SESSION_COOKIE, ""))
+    if not pending:
         return error_redirect(request, "/login", _("MFA session expired. Sign in again."))
 
-    user = await get_user_by_id(user_id)
-    if not user or not user["is_active"]:
+    # A pending sign-in from before a password change, a sign-out everywhere or a
+    # two-factor reset is over (#168); with two-factor off there is nothing to
+    # verify, and an empty secret would accept a code anyone can compute.
+    user = await get_user_by_id(pending[0])
+    if not user or not user["is_active"] or user["session_epoch"] != pending[1] or not user["totp_enabled"]:
         return error_redirect(request, "/login", _("MFA session expired. Sign in again."))
 
     now = datetime.now(UTC)
