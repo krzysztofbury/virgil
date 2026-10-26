@@ -67,3 +67,15 @@ def test_a_card_logs_today_in_place_and_shows_what_is_logged(auth_client):
         assert rows == [(done, 1), (urges, 1)]
     finally:
         _remove(exp_id)
+
+
+def test_an_experiment_past_its_last_day_leaves_the_dashboard(auth_client):
+    """It stays "active" until marked completed, but the Experiments page already
+    shows it as ended; the dashboard must not offer to log it for today (#163)."""
+    exp_id, _done, _urges = _experiment()
+    with sqlite3.connect(user_db_path()) as conn:
+        conn.execute("UPDATE experiments SET start_date = ? WHERE id = ?", ("2020-01-06", exp_id))
+    try:
+        assert f'id="exp-card-{exp_id}"' not in auth_client.get("/").text
+    finally:
+        _remove(exp_id)

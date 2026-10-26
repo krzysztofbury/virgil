@@ -502,7 +502,7 @@ async def training_page(
     pb_rows = await db.execute_fetchall(
         """SELECT tex.id AS exercise_id, tex.name, tex.metric, tex.display_order,
                   CASE WHEN tex.metric = 'time' THEN CAST(ROUND(te.duration) AS INTEGER) ELSE te.reps END AS effort,
-                  te.weight,
+                  te.weight, lib.default_equipment = 'bodyweight' AS added_load,
                   CASE WHEN te.equipment IS NOT NULL AND te.equipment IS NOT lib.default_equipment
                        THEN te.equipment END AS other_equipment
            FROM training_entries te
@@ -524,6 +524,8 @@ async def training_page(
             {
                 "name": f"{row['name']} ({EQUIPMENT_LABELS.get(other, other)})" if other else row["name"],
                 "metric": row["metric"],
+                # On a bodyweight movement the load is on top of the body: +20 kg.
+                "added_load": bool(row["added_load"]) and not other,
                 "display_order": row["display_order"],
                 "max_weight": 0,
                 "records_by_effort": {},

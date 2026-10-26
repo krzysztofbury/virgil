@@ -49,6 +49,7 @@ window.rebuildAllCharts = function() {
                 if (scale.ticks) scale.ticks.color = colors.text;
                 if (scale.angleLines) scale.angleLines.color = colors.grid;
                 if (scale.pointLabels) scale.pointLabels.color = colors.text;
+                if (scale.title && scale.title.display) scale.title.color = colors.text;
             });
             // Update legend colors
             if (chart.options.plugins && chart.options.plugins.legend && chart.options.plugins.legend.labels) {
@@ -64,6 +65,12 @@ function createLineChart(canvasId, labels, datasets, options) {
     var ctx = document.getElementById(canvasId);
     if (!ctx) return null;
     var colors = getChartColors();
+    var yScale = Object.assign({
+        grid: { color: colors.grid },
+        ticks: { color: colors.text, font: { size: 12 } }
+    }, options.yScale || {});
+    // An axis title takes the theme's text colour unless it sets its own.
+    if (yScale.title) yScale.title = Object.assign({ color: colors.text, font: { size: 12 } }, yScale.title);
     var chart = new Chart(ctx, {
         type: 'line',
         data: { labels: labels, datasets: datasets },
@@ -75,10 +82,7 @@ function createLineChart(canvasId, labels, datasets, options) {
                     grid: { color: colors.grid },
                     ticks: { color: colors.text, font: { size: 12 } }
                 },
-                y: Object.assign({
-                    grid: { color: colors.grid },
-                    ticks: { color: colors.text, font: { size: 12 } }
-                }, options.yScale || {})
+                y: yScale
             },
             plugins: Object.assign({
                 legend: {

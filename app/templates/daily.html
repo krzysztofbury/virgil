@@ -89,6 +89,9 @@
             </button>
             {% endif %}
         </div>
+        {# A.N.D.Y.'s four are a daily check-in, not the life areas Goals and Life
+           scores use; onboarding files its answers under those areas (#163). #}
+        <p class="text-muted andy-hint">{{ _("A daily check-in: one action each for Body, Spirit, Self and Relations. Your life areas and goals live in Goals.") }}</p>
 
         {% set andy_icons = {'andy_body': 'andy-body', 'andy_spirit': 'andy-spirit', 'andy_account': 'andy-self', 'andy_relations': 'andy-relations'} %}
         {% macro andy_row(name, label, status, desc) %}

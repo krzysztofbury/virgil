@@ -80,7 +80,7 @@
             <button type="submit" class="btn btn-primary">{{ _("Next") }}</button>
         </div>
         <div style="text-align:center;margin-top:0.75rem;">
-            <a href="/onboarding?step=2" class="text-muted" style="font-size:0.75rem;">{{ _("Skip this step") }}</a>
+            <a href="/onboarding?step=2" class="text-muted onboarding-skip">{{ _("Skip this step") }}</a>
         </div>
     </form>
 </div>
@@ -114,7 +114,7 @@
             <button type="submit" class="btn btn-primary">{{ _("Next") }}</button>
         </div>
         <div style="text-align:center;margin-top:0.75rem;">
-            <a href="/onboarding?step=3" class="text-muted" style="font-size:0.75rem;">{{ _("Skip this step") }}</a>
+            <a href="/onboarding?step=3" class="text-muted onboarding-skip">{{ _("Skip this step") }}</a>
         </div>
     </form>
 </div>
@@ -151,7 +151,7 @@
             <button type="submit" class="btn btn-primary">{{ _("Next") }}</button>
         </div>
         <div style="text-align:center;margin-top:0.75rem;">
-            <a href="/onboarding?step=4" class="text-muted" style="font-size:0.75rem;">{{ _("Skip this step") }}</a>
+            <a href="/onboarding?step=4" class="text-muted onboarding-skip">{{ _("Skip this step") }}</a>
         </div>
     </form>
 </div>
@@ -205,7 +205,7 @@
             <button type="submit" class="btn btn-primary">{{ _("Next") }}</button>
         </div>
         <div style="text-align:center;margin-top:0.75rem;">
-            <a href="/onboarding?step=5" class="text-muted" style="font-size:0.75rem;">{{ _("Skip this step") }}</a>
+            <a href="/onboarding?step=5" class="text-muted onboarding-skip">{{ _("Skip this step") }}</a>
         </div>
     </form>
 </div>
@@ -254,7 +254,7 @@
             <button type="submit" class="btn btn-primary">{{ _("Process & Next") }}</button>
         </div>
         <div style="text-align:center;margin-top:0.75rem;">
-            <a href="/onboarding?step=6" class="text-muted" style="font-size:0.75rem;">{{ _("Skip this step") }}</a>
+            <a href="/onboarding?step=6" class="text-muted onboarding-skip">{{ _("Skip this step") }}</a>
         </div>
     </form>
     {% endif %}
@@ -269,12 +269,18 @@
         {{ _("Review what you've shared. Edit any section, then confirm to let Virgil personalize your experience.") }}
     </p>
 
-    {% if profile.sex or profile.age or profile.height_cm or profile.weight_kg or profile.family %}
-    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
+    {# Every section shows, filled in or not: an empty summary gave nothing to review (#163). #}
+    {% macro summary_section(title, step, filled, last=false) %}
+    <div style="margin-bottom:1.25rem;{% if not last %}padding-bottom:1.25rem;border-bottom:1px solid var(--border);{% endif %}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <h3 style="margin:0;">{{ _("About You") }}</h3>
-            <a href="/onboarding?step=1" class="btn btn-sm btn-outline">{{ _("Edit") }}</a>
+            <h3 style="margin:0;">{{ title }}</h3>
+            <a href="/onboarding?step={{ step }}" class="btn btn-sm btn-outline">{{ _("Edit") if filled else _("Add") }}</a>
         </div>
+        {% if filled %}{{ caller() }}{% else %}<p class="text-muted" style="font-size:0.85rem;margin:0;">{{ _("Not filled in yet.") }}</p>{% endif %}
+    </div>
+    {% endmacro %}
+
+    {% call summary_section(_("About You"), 1, profile.sex or profile.age or profile.height_cm or profile.weight_kg or profile.family) %}
         <div style="font-size:0.85rem;color:var(--text-secondary);">
             {% if profile.sex %}<span>{{ profile.sex | label }}</span>{% endif %}
             {% if profile.age %}<span> &middot; {% trans count=profile.age %}{{ count }} year{% pluralize %}{{ count }} years{% endtrans %}</span>{% endif %}
@@ -282,47 +288,28 @@
             {% if profile.weight_kg %}<span> &middot; {{ profile.weight_kg }}kg</span>{% endif %}
             {% if profile.family %}<div style="margin-top:0.25rem;">{% trans family=profile.family %}Family: {{ family }}{% endtrans %}</div>{% endif %}
         </div>
-    </div>
-    {% endif %}
+    {% endcall %}
 
-    {% if profile.ideal_day %}
-    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <h3 style="margin:0;">{{ _("Your Ideal Day") }}</h3>
-            <a href="/onboarding?step=2" class="btn btn-sm btn-outline">{{ _("Edit") }}</a>
-        </div>
+    {% call summary_section(_("Your Ideal Day"), 2, profile.ideal_day) %}
         <div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-line;">{{ profile.ideal_day }}</div>
-    </div>
-    {% endif %}
+    {% endcall %}
 
-    {% if goals %}
-    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <h3 style="margin:0;">{{ _("End Goals") }}</h3>
-            <a href="/onboarding?step=3" class="btn btn-sm btn-outline">{{ _("Edit") }}</a>
-        </div>
+    {% call summary_section(_("End Goals"), 3, goals) %}
         {% for area, content in goals.items() %}
         <div style="font-size:0.85rem;margin-bottom:0.35rem;">
             <strong>{{ area }}:</strong> <span class="text-muted">{{ content }}</span>
         </div>
         {% endfor %}
-    </div>
-    {% endif %}
+    {% endcall %}
 
-    {% if profile.training_routine or profile.equipment %}
-    <div style="margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
-            <h3 style="margin:0;">{{ _("Habits & Training") }}</h3>
-            <a href="/onboarding?step=4" class="btn btn-sm btn-outline">{{ _("Edit") }}</a>
-        </div>
+    {% call summary_section(_("Habits & Training"), 4, profile.training_routine or profile.equipment, last=true) %}
         {% if profile.training_routine %}
         <div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-line;margin-bottom:0.5rem;">{{ profile.training_routine }}</div>
         {% endif %}
         {% if profile.equipment %}
         <div style="font-size:0.8rem;color:var(--text-tertiary);">{% trans equipment=profile.equipment | replace(',', ', ') | replace('_', ' ') %}Equipment: {{ equipment }}{% endtrans %}</div>
         {% endif %}
-    </div>
-    {% endif %}
+    {% endcall %}
 </div>
 
 {% if has_llm and enrichment %}
@@ -337,7 +324,7 @@
             <span class="enrichment-mark" aria-hidden="true">{{ '✓' if item.state == 'done' else ('-' if item.state == 'not_needed' else '·') }}</span>
             <span>{{ item.label }}</span>
             <span class="text-muted enrichment-state">
-                {{ {'done': 'ready', 'waiting': _('not yet'), 'not_needed': _('nothing to use')}[item.state] }}
+                {{ {'done': _('ready'), 'waiting': _('not yet'), 'not_needed': _('nothing to use')}[item.state] }}
             </span>
         </li>
         {% endfor %}

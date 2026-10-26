@@ -8,7 +8,7 @@
 
 <div id="settings-content">
 <!-- Tab Navigation -->
-<nav class="tabs" style="margin-bottom: 1.5rem;">
+<nav class="tabs settings-tabs" style="margin-bottom: 1.5rem;">
     {% set tab_labels = {'general': _('General'), 'configuration': _('App Config'), 'integrations': _('Integrations'), 'data': _('Data'), 'automation': _('Automation'), 'security': _('Security')} %}
     {% for t in tabs %}
     <a href="/settings?tab={{ t }}" id="settings-tab-{{ t }}"

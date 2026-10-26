@@ -371,3 +371,39 @@ def test_capture_copy_is_user_facing(auth_client):
     assert "Log a workout" in html
     assert "optional" in html, "duration is optional and must say so"
     assert "The note is saved before it is read" in html, "the user must know the note survives a failed parse"
+
+
+def test_a_bodyweight_movement_shows_its_added_load(auth_client):
+    """ "20.0 kg x 12 reps" on a pull-up read as a 20 kg pull-up (#163). On a
+    movement whose usual equipment is bodyweight, the load is added: +20.0 kg."""
+    conn = sqlite3.connect(user_db_path())
+    exercise_id = session_id = library_id = None
+    try:
+        library_id = conn.execute(
+            "INSERT INTO exercise_library (section, name, metric, default_equipment) "
+            "VALUES ('Core', 'ZZ weighted pull', 'reps', 'bodyweight')"
+        ).lastrowid
+        exercise_id = conn.execute(
+            "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('ZZ weighted pull', 'Core', 'reps', 1)"
+        ).lastrowid
+        session_id = conn.execute(
+            "INSERT INTO training_sessions (date) VALUES (?)", (date.today().isoformat(),)
+        ).lastrowid
+        conn.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, ?, ?, ?)",
+            [(session_id, exercise_id, 1, 12, 20.0), (session_id, exercise_id, 2, 5, 30.0)],
+        )
+        conn.commit()
+
+        card = _pb_card(_page(auth_client), "ZZ weighted pull")
+        assert ">+30.0 <small>kg</small>" in card
+        assert "<strong>+20.0 kg</strong>" in card
+    finally:
+        if session_id is not None:
+            conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+            conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+        for table, row_id in (("training_exercises", exercise_id), ("exercise_library", library_id)):
+            if row_id is not None:
+                conn.execute(f"DELETE FROM {table} WHERE id = ?", (row_id,))  # noqa: S608 - fixed names
+        conn.commit()
+        conn.close()

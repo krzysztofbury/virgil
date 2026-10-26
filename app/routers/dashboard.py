@@ -246,11 +246,18 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             }
         )
 
-    # Active experiments, each with today's one-tap log
-    exp_rows = await db.execute_fetchall(
-        "SELECT * FROM experiments WHERE status = 'active' ORDER BY created_at DESC LIMIT 3"
-    )
-    active_experiments = [await experiment_card(db, dict(row), today) for row in exp_rows]
+    # Active experiments, each with today's one-tap log. One past its last day
+    # stays "active" until marked completed, but the Experiments page shows it
+    # as ended, so it is not offered here.
+    from app.services.experiment_weeks import experiment_calendar
+
+    exp_rows = await db.execute_fetchall("SELECT * FROM experiments WHERE status = 'active' ORDER BY created_at DESC")
+    running = [
+        dict(row)
+        for row in exp_rows
+        if experiment_calendar(date.fromisoformat(row["start_date"]), row["num_weeks"])[1] >= today
+    ]
+    active_experiments = [await experiment_card(db, row, today) for row in running[:3]]
 
     from app.routers.jobs import current_job_view
 
