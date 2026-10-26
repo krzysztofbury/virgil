@@ -5320,8 +5320,8 @@ msgid "~ 17:00 FAMILY & BODY"
 msgstr "~ 17:00 RODZINA I CIAŁO"
 
 #: app/templates/onboarding.html
-msgid "— Training + dinner + family (100% presence)"
-msgstr "Trening + kolacja + rodzina (100% obecności)"
+msgid "— Training + dinner + family (100%% presence)"
+msgstr "Trening + kolacja + rodzina (100%% obecności)"
 
 #: app/templates/onboarding.html
 msgid "~ 21:00 WIND DOWN"

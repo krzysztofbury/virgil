@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on 3.12 or later, since it runs on the client's machine.
 
 ### Fixed
+- Onboarding step 2 failed with an Internal Server Error since the Polish
+  interface (#163): a literal percent sign in its example text was read as a
+  format code. Every onboarding step is now rendered in both languages by the
+  tests, and a template string with an unescaped percent fails them.
 - Goal rep messages read "Execution rep skipd" and "carryd"; they now say
   skipped and carried over.
 
