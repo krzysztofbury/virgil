@@ -153,6 +153,13 @@ async def reset_two_factor(request: Request, user_id: str):
     _validate_user_id(user_id)
     if user_id == admin["id"]:
         return error_redirect(request, "/admin/users", _("Manage your own two-factor under Settings > Security."))
+    if email := await _protected(user_id):
+        # Otherwise any admin could take over the operator's break-glass account.
+        return error_redirect(
+            request,
+            "/admin/users",
+            _("{email} is in VIRGIL_ADMIN_EMAILS; only its owner manages its two-factor.").format(email=email),
+        )
     user = await get_user_by_id(user_id)
     if not user:
         return error_redirect(request, "/admin/users", _("User account was not found."))

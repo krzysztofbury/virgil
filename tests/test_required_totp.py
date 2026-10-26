@@ -138,3 +138,24 @@ def test_an_admin_resets_their_own_two_factor_in_settings(auth_client):
         follow_redirects=False,
     )
     assert "err=" in response.headers["location"]
+
+
+def test_a_break_glass_admin_keeps_their_two_factor(auth_client, make_account, monkeypatch):
+    """Like a reset link, a two-factor reset would let any admin take over the
+    operator's own account in VIRGIL_ADMIN_EMAILS."""
+    import app.routers.admin as admin
+
+    user_id, _browser = make_account()
+    central = _central()
+    email = central.execute("SELECT email FROM users WHERE id = ?", (user_id,)).fetchone()["email"]
+    central.execute("UPDATE users SET totp_enabled = 1, totp_secret = 'x' WHERE id = ?", (user_id,))
+    central.commit()
+    monkeypatch.setattr(admin, "ADMIN_EMAILS", [*admin.ADMIN_EMAILS, email])
+    response = auth_client.post(
+        f"/admin/users/{user_id}/reset-two-factor",
+        data={"_csrf_token": csrf_token(auth_client, "/admin/users")},
+        follow_redirects=False,
+    )
+    assert "err=" in response.headers["location"]
+    assert central.execute("SELECT totp_enabled FROM users WHERE id = ?", (user_id,)).fetchone()[0] == 1
+    central.close()

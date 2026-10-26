@@ -412,6 +412,11 @@ msgstr "Swoim uwierzytelnianiem dwuskładnikowym zarządzasz w Ustawienia > Bezp
 
 #: app/routers/admin.py
 #, python-brace-format
+msgid "{email} is in VIRGIL_ADMIN_EMAILS; only its owner manages its two-factor."
+msgstr "{email} jest w VIRGIL_ADMIN_EMAILS; tylko jego właściciel zarządza jego uwierzytelnianiem dwuskładnikowym."
+
+#: app/routers/admin.py
+#, python-brace-format
 msgid "Two-factor reset for {email}."
 msgstr "Zresetowano uwierzytelnianie dwuskładnikowe dla {email}."
 
