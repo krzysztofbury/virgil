@@ -124,6 +124,18 @@ def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str 
         return None
 
 
+# A sign-in this recent proves who is at the keyboard (#168): an account without
+# a password has no password to re-enter, so steps that a session alone must not
+# take (a first password, a first authenticator, a token) ask for a fresh one.
+# The same span as a sign-in link's lifetime.
+FRESH_SESSION_SECONDS = 15 * 60
+
+
+def session_is_fresh(token: str) -> bool:
+    """Whether this session cookie was signed within FRESH_SESSION_SECONDS."""
+    return bool(token) and validate_session(token, max_age=FRESH_SESSION_SECONDS) is not None
+
+
 # A password-verified login waiting for its TOTP code. It only lets the browser
 # reach /mfa/verify, so it lives minutes, not the full session lifetime.
 MFA_PENDING_PREFIX = "_mfa_pending:"

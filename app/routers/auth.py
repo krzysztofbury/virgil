@@ -20,6 +20,7 @@ from app.auth import (
     language_cookie_header,
     mfa_pending_user_id,
     session_cookie_header,
+    session_is_fresh,
     signed_in_user,
     verify_password_async,
 )
@@ -560,6 +561,10 @@ async def mfa_enable(request: Request, totp_code: str = Form(...)):
     user = getattr(request.state, "user", None)
     if not user or not user["totp_secret"]:
         return error_redirect(request, "/settings/mfa", _("MFA setup is unavailable. Start setup again."))
+    # Without a password, the authenticator becomes the account's proof of
+    # identity (#168), so a session alone may not enroll one.
+    if not user["password_hash"] and not _fresh(request):
+        return error_redirect(request, "/settings/mfa", _(SIGN_IN_AGAIN))
 
     secret = _totp_secret_plain(user["totp_secret"])
     totp = pyotp.TOTP(secret)
@@ -612,7 +617,11 @@ async def _second_factor_ok(request: Request, user: dict, code: str) -> bool:
     return ok
 
 
-IDENTITY_NEEDS_A_FACTOR = N_("Turn on two-factor authentication or add a password first.")
+SIGN_IN_AGAIN = N_("For this, sign in again with a new link first.")
+
+
+def _fresh(request: Request) -> bool:
+    return session_is_fresh(request.cookies.get(SESSION_COOKIE, ""))
 
 
 async def confirm_identity(request: Request, user: dict, password: str = "", code: str = "") -> str | None:
@@ -620,14 +629,15 @@ async def confirm_identity(request: Request, user: dict, password: str = "", cod
     do (a token, a factory reset). None when confirmed, else the message to show.
 
     An account with a password confirms with it. One without (#168) confirms
-    with its second factor, and one with neither is told what to set up."""
+    with its second factor, or, without one, with a sign-in from a link minutes
+    ago: the inbox is its proof."""
     if user["password_hash"]:
         # verify_password raises on empty input, so an empty one is a wrong password.
         if password and await verify_password_async(password, user["password_hash"]):
             return None
         return _("Password is incorrect.")
     if not user["totp_enabled"]:
-        return _(IDENTITY_NEEDS_A_FACTOR)
+        return None if _fresh(request) else _(SIGN_IN_AGAIN)
     if await _second_factor_ok(request, user, code):
         return None
     return _("Invalid code. Please try again.")
@@ -718,8 +728,13 @@ async def add_password(
         return error_redirect(request, "/login", _("Sign in again to change your password."))
     if user["password_hash"]:
         return error_redirect(request, SECURITY, _("This account already has a password."))
-    if user["totp_enabled"] and not await _second_factor_ok(request, user, totp_code):
-        return error_redirect(request, SECURITY, _("Invalid code. Please try again."))
+    # A session alone must not become a lasting login: the second factor, or a
+    # sign-in from a link minutes ago, proves it is the owner.
+    if user["totp_enabled"]:
+        if not await _second_factor_ok(request, user, totp_code):
+            return error_redirect(request, SECURITY, _("Invalid code. Please try again."))
+    elif not _fresh(request):
+        return error_redirect(request, SECURITY, _(SIGN_IN_AGAIN))
     if len(new_password) < 8:
         return error_redirect(request, SECURITY, _("New password must be at least 8 characters."))
     if new_password != new_password_confirm:

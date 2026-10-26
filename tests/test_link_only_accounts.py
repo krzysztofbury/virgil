@@ -188,22 +188,86 @@ def test_removing_the_password_is_refused_with_mail_off(auth_client, browser, se
     assert _hash_of(email).startswith("$2")
 
 
-def test_a_link_only_account_without_two_factor_is_told_how_to_make_a_token(auth_client, browser, sent_mail, cleanup):
-    email = f"tokener-{uuid.uuid4().hex[:8]}@example.com"
-    cleanup.append(email)
-    _signup(browser, _invite(email), email)
-    _finish_onboarding(email)
-    response = browser.post(
+STALE = "For this, sign in again with a new link first."
+
+
+@pytest.fixture
+def stale_sessions(monkeypatch):
+    """Every session counts as older than the fresh-sign-in window."""
+    import app.auth as auth
+
+    monkeypatch.setattr(auth, "FRESH_SESSION_SECONDS", -1)
+
+
+def _make_token(browser, **extra):
+    return browser.post(
         "/settings/tokens",
         data={
             "name": "laptop",
             "scope": "read",
             "expires": "90",
             "_csrf_token": csrf_token(browser, "/settings?tab=security"),
+            **extra,
         },
     )
-    assert response.status_code == 200
-    assert "Turn on two-factor authentication or add a password first." in response.text
+
+
+def test_a_freshly_signed_in_link_only_account_can_make_a_token(auth_client, browser, sent_mail, cleanup):
+    """No password and no authenticator: a sign-in from a link minutes ago is the proof."""
+    email = f"tokener-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(email), email)
+    _finish_onboarding(email)
+    assert "vrg_" in _make_token(browser).text
+
+
+def test_a_stale_session_cannot_make_a_token_without_two_factor(
+    auth_client, browser, sent_mail, cleanup, stale_sessions
+):
+    email = f"stale-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(email), email)
+    _finish_onboarding(email)
+    response = _make_token(browser)
+    assert STALE in response.text and "vrg_" not in response.text
+
+
+def test_a_stale_session_cannot_add_a_first_password(auth_client, browser, sent_mail, cleanup, stale_sessions):
+    """A stolen session must not become a lasting login."""
+    email = f"stalepw-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(email), email)
+    _finish_onboarding(email)
+    browser.post(
+        "/settings/password/add",
+        data={
+            "new_password": "fresh-password-1",  # pragma: allowlist secret - synthetic fixture
+            "new_password_confirm": "fresh-password-1",  # pragma: allowlist secret - synthetic fixture
+            "_csrf_token": csrf_token(browser, "/settings?tab=security"),
+        },
+    )
+    assert _hash_of(email) == ""
+
+
+def test_a_stale_session_cannot_set_up_two_factor_without_a_password(
+    auth_client, browser, sent_mail, cleanup, stale_sessions
+):
+    """Otherwise a stolen session could enroll its own authenticator and use it
+    to approve tokens."""
+    email = f"stalemfa-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(email), email)
+    _finish_onboarding(email)
+    page = browser.get("/settings/mfa").text
+    secret = re.search(r"<code[^>]*>([A-Z2-7]{16,})</code>", page).group(1)
+    browser.post(
+        "/settings/mfa/enable",
+        data={"totp_code": pyotp.TOTP(secret).now(), "_csrf_token": csrf_token(browser, "/settings/mfa")},
+    )
+    central = _central()
+    enabled = central.execute("SELECT totp_enabled FROM users WHERE email = ?", (email,)).fetchone()[0]
+    central.close()
+    assert enabled == 0
 
 
 def test_a_link_only_account_confirms_a_token_with_its_authenticator(auth_client, browser, sent_mail, cleanup):

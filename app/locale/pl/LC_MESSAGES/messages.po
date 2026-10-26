@@ -555,8 +555,8 @@ msgid "Invalid code. Please try again."
 msgstr "Nieprawidłowy kod. Spróbuj ponownie."
 
 #: app/routers/auth.py
-msgid "Turn on two-factor authentication or add a password first."
-msgstr "Najpierw włącz uwierzytelnianie dwuskładnikowe albo dodaj hasło."
+msgid "For this, sign in again with a new link first."
+msgstr "Do tego zaloguj się najpierw ponownie nowym linkiem."
 
 #: app/routers/auth.py
 msgid "Password is incorrect."
