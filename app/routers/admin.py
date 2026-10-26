@@ -143,6 +143,26 @@ async def create_reset_link(request: Request, user_id: str):
     return await _users_page(request, reset_link=f"{BASE_URL}/reset?token={token}", reset_email=user["email"])
 
 
+@router.post("/users/{user_id}/reset-two-factor")
+async def reset_two_factor(request: Request, user_id: str):
+    """The way back for someone who lost their authenticator and recovery codes
+    (#168): two-factor off, codes void, every session signed out."""
+    from app.central_db import bump_session_epoch, delete_recovery_codes, update_user
+
+    admin = _require_admin(request)
+    _validate_user_id(user_id)
+    if user_id == admin["id"]:
+        return error_redirect(request, "/admin/users", _("Manage your own two-factor under Settings > Security."))
+    user = await get_user_by_id(user_id)
+    if not user:
+        return error_redirect(request, "/admin/users", _("User account was not found."))
+    await update_user(user_id, totp_enabled=0, totp_secret="")
+    await delete_recovery_codes(user_id)
+    await bump_session_epoch(user_id)
+    await _event(request, "mfa_admin_reset", user_id, admin)
+    return success_redirect(request, "/admin/users", _("Two-factor reset for {email}.").format(email=user["email"]))
+
+
 @router.post("/users/{user_id}/shared-llm")
 async def change_shared_llm(request: Request, user_id: str, allow: str = Form("")):
     """Whether the account may spend the server's LLM key when it has none of its own."""

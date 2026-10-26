@@ -59,6 +59,11 @@ ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS",
 # — see app/routers/auth.py registration_allowed()).
 REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "false").lower() == "true"
 
+# Every account with a password must also use an authenticator app (#168).
+# Off by default; a hosted instance turns it on. Accounts without a password
+# sign in with emailed links and are not affected.
+REQUIRE_TOTP = os.environ.get("VIRGIL_REQUIRE_TOTP", "false").lower() == "true"
+
 # Outgoing email (#168). "" sends nothing, "log" writes each message to the log
 # for development, "smtp" sends through the server below. Sign-in links are
 # only offered when mail can go out.

@@ -73,6 +73,12 @@
                             <button type="submit" class="btn btn-sm btn-outline">{{ _("Reset link") }}</button>
                         </form>
                         {% endif %}
+                        {% if not is_me and u.totp_enabled %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/reset-two-factor"
+                              data-confirm="{{ _("Turn off two-factor for this account and sign it out everywhere?") }}">
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Reset two-factor") }}</button>
+                        </form>
+                        {% endif %}
                         {% if protected or is_me %}
                         {% elif u.is_active %}
                         <form method="POST" action="/admin/users/{{ u.id }}/disable" style="margin:0;">

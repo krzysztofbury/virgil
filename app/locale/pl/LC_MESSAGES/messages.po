@@ -407,6 +407,15 @@ msgid "Enable the account before resetting its password."
 msgstr "Włącz konto, zanim zresetujesz jego hasło."
 
 #: app/routers/admin.py
+msgid "Manage your own two-factor under Settings > Security."
+msgstr "Swoim uwierzytelnianiem dwuskładnikowym zarządzasz w Ustawienia > Bezpieczeństwo."
+
+#: app/routers/admin.py
+#, python-brace-format
+msgid "Two-factor reset for {email}."
+msgstr "Zresetowano uwierzytelnianie dwuskładnikowe dla {email}."
+
+#: app/routers/admin.py
 msgid "The account may use the server's LLM key."
 msgstr "To konto może korzystać z klucza LLM serwera."
 
@@ -2980,6 +2989,14 @@ msgstr "Ustaw jako administratora"
 #: app/templates/admin_users.html
 msgid "Reset link"
 msgstr "Link do resetu"
+
+#: app/templates/admin_users.html
+msgid "Turn off two-factor for this account and sign it out everywhere?"
+msgstr "Wyłączyć uwierzytelnianie dwuskładnikowe tego konta i wylogować je wszędzie?"
+
+#: app/templates/admin_users.html
+msgid "Reset two-factor"
+msgstr "Resetuj 2FA"
 
 #: app/templates/admin_users.html
 msgid "Disable"

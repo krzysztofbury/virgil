@@ -44,6 +44,10 @@ PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
 
 BCRYPT_ROUNDS = 12
 
+# What a password account may still reach while "require TOTP" sends it to set
+# up its authenticator: the setup itself, and the way out.
+TOTP_SETUP_PATHS = ("/settings/mfa", "/mfa/qr.png", "/logout", "/language", "/static/", "/service-worker")
+
 _signer: TimestampSigner | None = None
 
 
@@ -293,6 +297,19 @@ class AuthMiddleware:
                 "user_db": user_db,
                 "features": await get_feature_flags(user_db),
             }
+
+            # A password needs a second factor when the instance says so (#168):
+            # until it is set up, every page leads to the setup.
+            from app import config
+
+            if (
+                config.REQUIRE_TOTP
+                and user["password_hash"]
+                and not user["totp_enabled"]
+                and not path.startswith(TOTP_SETUP_PATHS)
+            ):
+                await _login_response(scope, "/settings/mfa")(scope, receive, send)
+                return
 
             # Check onboarding for this user.
             done = await get_setting(user_db, "onboarding_completed", "0")
