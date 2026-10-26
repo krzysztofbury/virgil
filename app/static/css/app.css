@@ -550,6 +550,7 @@ label {
 .form-hint { display: block; margin-top: 0.5rem; line-height: 1.45; }
 /* Helper text stays readable: no muted hint below 13px (#163). */
 small.text-muted, .form-hint, .onboarding-skip { font-size: 0.8125rem; }
+.andy-hint { margin: -0.25rem 0 0.75rem; font-size: 0.8125rem; }
 .form-actions { display: flex; justify-content: flex-end; margin-top: 0.75rem; }
 @media (max-width: 768px) {
   .form-actions .btn { width: 100%; }

@@ -3464,6 +3464,10 @@ msgstr "Dodawanie do kolejki..."
 msgid "Generate with AI"
 msgstr "Wygeneruj z AI"
 
+#: app/templates/daily.html
+msgid "A daily check-in: one action each for Body, Spirit, Self and Relations. Your life areas and goals live in Goals."
+msgstr "Codzienny check-in: po jednym działaniu dla obszarów Ciało, Duch, Konto i Relacje. Twoje obszary życia i cele są w zakładce Cele."
+
 #: app/templates/daily.html app/templates/experiment_detail.html
 #: app/templates/freedom.html app/templates/onboarding.html
 #: app/templates/training.html

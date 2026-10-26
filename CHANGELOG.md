@@ -50,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Helper text is brighter in both themes and at least 13px; Settings tabs
     sit in a grid on a phone; text links that act as controls get a 44px
     touch row.
+  - Daily says what A.N.D.Y. is: a daily check-in for Body, Spirit, Self and
+    Relations, apart from the life areas in Goals.
 - Onboarding step 2 failed with an Internal Server Error since the Polish
   interface (#163): a literal percent sign in its example text was read as a
   format code. Every onboarding step is now rendered in both languages by the
