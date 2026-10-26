@@ -317,35 +317,29 @@ def test_the_shortcut_overlay_shows_translations_as_text(site):
         context.close()
 
 
-def _swipe_left(page):
+def _swipe(page, from_x, to_x):
     page.evaluate(
-        """() => {
-            const target = document.querySelector('[data-swipe-left]');
+        """([fromX, toX]) => {
+            const target = document.querySelector('#daily-form');
             const at = (x) => [new Touch({identifier: 1, target, clientX: x, clientY: 200})];
-            target.dispatchEvent(new TouchEvent('touchstart', {bubbles: true, touches: at(300), changedTouches: at(300)}));
-            target.dispatchEvent(new TouchEvent('touchend', {bubbles: true, touches: [], changedTouches: at(100)}));
-        }"""
+            target.dispatchEvent(new TouchEvent('touchstart', {bubbles: true, touches: at(fromX), changedTouches: at(fromX)}));
+            target.dispatchEvent(new TouchEvent('touchend', {bubbles: true, touches: [], changedTouches: at(toX)}));
+        }""",
+        [from_x, to_x],
     )
 
 
-def test_a_swipe_only_follows_a_link_on_this_site(site):
+def test_a_swipe_on_daily_follows_the_pages_own_day_links(site):
     browser, base, session = site
     context = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, storage_state=session)
     try:
         page = context.new_page()
         page.goto(f"{base}/daily/2026-01-10")
-        # The Content-Security-Policy already stops a javascript: URL; another site is the open door.
-        page.evaluate("""() => document.querySelector('[data-swipe-left]')
-            .setAttribute('data-swipe-left', 'https://example.invalid/')""")
-        _swipe_left(page)
-        page.wait_for_timeout(500)
-        assert page.url == f"{base}/daily/2026-01-10"
-
-        page.evaluate(
-            """() => document.querySelector('[data-swipe-left]').setAttribute('data-swipe-left', '/daily/2026-01-11')"""
-        )
         with page.expect_navigation():
-            _swipe_left(page)
+            _swipe(page, 300, 100)
         assert page.url.endswith("/daily/2026-01-11")
+        with page.expect_navigation():
+            _swipe(page, 100, 300)
+        assert page.url.endswith("/daily/2026-01-10")
     finally:
         context.close()

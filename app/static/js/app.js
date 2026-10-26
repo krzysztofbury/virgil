@@ -954,17 +954,12 @@ function closeShortcutOverlay() {
         // Require: min 80px horizontal, max 300ms, horizontal > vertical
         if (Math.abs(dx) < 80 || dt > 300 || Math.abs(dx) < Math.abs(dy)) return;
 
-        var attr = dx < 0 ? 'data-swipe-left' : 'data-swipe-right';
-        var el = e.target;
-        while (el && el !== document.body) {
-            if (el.hasAttribute && el.hasAttribute(attr)) {
-                // Only a link on this site: the attribute is page data, not a trusted URL.
-                var target = new URL(el.getAttribute(attr), window.location.href);
-                if (target.origin === window.location.origin) window.location.href = target.pathname + target.search;
-                return;
-            }
-            el = el.parentElement;
-        }
+        // A swipe clicks the page's own previous or next link, as the arrow keys
+        // do, so no URL is ever read from page data.
+        var area = e.target.closest ? e.target.closest('[data-swipe]') : null;
+        var links = area ? area.querySelectorAll('.date-nav a') : [];
+        var link = dx < 0 ? links[1] : links[0];
+        if (link) link.click();
     }, { passive: true });
 })();
 

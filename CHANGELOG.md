@@ -48,8 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   with the app key while they wait for the import job. A file staged before
   this change is treated as expired and is uploaded again.
 - The keyboard shortcut overlay is built from elements, so markup in a
-  translation stays text, and a swipe on the Daily page only follows a link
-  on this site.
+  translation stays text, and a swipe on the Daily page clicks the page's own
+  previous or next day link instead of reading a URL from the page.
 - virtualenv, used only by the development hooks, moves to 21.14.13 for
   GHSA-cx6f-vjhg-g3cc, ahead of the `exclude-newer` cutoff.
 

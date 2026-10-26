@@ -2,7 +2,7 @@
 {% block title %}{{ _("Virgil - Daily Log") }}{% endblock %}
 
 {% block content %}
-<div data-swipe-left="/daily/{{ next_day }}" data-swipe-right="/daily/{{ prev_day }}">
+<div data-swipe>
 <!-- Date Navigator -->
 <div class="date-nav">
     <a href="/daily/{{ prev_day }}" class="btn btn-icon" aria-label="{{ _("Previous day") }}"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
