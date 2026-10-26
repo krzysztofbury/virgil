@@ -41,6 +41,12 @@
             <p class="auth-subtitle">{{ _("Your sign-in link is ready.") }}</p>
             <button type="submit" class="btn btn-primary" style="width:100%;" autofocus>{{ _("Sign In") }}</button>
         </form>
+        {% elif step == 'check_signup' %}
+        <div class="auth-info" role="status">
+            <strong>{{ _("Check your email to finish creating your account.") }}</strong><br>
+            {% trans email=email, minutes=15 %}We sent a link to {{ email }}. Open it within {{ minutes }} minutes to create the account. Until then nothing is created.{% endtrans %}
+        </div>
+        <p class="auth-footer"><a href="/signup">{{ _("Use a different email") }}</a></p>
         {% elif step == 'check_email' %}
         <div class="auth-info" role="status">
             <strong>{{ _("Check your email") }}</strong><br>

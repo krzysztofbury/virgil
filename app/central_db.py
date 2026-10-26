@@ -113,7 +113,7 @@ async def close_central_db() -> None:
 
 async def create_user(
     email: str,
-    password: str,
+    password: str | None,
     display_name: str = "",
     only_if_first: bool = False,
     *,
@@ -133,7 +133,9 @@ async def create_user(
     db = await get_central_db()
     user_id = str(uuid.uuid4())
     db_filename = f"{user_id}.db"
-    pw_hash = await hash_password_async(password)
+    # No password (#168): an empty hash, which never matches; the account signs
+    # in with emailed links.
+    pw_hash = await hash_password_async(password) if password is not None else ""
 
     role = "admin" if email.lower() in ADMIN_EMAILS else "user"
 
@@ -465,6 +467,8 @@ async def create_invite(
 _OPEN_INVITE = """SELECT i.* FROM invites i JOIN users u ON u.id = i.created_by
                   WHERE i.token_hash = ? AND i.used_at = '' AND i.expires_at > ?
                     AND u.role = 'admin' AND u.is_active = 1"""
+# The same invite, found by id: a signup link carries the id, never the secret.
+_OPEN_INVITE_BY_ID = _OPEN_INVITE.replace("i.token_hash = ?", "i.id = ?")
 
 
 async def get_open_invite(token: str) -> dict | None:
@@ -503,7 +507,7 @@ async def revoke_invite(invite_id: str) -> bool:
 
 
 async def create_user_from_invite(
-    token: str, email: str, password: str, display_name: str = ""
+    token: str, email: str, password: str | None, display_name: str = "", *, invite_id: str = ""
 ) -> tuple[str, dict | None]:
     """Create the account an invite allows and use the invite up, in one transaction.
 
@@ -515,12 +519,13 @@ async def create_user_from_invite(
     address only comes in through an invite made for exactly that address.
     """
     email = email.strip().lower()
-    pw_hash = await hash_password_async(password)
+    pw_hash = await hash_password_async(password) if password is not None else ""
     user_id = str(uuid.uuid4())
+    query, key = (_OPEN_INVITE_BY_ID, invite_id) if invite_id else (_OPEN_INVITE, _token_hash(token))
     async with _subscription_connection() as db:
         await db.execute("BEGIN IMMEDIATE")
         try:
-            rows = await db.execute_fetchall(_OPEN_INVITE, (_token_hash(token), _utc_stamp(datetime.now(UTC))))
+            rows = await db.execute_fetchall(query, (key, _utc_stamp(datetime.now(UTC))))
             status = "created"
             if not rows:
                 status = "invalid"

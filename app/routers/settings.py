@@ -162,6 +162,10 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         # MFA status lives in the central users table, not per-user DB.
         user = getattr(request.state, "user", {})
         context["mfa_enabled"] = bool(user.get("totp_enabled"))
+        context["has_password"] = bool(user.get("password_hash"))
+        from app.services.mailer import mail_enabled
+
+        context["mail_on"] = mail_enabled()
         if context["mfa_enabled"]:
             from app.central_db import count_recovery_codes
 
@@ -190,21 +194,20 @@ async def create_token(
     expires: str = Form("90"),
     scope: list[str] = Form([]),
     password: str = Form(""),
+    totp_code: str = Form(""),
 ):
     """Shows the secret once, on this response; only its hash is stored.
 
     A token outlives the session and a later password change, so a session
     alone, say on a laptop left open, must not be enough to mint one."""
-    from app.auth import verify_password_async
     from app.central_db import API_SCOPES, create_api_token, record_auth_event
     from app.rate_limit import client_ip
+    from app.routers.auth import confirm_identity
 
     user = request.state.user
-    # verify_password raises on empty input, so an empty one is a wrong password.
-    if not password or not await verify_password_async(password, user["password_hash"]):
-        return error_redirect(
-            request, "/settings?tab=security#tokens", _("Password is incorrect. No token was created.")
-        )
+    problem = await confirm_identity(request, user, password, totp_code)
+    if problem:
+        return error_redirect(request, "/settings?tab=security#tokens", problem + " " + _("No token was created."))
     name = name.strip()
     if not name:
         return error_redirect(
@@ -842,7 +845,7 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
 
 
 @router.post("/settings/factory-reset")
-async def factory_reset(request: Request, password: str = Form("")):
+async def factory_reset(request: Request, password: str = Form(""), totp_code: str = Form("")):
     """Wipe the current user's data and restart onboarding.
 
     The account (central registry row) and session are kept. The fresh database
@@ -855,7 +858,6 @@ async def factory_reset(request: Request, password: str = Form("")):
     """
     import uuid
 
-    from app.auth import verify_password_async
     from app.central_db import heartbeat_user_lifecycle, record_auth_event, update_user, user_lifecycle_operation
     from app.rate_limit import client_ip
     from app.services.backup import delete_user_backups
@@ -865,9 +867,11 @@ async def factory_reset(request: Request, password: str = Form("")):
     if not user or not user.get("db_filename"):
         return error_redirect(request, "/login", _("Sign in again before resetting data."))
     # A session left open on a shared screen must not be enough to wipe everything.
-    # verify_password raises on empty input, so an empty one is a wrong password.
-    if not password or not await verify_password_async(password, user["password_hash"]):
-        return error_redirect(request, "/settings?tab=security", _("Password is incorrect. Nothing was reset."))
+    from app.routers.auth import confirm_identity
+
+    problem = await confirm_identity(request, user, password, totp_code)
+    if problem:
+        return error_redirect(request, "/settings?tab=security", problem + " " + _("Nothing was reset."))
 
     db = get_user_db_from_request(request)
     async with user_lifecycle_operation(user["id"], "factory-reset") as lifecycle_claim:

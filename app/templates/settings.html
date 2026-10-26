@@ -725,6 +725,29 @@
 
 <div class="card" style="margin-bottom: 1rem;">
     <div class="card-header"><h3>{{ _("Password") }}</h3></div>
+    {% if not has_password %}
+    {# A link-only account (#168) signs in with emailed links; it may add a password. #}
+    <p class="text-muted" style="font-size:0.85rem;">{{ _("You sign in with emailed links. A password lets you sign in without your inbox.") }}</p>
+    <details>
+        <summary style="cursor:pointer;">{{ _("Add a password") }}</summary>
+        <form method="POST" action="/settings/password/add" style="margin-top:0.5rem;">
+            <div class="grid">
+                <div><label>{{ _("New password") }}
+                    <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
+                </label></div>
+                <div><label>{{ _("Repeat new password") }}
+                    <input type="password" name="new_password_confirm" autocomplete="new-password" minlength="8" required>
+                </label></div>
+            </div>
+            {% if mfa_enabled %}
+            <label>{{ _("Code from your authenticator app, or a recovery code") }}
+                <input type="text" name="totp_code" autocomplete="one-time-code" required>
+            </label>
+            {% endif %}
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Add a password") }}</button>
+        </form>
+    </details>
+    {% else %}
     <details>
         <summary style="cursor:pointer;">{{ _("Change password") }}</summary>
         <form method="POST" action="/settings/password" style="margin-top:0.5rem;">
@@ -743,6 +766,19 @@
             <button type="submit" class="btn btn-primary btn-sm">{{ _("Change password") }}</button>
         </form>
     </details>
+    {% if mail_on %}
+    <details style="margin-top:0.5rem;">
+        <summary style="cursor:pointer;">{{ _("Remove password") }}</summary>
+        <form method="POST" action="/settings/password/remove" style="margin-top:0.5rem;">
+            <p class="text-muted" style="font-size:0.85rem;">{{ _("You will sign in with links sent to your email instead.") }}</p>
+            <label>{{ _("Current password") }}
+                <input type="password" name="current_password" autocomplete="current-password" required>
+            </label>
+            <button type="submit" class="btn btn-outline btn-sm">{{ _("Remove password") }}</button>
+        </form>
+    </details>
+    {% endif %}
+    {% endif %}
 </div>
 
 <div class="card" style="margin-bottom: 1rem;" id="tokens">
@@ -795,9 +831,15 @@
                 <label class="checkbox-label"><input type="checkbox" name="scope" value="sensitive"> {{ _("Freedom: habits, slips and journal entries") }}</label>
                 <label class="checkbox-label"><input type="checkbox" name="scope" value="finance"> {{ _("Finance: balances, the fortress and its settings") }}</label>
             </fieldset>
+            {% if has_password %}
             <label>{{ _("Your password") }}
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
+            {% else %}
+            <label>{{ _("Code from your authenticator app, or a recovery code") }}
+                <input type="text" name="totp_code" autocomplete="one-time-code" required>
+            </label>
+            {% endif %}
             <button type="submit" class="btn btn-primary btn-sm">{{ _("Create token") }}</button>
         </form>
     </details>
@@ -878,9 +920,15 @@
             <a href="/settings/backup" class="btn btn-outline">{{ _("Download virgil.db") }}</a>
         </div>
         <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;" data-confirm="{{ _("Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.") }}">
+            {% if has_password %}
             <label>{{ _("Your password") }}
                 <input type="password" name="password" autocomplete="current-password" required>
             </label>
+            {% else %}
+            <label>{{ _("Code from your authenticator app, or a recovery code") }}
+                <input type="text" name="totp_code" autocomplete="one-time-code" required>
+            </label>
+            {% endif %}
             <button type="submit" class="btn btn-danger">{{ _("Reset All Data") }}</button>
         </form>
     </details>

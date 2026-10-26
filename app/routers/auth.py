@@ -129,7 +129,9 @@ LINK_UNUSABLE = N_("That link has expired. Ask for a new one.")
 
 def _signup_response(request: Request, **context):
     """The signup page. With an invite, its secret is in the form, so nothing may cache the page."""
-    response = templates.TemplateResponse(request, "auth_signup.html", {"request": request, **context})
+    response = templates.TemplateResponse(
+        request, "auth_signup.html", {"request": request, "mail_on": mailer.mail_enabled(), **context}
+    )
     if context.get("invite"):
         response.headers["Cache-Control"] = "no-store"
     return response
@@ -170,9 +172,10 @@ async def signup_submit(
     request: Request,
     email: str = Form(...),
     display_name: str = Form(""),
-    password: str = Form(...),
-    password_confirm: str = Form(...),
+    password: str = Form(""),
+    password_confirm: str = Form(""),
     invite: str = Form(""),
+    sign_in_method: str = Form("password"),
 ):
     if not invite and not await registration_allowed():
         return error_redirect(request, "/login", _("Registration is closed on this server."))
@@ -180,11 +183,13 @@ async def signup_submit(
     email = email.strip().lower()
     display_name = display_name.strip()
     invite_email = ""
+    open_invite = None
     if invite:
         open_invite = await get_open_invite(invite)
         if not open_invite:
             return error_redirect(request, "/login", _(INVITE_UNUSABLE))
         invite_email = open_invite["email"]
+    link_only = sign_in_method == "link" and mailer.mail_enabled()
 
     def _render_error(error: str):
         return _signup_response(
@@ -199,10 +204,40 @@ async def signup_submit(
     if not valid_email(email):
         return _render_error(_("Please enter a valid email address."))
 
-    if len(password) < 8:
+    if link_only and not (invite_email and invite_email == email):
+        # No password (#168): an address nobody vouched for gets a link first, and
+        # the account exists only once the link is opened. A typo creates nothing.
+        if await get_user_by_email(email):
+            return _render_error(_("An account with that email already exists."))
+        if not invite and email in ADMIN_EMAILS and await count_users() > 0:
+            return _render_error(_(RESERVED_ADDRESS))
+        token = await create_sign_in_link(
+            email,
+            user_id=None,
+            purpose="signup",
+            invite_id=open_invite["id"] if open_invite else "",
+            display_name=display_name,
+            language=current_language(),
+        )
+        if token:
+            mailer.schedule(
+                mailer.render_mail(
+                    "signup",
+                    current_language(),
+                    to=email,
+                    link=f"{config.BASE_URL}/login/link?token={token}",
+                    minutes=SIGN_IN_LINK_TTL_MINUTES,
+                )
+            )
+        return await _login_page(request, "check_signup", email)
+
+    if link_only:
+        # The invite was made for this address and sent there: it is proven.
+        password = None
+    elif len(password) < 8:
         return _render_error(_("Password must be at least 8 characters."))
 
-    if password != password_confirm:
+    if password is not None and password != password_confirm:
         return _render_error(_("Passwords do not match."))
 
     if invite:
@@ -232,22 +267,29 @@ async def signup_submit(
         if user is None:
             return error_redirect(request, "/login", _("Registration is closed on this server."))
 
+    response = await _start_account(request, user, used_invite=bool(invite), language=current_language())
+    return response or _render_error(_("Could not create your account. Please try again."))
+
+
+async def _start_account(request: Request, user: dict, *, used_invite: bool, language: str):
+    """Provision a new account's database and sign it in, or None after rolling
+    the account back when provisioning failed."""
     try:
         await create_user_db(user["db_filename"])
     except Exception:
-        # Never leave an account whose database was never provisioned — it
+        # Never leave an account whose database was never provisioned: it
         # could log in but every request would fail, and the email would be
         # permanently burned.
         from app.central_db import delete_user
 
-        logger.exception("User DB provisioning failed for %s — rolling back account", email)
-        if invite:
+        logger.exception("User DB provisioning failed for %s, rolling back account", user["email"])
+        if used_invite:
             await reopen_invite_used_by(user["id"])
         await delete_user(user["id"])
-        return _render_error(_("Could not create your account. Please try again."))
+        return None
 
-    await _event(request, "invite_consume" if invite else "signup", user["id"])
-    await update_user(user["id"], language=current_language())
+    await _event(request, "invite_consume" if used_invite else "signup", user["id"])
+    await update_user(user["id"], language=normalize_language(language))
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg=_("Account created."))
     response = RedirectResponse(target, status_code=303)
@@ -442,8 +484,26 @@ async def login_link_confirm(request: Request, token: str = Form("")):
 
 
 async def _finish_link_signup(request: Request, link: dict):
-    """A signup link: the account is created when its address is proven (Task 6)."""
-    return error_redirect(request, "/login", _(LINK_UNUSABLE))
+    """A signup link was opened, so its address is proven: create the account
+    now, re-checking everything that may have changed since it was sent."""
+    email = link["email"]
+    if await get_user_by_email(email):
+        return error_redirect(request, "/login", _("An account with that email already exists."))
+    if link["invite_id"]:
+        status, user = await create_user_from_invite("", email, None, link["display_name"], invite_id=link["invite_id"])
+        if status != "created":
+            return error_redirect(request, "/login", _(INVITE_UNUSABLE))
+    else:
+        if not await registration_allowed():
+            return error_redirect(request, "/login", _("Registration is closed on this server."))
+        if email in ADMIN_EMAILS and await count_users() > 0:
+            return error_redirect(request, "/login", _(RESERVED_ADDRESS))
+        user = await create_user(email, None, link["display_name"], only_if_first=not REGISTRATION_OPEN)
+        if user is None:
+            return error_redirect(request, "/login", _("Registration is closed on this server."))
+    set_language(normalize_language(link["language"]))
+    response = await _start_account(request, user, used_invite=bool(link["invite_id"]), language=link["language"])
+    return response or error_redirect(request, "/login", _("Could not create your account. Please try again."))
 
 
 async def _signed_in_response(request: Request, user: dict) -> RedirectResponse:
@@ -530,14 +590,47 @@ async def _recovery_codes_response(request: Request, user: dict, epoch: int | No
     return response
 
 
-async def _second_factor_ok(user: dict, code: str) -> bool:
-    """A current authenticator code, or an unused recovery code (which it uses up)."""
+async def _second_factor_ok(request: Request, user: dict, code: str) -> bool:
+    """A current authenticator code, or an unused recovery code (which it uses up).
+
+    Every guess counts toward the same per-account lockout as /mfa/verify, so a
+    session left open is no faster a way to guess six digits than the sign-in.
+    """
     code = code.strip()
     if not code or not user["totp_enabled"]:
         return False
-    if pyotp.TOTP(_totp_secret_plain(user["totp_secret"])).verify(code, valid_window=1):
-        return True
-    return await use_recovery_code(user["id"], code)
+    now = datetime.now(UTC)
+    if not await claim_mfa_attempt(user["id"], now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS):
+        await _event(request, "mfa_lock", user["id"])
+        return False
+    ok = pyotp.TOTP(_totp_secret_plain(user["totp_secret"])).verify(code, valid_window=1)
+    if not ok:
+        ok = await use_recovery_code(user["id"], code)
+    await finish_mfa_attempt(user["id"], ok, now, MFA_MAX_ATTEMPTS, MFA_LOCK_SECONDS)
+    if not ok:
+        await _event(request, "mfa_fail", user["id"])
+    return ok
+
+
+IDENTITY_NEEDS_A_FACTOR = N_("Turn on two-factor authentication or add a password first.")
+
+
+async def confirm_identity(request: Request, user: dict, password: str = "", code: str = "") -> str | None:
+    """Re-check who is at the keyboard before something a session alone must not
+    do (a token, a factory reset). None when confirmed, else the message to show.
+
+    An account with a password confirms with it. One without (#168) confirms
+    with its second factor, and one with neither is told what to set up."""
+    if user["password_hash"]:
+        # verify_password raises on empty input, so an empty one is a wrong password.
+        if password and await verify_password_async(password, user["password_hash"]):
+            return None
+        return _("Password is incorrect.")
+    if not user["totp_enabled"]:
+        return _(IDENTITY_NEEDS_A_FACTOR)
+    if await _second_factor_ok(request, user, code):
+        return None
+    return _("Invalid code. Please try again.")
 
 
 @router.post("/settings/mfa/recovery-codes")
@@ -547,7 +640,7 @@ async def regenerate_recovery_codes(request: Request, totp_code: str = Form(""))
     user = getattr(request.state, "user", None)
     if not user or not user["totp_enabled"]:
         return error_redirect(request, SECURITY, _("Two-factor authentication is not on."))
-    if not await _second_factor_ok(user, totp_code):
+    if not await _second_factor_ok(request, user, totp_code):
         return error_redirect(request, SECURITY, _("Invalid code. Please try again."))
     return await _recovery_codes_response(request, user)
 
@@ -559,10 +652,10 @@ async def mfa_disable(request: Request, password: str = Form(""), totp_code: str
         return error_redirect(request, "/settings", _("MFA could not be disabled."))
 
     if user["password_hash"]:
-        # verify_password raises on empty input — treat it as a wrong password.
+        # verify_password raises on empty input, so an empty one is a wrong password.
         if not password or not await verify_password_async(password, user["password_hash"]):
             return _mfa_setup_response(request, mfa_enabled=True, error=_("Invalid password."))
-    elif not await _second_factor_ok(user, totp_code):
+    elif not await _second_factor_ok(request, user, totp_code):
         # No password to confirm with: the second factor confirms its own removal.
         return _mfa_setup_response(request, mfa_enabled=True, error=_("Invalid code. Please try again."))
 
@@ -592,8 +685,13 @@ async def change_password(
     user = getattr(request.state, "user", None)
     if not user:
         return error_redirect(request, "/login", _("Sign in again to change your password."))
-    # verify_password raises on empty input, so an empty one is a wrong password.
-    if not current_password or not await verify_password_async(current_password, user["password_hash"]):
+    # verify_password raises on empty input, so an empty one is a wrong password,
+    # and an account without a password (#168) has none to change.
+    if (
+        not user["password_hash"]
+        or not current_password
+        or not await verify_password_async(current_password, user["password_hash"])
+    ):
         return error_redirect(request, SECURITY, _("Current password is incorrect."))
     if len(new_password) < 8:
         return error_redirect(request, SECURITY, _("New password must be at least 8 characters."))
@@ -604,6 +702,53 @@ async def change_password(
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_change", user["id"])
     return _resign(request, user["id"], epoch, _("Password changed. Other devices are signed out."), SECURITY)
+
+
+@router.post("/settings/password/add")
+async def add_password(
+    request: Request,
+    new_password: str = Form(""),
+    new_password_confirm: str = Form(""),
+    totp_code: str = Form(""),
+):
+    """A link-only account (#168) sets a password. With two-factor on, the code
+    confirms it; with "require TOTP" on, the gate then asks to set it up."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        return error_redirect(request, "/login", _("Sign in again to change your password."))
+    if user["password_hash"]:
+        return error_redirect(request, SECURITY, _("This account already has a password."))
+    if user["totp_enabled"] and not await _second_factor_ok(request, user, totp_code):
+        return error_redirect(request, SECURITY, _("Invalid code. Please try again."))
+    if len(new_password) < 8:
+        return error_redirect(request, SECURITY, _("New password must be at least 8 characters."))
+    if new_password != new_password_confirm:
+        return error_redirect(request, SECURITY, _("New passwords do not match."))
+    await update_user(user["id"], password_hash=await hash_password_async(new_password))
+    epoch = await bump_session_epoch(user["id"])
+    await _event(request, "password_add", user["id"])
+    return _resign(request, user["id"], epoch, _("Password set. Other devices are signed out."), SECURITY)
+
+
+@router.post("/settings/password/remove")
+async def remove_password(request: Request, current_password: str = Form("")):
+    """Sign in with emailed links only (#168). Needs mail, or the account could
+    never sign in again."""
+    user = getattr(request.state, "user", None)
+    if not user:
+        return error_redirect(request, "/login", _("Sign in again to change your password."))
+    if not mailer.mail_enabled():
+        return error_redirect(request, SECURITY, _("This server cannot send sign-in links, so the password stays."))
+    if (
+        not user["password_hash"]
+        or not current_password
+        or not await verify_password_async(current_password, user["password_hash"])
+    ):
+        return error_redirect(request, SECURITY, _("Current password is incorrect."))
+    await update_user(user["id"], password_hash="")
+    epoch = await bump_session_epoch(user["id"])
+    await _event(request, "password_remove", user["id"])
+    return _resign(request, user["id"], epoch, _("Password removed. You sign in with emailed links now."), SECURITY)
 
 
 # --- MFA Verify (during login) ---

@@ -28,6 +28,8 @@ AUTH_PATHS = frozenset(
         "/mfa/verify",
         "/reset",
         "/settings/password",
+        "/settings/password/add",
+        "/settings/password/remove",
         "/settings/mfa/disable",
         "/settings/mfa/recovery-codes",
         "/settings/factory-reset",

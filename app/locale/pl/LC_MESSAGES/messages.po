@@ -494,6 +494,10 @@ msgid "Please enter a valid email address."
 msgstr "Podaj prawidłowy adres e-mail."
 
 #: app/routers/auth.py
+msgid "An account with that email already exists."
+msgstr "Konto z tym adresem e-mail już istnieje."
+
+#: app/routers/auth.py
 msgid "Password must be at least 8 characters."
 msgstr "Hasło musi mieć co najmniej 8 znaków."
 
@@ -504,10 +508,6 @@ msgstr "Hasła się nie zgadzają."
 #: app/routers/auth.py
 msgid "This invite is for a different email address."
 msgstr "To zaproszenie jest na inny adres e-mail."
-
-#: app/routers/auth.py
-msgid "An account with that email already exists."
-msgstr "Konto z tym adresem e-mail już istnieje."
 
 #: app/routers/auth.py
 msgid "Could not create your account. Please try again."
@@ -546,6 +546,14 @@ msgid "Invalid code. Please try again."
 msgstr "Nieprawidłowy kod. Spróbuj ponownie."
 
 #: app/routers/auth.py
+msgid "Turn on two-factor authentication or add a password first."
+msgstr "Najpierw włącz uwierzytelnianie dwuskładnikowe albo dodaj hasło."
+
+#: app/routers/auth.py
+msgid "Password is incorrect."
+msgstr "Nieprawidłowe hasło."
+
+#: app/routers/auth.py
 msgid "Two-factor authentication is not on."
 msgstr "Uwierzytelnianie dwuskładnikowe nie jest włączone."
 
@@ -580,6 +588,22 @@ msgstr "Nowe hasła się nie zgadzają."
 #: app/routers/auth.py
 msgid "Password changed. Other devices are signed out."
 msgstr "Hasło zmienione. Inne urządzenia zostały wylogowane."
+
+#: app/routers/auth.py
+msgid "This account already has a password."
+msgstr "To konto ma już hasło."
+
+#: app/routers/auth.py
+msgid "Password set. Other devices are signed out."
+msgstr "Hasło ustawione. Inne urządzenia zostały wylogowane."
+
+#: app/routers/auth.py
+msgid "This server cannot send sign-in links, so the password stays."
+msgstr "Ten serwer nie może wysyłać linków do logowania, więc hasło zostaje."
+
+#: app/routers/auth.py
+msgid "Password removed. You sign in with emailed links now."
+msgstr "Hasło usunięte. Teraz logujesz się linkami wysyłanymi e-mailem."
 
 #: app/routers/auth.py
 msgid "MFA session expired. Sign in again."
@@ -1376,8 +1400,8 @@ msgid "Oura sync queued."
 msgstr "Synchronizacja Oura dodana do kolejki."
 
 #: app/routers/settings.py
-msgid "Password is incorrect. No token was created."
-msgstr "Hasło jest nieprawidłowe. Token nie został utworzony."
+msgid "No token was created."
+msgstr "Nie utworzono tokenu."
 
 #: app/routers/settings.py
 msgid "Give the token a name, such as the tool it is for."
@@ -1545,8 +1569,8 @@ msgid "Sign in again before resetting data."
 msgstr "Zaloguj się ponownie, zanim zresetujesz dane."
 
 #: app/routers/settings.py
-msgid "Password is incorrect. Nothing was reset."
-msgstr "Hasło jest nieprawidłowe. Nic nie zostało zresetowane."
+msgid "Nothing was reset."
+msgstr "Niczego nie zresetowano."
 
 #: app/routers/settings.py
 msgid "Factory reset stopped because remote subscriptions could not be removed. Try again later."
@@ -3086,6 +3110,19 @@ msgid "Sign In"
 msgstr "Zaloguj się"
 
 #: app/templates/auth_login.html
+msgid "Check your email to finish creating your account."
+msgstr "Sprawdź pocztę, aby dokończyć zakładanie konta."
+
+#: app/templates/auth_login.html
+#, python-format
+msgid "We sent a link to %(email)s. Open it within %(minutes)s minutes to create the account. Until then nothing is created."
+msgstr "Wysłaliśmy link na adres %(email)s. Otwórz go w ciągu %(minutes)s minut, aby założyć konto. Do tego czasu nic nie zostanie utworzone."
+
+#: app/templates/auth_login.html
+msgid "Use a different email"
+msgstr "Użyj innego adresu e-mail"
+
+#: app/templates/auth_login.html
 msgid "Check your email"
 msgstr "Sprawdź pocztę"
 
@@ -3093,10 +3130,6 @@ msgstr "Sprawdź pocztę"
 #, python-format
 msgid "If %(email)s can sign in here, a sign-in link is on its way. It works once and expires in %(minutes)s minutes."
 msgstr "Jeśli %(email)s może się tu zalogować, link do logowania jest już w drodze. Działa raz i wygasa po %(minutes)s minutach."
-
-#: app/templates/auth_login.html
-msgid "Use a different email"
-msgstr "Użyj innego adresu e-mail"
 
 #: app/templates/auth_login.html app/templates/auth_signup.html
 #: app/templates/settings.html
@@ -3143,7 +3176,7 @@ msgstr "Wyłącz MFA"
 msgid "Confirm your password"
 msgstr "Potwierdź hasło"
 
-#: app/templates/auth_mfa_setup.html
+#: app/templates/auth_mfa_setup.html app/templates/settings.html
 msgid "Code from your authenticator app, or a recovery code"
 msgstr "Kod z aplikacji uwierzytelniającej albo kod odzyskiwania"
 
@@ -3263,6 +3296,18 @@ msgstr "Utwórz konto."
 #: app/templates/auth_signup.html
 msgid "Display Name"
 msgstr "Wyświetlana nazwa"
+
+#: app/templates/auth_signup.html
+msgid "How do you want to sign in?"
+msgstr "Jak chcesz się logować?"
+
+#: app/templates/auth_signup.html
+msgid "With links sent to my email (no password)"
+msgstr "Linkami wysyłanymi na mój e-mail (bez hasła)"
+
+#: app/templates/auth_signup.html
+msgid "With a password"
+msgstr "Hasłem"
 
 #: app/templates/auth_signup.html
 msgid "Confirm Password"
@@ -3872,6 +3917,7 @@ msgid "Sign in to Virgil"
 msgstr "Zaloguj się do Virgila"
 
 #: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+#: app/templates/email/signup.html app/templates/email/signup.txt
 #, python-format
 msgid "It works once and expires in %(minutes)s minutes."
 msgstr "Działa raz i wygasa po %(minutes)s minutach."
@@ -3883,6 +3929,22 @@ msgstr "Jeśli to nie Ty prosisz o ten link, zignoruj tę wiadomość."
 #: app/templates/email/sign_in.txt
 msgid "Your Virgil sign-in link"
 msgstr "Twój link do logowania w Virgil"
+
+#: app/templates/email/signup.html app/templates/email/signup.txt
+msgid "Open this link to finish creating your Virgil account:"
+msgstr "Otwórz ten link, aby dokończyć zakładanie konta w Virgil:"
+
+#: app/templates/email/signup.html
+msgid "Create my account"
+msgstr "Załóż moje konto"
+
+#: app/templates/email/signup.html app/templates/email/signup.txt
+msgid "If you did not ask for it, ignore this email and nothing is created."
+msgstr "Jeśli to nie Ty prosisz o ten link, zignoruj tę wiadomość. Nic nie zostanie utworzone."
+
+#: app/templates/email/signup.txt
+msgid "Finish creating your Virgil account"
+msgstr "Dokończ zakładanie konta w Virgil"
 
 #: app/templates/experiment_detail.html app/templates/experiments.html
 #: app/templates/goals.html
@@ -6623,6 +6685,14 @@ msgid "No background jobs yet."
 msgstr "Brak zadań w tle."
 
 #: app/templates/settings.html
+msgid "You sign in with emailed links. A password lets you sign in without your inbox."
+msgstr "Logujesz się linkami wysyłanymi e-mailem. Hasło pozwala zalogować się bez skrzynki pocztowej."
+
+#: app/templates/settings.html
+msgid "Add a password"
+msgstr "Dodaj hasło"
+
+#: app/templates/settings.html
 msgid "Change password"
 msgstr "Zmień hasło"
 
@@ -6633,6 +6703,14 @@ msgstr "Obecne hasło"
 #: app/templates/settings.html
 msgid "Every other device signed in to this account is signed out."
 msgstr "Wszystkie inne urządzenia zalogowane na to konto zostaną wylogowane."
+
+#: app/templates/settings.html
+msgid "Remove password"
+msgstr "Usuń hasło"
+
+#: app/templates/settings.html
+msgid "You will sign in with links sent to your email instead."
+msgstr "Zamiast tego będziesz logować się linkami wysyłanymi na Twój e-mail."
 
 #: app/templates/settings.html
 msgid "API tokens"
