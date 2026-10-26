@@ -82,7 +82,8 @@ def test_a_link_signs_in_once_even_when_confirmed_twice(client, account):
 
 def test_a_link_for_a_totp_account_asks_for_the_code(client, account):
     user_id, email, central = account
-    central.execute("UPDATE users SET totp_enabled = 1, totp_secret = 'JBSWY3DPEHPK3PXP' WHERE id = ?", (user_id,))
+    secret = "JBSWY3DPEHPK3PXP"  # pragma: allowlist secret - synthetic fixture
+    central.execute("UPDATE users SET totp_enabled = 1, totp_secret = ? WHERE id = ?", (secret, user_id))
     central.commit()
     response = _confirm(client, _link(user_id, email))
     client.cookies.clear()

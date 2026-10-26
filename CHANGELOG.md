@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Passwordless sign-in (#168). The sign-in page asks for the email first: an
+  account with a password gets the password step, any other a one-time sign-in
+  link by email (15 minutes, works once, after a confirming click). A password
+  account can also ask for a link. Accounts without a password are created only
+  for a proven address, and Settings > Security adds or removes a password.
+- One-time recovery codes for two-factor sign-in: 10 shown once at setup,
+  accepted instead of the authenticator code, and renewable in Settings. An admin
+  can reset someone's two-factor from Admin.
+- Outgoing email over SMTP (`VIRGIL_MAIL_BACKEND`, `VIRGIL_SMTP_*`,
+  `VIRGIL_MAIL_FROM`), or written to the log for development. With mail on,
+  an invite made for an address is emailed there in the language the admin picks.
+- `VIRGIL_REQUIRE_TOTP`: every account with a password must set up an
+  authenticator before using Virgil.
+- A public landing page at `/` for signed-out visitors (`VIRGIL_LANDING_PAGE`),
+  in English and Polish, with a Request access panel that writes to
+  `VIRGIL_CONTACT_EMAIL` from the visitor's own mailbox and stores nothing. An
+  invite-only sign-up page offers the same panel.
 - Dependabot version updates for GitHub Actions, the Dockerfile base image and
   the Compose images, weekly on Monday with a 7-day cooldown. Python packages
   stay on the `exclude-newer` cutoff. `SECURITY.md` names the private
@@ -60,6 +77,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skipped and carried over.
 
 ### Security
+- An account without a password needs a sign-in from the last 15 minutes, or
+  its second factor, before it can add a password, enroll an authenticator, or
+  create a token or reset its data. Two-factor checks in Settings share the
+  sign-in lockout.
 - The dependency audit ignores three filelock advisories until litellm allows
   filelock 4 (#154): two are Windows only, and the third needs a second local
   user, which the single-user container does not have.

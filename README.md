@@ -31,7 +31,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 - **Frontend**: Jinja2 templates, HTMX, Alpine.js (CSP build), Chart.js, Lucide icons, all served from `app/static/vendor` (sources and hashes in `SOURCES.json`), with no CDN or Google Fonts request
 - **Styling**: Custom CSS with dark/light theme via CSS custom properties
 - **Database**: SQLite with WAL mode, versioned migration system
-- **Auth**: Multi-user with per-user isolated SQLite databases, email + password + TOTP MFA
+- **Auth**: Multi-user with per-user isolated SQLite databases; email first, then a password with TOTP MFA (and one-time recovery codes) or an emailed sign-in link
 - **LLM Integration**: LiteLLM (supports Anthropic, OpenAI, Gemini, Mistral, Groq, Ollama, and more)
 - **Charts**: Chart.js (line, bar, sparkline, radar, dual-axis) — theme-aware
 - **PWA**: Service worker with offline support, installable on mobile
@@ -655,8 +655,10 @@ Virgil (an expired Cloudflare Access session) asks for a reload instead.
 ## Security
 
 ### Authentication
-- Email + password with bcrypt hashing
-- Optional TOTP MFA via `pyotp` + `qrcode`. The setup QR is generated for the signed-in user at `/mfa/qr.png`; the secret is not put in a URL, and responses that carry it are `Cache-Control: no-store`
+- Email first: an account with a password gets the password step (bcrypt), any other a one-time sign-in link by email when outgoing mail is configured. An unknown address gets the same "check your email" page and no mail
+- Sign-in links work once, expire in 15 minutes and sign in only after a click on the page they open, so mail scanners that fetch links do not use them up; at most 3 per address per 15 minutes
+- Accounts without a password are created only for a proven address: an invite emailed there, or a sign-up link opened from that inbox
+- Optional TOTP MFA via `pyotp` + `qrcode` (required for every password account with `VIRGIL_REQUIRE_TOTP=true`), with 10 one-time recovery codes shown once at setup; an admin can reset someone's two-factor. The setup QR is generated for the signed-in user at `/mfa/qr.png`; the secret is not put in a URL, and responses that carry it are `Cache-Control: no-store`
 - Signed cookie sessions via `itsdangerous.TimestampSigner` (7-day expiry)
 - MFA-pending sessions blocked from protected routes; they expire after 10 minutes, and `/login` treats them as signed out
 - A signed session whose account was deleted or disabled is cleared on the way to

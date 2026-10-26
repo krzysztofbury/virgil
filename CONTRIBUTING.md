@@ -47,6 +47,13 @@ account data. It also creates, verifies, and restores a recovery bundle, then
 checks login against the restored account. Dependency audit commands are in
 `.github/workflows/ci.yml`.
 
+## Email in development
+
+Set `VIRGIL_MAIL_BACKEND=log` and `VIRGIL_MAIL_FROM` to try sign-in links and invites
+locally: each email, link included, is written to the server log instead of being
+sent. Never use `log` in production. Tests use the `sent_mail` fixture, which
+collects messages instead of sending them.
+
 ## English and Polish
 
 Every user-facing string in the web app has a Polish translation (#152). Mark
