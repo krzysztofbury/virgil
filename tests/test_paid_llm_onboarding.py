@@ -238,7 +238,8 @@ def test_a_medical_upload_is_staged_and_never_put_in_the_payload(auth_client, mo
     assert json.loads(payload)["source"] == "text"
     staged = list((tmp_path / "staging").rglob("*.bin"))
     assert len(staged) == 1
-    assert staged[0].read_bytes() == b"HGB: 15.8 g/dl"
+    assert b"HGB" not in staged[0].read_bytes(), "a staged upload is encrypted at rest"
+    assert medical_import.read_staged(staged[0].parent.name, staged[0].stem) == b"HGB: 15.8 g/dl"
 
 
 def test_the_import_stores_markers_then_deletes_the_staged_bytes(monkeypatch, tmp_path):
@@ -395,6 +396,30 @@ def test_a_staged_token_cannot_reach_another_users_directory(tmp_path, monkeypat
     for bad in ("../../etc/passwd", "", "not-hex", "a" * 33):
         with pytest.raises(ValueError):
             medical_import.staged_path("alice", bad)
+
+
+def test_extracted_medical_text_is_encrypted_at_rest(tmp_path, monkeypatch):
+    from app.services import medical_import
+
+    monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
+    token = medical_import.stage_upload("alice", b"%PDF-1.4 fake")
+    medical_import.store_extracted_text("alice", token, "### HGB\n* 2026-08-01: 15.8 g/dl")
+
+    on_disk = medical_import.extracted_text_path("alice", token).read_bytes()
+    assert b"HGB" not in on_disk
+    assert medical_import.read_extracted_text("alice", token) == "### HGB\n* 2026-08-01: 15.8 g/dl"
+
+
+def test_a_staged_file_that_does_not_decrypt_is_reported_as_gone(tmp_path, monkeypatch):
+    """A plaintext file staged before encryption, or a corrupted one, is the same
+    as an expired upload: the user is asked to upload again, nothing crashes."""
+    from app.services import medical_import
+
+    monkeypatch.setattr(medical_import, "STAGING_DIR", tmp_path / "staging")
+    token = medical_import.stage_upload("alice", b"private")
+    medical_import.staged_path("alice", token).write_bytes(b"HGB: 15.8 g/dl")
+    with pytest.raises(ValueError, match="no longer available"):
+        medical_import.read_staged("alice", token)
 
 
 def test_staged_uploads_do_not_linger(tmp_path, monkeypatch):

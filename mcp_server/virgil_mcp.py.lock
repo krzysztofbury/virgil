@@ -9,6 +9,9 @@ resolution-markers = [
 [options]
 exclude-newer = "2026-10-21T00:00:00Z"
 
+[options.exclude-newer-package]
+virtualenv = "2026-10-23T00:00:00Z"
+
 [manifest]
 requirements = [
     { name = "httpx", specifier = ">=0.27" },

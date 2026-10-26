@@ -41,6 +41,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The dependency audit ignores three filelock advisories until litellm allows
   filelock 4 (#154): two are Windows only, and the third needs a second local
   user, which the single-user container does not have.
+- Signup and the admin invite form check an email address in linear time. The
+  old pattern backtracked quadratically on a run of dots, so one signup
+  request could hold a worker for minutes.
+- A staged medical upload, and the text extracted from a PDF, are encrypted
+  with the app key while they wait for the import job. A file staged before
+  this change is treated as expired and is uploaded again.
+- The keyboard shortcut overlay is built from elements, so markup in a
+  translation stays text, and a swipe on the Daily page clicks the page's own
+  previous or next day link instead of reading a URL from the page.
+- virtualenv, used only by the development hooks, moves to 21.14.13 for
+  GHSA-cx6f-vjhg-g3cc, ahead of the `exclude-newer` cutoff.
 
 ## [0.9.0] - 2026-10-23
 

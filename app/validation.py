@@ -117,3 +117,21 @@ def clamp_int(raw: str, minimum: int, maximum: int) -> int:
     except (ValueError, TypeError):
         return minimum
     return max(minimum, min(maximum, value))
+
+
+# --- Email addresses ------------------------------------------------------
+
+EMAIL_MAX_LENGTH = 254  # RFC 5321's limit on a forward path
+
+
+def valid_email(value: str) -> bool:
+    """One @ with text on both sides, no whitespace, and a dot inside the domain.
+
+    No regular expression: the earlier `[^@\\s]+@[^@\\s]+\\.[^@\\s]+`
+    backtracked quadratically on a run of dots, and signup is reachable
+    without an account. This is one pass over at most 254 characters.
+    """
+    if len(value) > EMAIL_MAX_LENGTH or any(char.isspace() for char in value):
+        return False
+    local, _at, domain = value.partition("@")
+    return bool(local) and "@" not in domain and "." in domain[1:-1]

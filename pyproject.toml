@@ -46,6 +46,9 @@ dev = [
 
 [tool.uv]
 exclude-newer = "2026-10-21T00:00:00Z"
+# A security fix published after the cutoff (GHSA-cx6f-vjhg-g3cc). Drop the
+# entry when the cutoff moves past it.
+exclude-newer-package = { virtualenv = "2026-10-23T00:00:00Z" }
 
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI idioms: Form()/Query()/Depends() in parameter defaults are the framework's API.

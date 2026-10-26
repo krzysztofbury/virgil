@@ -298,3 +298,48 @@ def test_a_json_export_restores_through_the_check_page(site, tmp_path):
         assert problems == []
     finally:
         context.close()
+
+
+def test_the_shortcut_overlay_shows_translations_as_text(site):
+    """A translation is data: markup in one must not become elements."""
+    context, page, problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        page.goto(f"{base}/daily")
+        page.evaluate("""() => { i18nCatalog = {Dashboard: '<b id="injected">x</b>'}; }""")
+        page.keyboard.press("?")
+        overlay = page.locator(".shortcut-overlay")
+        overlay.wait_for()
+        assert '<b id="injected">x</b>' in overlay.inner_text()
+        assert page.locator("#injected").count() == 0
+        assert overlay.locator("kbd").count() >= 20 and "←" in overlay.inner_text()
+        assert problems == []
+    finally:
+        context.close()
+
+
+def _swipe(page, from_x, to_x):
+    page.evaluate(
+        """([fromX, toX]) => {
+            const target = document.querySelector('#daily-form');
+            const at = (x) => [new Touch({identifier: 1, target, clientX: x, clientY: 200})];
+            target.dispatchEvent(new TouchEvent('touchstart', {bubbles: true, touches: at(fromX), changedTouches: at(fromX)}));
+            target.dispatchEvent(new TouchEvent('touchend', {bubbles: true, touches: [], changedTouches: at(toX)}));
+        }""",
+        [from_x, to_x],
+    )
+
+
+def test_a_swipe_on_daily_follows_the_pages_own_day_links(site):
+    browser, base, session = site
+    context = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, storage_state=session)
+    try:
+        page = context.new_page()
+        page.goto(f"{base}/daily/2026-01-10")
+        with page.expect_navigation():
+            _swipe(page, 300, 100)
+        assert page.url.endswith("/daily/2026-01-11")
+        with page.expect_navigation():
+            _swipe(page, 100, 300)
+        assert page.url.endswith("/daily/2026-01-10")
+    finally:
+        context.close()
