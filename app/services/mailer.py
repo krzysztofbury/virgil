@@ -107,6 +107,22 @@ async def _send_logged(mail: Mail) -> None:
         logger.warning("Mail to %s failed: %s", mail.to, type(exc).__name__)
 
 
+async def _logged(work) -> None:
+    try:
+        await work
+    except Exception:  # noqa: BLE001 - deferred work is logged, never raised into a page
+        logger.exception("Deferred mail work failed")
+
+
+async def defer(work) -> None:
+    """Run a coroutine after the current request (its mail and the database
+    writes that go with it), so a page that sends mail to some addresses and
+    not others answers in the same time for all of them."""
+    task = asyncio.get_running_loop().create_task(_logged(work))
+    _pending.add(task)
+    task.add_done_callback(_pending.discard)
+
+
 def schedule(mail: Mail) -> None:
     """Send after the current request, without waiting and without raising."""
     task = asyncio.get_running_loop().create_task(_send_logged(mail))

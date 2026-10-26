@@ -373,22 +373,30 @@ async def _login_page(request: Request, step: str = "email", email: str = "", **
 
 
 async def _send_sign_in_link(request: Request, user: dict) -> None:
-    """Email a one-time sign-in link, in the account's language, after the response.
+    """Email a one-time sign-in link, in the account's language.
 
-    Past the per-address limit nothing is sent; the page reads the same either way.
+    All of it, the link, the mail and the audit event, runs after the response:
+    on the request path an address with a link-only account and an unknown one
+    then take the same time. Past the per-address limit nothing is sent; the
+    page reads the same either way.
     """
-    token = await create_sign_in_link(user["email"], user_id=user["id"], language=user["language"])
-    if not token:
-        return
-    mail = mailer.render_mail(
-        "sign_in",
-        user["language"],
-        to=user["email"],
-        link=f"{config.BASE_URL}/login/link?token={token}",
-        minutes=SIGN_IN_LINK_TTL_MINUTES,
-    )
-    mailer.schedule(mail)
-    await _event(request, "link_request", user["id"])
+    ip = client_ip(request)
+
+    async def work() -> None:
+        token = await create_sign_in_link(user["email"], user_id=user["id"], language=user["language"])
+        if not token:
+            return
+        mail = mailer.render_mail(
+            "sign_in",
+            user["language"],
+            to=user["email"],
+            link=f"{config.BASE_URL}/login/link?token={token}",
+            minutes=SIGN_IN_LINK_TTL_MINUTES,
+        )
+        mailer.schedule(mail)
+        await record_auth_event("link_request", user_id=user["id"], ip=ip)
+
+    await mailer.defer(work())
 
 
 @router.get("/login", response_class=HTMLResponse)

@@ -209,6 +209,12 @@ def sent_mail(monkeypatch) -> list:
     sent: list = []
     monkeypatch.setattr(config, "MAIL_BACKEND", "log")
     monkeypatch.setattr(mailer, "schedule", sent.append)
+
+    async def run_now(work):
+        # Deferred work runs inside the request here, so a test sees its mail.
+        await work
+
+    monkeypatch.setattr(mailer, "defer", run_now)
     return sent
 
 

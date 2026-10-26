@@ -130,3 +130,22 @@ def test_the_link_request_does_not_wait_for_the_mail_server(client, link_only, m
     response = _continue(client, link_only)
     assert CHECK_EMAIL in response.text
     assert time.perf_counter() - started < 1
+
+
+def test_a_link_only_address_answers_as_fast_as_an_unknown_one(client, link_only, monkeypatch):
+    """Creating the link, rendering the mail and the audit event all run after
+    the response, so their time cannot tell link-only accounts from unknown
+    addresses (#168). A slow link store must not slow the page."""
+    import app.routers.auth as auth_routes
+
+    monkeypatch.setattr(config, "MAIL_BACKEND", "log")
+
+    async def slow_create(*args, **kwargs):
+        await asyncio.sleep(1)
+        return None
+
+    monkeypatch.setattr(auth_routes, "create_sign_in_link", slow_create)
+    started = time.perf_counter()
+    response = _continue(client, link_only)
+    assert CHECK_EMAIL in response.text
+    assert time.perf_counter() - started < 0.5
