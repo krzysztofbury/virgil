@@ -63,7 +63,7 @@ def _invite(email: str = "") -> str:
     return asyncio.run(create_invite(_admin_id(), email=email))
 
 
-def _signup(browser, invite: str, email: str, method: str = "link", password: str = ""):
+def _signup(browser, invite: str, email: str, method: str = "link", password: str | None = None):
     page = f"/signup?invite={invite}" if invite else "/signup"
     data = {"email": email, "display_name": "Ala", "sign_in_method": method, "_csrf_token": csrf_token(browser, page)}
     if invite:
