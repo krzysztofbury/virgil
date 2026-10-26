@@ -22,6 +22,12 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
+        {% if invite_only %}
+        {# Waitlist mode (#168): no invite, registration closed; say how to ask. #}
+        <p class="auth-subtitle">{{ _("Virgil is invite-only for now.") }}</p>
+        <p class="text-muted" style="font-size:var(--text-sm);">{{ _("Every account is approved by hand, so the app stays fast and every request gets read. Write a line about what you'd use it for.") }}</p>
+        {% with panel_id = "signup-contact" %}{% include "partials/request_access.html" %}{% endwith %}
+        {% else %}
         <p class="auth-subtitle">{% if invite %}{{ _("You were invited. Create your account.") }}{% else %}{{ _("Create your account.") }}{% endif %}</p>
 
         {% if error %}
@@ -60,6 +66,7 @@
             </div>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Create Account") }}</button>
         </form>
+        {% endif %}
         <p class="auth-footer">{{ _("Already have an account?") }} <a href="/login">{{ _("Sign in") }}</a></p>
         {% include "partials/language_switch.html" %}
     </div>

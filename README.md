@@ -237,6 +237,8 @@ All configuration via environment variables:
 | `VIRGIL_MAIL_FROM` | (empty) | Sender, for example `Virgil <no-reply@example.com>` |
 | `VIRGIL_MAIL_REPLY_TO` | (empty) | Optional Reply-To address for every email |
 | `VIRGIL_REQUIRE_TOTP` | `false` | Every account with a password must set up an authenticator app before using Virgil. Accounts that sign in with emailed links are not affected |
+| `VIRGIL_LANDING_PAGE` | `false` | Show a public landing page at `/` to signed-out visitors instead of the sign-in page |
+| `VIRGIL_CONTACT_EMAIL` | (empty) | Where the landing page's Request access panel, and an invite-only sign-up page, send people |
 | `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Trust `CF-Connecting-IP` for rate limiting. Enable only when Cloudflare Tunnel is the sole ingress |
 | `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated proxy IPs or CIDR ranges allowed to supply `CF-Connecting-IP`. Behind the compose tunnel, use the `virgil-net` subnet: cloudflared changes address when recreated. Without trust, every visitor shares one rate-limit bucket, and the log warns the first time the header arrives untrusted |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |

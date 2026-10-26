@@ -64,6 +64,12 @@ REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "false").lower() 
 # sign in with emailed links and are not affected.
 REQUIRE_TOTP = os.environ.get("VIRGIL_REQUIRE_TOTP", "false").lower() == "true"
 
+# A public landing page at "/" for signed-out visitors (#168), off by default;
+# without it "/" goes to the sign-in page. CONTACT_EMAIL is where its "Request
+# access" panel, and an invite-only sign-up page, send people.
+LANDING_PAGE = os.environ.get("VIRGIL_LANDING_PAGE", "false").lower() == "true"
+CONTACT_EMAIL = os.environ.get("VIRGIL_CONTACT_EMAIL", "").strip()
+
 # Outgoing email (#168). "" sends nothing, "log" writes each message to the log
 # for development, "smtp" sends through the server below. Sign-in links are
 # only offered when mail can go out.

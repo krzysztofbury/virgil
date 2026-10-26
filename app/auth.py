@@ -25,6 +25,7 @@ SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
 # drift out of this list and a session route cannot slip into it.
 PUBLIC_PATHS = frozenset(
     {
+        "/welcome",
         "/login",
         "/login/link",
         "/login/link/confirm",
@@ -237,6 +238,15 @@ class AuthMiddleware:
             return
 
         path = scope.get("path", "")
+
+        # A signed-out visitor to "/" sees the landing page there (#168), when the
+        # instance has one; the address stays "/".
+        if path == "/":
+            from app import config
+
+            if config.LANDING_PAGE and not session_identity(Request(scope).cookies.get(SESSION_COOKIE, "")):
+                scope = {**scope, "path": "/welcome", "raw_path": b"/welcome"}
+                path = "/welcome"
 
         # Allow public paths.
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES) or is_api_key_path(path):

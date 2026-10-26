@@ -81,6 +81,8 @@ def site(tmp_path_factory):
         "VIRGIL_CENTRAL_DB_PATH": str(work / "virgil-central.db"),
         "VIRGIL_BACKUP_DIR": str(work / "backups"),
         "VIRGIL_API_KEY": "",
+        "VIRGIL_LANDING_PAGE": "true",
+        "VIRGIL_CONTACT_EMAIL": "contact@example.com",
     }
     subprocess.run(  # noqa: S603
         [sys.executable, "scripts/seed_demo.py"], cwd=ROOT, env=env, check=True, stdout=subprocess.DEVNULL
@@ -343,5 +345,36 @@ def test_a_swipe_on_daily_follows_the_pages_own_day_links(site):
         with page.expect_navigation():
             _swipe(page, 100, 300)
         assert page.url.endswith("/daily/2026-01-10")
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("width", WIDTHS.values(), ids=WIDTHS.keys())
+def test_the_landing_page_renders_and_opens_the_request_panel(site, width):
+    """A signed-out visitor at / sees the landing page (#168): no console errors,
+    nothing wider than the screen, and Request access opens its panel."""
+    browser, base, _session = site
+    phone = width < 600
+    context = browser.new_context(viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone)
+    page = context.new_page()
+    problems: list[str] = []
+    page.on("console", lambda message: message.type == "error" and problems.append(message.text))
+    page.on("pageerror", lambda error: problems.append(str(error)))
+    try:
+        page.goto(base + "/")
+        page.wait_for_load_state("networkidle")
+        assert page.url == base + "/"
+        assert page.locator(".lp-hero h1").is_visible()
+        assert page.evaluate("document.documentElement.scrollWidth - window.innerWidth") <= 0
+        page.locator(".lp-hero .lp-request > summary").click()
+        panel = page.locator(".lp-hero .lp-request-panel")
+        assert panel.is_visible() and "contact@example.com" in panel.inner_text()
+        # Above the fold the images are drawn; the lazy ones below must at least be served.
+        assert page.evaluate(
+            "[...document.querySelectorAll('img:not([loading=lazy])')].every(img => img.complete && img.naturalWidth > 0)"
+        )
+        for src in page.evaluate("[...document.querySelectorAll('img[loading=lazy]')].map(img => img.src)"):
+            assert page.request.get(src).ok, src
+        assert problems == []
     finally:
         context.close()

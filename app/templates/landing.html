@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="{{ current_language() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ _("Virgil - Your days, training, sleep and goals in one place") }}</title>
+    <meta name="description" content="{{ _("Virgil keeps your habits, workouts, sleep, blood results, experiments and money in one place, readable by you and by your AI assistant. Private beta.") }}">
+    {% include "partials/head_assets.html" %}
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#06080d">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    {# app.js speaks through gettext (components.js) and the page's catalog. #}
+    <script type="application/json" id="i18n-catalog" nonce="{{ request.state.csp_nonce }}">{{ js_catalog(current_language())|tojson }}</script>
+    <script src="/static/js/components.js?v={{ app_version }}"></script>
+</head>
+<body>
+{% include "partials/feedback.html" %}
+{# The public front page (#168), as in the approved mockup: what Virgil is, where
+   it helps, that it works with AI assistants and is shaped per person, and how
+   to get in. #}
+<div class="lp">
+    <header class="lp-top">
+        <div class="lp-brand"><img src="/static/icons/logo.png" alt="" width="34" height="34">Virgil</div>
+        <div class="lp-top-actions">
+            {% include "partials/language_switch.html" %}
+            <a class="btn btn-outline btn-sm" href="/login">{{ _("Sign in") }}</a>
+        </div>
+    </header>
+
+    <section class="lp-hero">
+        <div>
+            {% if not registration_open %}<span class="lp-badge">{{ _("Private beta") }}</span>{% endif %}
+            <h1>{{ _("Your days, training, sleep and goals in one place.") }}</h1>
+            <p>{{ _("Virgil keeps the habits, workouts, Oura sleep, blood results, experiments and money you track, and turns them into what matters today. Read it yourself, or ask your AI assistant.") }}</p>
+            <div class="lp-cta">
+                {% if registration_open %}
+                <a class="btn btn-primary" href="/signup">{{ _("Create account") }}</a>
+                {% elif contact_email %}
+                {% with panel_id = "lp-contact-hero" %}{% include "partials/request_access.html" %}{% endwith %}
+                <small>{{ _("Each account is approved by hand.") }}</small>
+                {% endif %}
+            </div>
+        </div>
+        <img class="lp-shot" src="/static/img/landing/dashboard.png?v={{ app_version }}" alt="{{ _("The Virgil dashboard") }}" width="1280" height="800">
+    </section>
+
+    <div class="section-title">{{ _("Works where you already talk to AI") }}</div>
+    <div class="lp-row">
+        <div class="lp-copy">
+            <h2>{{ _("Ask, don't click.") }}</h2>
+            <p>{{ _("Connect Claude or another assistant over MCP and just say it. Virgil logs the workout from a messy note, reads your sleep and blood results, and answers with your own numbers. A REST API with your own token is there for anything else.") }}</p>
+        </div>
+        <div class="card lp-chat" aria-label="{{ _("An example conversation") }}">
+            <div class="lp-me"><span class="lp-who">{{ _("You") }}</span>{{ _("log: back squat 5x5 @100, then Fran 4:30") }}</div>
+            <div class="lp-ai"><span class="lp-who">{{ _("Claude, with Virgil") }}</span>{{ _("Saved 6 entries to today's training. Your squat is 5 kg up on your best.") }}</div>
+            <div class="lp-me"><span class="lp-who">{{ _("You") }}</span>{{ _("how did I sleep this week?") }}</div>
+            <div class="lp-ai"><span class="lp-who">{{ _("Claude, with Virgil") }}</span>{{ _("7.4 h on average, HRV 6 ms below last week, readiness 78.") }}</div>
+        </div>
+    </div>
+
+    <div class="section-title lp-gap">{{ _("Shaped around you") }}</div>
+    <div class="lp-row lp-flip">
+        <div class="lp-copy">
+            <h2>{{ _("Only what you use.") }}</h2>
+            <p>{{ _("Switch modules on or off, name your own life areas and goals, keep your own exercise library and bring your own AI key. English or Polish. Export everything at any time.") }}</p>
+        </div>
+        <img class="lp-shot" src="/static/img/landing/daily.png?v={{ app_version }}" alt="{{ _("The Daily log") }}" width="1280" height="800" loading="lazy">
+    </div>
+
+    <div class="section-title lp-gap">{{ _("Where it helps") }}</div>
+    <div class="lp-tiles">
+        <div class="card lp-tile">
+            <img src="/static/img/landing/training.png?v={{ app_version }}" alt="" width="1280" height="800" loading="lazy">
+            <h3>{{ _("Training") }}</h3>
+            <p>{{ _("Paste the WOD as you wrote it; Virgil turns it into sets, reps and personal bests.") }}</p>
+        </div>
+        <div class="card lp-tile">
+            <img src="/static/img/landing/oura.png?v={{ app_version }}" alt="" width="1280" height="800" loading="lazy">
+            <h3>{{ _("Sleep and recovery") }}</h3>
+            <p>{{ _("Oura readiness against your own baseline, with monthly and daily trends.") }}</p>
+        </div>
+        <div class="card lp-tile">
+            <img src="/static/img/landing/experiments.png?v={{ app_version }}" alt="" width="1280" height="800" loading="lazy">
+            <h3>{{ _("Experiments") }}</h3>
+            <p>{{ _("Run a protocol for a few weeks and see whether it moved anything.") }}</p>
+        </div>
+    </div>
+
+    {% if not registration_open and contact_email %}
+    <section class="card lp-beta">
+        <span class="lp-badge">{{ _("Private beta") }}</span>
+        <h2>{{ _("Virgil is invite-only for now.") }}</h2>
+        <p>{{ _("Every account is approved by hand, so the app stays fast and every request gets read. Write a line about what you'd use it for.") }}</p>
+        {% with panel_id = "lp-contact-closing" %}{% include "partials/request_access.html" %}{% endwith %}
+    </section>
+    {% elif registration_open %}
+    <section class="card lp-beta">
+        <h2>{{ _("Start with what you track today.") }}</h2>
+        <a class="btn btn-primary" href="/signup">{{ _("Create account") }}</a>
+    </section>
+    {% endif %}
+
+    <footer class="lp-foot">
+        <div>{% if contact_email %}<a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}</div>
+        <div><a href="https://github.com/krzysztofbury/virgil" rel="noopener">{{ _("Open source") }}</a></div>
+    </footer>
+</div>
+<script src="/static/js/app.js?v={{ app_version }}"></script>
+</body>
+</html>

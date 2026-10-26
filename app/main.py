@@ -378,6 +378,7 @@ from app.routers import (  # noqa: E402
     freedom,
     goals,
     jobs,
+    landing,
     life_scores,
     onboarding,
     oura,
@@ -388,6 +389,7 @@ from app.routers import (  # noqa: E402
 
 app.include_router(admin.router)
 app.include_router(auth.router)
+app.include_router(landing.router)
 app.include_router(dashboard.router)
 app.include_router(daily.router)
 app.include_router(training.router)

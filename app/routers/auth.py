@@ -156,6 +156,13 @@ async def signup_page(request: Request, invite: str = ""):
         )
 
     if not await registration_allowed():
+        if config.CONTACT_EMAIL:
+            # Waitlist mode (#168): say how to ask for access instead of a dead end.
+            return templates.TemplateResponse(
+                request,
+                "auth_signup.html",
+                {"request": request, "invite_only": True, "contact_email": config.CONTACT_EMAIL},
+            )
         return templates.TemplateResponse(
             request,
             "auth_login.html",
