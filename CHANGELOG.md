@@ -81,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   its second factor, before it can add a password, enroll an authenticator, or
   create a token or reset its data. Two-factor checks in Settings share the
   sign-in lockout.
+- cloudflared moves to 2026.10.4. Releases before 2026.10.2 still trust eight
+  eMudhra (emSign) intermediate certificates with weak private keys, which
+  anyone holding those keys could use to impersonate a server. 2026.10.4 also
+  limits the metrics server's debug endpoints to an allowlist.
 - The dependency audit ignores three filelock advisories until litellm allows
   filelock 4 (#154): two are Windows only, and the third needs a second local
   user, which the single-user container does not have.
