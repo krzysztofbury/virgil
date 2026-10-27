@@ -52,6 +52,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Python 3.14.7 in the image, CI and development (was 3.12.14), and the
   project requires 3.14. Ruff targets py314. The MCP stdio script still runs
   on 3.12 or later, since it runs on the client's machine.
+- Settings are grouped by task: General, AI, Training, Connections, Data and
+  Security. Each card shows its current state before its controls. The
+  Automation tab is folded in: backups and recent activity moved to Data,
+  Oura auto-sync to Connections, the morning briefing to AI; old
+  `?tab=automation` links open Data. API tokens moved to AI and the reset to
+  Data, where it now offers the JSON export that Restore takes back.
+- Each settings card saves only its own fields: saving the briefing no
+  longer rewrites the backup and Oura sync settings.
+- The exercise library shows one line per exercise, with editing behind
+  Edit, sections collapsed and hidden exercises in their own group.
+
+### Removed
+- The Sync Log card in Settings, which nothing wrote to, and the database
+  path shown on the General tab.
 
 ### Fixed
 - A sign-in link opened in the browser that asked for it signs in at once, with

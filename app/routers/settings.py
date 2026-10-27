@@ -242,7 +242,7 @@ async def revoke_token(request: Request, token_id: str):
     return success_redirect(request, "/settings?tab=ai#tokens", _("Token revoked. It stops working now."))
 
 
-# --- App Configuration: dictionary tables ---
+# --- Training: schedule and exercise library ---
 # Rules: users add their own rows; built-in (seeded) rows can only be
 # archived/restored — never edited or deleted, so app upgrades stay clean.
 
@@ -434,7 +434,7 @@ async def save_training_schedule(request: Request):
     return success_redirect(request, "/settings?tab=configuration", _("Training schedule saved."))
 
 
-# --- Automation settings ---
+# --- Backups, Oura sync and the briefing (one endpoint, per-card saves) ---
 
 
 @router.post("/settings/automation")
@@ -818,7 +818,7 @@ async def add_llm_provider(
         (provider, encrypt(api_key), model),
     )
     await db.commit()
-    return success_redirect(request, "/settings?tab=ai", _("LLM provider added."))
+    return success_redirect(request, "/settings?tab=ai", _("AI key added."))
 
 
 @router.post("/settings/llm/activate")
@@ -826,14 +826,14 @@ async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT id FROM llm_providers WHERE id = ?", (provider_id,))
     if not rows:
-        return error_redirect(request, "/settings?tab=ai", _("LLM provider not found."))
+        return error_redirect(request, "/settings?tab=ai", _("That AI key no longer exists."))
     await db.execute("UPDATE llm_providers SET is_active = 0")
     cursor = await db.execute("UPDATE llm_providers SET is_active = 1 WHERE id = ?", (provider_id,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/settings?tab=ai", _("LLM provider was not activated."))
+        return error_redirect(request, "/settings?tab=ai", _("That AI key could not be put in use."))
     await db.commit()
-    return success_redirect(request, "/settings?tab=ai", _("LLM provider activated."))
+    return success_redirect(request, "/settings?tab=ai", _("AI key in use."))
 
 
 @router.post("/settings/llm/reasoning")
@@ -851,12 +851,12 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
     cursor = await db.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/settings?tab=ai", _("LLM provider not found."))
+        return error_redirect(request, "/settings?tab=ai", _("That AI key no longer exists."))
     await db.commit()
-    return success_redirect(request, "/settings?tab=ai", _("LLM provider deleted."))
+    return success_redirect(request, "/settings?tab=ai", _("AI key removed."))
 
 
-# --- Factory Reset ---
+# --- Reset all data ---
 
 
 @router.post("/settings/factory-reset")

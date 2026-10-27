@@ -164,7 +164,7 @@ def _prune_backups(
         if oldest is None:
             break
         backups.remove(oldest)
-        # The scheduler and a manual "Backup Now" can prune the same stem in
+        # The scheduler and a manual "Back up now" can prune the same stem in
         # parallel threads — losing the unlink race must not fail the backup.
         oldest.unlink(missing_ok=True)
         logger.info("Pruned old backup: %s", oldest.name)
@@ -379,7 +379,7 @@ async def backup_status(db, now: datetime | None = None) -> dict:
     except ValueError:
         interval_hours = 24.0
     if not (isfinite(interval_hours) and 1 <= interval_hours <= 168):
-        # The bounds the Automation form saves; anything else came from elsewhere.
+        # The bounds the Backups card saves; anything else came from elsewhere.
         interval_hours = 24.0
     active = await db.execute_fetchall(
         "SELECT 1 FROM jobs WHERE kind = 'backup' AND status IN ('queued', 'running') LIMIT 1"

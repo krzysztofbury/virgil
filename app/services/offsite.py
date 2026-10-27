@@ -275,7 +275,7 @@ async def _fail(state: dict, now: datetime, problem: str) -> None:
         if await send_alert(
             config.ALERT_WEBHOOK_URL,
             f"Virgil could not make its off-site copy ({problem}). The newest one {newest}. "
-            "It retries every hour; Settings > Automation shows the state.",
+            "It retries every hour; Settings > Data shows the state.",
         ):
             state["last_alert_at"] = now.isoformat()
     _write_state(state)

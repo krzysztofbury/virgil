@@ -1567,20 +1567,20 @@ msgid "Provider, model, and API key are required."
 msgstr "Dostawca, model i klucz API są wymagane."
 
 #: app/routers/settings.py
-msgid "LLM provider added."
-msgstr "Dostawca LLM dodany."
+msgid "AI key added."
+msgstr "Klucz AI dodany."
 
 #: app/routers/settings.py
-msgid "LLM provider not found."
-msgstr "Nie znaleziono dostawcy LLM."
+msgid "That AI key no longer exists."
+msgstr "Ten klucz AI już nie istnieje."
 
 #: app/routers/settings.py
-msgid "LLM provider was not activated."
-msgstr "Dostawca LLM nie został aktywowany."
+msgid "That AI key could not be put in use."
+msgstr "Nie udało się użyć tego klucza AI."
 
 #: app/routers/settings.py
-msgid "LLM provider activated."
-msgstr "Dostawca LLM aktywowany."
+msgid "AI key in use."
+msgstr "Klucz AI w użyciu."
 
 #: app/routers/settings.py
 msgid "Choose one of the listed thinking levels."
@@ -1591,8 +1591,8 @@ msgid "Thinking level saved."
 msgstr "Poziom myślenia zapisany."
 
 #: app/routers/settings.py
-msgid "LLM provider deleted."
-msgstr "Dostawca LLM usunięty."
+msgid "AI key removed."
+msgstr "Klucz AI usunięty."
 
 #: app/routers/settings.py
 msgid "Sign in again before resetting data."

@@ -47,7 +47,7 @@ function bottomBar() {
     };
 }
 
-// Settings: adding an LLM provider fills in a default model per provider.
+// Settings > AI: adding a key fills in a default model per provider.
 function llmProviderForm() {
     return {
         provider: 'anthropic',
