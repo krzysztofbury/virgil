@@ -1,0 +1,7 @@
+{% extends "email/base.html" %}
+{% block body %}
+<p style="margin:0 0 16px;">{{ _("Open this link to sign in to Virgil:") }}</p>
+<p style="margin:0 0 20px;"><a href="{{ link }}" style="display:inline-block;background:#1f9e6b;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:999px;font-weight:600;">{{ _("Sign in to Virgil") }}</a></p>
+<p style="margin:0 0 8px;color:#5c6b7e;font-size:14px;">{% trans minutes=minutes %}It works once and expires in {{ minutes }} minutes.{% endtrans %}</p>
+<p style="margin:0;color:#5c6b7e;font-size:14px;">{{ _("If you did not ask for it, ignore this email.") }}</p>
+{% endblock %}

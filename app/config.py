@@ -59,6 +59,28 @@ ADMIN_EMAILS = [e.strip().lower() for e in os.environ.get("VIRGIL_ADMIN_EMAILS",
 # — see app/routers/auth.py registration_allowed()).
 REGISTRATION_OPEN = os.environ.get("VIRGIL_REGISTRATION_OPEN", "false").lower() == "true"
 
+# Every account with a password must also use an authenticator app (#168).
+# Off by default; a hosted instance turns it on. Accounts without a password
+# sign in with emailed links and are not affected.
+REQUIRE_TOTP = os.environ.get("VIRGIL_REQUIRE_TOTP", "false").lower() == "true"
+
+# A public landing page at "/" for signed-out visitors (#168), off by default;
+# without it "/" goes to the sign-in page. CONTACT_EMAIL is where its "Request
+# access" panel, and an invite-only sign-up page, send people.
+LANDING_PAGE = os.environ.get("VIRGIL_LANDING_PAGE", "false").lower() == "true"
+CONTACT_EMAIL = os.environ.get("VIRGIL_CONTACT_EMAIL", "").strip()
+
+# Outgoing email (#168). "" sends nothing, "log" writes each message to the log
+# for development, "smtp" sends through the server below. Sign-in links are
+# only offered when mail can go out.
+MAIL_BACKEND = os.environ.get("VIRGIL_MAIL_BACKEND", "").strip().lower()
+SMTP_HOST = os.environ.get("VIRGIL_SMTP_HOST", "").strip()
+SMTP_PORT = int(os.environ.get("VIRGIL_SMTP_PORT", "587") or 587)
+SMTP_USERNAME = os.environ.get("VIRGIL_SMTP_USERNAME", "").strip()
+SMTP_PASSWORD = os.environ.get("VIRGIL_SMTP_PASSWORD", "")
+MAIL_FROM = os.environ.get("VIRGIL_MAIL_FROM", "").strip()
+MAIL_REPLY_TO = os.environ.get("VIRGIL_MAIL_REPLY_TO", "").strip()
+
 # Trust Cloudflare's client-IP header only when the deployment guarantees that
 # the tunnel is the sole ingress. Direct/local deployments keep the peer IP.
 TRUST_CLOUDFLARE_HEADERS = os.environ.get("VIRGIL_TRUST_CLOUDFLARE_HEADERS", "false").lower() == "true"

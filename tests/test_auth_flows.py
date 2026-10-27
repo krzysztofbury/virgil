@@ -296,7 +296,9 @@ def test_mfa_setup_never_puts_the_totp_secret_in_a_url(auth_client, client):
             data={"totp_code": pyotp.TOTP(secret).now(), "_csrf_token": token},
             follow_redirects=False,
         )
-        assert enabled.status_code == 303
+        # Since #168 the answer is the page with the recovery codes, shown once.
+        assert enabled.status_code == 200
+        assert enabled.text.count("<code>") == 10
         # Turning MFA on signs out every other session; this browser keeps going.
         assert _session_is_refused(client, other_browser)
         assert auth_client.get("/settings").status_code == 200

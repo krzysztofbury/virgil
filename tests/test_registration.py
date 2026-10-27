@@ -68,8 +68,10 @@ def test_login_shows_signup_link_when_open(monkeypatch):
     assert 'href="/signup"' in resp.text
 
 
-def test_login_empty_password_is_rejected_not_500(client):
-    """verify_password raises on empty input — the route must catch that."""
+def test_login_empty_password_asks_for_it_not_500(client):
+    """verify_password raises on empty input, so the route must not reach it.
+    Since #168 a sign-in without a password is the email step: the answer is
+    the password step, never a 500 or a session."""
     from conftest import csrf_token
 
     token = csrf_token(client, "/login")
@@ -79,7 +81,8 @@ def test_login_empty_password_is_rejected_not_500(client):
         follow_redirects=False,
     )
     assert resp.status_code == 200
-    assert "Invalid email or password" in resp.text
+    assert 'type="password"' in resp.text
+    assert "virgil_session" not in resp.headers.get("set-cookie", "")
 
 
 def test_csrf_non_ascii_token_is_403_not_500(client):

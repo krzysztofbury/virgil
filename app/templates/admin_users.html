@@ -73,6 +73,12 @@
                             <button type="submit" class="btn btn-sm btn-outline">{{ _("Reset link") }}</button>
                         </form>
                         {% endif %}
+                        {% if not is_me and not protected and u.totp_enabled %}
+                        <form method="POST" action="/admin/users/{{ u.id }}/reset-two-factor"
+                              data-confirm="{{ _("Turn off two-factor for this account and sign it out everywhere?") }}">
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Reset two-factor") }}</button>
+                        </form>
+                        {% endif %}
                         {% if protected or is_me %}
                         {% elif u.is_active %}
                         <form method="POST" action="/admin/users/{{ u.id }}/disable" style="margin:0;">
@@ -101,7 +107,7 @@
     <div class="card-header"><h3>{{ _("Invites") }}</h3></div>
     {% if new_invite_link %}
     <div class="invite-link" role="status">
-        <p><strong>{% if new_invite_email %}{% trans email=new_invite_email %}Send this link to {{ email }}.{% endtrans %}{% else %}{{ _("Send this link.") }}{% endif %}</strong>
+        <p><strong>{% if invite_sent %}{% trans email=new_invite_email %}Sent to {{ email }}.{% endtrans %}{% elif new_invite_email %}{% trans email=new_invite_email %}Send this link to {{ email }}.{% endtrans %}{% else %}{{ _("Send this link.") }}{% endif %}</strong>
             {% trans days=invite_days %}It works once, for {{ days }} days, and is not shown again.{% endtrans %}</p>
         <input type="text" value="{{ new_invite_link }}" readonly aria-label="{{ _("Invite link") }}">
     </div>
@@ -123,6 +129,12 @@
                     </select>
                 </label></div>
             </div>
+            <label>{{ _("Invite email language") }}
+                <select name="language">
+                    <option value="en"{% if current_language() == 'en' %} selected{% endif %}>English</option>
+                    <option value="pl"{% if current_language() == 'pl' %} selected{% endif %}>Polski</option>
+                </select>
+            </label>
             <label class="checkbox-label"><input type="checkbox" name="allow_shared_llm" value="1">
                 {{ _("May use this server's LLM key when they have none of their own") }}</label>
             <button type="submit" class="btn btn-primary btn-sm">{{ _("Create invite link") }}</button>

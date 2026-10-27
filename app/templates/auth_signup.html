@@ -22,6 +22,12 @@
             <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
             <h1>Virgil</h1>
         </div>
+        {% if invite_only %}
+        {# Waitlist mode (#168): no invite, registration closed; say how to ask. #}
+        <p class="auth-subtitle">{{ _("Virgil is invite-only for now.") }}</p>
+        <p class="text-muted" style="font-size:var(--text-sm);">{{ _("Every account is approved by hand, so the app stays fast and every request gets read. Write a line about what you'd use it for.") }}</p>
+        {% with panel_id = "signup-contact" %}{% include "partials/request_access.html" %}{% endwith %}
+        {% else %}
         <p class="auth-subtitle">{% if invite %}{{ _("You were invited. Create your account.") }}{% else %}{{ _("Create your account.") }}{% endif %}</p>
 
         {% if error %}
@@ -40,16 +46,28 @@
                 {{ _("Display Name") }}
                 <input type="text" name="display_name" autocomplete="name" value="{{ display_name or '' }}">
             </label>
-            <label>
-                {{ _("Password") }}
-                <input type="password" name="password" required autocomplete="new-password">
-            </label>
-            <label>
-                {{ _("Confirm Password") }}
-                <input type="password" name="password_confirm" required autocomplete="new-password">
-            </label>
+            {% if mail_on %}
+            {# No password needed (#168): sign in with emailed links, or set one. #}
+            <fieldset class="signup-method">
+                <legend>{{ _("How do you want to sign in?") }}</legend>
+                {# A form sent back with an error keeps the method chosen. #}
+                <label class="checkbox-label"><input type="radio" name="sign_in_method" value="link"{% if sign_in_method != "password" %} checked{% endif %}> {{ _("With links sent to my email (no password)") }}</label>
+                <label class="checkbox-label"><input type="radio" name="sign_in_method" value="password" id="signup-method-password"{% if sign_in_method == "password" %} checked{% endif %}> {{ _("With a password") }}</label>
+            </fieldset>
+            {% endif %}
+            <div class="signup-password{% if mail_on %} signup-password-optional{% endif %}">
+                <label>
+                    {{ _("Password") }}
+                    <input type="password" name="password" {% if not mail_on %}required {% endif %}autocomplete="new-password">
+                </label>
+                <label>
+                    {{ _("Confirm Password") }}
+                    <input type="password" name="password_confirm" {% if not mail_on %}required {% endif %}autocomplete="new-password">
+                </label>
+            </div>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Create Account") }}</button>
         </form>
+        {% endif %}
         <p class="auth-footer">{{ _("Already have an account?") }} <a href="/login">{{ _("Sign in") }}</a></p>
         {% include "partials/language_switch.html" %}
     </div>
@@ -62,6 +80,10 @@
 .auth-logo h1 { margin:0; font-size:1.5rem; }
 .auth-subtitle { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:1.5rem; }
 .auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
+.signup-method { border:0; padding:0; margin:0 0 0.75rem; }
+.signup-method legend { font-size:var(--text-sm); margin-bottom:0.35rem; }
+.signup-password-optional { display:none; }
+form:has(#signup-method-password:checked) .signup-password-optional { display:block; }
 .auth-footer { color:var(--text-muted); font-size:var(--text-sm); text-align:center; margin-top:1rem; }
 .auth-footer a { color:var(--accent); text-decoration:none; }
 .auth-footer a:hover { text-decoration:underline; }

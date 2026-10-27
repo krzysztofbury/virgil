@@ -23,9 +23,10 @@ from app.central_db import (
 )
 from app.config import ADMIN_EMAILS, BASE_URL, REGISTRATION_OPEN
 from app.feedback import error_redirect, success_redirect
-from app.i18n import _
+from app.i18n import _, current_language, normalize_language
 from app.main import templates
 from app.rate_limit import client_ip
+from app.services import mailer
 from app.services.backup import delete_user_backups
 from app.user_db import delete_user_db
 from app.validation import valid_email, valid_uuid
@@ -96,8 +97,12 @@ async def create_invite_route(
     email: str = Form(""),
     role: str = Form("user"),
     allow_shared_llm: str = Form(""),
+    language: str = Form(""),
 ):
-    """Shows the link once, on this response. Only its hash is stored, so it cannot be shown again."""
+    """Shows the link once, on this response. Only its hash is stored, so it cannot be shown again.
+
+    With mail on, an invite made for an address is also emailed there (#168), in
+    the language the admin picked."""
     admin = _require_admin(request)
     email = email.strip().lower()
     if email and not valid_email(email):
@@ -106,7 +111,17 @@ async def create_invite_route(
         return error_redirect(request, "/admin/users", _("Unknown role."))
     token = await create_invite(admin["id"], email=email, role=role, allow_shared_llm=bool(allow_shared_llm))
     await _event(request, "invite_create", None, admin, f"for {email or 'any address'} as {role}")
-    return await _users_page(request, new_invite_link=f"{BASE_URL}/signup?invite={token}", new_invite_email=email)
+    link = f"{BASE_URL}/signup?invite={token}"
+    sent = False
+    if email and mailer.mail_enabled():
+        mailer.schedule(
+            mailer.render_mail(
+                "invite", normalize_language(language or current_language()), to=email, link=link, days=INVITE_TTL_DAYS
+            )
+        )
+        await _event(request, "invite_email", None, admin, f"to {email}")
+        sent = True
+    return await _users_page(request, new_invite_link=link, new_invite_email=email, invite_sent=sent)
 
 
 @router.post("/invites/{invite_id}/revoke")
@@ -141,6 +156,34 @@ async def create_reset_link(request: Request, user_id: str):
     token = await create_password_reset(user_id, admin["id"])
     await _event(request, "reset_link_create", user_id, admin)
     return await _users_page(request, reset_link=f"{BASE_URL}/reset?token={token}", reset_email=user["email"])
+
+
+@router.post("/users/{user_id}/reset-two-factor")
+async def reset_two_factor(request: Request, user_id: str):
+    """The way back for someone who lost their authenticator and recovery codes
+    (#168): two-factor off, codes void, every session signed out."""
+    from app.central_db import bump_session_epoch, delete_recovery_codes, update_user, void_sign_in_links
+
+    admin = _require_admin(request)
+    _validate_user_id(user_id)
+    if user_id == admin["id"]:
+        return error_redirect(request, "/admin/users", _("Manage your own two-factor under Settings > Security."))
+    if email := await _protected(user_id):
+        # Otherwise any admin could take over the operator's break-glass account.
+        return error_redirect(
+            request,
+            "/admin/users",
+            _("{email} is in VIRGIL_ADMIN_EMAILS; only its owner manages its two-factor.").format(email=email),
+        )
+    user = await get_user_by_id(user_id)
+    if not user:
+        return error_redirect(request, "/admin/users", _("User account was not found."))
+    await update_user(user_id, totp_enabled=0, totp_secret="")
+    await delete_recovery_codes(user_id)
+    await void_sign_in_links(user_id)
+    await bump_session_epoch(user_id)
+    await _event(request, "mfa_admin_reset", user_id, admin)
+    return success_redirect(request, "/admin/users", _("Two-factor reset for {email}.").format(email=user["email"]))
 
 
 @router.post("/users/{user_id}/shared-llm")

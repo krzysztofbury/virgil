@@ -25,7 +25,10 @@ SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
 # drift out of this list and a session route cannot slip into it.
 PUBLIC_PATHS = frozenset(
     {
+        "/welcome",
         "/login",
+        "/login/link",
+        "/login/link/confirm",
         "/signup",
         "/mfa/verify",
         "/reset",
@@ -41,6 +44,10 @@ PUBLIC_PATHS = frozenset(
 PUBLIC_PREFIXES = ("/static/", "/api/oura/webhook/")
 
 BCRYPT_ROUNDS = 12
+
+# What a password account may still reach while "require TOTP" sends it to set
+# up its authenticator: the setup itself, and the way out.
+TOTP_SETUP_PATHS = ("/settings/mfa", "/mfa/qr.png", "/logout", "/language", "/static/", "/service-worker")
 
 _signer: TimestampSigner | None = None
 
@@ -118,15 +125,29 @@ def validate_session(token: str, max_age: int = SESSION_MAX_AGE_SECONDS) -> str 
         return None
 
 
+# A sign-in this recent proves who is at the keyboard (#168): an account without
+# a password has no password to re-enter, so steps that a session alone must not
+# take (a first password, a first authenticator, a token) ask for a fresh one.
+# The same span as a sign-in link's lifetime.
+FRESH_SESSION_SECONDS = 15 * 60
+
+
+def session_is_fresh(token: str) -> bool:
+    """Whether this session cookie was signed within FRESH_SESSION_SECONDS."""
+    return bool(token) and validate_session(token, max_age=FRESH_SESSION_SECONDS) is not None
+
+
 # A password-verified login waiting for its TOTP code. It only lets the browser
 # reach /mfa/verify, so it lives minutes, not the full session lifetime.
 MFA_PENDING_PREFIX = "_mfa_pending:"
 MFA_PENDING_MAX_AGE_SECONDS = 600
 
 
-def create_mfa_pending_session(user_id: str) -> str:
-    """A password-verified login that may only reach /mfa/verify."""
-    return _get_signer().sign(f"{MFA_PENDING_PREFIX}{user_id}").decode()
+def create_mfa_pending_session(user_id: str, epoch: int = 0) -> str:
+    """A password-verified login that may only reach /mfa/verify. It carries the
+    account's session epoch, so a password change, a two-factor reset or a
+    sign-out everywhere ends it too (#168)."""
+    return _get_signer().sign(f"{MFA_PENDING_PREFIX}{user_id}{_EPOCH_SEPARATOR}{epoch}").decode()
 
 
 def session_identity(token: str) -> tuple[str, int] | None:
@@ -160,10 +181,21 @@ async def signed_in_user(token: str) -> dict | None:
     return user
 
 
+def mfa_pending_identity(token: str) -> tuple[str, int] | None:
+    """The user and session epoch of a still-fresh pending MFA login, or None."""
+    value = validate_session(token, max_age=MFA_PENDING_MAX_AGE_SECONDS) if token else None
+    if not value or not value.startswith(MFA_PENDING_PREFIX):
+        return None
+    user_id, separator, epoch = value.removeprefix(MFA_PENDING_PREFIX).rpartition(_EPOCH_SEPARATOR)
+    if not separator or not epoch.isascii() or not epoch.isdigit():
+        return None
+    return user_id, int(epoch)
+
+
 def mfa_pending_user_id(token: str) -> str | None:
     """The user a still-fresh pending MFA login belongs to, or None."""
-    value = validate_session(token, max_age=MFA_PENDING_MAX_AGE_SECONDS) if token else None
-    return value.removeprefix(MFA_PENDING_PREFIX) if value and value.startswith(MFA_PENDING_PREFIX) else None
+    identity = mfa_pending_identity(token)
+    return identity[0] if identity else None
 
 
 def session_cookie_header(token: str) -> str:
@@ -219,6 +251,15 @@ class AuthMiddleware:
             return
 
         path = scope.get("path", "")
+
+        # A signed-out visitor to "/" sees the landing page there (#168), when the
+        # instance has one; the address stays "/".
+        if path == "/":
+            from app import config
+
+            if config.LANDING_PAGE and not session_identity(Request(scope).cookies.get(SESSION_COOKIE, "")):
+                scope = {**scope, "path": "/welcome", "raw_path": b"/welcome"}
+                path = "/welcome"
 
         # Allow public paths.
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES) or is_api_key_path(path):
@@ -292,9 +333,24 @@ class AuthMiddleware:
                 "features": await get_feature_flags(user_db),
             }
 
+            # A password needs a second factor when the instance says so (#168):
+            # until it is set up, every page leads to the setup.
+            from app import config
+
+            if (
+                config.REQUIRE_TOTP
+                and user["password_hash"]
+                and not user["totp_enabled"]
+                and not path.startswith(TOTP_SETUP_PATHS)
+            ):
+                await _login_response(scope, "/settings/mfa")(scope, receive, send)
+                return
+
             # Check onboarding for this user.
             done = await get_setting(user_db, "onboarding_completed", "0")
-            if done != "1" and not path.startswith(("/onboarding", "/static/", "/api/", "/logout", "/service-worker")):
+            # The TOTP setup stays reachable before onboarding, or the two gates
+            # would send each other's pages back forever.
+            if done != "1" and not path.startswith(("/onboarding", "/api/", *TOTP_SETUP_PATHS)):
                 response = RedirectResponse("/onboarding", status_code=303)
                 await response(scope, receive, send)
                 return

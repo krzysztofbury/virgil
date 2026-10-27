@@ -31,7 +31,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 - **Frontend**: Jinja2 templates, HTMX, Alpine.js (CSP build), Chart.js, Lucide icons, all served from `app/static/vendor` (sources and hashes in `SOURCES.json`), with no CDN or Google Fonts request
 - **Styling**: Custom CSS with dark/light theme via CSS custom properties
 - **Database**: SQLite with WAL mode, versioned migration system
-- **Auth**: Multi-user with per-user isolated SQLite databases, email + password + TOTP MFA
+- **Auth**: Multi-user with per-user isolated SQLite databases; email first, then a password with TOTP MFA (and one-time recovery codes) or an emailed sign-in link
 - **LLM Integration**: LiteLLM (supports Anthropic, OpenAI, Gemini, Mistral, Groq, Ollama, and more)
 - **Charts**: Chart.js (line, bar, sparkline, radar, dual-axis) — theme-aware
 - **PWA**: Service worker with offline support, installable on mobile
@@ -229,6 +229,16 @@ All configuration via environment variables:
 | `VIRGIL_ENCRYPTION_KEY` | (auto-generated) | Fernet key for encrypting secrets |
 | `VIRGIL_ADMIN_EMAILS` | (empty) | Comma-separated admin emails (always have admin role) |
 | `VIRGIL_REGISTRATION_OPEN` | `false` | Allow new user signups. The first account (bootstrap owner) can always be created |
+| `VIRGIL_MAIL_BACKEND` | (empty) | Outgoing email: empty sends nothing, `smtp` sends through the server below, `log` writes each message to the log (development only). Sign-in links need it |
+| `VIRGIL_SMTP_HOST` | (empty) | SMTP server for outgoing email (STARTTLS) |
+| `VIRGIL_SMTP_PORT` | `587` | SMTP port |
+| `VIRGIL_SMTP_USERNAME` | (empty) | SMTP login |
+| `VIRGIL_SMTP_PASSWORD` | (empty) | SMTP password |
+| `VIRGIL_MAIL_FROM` | (empty) | Sender, for example `Virgil <no-reply@example.com>` |
+| `VIRGIL_MAIL_REPLY_TO` | (empty) | Optional Reply-To address for every email |
+| `VIRGIL_REQUIRE_TOTP` | `false` | Every account with a password must set up an authenticator app before using Virgil. Accounts that sign in with emailed links are not affected |
+| `VIRGIL_LANDING_PAGE` | `false` | Show a public landing page at `/` to signed-out visitors instead of the sign-in page |
+| `VIRGIL_CONTACT_EMAIL` | (empty) | Where the landing page's Request access panel, and an invite-only sign-up page, send people |
 | `VIRGIL_TRUST_CLOUDFLARE_HEADERS` | `false` | Trust `CF-Connecting-IP` for rate limiting. Enable only when Cloudflare Tunnel is the sole ingress |
 | `VIRGIL_TRUSTED_PROXY_IPS` | (empty) | Comma-separated proxy IPs or CIDR ranges allowed to supply `CF-Connecting-IP`. Behind the compose tunnel, use the `virgil-net` subnet: cloudflared changes address when recreated. Without trust, every visitor shares one rate-limit bucket, and the log warns the first time the header arrives untrusted |
 | `VIRGIL_INTERNAL_LLM_MODEL` | `gemini/gemini-3-flash-preview` | Internal LLM for onboarding/system features |
@@ -645,8 +655,10 @@ Virgil (an expired Cloudflare Access session) asks for a reload instead.
 ## Security
 
 ### Authentication
-- Email + password with bcrypt hashing
-- Optional TOTP MFA via `pyotp` + `qrcode`. The setup QR is generated for the signed-in user at `/mfa/qr.png`; the secret is not put in a URL, and responses that carry it are `Cache-Control: no-store`
+- Email first: an account with a password gets the password step (bcrypt), any other a one-time sign-in link by email when outgoing mail is configured. An unknown address gets the same "check your email" page and no mail
+- Sign-in links work once, expire in 15 minutes and sign in only after a click on the page they open, so mail scanners that fetch links do not use them up; at most 3 per address per 15 minutes
+- Accounts without a password are created only for a proven address: an invite emailed there, or a sign-up link opened from that inbox
+- Optional TOTP MFA via `pyotp` + `qrcode` (required for every password account with `VIRGIL_REQUIRE_TOTP=true`), with 10 one-time recovery codes shown once at setup; an admin can reset someone's two-factor. The setup QR is generated for the signed-in user at `/mfa/qr.png`; the secret is not put in a URL, and responses that carry it are `Cache-Control: no-store`
 - Signed cookie sessions via `itsdangerous.TimestampSigner` (7-day expiry)
 - MFA-pending sessions blocked from protected routes; they expire after 10 minutes, and `/login` treats them as signed out
 - A signed session whose account was deleted or disabled is cleared on the way to

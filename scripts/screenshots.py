@@ -79,9 +79,11 @@ def _shoot(base: str, browser_path: str | None, shots: dict[str, str], out: Path
             page = context.new_page()
             page.add_init_script("try { localStorage.setItem('virgil-theme', 'dark') } catch (e) {}")
             page.goto(f"{base}/login")
+            # Email first, then the password (#168).
             page.fill("input[name=username]", DEMO_EMAIL)
-            page.fill("input[name=password]", DEMO_PASSWORD)
             page.click("button[type=submit]")
+            page.fill("input[name=password]", DEMO_PASSWORD)
+            page.click("form[action='/login'] button[type=submit]")
             page.wait_for_load_state("networkidle")
             for name, path in shots.items():
                 page.goto(base + path)

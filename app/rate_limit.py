@@ -22,11 +22,16 @@ AUTH_WINDOW_SECONDS = 60
 AUTH_PATHS = frozenset(
     {
         "/login",
+        "/login/link",
+        "/login/link/confirm",
         "/signup",
         "/mfa/verify",
         "/reset",
         "/settings/password",
+        "/settings/password/add",
+        "/settings/password/remove",
         "/settings/mfa/disable",
+        "/settings/mfa/recovery-codes",
         "/settings/factory-reset",
         "/settings/tokens",
     }

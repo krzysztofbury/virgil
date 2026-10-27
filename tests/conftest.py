@@ -200,6 +200,24 @@ def _reset_rate_limiter():
     yield
 
 
+@pytest.fixture
+def sent_mail(monkeypatch) -> list:
+    """Turn outgoing email on and collect each message instead of sending it."""
+    from app import config
+    from app.services import mailer
+
+    sent: list = []
+    monkeypatch.setattr(config, "MAIL_BACKEND", "log")
+    monkeypatch.setattr(mailer, "schedule", sent.append)
+
+    async def run_now(work):
+        # Deferred work runs inside the request here, so a test sees its mail.
+        await work
+
+    monkeypatch.setattr(mailer, "defer", run_now)
+    return sent
+
+
 @pytest.fixture(scope="session")
 def client():
     with TestClient(app) as c:

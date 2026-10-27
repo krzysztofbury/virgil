@@ -1,0 +1,23 @@
+{# Waitlist mode (#168): how to ask for access. Nothing is stored or sent by
+   Virgil; the visitor writes from their own mailbox. Needs contact_email and a
+   unique panel_id. #}
+{% set subject = _("Virgil access") %}
+{% set body = _("Please grant me access to Virgil.") %}
+<details class="lp-request">
+    <summary class="btn btn-primary">{{ _("Request access") }}</summary>
+    <div class="lp-request-panel">
+        <p>{{ _("Tell me in a sentence what you'd use Virgil for. Every request is read and approved by hand.") }}</p>
+        <div class="lp-request-address">
+            <code id="{{ panel_id }}">{{ contact_email }}</code>
+            <button type="button" class="btn btn-outline btn-sm" data-copy="#{{ panel_id }}">{{ _("Copy") }}</button>
+        </div>
+        <div class="lp-request-links">
+            <a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+               href="https://mail.google.com/mail/?view=cm&amp;fs=1&amp;to={{ contact_email | urlencode }}&amp;su={{ subject | urlencode }}&amp;body={{ body | urlencode }}">{{ _("Open in Gmail") }}</a>
+            <a class="btn btn-outline btn-sm" target="_blank" rel="noopener"
+               href="https://outlook.live.com/mail/0/deeplink/compose?to={{ contact_email | urlencode }}&amp;subject={{ subject | urlencode }}&amp;body={{ body | urlencode }}">{{ _("Open in Outlook") }}</a>
+            <a class="btn btn-outline btn-sm"
+               href="mailto:{{ contact_email }}?subject={{ subject | urlencode }}&amp;body={{ body | urlencode }}">{{ _("Open in your mail app") }}</a>
+        </div>
+    </div>
+</details>

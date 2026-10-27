@@ -4,6 +4,12 @@ CREATE INDEX idx_api_tokens_user ON api_tokens(user_id);
 -- index idx_auth_events_created_at
 CREATE INDEX idx_auth_events_created_at ON auth_events(created_at);
 
+-- index idx_mfa_recovery_codes_user
+CREATE INDEX idx_mfa_recovery_codes_user ON mfa_recovery_codes(user_id);
+
+-- index idx_sign_in_links_email
+CREATE INDEX idx_sign_in_links_email ON sign_in_links(email, created_at);
+
 -- index provider_subscription_registrations_due
 CREATE INDEX provider_subscription_registrations_due
            ON provider_subscription_registrations(next_reconcile_at, claimed_until);
@@ -51,6 +57,15 @@ CREATE TABLE invites (
             expires_at TEXT NOT NULL,
             used_at TEXT NOT NULL DEFAULT '',
             used_by TEXT NOT NULL DEFAULT ''
+        );
+
+-- table mfa_recovery_codes
+CREATE TABLE mfa_recovery_codes (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            code_hash TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            used_at TEXT NOT NULL DEFAULT ''
         );
 
 -- table password_resets
@@ -102,6 +117,21 @@ CREATE TABLE provider_subscription_registrations (
             updated_at TEXT NOT NULL DEFAULT (datetime('now')),
             PRIMARY KEY (user_id, provider),
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
+        );
+
+-- table sign_in_links
+CREATE TABLE sign_in_links (
+            id TEXT PRIMARY KEY,
+            purpose TEXT NOT NULL CHECK(purpose IN ('sign_in', 'signup')),
+            user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+            email TEXT NOT NULL,
+            token_hash TEXT NOT NULL UNIQUE,
+            invite_id TEXT NOT NULL DEFAULT '',
+            display_name TEXT NOT NULL DEFAULT '',
+            language TEXT NOT NULL DEFAULT 'en',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            expires_at TEXT NOT NULL,
+            used_at TEXT NOT NULL DEFAULT ''
         );
 
 -- table user_lifecycle_leases

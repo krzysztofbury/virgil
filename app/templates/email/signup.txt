@@ -1,0 +1,8 @@
+{% autoescape false %}Subject: {{ _("Finish creating your Virgil account") }}
+{{ _("Open this link to finish creating your Virgil account:") }}
+
+{{ link }}
+
+{% trans minutes=minutes %}It works once and expires in {{ minutes }} minutes.{% endtrans %}
+{{ _("If you did not ask for it, ignore this email and nothing is created.") }}
+{% endautoescape %}

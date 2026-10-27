@@ -31,18 +31,59 @@
         <div class="auth-info" role="status">{{ info }}</div>
         {% endif %}
 
+        {# Email first (#168): the next step depends on the account, and a password
+           manager sees the email as the username on both steps. #}
+        {% set step = step or 'email' %}
+        {% if step == 'confirm_link' %}
+        <form method="POST" action="/login/link/confirm">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="token" value="{{ token }}">
+            <p class="auth-subtitle">{{ _("Your sign-in link is ready.") }}</p>
+            <button type="submit" class="btn btn-primary" style="width:100%;" autofocus>{{ _("Sign In") }}</button>
+        </form>
+        {% elif step == 'check_signup' %}
+        <div class="auth-info" role="status">
+            <strong>{{ _("Check your email to finish creating your account.") }}</strong><br>
+            {% trans email=email, minutes=15 %}We sent a link to {{ email }}. Open it within {{ minutes }} minutes to create the account. Until then nothing is created.{% endtrans %}
+        </div>
+        <p class="auth-footer"><a href="/signup">{{ _("Use a different email") }}</a></p>
+        {% elif step == 'check_email' %}
+        <div class="auth-info" role="status">
+            <strong>{{ _("Check your email") }}</strong><br>
+            {% trans email=email, minutes=15 %}If {{ email }} can sign in here, a sign-in link is on its way. It works once and expires in {{ minutes }} minutes.{% endtrans %}
+        </div>
+        <p class="auth-footer"><a href="/login">{{ _("Use a different email") }}</a></p>
+        {% elif step == 'password' %}
         <form method="POST" action="/login">
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <label>
                 {{ _("Email") }}
-                <input type="email" name="username" required autocomplete="email" autofocus>
+                <input type="email" name="username" required autocomplete="username" value="{{ email }}" readonly>
             </label>
             <label>
                 {{ _("Password") }}
-                <input type="password" name="password" required autocomplete="current-password">
+                <input type="password" name="password" required autocomplete="current-password" autofocus>
             </label>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Sign In") }}</button>
         </form>
+        {% if mail_on %}
+        <form method="POST" action="/login/link" class="auth-alt">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <input type="hidden" name="username" value="{{ email }}">
+            <button type="submit" class="btn btn-outline" style="width:100%;">{{ _("Email me a sign-in link instead") }}</button>
+        </form>
+        {% endif %}
+        <p class="auth-footer"><a href="/login">{{ _("Use a different email") }}</a></p>
+        {% else %}
+        <form method="POST" action="/login">
+            <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
+            <label>
+                {{ _("Email") }}
+                <input type="email" name="username" required autocomplete="username" value="{{ email }}" autofocus>
+            </label>
+            <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Continue") }}</button>
+        </form>
+        {% endif %}
         {% if registration_open %}
         <p class="auth-footer">{{ _("Don't have an account?") }} <a href="/signup">{{ _("Sign up") }}</a></p>
         {% endif %}
@@ -58,6 +99,7 @@
 .auth-subtitle { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:1.5rem; }
 .auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
 .auth-info { background:rgba(59,130,246,0.1); color:var(--accent); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
+.auth-alt { margin-top:0.75rem; }
 .auth-footer { color:var(--text-muted); font-size:var(--text-sm); text-align:center; margin-top:1rem; }
 .auth-footer a { color:var(--accent); text-decoration:none; }
 .auth-footer a:hover { text-decoration:underline; }

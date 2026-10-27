@@ -407,6 +407,20 @@ msgid "Enable the account before resetting its password."
 msgstr "Włącz konto, zanim zresetujesz jego hasło."
 
 #: app/routers/admin.py
+msgid "Manage your own two-factor under Settings > Security."
+msgstr "Swoim uwierzytelnianiem dwuskładnikowym zarządzasz w Ustawienia > Bezpieczeństwo."
+
+#: app/routers/admin.py
+#, python-brace-format
+msgid "{email} is in VIRGIL_ADMIN_EMAILS; only its owner manages its two-factor."
+msgstr "{email} jest w VIRGIL_ADMIN_EMAILS; tylko jego właściciel zarządza jego uwierzytelnianiem dwuskładnikowym."
+
+#: app/routers/admin.py
+#, python-brace-format
+msgid "Two-factor reset for {email}."
+msgstr "Zresetowano uwierzytelnianie dwuskładnikowe dla {email}."
+
+#: app/routers/admin.py
 msgid "The account may use the server's LLM key."
 msgstr "To konto może korzystać z klucza LLM serwera."
 
@@ -482,12 +496,20 @@ msgid "This reset link is invalid, used or expired. Ask an admin for a new one."
 msgstr "Ten link do resetu hasła jest nieprawidłowy, wykorzystany albo wygasł. Poproś administratora o nowy."
 
 #: app/routers/auth.py
+msgid "That link has expired. Ask for a new one."
+msgstr "Ten link wygasł. Poproś o nowy."
+
+#: app/routers/auth.py
 msgid "Registration is closed on this server."
 msgstr "Rejestracja na tym serwerze jest zamknięta."
 
 #: app/routers/auth.py
 msgid "Please enter a valid email address."
 msgstr "Podaj prawidłowy adres e-mail."
+
+#: app/routers/auth.py
+msgid "An account with that email already exists."
+msgstr "Konto z tym adresem e-mail już istnieje."
 
 #: app/routers/auth.py
 msgid "Password must be at least 8 characters."
@@ -500,10 +522,6 @@ msgstr "Hasła się nie zgadzają."
 #: app/routers/auth.py
 msgid "This invite is for a different email address."
 msgstr "To zaproszenie jest na inny adres e-mail."
-
-#: app/routers/auth.py
-msgid "An account with that email already exists."
-msgstr "Konto z tym adresem e-mail już istnieje."
 
 #: app/routers/auth.py
 msgid "Could not create your account. Please try again."
@@ -542,8 +560,16 @@ msgid "Invalid code. Please try again."
 msgstr "Nieprawidłowy kod. Spróbuj ponownie."
 
 #: app/routers/auth.py
-msgid "MFA enabled."
-msgstr "MFA włączone."
+msgid "For this, sign in again with a new link first."
+msgstr "Do tego zaloguj się najpierw ponownie nowym linkiem."
+
+#: app/routers/auth.py
+msgid "Password is incorrect."
+msgstr "Nieprawidłowe hasło."
+
+#: app/routers/auth.py
+msgid "Two-factor authentication is not on."
+msgstr "Uwierzytelnianie dwuskładnikowe nie jest włączone."
 
 #: app/routers/auth.py
 msgid "MFA could not be disabled."
@@ -576,6 +602,22 @@ msgstr "Nowe hasła się nie zgadzają."
 #: app/routers/auth.py
 msgid "Password changed. Other devices are signed out."
 msgstr "Hasło zmienione. Inne urządzenia zostały wylogowane."
+
+#: app/routers/auth.py
+msgid "This account already has a password."
+msgstr "To konto ma już hasło."
+
+#: app/routers/auth.py
+msgid "Password set. Other devices are signed out."
+msgstr "Hasło ustawione. Inne urządzenia zostały wylogowane."
+
+#: app/routers/auth.py
+msgid "This server cannot send sign-in links, so the password stays."
+msgstr "Ten serwer nie może wysyłać linków do logowania, więc hasło zostaje."
+
+#: app/routers/auth.py
+msgid "Password removed. You sign in with emailed links now."
+msgstr "Hasło usunięte. Teraz logujesz się linkami wysyłanymi e-mailem."
 
 #: app/routers/auth.py
 msgid "MFA session expired. Sign in again."
@@ -1372,8 +1414,8 @@ msgid "Oura sync queued."
 msgstr "Synchronizacja Oura dodana do kolejki."
 
 #: app/routers/settings.py
-msgid "Password is incorrect. No token was created."
-msgstr "Hasło jest nieprawidłowe. Token nie został utworzony."
+msgid "No token was created."
+msgstr "Nie utworzono tokenu."
 
 #: app/routers/settings.py
 msgid "Give the token a name, such as the tool it is for."
@@ -1541,8 +1583,8 @@ msgid "Sign in again before resetting data."
 msgstr "Zaloguj się ponownie, zanim zresetujesz dane."
 
 #: app/routers/settings.py
-msgid "Password is incorrect. Nothing was reset."
-msgstr "Hasło jest nieprawidłowe. Nic nie zostało zresetowane."
+msgid "Nothing was reset."
+msgstr "Niczego nie zresetowano."
 
 #: app/routers/settings.py
 msgid "Factory reset stopped because remote subscriptions could not be removed. Try again later."
@@ -1956,7 +1998,8 @@ msgid "Deleted goals"
 msgstr "Usunięte cele"
 
 #: app/services/data_transfer.py app/static/js/app.js app/templates/base.html
-#: app/templates/experiments.html app/templates/settings.html
+#: app/templates/experiments.html app/templates/landing.html
+#: app/templates/settings.html
 msgid "Experiments"
 msgstr "Eksperymenty"
 
@@ -2763,8 +2806,8 @@ msgstr "Pulpit"
 msgid "Daily"
 msgstr "Dziennik"
 
-#: app/static/js/app.js app/templates/base.html app/templates/settings.html
-#: app/templates/training.html
+#: app/static/js/app.js app/templates/base.html app/templates/landing.html
+#: app/templates/settings.html app/templates/training.html
 msgid "Training"
 msgstr "Trening"
 
@@ -2954,6 +2997,14 @@ msgid "Reset link"
 msgstr "Link do resetu"
 
 #: app/templates/admin_users.html
+msgid "Turn off two-factor for this account and sign it out everywhere?"
+msgstr "Wyłączyć uwierzytelnianie dwuskładnikowe tego konta i wylogować je wszędzie?"
+
+#: app/templates/admin_users.html
+msgid "Reset two-factor"
+msgstr "Resetuj 2FA"
+
+#: app/templates/admin_users.html
 msgid "Disable"
 msgstr "Wyłącz"
 
@@ -2975,6 +3026,11 @@ msgstr "Usuń"
 #: app/templates/admin_users.html
 msgid "Invites"
 msgstr "Zaproszenia"
+
+#: app/templates/admin_users.html
+#, python-format
+msgid "Sent to %(email)s."
+msgstr "Wysłano na adres %(email)s."
 
 #: app/templates/admin_users.html
 msgid "Send this link."
@@ -3004,6 +3060,10 @@ msgstr "Utwórz zaproszenie"
 #: app/templates/admin_users.html
 msgid "(optional: only this address can use it)"
 msgstr "(opcjonalnie: tylko ten adres może go użyć)"
+
+#: app/templates/admin_users.html
+msgid "Invite email language"
+msgstr "Język e-maila z zaproszeniem"
 
 #: app/templates/admin_users.html
 msgid "May use this server's LLM key when they have none of their own"
@@ -3073,14 +3133,48 @@ msgstr "Virgil - Logowanie"
 msgid "Sign in to continue."
 msgstr "Zaloguj się, żeby kontynuować."
 
+#: app/templates/auth_login.html
+msgid "Your sign-in link is ready."
+msgstr "Twój link do logowania jest gotowy."
+
+#: app/templates/auth_login.html
+msgid "Sign In"
+msgstr "Zaloguj się"
+
+#: app/templates/auth_login.html
+msgid "Check your email to finish creating your account."
+msgstr "Sprawdź pocztę, aby dokończyć zakładanie konta."
+
+#: app/templates/auth_login.html
+#, python-format
+msgid "We sent a link to %(email)s. Open it within %(minutes)s minutes to create the account. Until then nothing is created."
+msgstr "Wysłaliśmy link na adres %(email)s. Otwórz go w ciągu %(minutes)s minut, aby założyć konto. Do tego czasu nic nie zostanie utworzone."
+
+#: app/templates/auth_login.html
+msgid "Use a different email"
+msgstr "Użyj innego adresu e-mail"
+
+#: app/templates/auth_login.html
+msgid "Check your email"
+msgstr "Sprawdź pocztę"
+
+#: app/templates/auth_login.html
+#, python-format
+msgid "If %(email)s can sign in here, a sign-in link is on its way. It works once and expires in %(minutes)s minutes."
+msgstr "Jeśli %(email)s może się tu zalogować, link do logowania jest już w drodze. Działa raz i wygasa po %(minutes)s minutach."
+
 #: app/templates/auth_login.html app/templates/auth_signup.html
 #: app/templates/settings.html
 msgid "Password"
 msgstr "Hasło"
 
 #: app/templates/auth_login.html
-msgid "Sign In"
-msgstr "Zaloguj się"
+msgid "Email me a sign-in link instead"
+msgstr "Wyślij mi zamiast tego link do logowania"
+
+#: app/templates/auth_login.html
+msgid "Continue"
+msgstr "Dalej"
 
 #: app/templates/auth_login.html
 msgid "Don't have an account?"
@@ -3113,6 +3207,10 @@ msgstr "Wyłącz MFA"
 #: app/templates/auth_mfa_setup.html
 msgid "Confirm your password"
 msgstr "Potwierdź hasło"
+
+#: app/templates/auth_mfa_setup.html app/templates/settings.html
+msgid "Code from your authenticator app, or a recovery code"
+msgstr "Kod z aplikacji uwierzytelniającej albo kod odzyskiwania"
 
 #: app/templates/auth_mfa_setup.html
 msgid "Set up MFA"
@@ -3158,6 +3256,34 @@ msgstr "Kod"
 msgid "Verify"
 msgstr "Potwierdź"
 
+#: app/templates/auth_mfa_verify.html
+msgid "Use a recovery code instead"
+msgstr "Użyj zamiast tego kodu odzyskiwania"
+
+#: app/templates/auth_mfa_verify.html
+msgid "Recovery code"
+msgstr "Kod odzyskiwania"
+
+#: app/templates/auth_recovery_codes.html
+msgid "Virgil - Recovery codes"
+msgstr "Virgil - Kody odzyskiwania"
+
+#: app/templates/auth_recovery_codes.html
+msgid "Your recovery codes"
+msgstr "Twoje kody odzyskiwania"
+
+#: app/templates/auth_recovery_codes.html
+msgid "Save these in your password manager. Each works once, in place of the code from your authenticator app, if you lose it. They are shown only now."
+msgstr "Zapisz je w menedżerze haseł. Każdy działa raz, zamiast kodu z aplikacji uwierzytelniającej, na wypadek jej utraty. Widać je tylko teraz."
+
+#: app/templates/auth_recovery_codes.html
+msgid "Copy all"
+msgstr "Kopiuj wszystkie"
+
+#: app/templates/auth_recovery_codes.html
+msgid "I saved them"
+msgstr "Gotowe, zapisane"
+
 #: app/templates/auth_reset.html
 msgid "Virgil - Reset password"
 msgstr "Virgil - Reset hasła"
@@ -3184,12 +3310,21 @@ msgid "Every device signed in to this account is signed out, and its API tokens 
 msgstr "Wszystkie urządzenia zalogowane na to konto zostaną wylogowane, a jego tokeny API unieważnione."
 
 #: app/templates/auth_reset.html app/templates/auth_signup.html
+#: app/templates/landing.html
 msgid "Sign in"
 msgstr "Zaloguj się"
 
 #: app/templates/auth_signup.html
 msgid "Virgil - Sign Up"
 msgstr "Virgil - Rejestracja"
+
+#: app/templates/auth_signup.html app/templates/landing.html
+msgid "Virgil is invite-only for now."
+msgstr "Na razie do Virgila można dołączyć tylko z zaproszeniem."
+
+#: app/templates/auth_signup.html app/templates/landing.html
+msgid "Every account is approved by hand, so the app stays fast and every request gets read. Write a line about what you'd use it for."
+msgstr "Każde konto jest zatwierdzane ręcznie, dzięki czemu aplikacja działa szybko, a każda prośba zostaje przeczytana. Napisz w jednym zdaniu, do czego chcesz używać Virgila."
 
 #: app/templates/auth_signup.html
 msgid "You were invited. Create your account."
@@ -3202,6 +3337,18 @@ msgstr "Utwórz konto."
 #: app/templates/auth_signup.html
 msgid "Display Name"
 msgstr "Wyświetlana nazwa"
+
+#: app/templates/auth_signup.html
+msgid "How do you want to sign in?"
+msgstr "Jak chcesz się logować?"
+
+#: app/templates/auth_signup.html
+msgid "With links sent to my email (no password)"
+msgstr "Linkami wysyłanymi na mój e-mail (bez hasła)"
+
+#: app/templates/auth_signup.html
+msgid "With a password"
+msgstr "Hasłem"
 
 #: app/templates/auth_signup.html
 msgid "Confirm Password"
@@ -3801,6 +3948,61 @@ msgstr "dzisiaj"
 #, python-format
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
+
+#: app/templates/email/invite.html app/templates/email/invite.txt
+msgid "You're invited to Virgil: one place for your days, training, sleep and goals, which your AI assistant can read too."
+msgstr "Zapraszamy do Virgila: jednego miejsca na Twoje dni, treningi, sen i cele, które może czytać także Twój asystent AI."
+
+#: app/templates/email/invite.html app/templates/email/signup.html
+msgid "Create my account"
+msgstr "Załóż moje konto"
+
+#: app/templates/email/invite.html app/templates/email/invite.txt
+#, python-format
+msgid "It works once and expires in %(days)s days."
+msgstr "Działa raz i wygasa po %(days)s dniach."
+
+#: app/templates/email/invite.txt
+msgid "You're invited to Virgil"
+msgstr "Zaproszenie do Virgila"
+
+#: app/templates/email/invite.txt
+msgid "Create your account with this link:"
+msgstr "Załóż konto, korzystając z tego linku:"
+
+#: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+msgid "Open this link to sign in to Virgil:"
+msgstr "Otwórz ten link, aby zalogować się do Virgila:"
+
+#: app/templates/email/sign_in.html
+msgid "Sign in to Virgil"
+msgstr "Zaloguj się do Virgila"
+
+#: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+#: app/templates/email/signup.html app/templates/email/signup.txt
+#, python-format
+msgid "It works once and expires in %(minutes)s minutes."
+msgstr "Działa raz i wygasa po %(minutes)s minutach."
+
+#: app/templates/email/sign_in.html app/templates/email/sign_in.txt
+msgid "If you did not ask for it, ignore this email."
+msgstr "Jeśli to nie Ty prosisz o ten link, zignoruj tę wiadomość."
+
+#: app/templates/email/sign_in.txt
+msgid "Your Virgil sign-in link"
+msgstr "Twój link do logowania w Virgil"
+
+#: app/templates/email/signup.html app/templates/email/signup.txt
+msgid "Open this link to finish creating your Virgil account:"
+msgstr "Otwórz ten link, aby dokończyć zakładanie konta w Virgil:"
+
+#: app/templates/email/signup.html app/templates/email/signup.txt
+msgid "If you did not ask for it, ignore this email and nothing is created."
+msgstr "Jeśli to nie Ty prosisz o ten link, zignoruj tę wiadomość. Nic nie zostanie utworzone."
+
+#: app/templates/email/signup.txt
+msgid "Finish creating your Virgil account"
+msgstr "Dokończ zakładanie konta w Virgil"
 
 #: app/templates/experiment_detail.html app/templates/experiments.html
 #: app/templates/goals.html
@@ -5227,6 +5429,122 @@ msgstr "Otwórz obszary"
 msgid "No goals in the selected horizon yet."
 msgstr "Brak celów w wybranym horyzoncie."
 
+#: app/templates/landing.html
+msgid "Virgil - Your days, training, sleep and goals in one place"
+msgstr "Virgil - Twoje dni, treningi, sen i cele w jednym miejscu"
+
+#: app/templates/landing.html
+msgid "Virgil keeps your habits, workouts, sleep, blood results, experiments and money in one place, readable by you and by your AI assistant. Private beta."
+msgstr "Virgil trzyma Twoje nawyki, treningi, sen, wyniki badań, eksperymenty i finanse w jednym miejscu, czytelne dla Ciebie i Twojego asystenta AI. Prywatna beta."
+
+#: app/templates/landing.html
+msgid "Private beta"
+msgstr "Prywatna beta"
+
+#: app/templates/landing.html
+msgid "Your days, training, sleep and goals in one place."
+msgstr "Twoje dni, treningi, sen i cele w jednym miejscu."
+
+#: app/templates/landing.html
+msgid "Virgil keeps the habits, workouts, Oura sleep, blood results, experiments and money you track, and turns them into what matters today. Read it yourself, or ask your AI assistant."
+msgstr "Virgil przechowuje nawyki, treningi, sen z Oura, wyniki badań, eksperymenty i finanse, które śledzisz, i zamienia je w to, co ważne dzisiaj. Czytaj samodzielnie albo zapytaj swojego asystenta AI."
+
+#: app/templates/landing.html
+msgid "Create account"
+msgstr "Załóż konto"
+
+#: app/templates/landing.html
+msgid "Each account is approved by hand."
+msgstr "Każde konto jest zatwierdzane ręcznie."
+
+#: app/templates/landing.html
+msgid "The Virgil dashboard"
+msgstr "Pulpit Virgila"
+
+#: app/templates/landing.html
+msgid "Works where you already talk to AI"
+msgstr "Działa tam, gdzie już rozmawiasz z AI"
+
+#: app/templates/landing.html
+msgid "Ask, don't click."
+msgstr "Zapytaj, zamiast klikać."
+
+#: app/templates/landing.html
+msgid "Connect Claude or another assistant over MCP and just say it. Virgil logs the workout from a messy note, reads your sleep and blood results, and answers with your own numbers. A REST API with your own token is there for anything else."
+msgstr "Podłącz Claude'a lub innego asystenta przez MCP i po prostu powiedz, czego chcesz. Virgil zapisze trening z chaotycznej notatki, przeczyta Twój sen i wyniki badań i odpowie Twoimi własnymi liczbami. Do wszystkiego innego jest REST API z Twoim tokenem."
+
+#: app/templates/landing.html
+msgid "An example conversation"
+msgstr "Przykładowa rozmowa"
+
+#: app/templates/landing.html
+msgid "log: back squat 5x5 @100, then Fran 4:30"
+msgstr "zapisz: back squat 5x5 @100, potem Fran 4:30"
+
+#: app/templates/landing.html
+msgid "You"
+msgstr "Ty"
+
+#: app/templates/landing.html
+msgid "Saved 6 entries to today's training. Your squat is 5 kg up on your best."
+msgstr "Zapisano 6 pozycji w dzisiejszym treningu. Przysiad jest o 5 kg lepszy od Twojego rekordu."
+
+#: app/templates/landing.html
+msgid "Claude, with Virgil"
+msgstr "Claude z Virgilem"
+
+#: app/templates/landing.html
+msgid "how did I sleep this week?"
+msgstr "jak mi się spało w tym tygodniu?"
+
+#: app/templates/landing.html
+msgid "7.4 h on average, HRV 6 ms below last week, readiness 78."
+msgstr "Średnio 7,4 h, HRV o 6 ms niżej niż w zeszłym tygodniu, gotowość 78."
+
+#: app/templates/landing.html
+msgid "Shaped around you"
+msgstr "Dopasowany do Ciebie"
+
+#: app/templates/landing.html
+msgid "Only what you use."
+msgstr "Tylko to, czego używasz."
+
+#: app/templates/landing.html
+msgid "Switch modules on or off, name your own life areas and goals, keep your own exercise library and bring your own AI key. English or Polish. Export everything at any time."
+msgstr "Włączaj i wyłączaj moduły, nazywaj własne obszary życia i cele, prowadź własną bibliotekę ćwiczeń i używaj własnego klucza AI. Po polsku albo po angielsku. Eksportuj wszystko w dowolnej chwili."
+
+#: app/templates/landing.html
+msgid "The Daily log"
+msgstr "Dziennik"
+
+#: app/templates/landing.html
+msgid "Where it helps"
+msgstr "Gdzie pomaga"
+
+#: app/templates/landing.html
+msgid "Paste the WOD as you wrote it; Virgil turns it into sets, reps and personal bests."
+msgstr "Wklej WOD w takiej formie, w jakiej go masz; Virgil zamieni go w serie, powtórzenia i rekordy."
+
+#: app/templates/landing.html
+msgid "Sleep and recovery"
+msgstr "Sen i regeneracja"
+
+#: app/templates/landing.html
+msgid "Oura readiness against your own baseline, with monthly and daily trends."
+msgstr "Gotowość z Oura na tle Twojej własnej normy, z trendami miesięcznymi i dziennymi."
+
+#: app/templates/landing.html
+msgid "Run a protocol for a few weeks and see whether it moved anything."
+msgstr "Prowadź protokół przez kilka tygodni i sprawdź, czy coś zmienił."
+
+#: app/templates/landing.html
+msgid "Start with what you track today."
+msgstr "Zacznij od tego, co śledzisz już dziś."
+
+#: app/templates/landing.html
+msgid "Open source"
+msgstr "Otwarty kod"
+
 #: app/templates/onboarding.html
 msgid "Virgil - Onboarding"
 msgstr "Virgil - Wdrożenie"
@@ -5836,6 +6154,38 @@ msgstr[0] "%(count)s tydzień"
 msgstr[1] "%(count)s tygodnie"
 msgstr[2] "%(count)s tygodni"
 
+#: app/templates/partials/request_access.html
+msgid "Virgil access"
+msgstr "Dostęp do Virgila"
+
+#: app/templates/partials/request_access.html
+msgid "Please grant me access to Virgil."
+msgstr "Proszę o dostęp do Virgila."
+
+#: app/templates/partials/request_access.html
+msgid "Request access"
+msgstr "Poproś o dostęp"
+
+#: app/templates/partials/request_access.html
+msgid "Tell me in a sentence what you'd use Virgil for. Every request is read and approved by hand."
+msgstr "Napisz w jednym zdaniu, do czego chcesz używać Virgila. Każda prośba jest czytana i zatwierdzana ręcznie."
+
+#: app/templates/partials/request_access.html app/templates/settings.html
+msgid "Copy"
+msgstr "Kopiuj"
+
+#: app/templates/partials/request_access.html
+msgid "Open in Gmail"
+msgstr "Otwórz w Gmailu"
+
+#: app/templates/partials/request_access.html
+msgid "Open in Outlook"
+msgstr "Otwórz w Outlooku"
+
+#: app/templates/partials/request_access.html
+msgid "Open in your mail app"
+msgstr "Otwórz w aplikacji pocztowej"
+
 #: app/templates/partials/today_block.html
 #, python-format
 msgid "%(label)s: %(state)s. Change status"
@@ -6284,10 +6634,6 @@ msgid "As its redirect URI, paste"
 msgstr "Jako jej redirect URI wklej"
 
 #: app/templates/settings.html
-msgid "Copy"
-msgstr "Kopiuj"
-
-#: app/templates/settings.html
 msgid "Enter the application's client ID and secret below and save, then choose Connect to Oura."
 msgstr "Wpisz poniżej client ID i secret aplikacji, zapisz, a potem wybierz Połącz z Oura."
 
@@ -6541,6 +6887,14 @@ msgid "No background jobs yet."
 msgstr "Brak zadań w tle."
 
 #: app/templates/settings.html
+msgid "You sign in with emailed links. A password lets you sign in without your inbox."
+msgstr "Logujesz się linkami wysyłanymi e-mailem. Hasło pozwala zalogować się bez skrzynki pocztowej."
+
+#: app/templates/settings.html
+msgid "Add a password"
+msgstr "Dodaj hasło"
+
+#: app/templates/settings.html
 msgid "Change password"
 msgstr "Zmień hasło"
 
@@ -6551,6 +6905,14 @@ msgstr "Obecne hasło"
 #: app/templates/settings.html
 msgid "Every other device signed in to this account is signed out."
 msgstr "Wszystkie inne urządzenia zalogowane na to konto zostaną wylogowane."
+
+#: app/templates/settings.html
+msgid "Remove password"
+msgstr "Usuń hasło"
+
+#: app/templates/settings.html
+msgid "You will sign in with links sent to your email instead."
+msgstr "Zamiast tego będziesz logować się linkami wysyłanymi na Twój e-mail."
 
 #: app/templates/settings.html
 msgid "API tokens"
@@ -6626,6 +6988,10 @@ msgid "Your password"
 msgstr "Twoje hasło"
 
 #: app/templates/settings.html
+msgid "A sign-in from a link in the last 15 minutes confirms it."
+msgstr "Potwierdza to logowanie linkiem w ciągu ostatnich 15 minut."
+
+#: app/templates/settings.html
 msgid "Create token"
 msgstr "Utwórz token"
 
@@ -6636,6 +7002,26 @@ msgstr "Skonfiguruj MFA"
 #: app/templates/settings.html
 msgid "Enabled"
 msgstr "Włączone"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Recovery codes: %(count)s left"
+msgid_plural "Recovery codes: %(count)s left"
+msgstr[0] "Kody odzyskiwania: został %(count)s"
+msgstr[1] "Kody odzyskiwania: zostały %(count)s"
+msgstr[2] "Kody odzyskiwania: zostało %(count)s"
+
+#: app/templates/settings.html
+msgid "Code from your authenticator app"
+msgstr "Kod z aplikacji uwierzytelniającej"
+
+#: app/templates/settings.html
+msgid "Create recovery codes"
+msgstr "Utwórz kody odzyskiwania"
+
+#: app/templates/settings.html
+msgid "Create new recovery codes"
+msgstr "Utwórz nowe kody odzyskiwania"
 
 #: app/templates/settings.html
 msgid "Sync Log"

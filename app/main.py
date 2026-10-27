@@ -229,6 +229,12 @@ async def _start_application(app: FastAPI):
                 if _udb is not None:
                     await close_user_db(_udb)
 
+    from app import config as _config
+
+    if _config.IS_PROD and _config.MAIL_BACKEND == "log":
+        # The log backend writes whole messages, sign-in links included.
+        _log.warning("VIRGIL_MAIL_BACKEND=log writes every email, sign-in links included, to the log")
+
     _log.info(
         "Virgil version=%s — central migration=%s, user migrations OK for %d DB(s), %d failed",
         _version,
@@ -372,6 +378,7 @@ from app.routers import (  # noqa: E402
     freedom,
     goals,
     jobs,
+    landing,
     life_scores,
     onboarding,
     oura,
@@ -382,6 +389,7 @@ from app.routers import (  # noqa: E402
 
 app.include_router(admin.router)
 app.include_router(auth.router)
+app.include_router(landing.router)
 app.include_router(dashboard.router)
 app.include_router(daily.router)
 app.include_router(training.router)

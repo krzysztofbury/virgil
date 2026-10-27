@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="{{ current_language() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ _("Virgil - Recovery codes") }}</title>
+    {% include "partials/head_assets.html" %}
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#06080d">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+    <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+</head>
+<body>
+{% include "partials/feedback.html" %}
+<div class="auth-wrapper">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <img src="/static/icons/logo.png" alt="Virgil" style="width:48px;height:48px;">
+            <h1>Virgil</h1>
+        </div>
+        <h2 style="font-size:1.1rem;margin:0 0 0.5rem;">{{ _("Your recovery codes") }}</h2>
+        <p class="auth-subtitle">{{ _("Save these in your password manager. Each works once, in place of the code from your authenticator app, if you lose it. They are shown only now.") }}</p>
+        <ol class="recovery-codes">
+            {% for code in codes %}<li><code>{{ code }}</code></li>{% endfor %}
+        </ol>
+        <button type="button" class="btn btn-outline" style="width:100%;" data-copy="#recovery-codes-text">{{ _("Copy all") }}</button>
+        <pre id="recovery-codes-text" hidden>{{ codes | join("\n") }}</pre>
+        <a href="/settings?tab=security" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("I saved them") }}</a>
+    </div>
+</div>
+
+<style>
+.auth-wrapper { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1rem; }
+.auth-card { width:100%; max-width:380px; }
+.auth-logo { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.25rem; }
+.auth-logo h1 { margin:0; font-size:1.5rem; }
+.auth-subtitle { color:var(--text-muted); font-size:var(--text-sm); margin-bottom:1.5rem; }
+.auth-error { background:rgba(239,68,68,0.1); color:var(--flag-h); padding:0.5rem 0.75rem; border-radius:6px; font-size:var(--text-sm); margin-bottom:1rem; }
+.recovery-codes { display:grid; grid-template-columns:1fr 1fr; gap:0.4rem 1rem; padding-left:1.4rem; margin:0 0 1rem; font-family:var(--font-mono); }
+</style>
+<script src="/static/js/app.js?v={{ app_version }}"></script>
+</body>
+</html>
