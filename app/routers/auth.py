@@ -174,7 +174,7 @@ async def signup_page(request: Request, invite: str = ""):
     if await signed_in_user(request.cookies.get(SESSION_COOKIE, "")):
         return RedirectResponse("/", status_code=303)
 
-    return templates.TemplateResponse(request, "auth_signup.html", {"request": request})
+    return _signup_response(request)
 
 
 @router.post("/signup")
