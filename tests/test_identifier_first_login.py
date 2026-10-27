@@ -1,6 +1,7 @@
 """Sign-in asks for the email first, then the password or an emailed link (#168)."""
 
 import asyncio
+import re
 import sqlite3
 import time
 import uuid
@@ -77,7 +78,12 @@ def test_an_unknown_email_looks_like_a_link_only_one(client, link_only, sent_mai
     known = _continue(client, link_only).text
     unknown = _continue(client, "nobody-here@example.com").text
     assert CHECK_EMAIL in unknown
-    assert unknown.replace("nobody-here@example.com", "X") == known.replace(link_only, "X")
+
+    # Each response carries its own CSP nonce; apart from it and the address, the same page.
+    def same(page: str, email: str) -> str:
+        return re.sub(r'nonce="[^"]+"', "", page).replace(email, "X")
+
+    assert same(unknown, "nobody-here@example.com") == same(known, link_only)
     assert [mail.to for mail in sent_mail] == [link_only]
 
 

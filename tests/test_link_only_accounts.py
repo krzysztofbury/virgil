@@ -337,3 +337,11 @@ def test_a_signup_error_keeps_the_chosen_method(auth_client, browser, sent_mail)
     assert "Passwords do not match." in page
     assert re.search(r'value="password"[^>]*checked', page)
     assert not re.search(r'value="link"[^>]*checked', page)
+
+
+def test_a_signup_link_opened_in_the_same_browser_needs_no_second_click(auth_client, browser, sent_mail, cleanup):
+    email = f"onetap-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(""), email)
+    token = re.search(r"token=([\w-]+)", sent_mail[-1].text).group(1)
+    assert "data-auto-submit" in browser.get(f"/login/link?token={token}").text

@@ -204,3 +204,21 @@ def test_settings_forms_that_check_a_password_share_the_sign_in_limit(auth_clien
     ]
     assert 429 not in statuses[:AUTH_LIMIT]
     assert statuses[-1] == 429
+
+
+def test_opening_sign_in_pages_does_not_spend_the_sign_in_budget():
+    """One email-first sign-in opens the page, the emailed link and the code page
+    on top of its form posts: counted, a single sign-in ran into a 429 (#168)."""
+    from app.rate_limit import AUTH_LIMIT, RateLimitMiddleware
+
+    async def accepted(_request):
+        return PlainTextResponse("ok")
+
+    app = Starlette(routes=[Route("/login", accepted, methods=["GET", "POST"])])
+    app.add_middleware(RateLimitMiddleware)
+    client = TestClient(app, client=("192.0.2.41", 50000))
+
+    assert all(client.get("/login").status_code == 200 for _ in range(AUTH_LIMIT + 5))
+    posts = [client.post("/login").status_code for _ in range(AUTH_LIMIT + 1)]
+    assert posts[:AUTH_LIMIT] == [200] * AUTH_LIMIT
+    assert posts[AUTH_LIMIT] == 429, "the forms themselves stay limited"

@@ -1,0 +1,4 @@
+{# app.js speaks through gettext (components.js) and the page's catalog: a page
+   that loads app.js without them stops at its first translated string. #}
+<script type="application/json" id="i18n-catalog" nonce="{{ request.state.csp_nonce }}">{{ js_catalog(current_language())|tojson }}</script>
+<script src="/static/js/components.js?v={{ app_version }}"></script>

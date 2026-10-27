@@ -1026,6 +1026,13 @@ document.addEventListener('click', function(event) {
     refuseUnconfirmed(event, event.target.closest('button[data-confirm], input[type="submit"][data-confirm]'));
 }, true);
 
+// data-auto-submit sends its form as soon as the page opens: a sign-in link
+// opened in the browser that asked for it needs no second click.
+document.addEventListener('DOMContentLoaded', function() {
+    var form = document.querySelector('form[data-auto-submit]');
+    if (form) form.requestSubmit();
+});
+
 // data-navigate="/path/{value}" goes to the address with the control's value.
 document.addEventListener('change', function(event) {
     var control = event.target.closest('[data-navigate]');

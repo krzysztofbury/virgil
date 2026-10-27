@@ -1,5 +1,8 @@
+import hashlib
+import hmac
 import io
 import logging
+import secrets
 from datetime import UTC, datetime
 
 import pyotp
@@ -27,6 +30,7 @@ from app.auth import (
 )
 from app.central_db import (
     SIGN_IN_LINK_TTL_MINUTES,
+    SIGN_IN_LINKS_PER_WINDOW,
     bump_session_epoch,
     claim_mfa_attempt,
     complete_password_reset,
@@ -222,15 +226,16 @@ async def signup_submit(
             return _render_error(_("An account with that email already exists."))
         if not invite and email in ADMIN_EMAILS and await count_users() > 0:
             return _render_error(_(RESERVED_ADDRESS))
-        token = await create_sign_in_link(
+        token = secrets.token_urlsafe(32)
+        if await create_sign_in_link(
             email,
             user_id=None,
             purpose="signup",
             invite_id=open_invite["id"] if open_invite else "",
             display_name=display_name,
             language=current_language(),
-        )
-        if token:
+            token=token,
+        ):
             mailer.schedule(
                 mailer.render_mail(
                     "signup",
@@ -240,7 +245,7 @@ async def signup_submit(
                     minutes=SIGN_IN_LINK_TTL_MINUTES,
                 )
             )
-        return await _login_page(request, "check_signup", email)
+        return _remember_link(request, await _login_page(request, "check_signup", email), token)
 
     if link_only:
         # The invite was made for this address and sent there: it is proven.
@@ -372,7 +377,37 @@ async def _login_page(request: Request, step: str = "email", email: str = "", **
     )
 
 
-async def _send_sign_in_link(request: Request, user: dict) -> None:
+# The browser that asked for a sign-in link remembers it, as digests of the
+# links' secrets, so the link opened there signs in without a second click.
+# Anywhere else (a mail scanner, another device, a link someone forwarded) the
+# confirm page still waits for the click.
+LINK_BROWSER_COOKIE = "virgil_link_browser"
+
+
+def _link_digest(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _remember_link(request: Request, response, token: str):
+    """Add the link with this secret to the ones this browser asked for."""
+    kept = [d for d in request.cookies.get(LINK_BROWSER_COOKIE, "").split(".") if d]
+    value = ".".join([_link_digest(token), *kept][:SIGN_IN_LINKS_PER_WINDOW])
+    secure = "; Secure" if config.BASE_URL.startswith("https") else ""
+    response.headers.append(
+        "set-cookie",
+        f"{LINK_BROWSER_COOKIE}={value}; HttpOnly; SameSite=Lax{secure}; "
+        f"Max-Age={SIGN_IN_LINK_TTL_MINUTES * 60}; Path=/login/link",
+    )
+    return response
+
+
+def _link_asked_for_here(request: Request, token: str) -> bool:
+    digest = _link_digest(token)
+    kept = request.cookies.get(LINK_BROWSER_COOKIE, "").split(".")
+    return any(hmac.compare_digest(digest, d) for d in kept if d)
+
+
+async def _send_sign_in_link(request: Request, user: dict, token: str) -> None:
     """Email a one-time sign-in link, in the account's language.
 
     All of it, the link, the mail and the audit event, runs after the response:
@@ -383,8 +418,7 @@ async def _send_sign_in_link(request: Request, user: dict) -> None:
     ip = client_ip(request)
 
     async def work() -> None:
-        token = await create_sign_in_link(user["email"], user_id=user["id"], language=user["language"])
-        if not token:
+        if not await create_sign_in_link(user["email"], user_id=user["id"], language=user["language"], token=token):
             return
         mail = mailer.render_mail(
             "sign_in",
@@ -425,9 +459,10 @@ async def login_submit(
         user = await get_user_by_email(email)
         if user and user["is_active"] and user["password_hash"]:
             return await _login_page(request, "password", email)
+        token = secrets.token_urlsafe(32)
         if user and user["is_active"]:
-            await _send_sign_in_link(request, user)
-        return await _login_page(request, "check_email", email)
+            await _send_sign_in_link(request, user, token)
+        return _remember_link(request, await _login_page(request, "check_email", email), token)
 
     user = await get_user_by_email(email)
 
@@ -466,9 +501,10 @@ async def login_link_request(request: Request, username: str = Form("")):
     if not mailer.mail_enabled():
         return await _login_page(request, "password", email)
     user = await get_user_by_email(email)
+    token = secrets.token_urlsafe(32)
     if user and user["is_active"]:
-        await _send_sign_in_link(request, user)
-    return await _login_page(request, "check_email", email)
+        await _send_sign_in_link(request, user, token)
+    return _remember_link(request, await _login_page(request, "check_email", email), token)
 
 
 @router.get("/login/link", response_class=HTMLResponse)
@@ -477,7 +513,7 @@ async def login_link_page(request: Request, token: str = ""):
     that open links to scan them would use the link up before its owner."""
     if not await get_open_sign_in_link(token):
         return error_redirect(request, "/login", _(LINK_UNUSABLE))
-    response = await _login_page(request, "confirm_link", token=token)
+    response = await _login_page(request, "confirm_link", token=token, auto_submit=_link_asked_for_here(request, token))
     response.headers["Cache-Control"] = "no-store"
     return response
 

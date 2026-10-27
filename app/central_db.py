@@ -652,14 +652,16 @@ async def create_sign_in_link(
     invite_id: str = "",
     display_name: str = "",
     language: str = "en",
+    token: str | None = None,
 ) -> str | None:
     """Store a one-time sign-in (or signup) link and return its secret, or None
-    when the address already had SIGN_IN_LINKS_PER_WINDOW links in the window."""
+    when the address already had SIGN_IN_LINKS_PER_WINDOW links in the window.
+    The caller may pass the secret, when the browser must remember it first."""
     if purpose not in ("sign_in", "signup"):
         raise ValueError(f"Unknown link purpose: {purpose}")
     email = email.strip().lower()
     now = datetime.now(UTC)
-    token = secrets.token_urlsafe(32)
+    token = token or secrets.token_urlsafe(32)
     async with _subscription_connection() as db:
         await db.execute("BEGIN IMMEDIATE")
         try:
