@@ -98,10 +98,10 @@ def test_automation_lists_bounded_recent_jobs_without_sensitive_fields(auth_clie
         _insert_job(path, "succeeded", kind=f"job_{index}")
     ambiguous_id = _insert_job(path, "needs_attention", kind="paid_briefing")
 
-    response = auth_client.get("/settings?tab=automation")
+    response = auth_client.get("/settings?tab=data")
 
     assert response.status_code == 200
-    assert "Recent Jobs" in response.text
+    assert "Recent activity" in response.text
     assert response.text.count('data-job-id="') == 8
     assert f'data-job-id="{ambiguous_id}"' in response.text
     assert "Paid Briefing" in response.text
@@ -260,7 +260,7 @@ def test_retry_rejects_stale_failed_authorization_if_job_becomes_ambiguous(auth_
     monkeypatch.setattr(jobs_router, "retry_job", interleaved_retry)
     response = auth_client.post(
         f"/api/jobs/{job_id}/retry",
-        data={"_csrf_token": csrf_token(auth_client, "/settings?tab=automation")},
+        data={"_csrf_token": csrf_token(auth_client, "/settings?tab=data")},
         headers={"HX-Request": "true"},
     )
 
@@ -303,14 +303,14 @@ def test_native_retry_uses_visible_prg_feedback(auth_client):
     job_id = _insert_job(user_db_path(), "failed")
     response = auth_client.post(
         f"/api/jobs/{job_id}/retry",
-        data={"_csrf_token": csrf_token(auth_client, "/settings?tab=automation")},
+        data={"_csrf_token": csrf_token(auth_client, "/settings?tab=data")},
         follow_redirects=False,
     )
 
     assert response.status_code == 303
     parsed = urlsplit(response.headers["location"])
     assert parsed.path == "/settings"
-    assert parse_qs(parsed.query) == {"tab": ["automation"], "msg": ["Job queued for retry."]}
+    assert parse_qs(parsed.query) == {"tab": ["data"], "msg": ["Job queued for retry."]}
 
 
 def test_retry_requires_csrf_and_rejects_nonretryable_state(auth_client):
@@ -321,7 +321,7 @@ def test_retry_requires_csrf_and_rejects_nonretryable_state(auth_client):
     missing_csrf = auth_client.post(f"/api/jobs/{failed_id}/retry", data={}, headers={"HX-Request": "true"})
     conflict = auth_client.post(
         f"/api/jobs/{running_id}/retry",
-        data={"_csrf_token": csrf_token(auth_client, "/settings?tab=automation")},
+        data={"_csrf_token": csrf_token(auth_client, "/settings?tab=data")},
         headers={"HX-Request": "true"},
     )
 

@@ -1,6 +1,7 @@
 """HTTP-level Oura subscription enable and disable lifecycle."""
 
 import os
+import re
 import sqlite3
 
 from conftest import csrf_token, user_db_path
@@ -59,7 +60,7 @@ def test_settings_enable_and_disable_oura_subscriptions(auth_client, monkeypatch
             follow_redirects=False,
         )
         assert enabled.status_code == 303
-        assert "msg=Oura+webhook+enabled" in enabled.headers["location"]
+        assert "msg=Instant+updates+turned+on" in enabled.headers["location"]
         assert len(remote) == 12
 
         registration = central_db.execute(
@@ -69,7 +70,7 @@ def test_settings_enable_and_disable_oura_subscriptions(auth_client, monkeypatch
         assert registration is not None
         assert registration[0:2] == ("active", "enabled")
         assert registration[2]
-        assert "Active" in auth_client.get("/settings?tab=integrations").text
+        assert re.search(r"Instant updates</h4>\s*<span[^>]*>On<", auth_client.get("/settings?tab=integrations").text)
 
         token = csrf_token(auth_client, "/settings?tab=integrations")
         disabled = auth_client.post(
@@ -78,7 +79,7 @@ def test_settings_enable_and_disable_oura_subscriptions(auth_client, monkeypatch
             follow_redirects=False,
         )
         assert disabled.status_code == 303
-        assert "msg=Oura+webhook+disabled" in disabled.headers["location"]
+        assert "msg=Instant+updates+turned+off" in disabled.headers["location"]
         assert len(deleted) == 12
         assert remote == []
         assert (

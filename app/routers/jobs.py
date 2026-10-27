@@ -181,7 +181,7 @@ async def job_status(request: Request, job_id: int, known_version: str | None = 
 
 @router.post("/{job_id}/retry", response_class=HTMLResponse)
 async def retry_job_route(request: Request, job_id: int, confirm_ambiguous: str = Form("")):
-    redirect_path = "/settings?tab=automation"
+    redirect_path = "/settings?tab=data"
     db = get_user_db_from_request(request)
     row = await get_job_status(db, job_id) if job_id >= 1 else None
     if row is None:

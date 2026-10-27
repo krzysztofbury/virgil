@@ -92,7 +92,7 @@ def test_factory_reset_refuses_without_the_password(auth_client):
             )
             assert resp.status_code == 303
             assert parse_qs(urlsplit(resp.headers["location"]).query) == {
-                "tab": ["security"],
+                "tab": ["data"],
                 "err": ["Password is incorrect. Nothing was reset."],
             }
         rows = conn.execute("SELECT energy FROM daily_logs WHERE date = '2026-07-02'").fetchall()

@@ -208,7 +208,7 @@ def test_settings_creates_a_token_once_lists_it_and_revokes_it(auth_client, othe
     assert auth_client.get("/api/finance", headers=_bearer(secret)).status_code == 200
     assert auth_client.get("/api/freedom", headers=_bearer(secret)).status_code == 403
 
-    page = auth_client.get("/settings?tab=security")
+    page = auth_client.get("/settings?tab=ai")
     assert "Claude Code" in page.text and secret[:12] in page.text
     assert secret not in page.text, "the secret is shown once, on the response that created it"
 

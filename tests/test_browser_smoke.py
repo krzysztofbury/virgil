@@ -291,7 +291,7 @@ def test_a_json_export_restores_through_the_check_page(site, tmp_path):
     try:
         page.goto(f"{base}/settings?tab=data")
         with page.expect_download() as download:
-            page.get_by_role("link", name="Export JSON").click()
+            page.get_by_role("link", name="Download JSON").click()
         export = tmp_path / "export.json"
         download.value.save_as(export)
 

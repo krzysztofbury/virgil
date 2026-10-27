@@ -1,5 +1,6 @@
 """Which language a request gets (#152): the account's choice, then the cookie, then English."""
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -151,8 +152,8 @@ def test_the_switch_is_on_the_pages_before_sign_in(anonymous, path):
 def test_settings_offers_the_language_with_the_current_one_selected(auth_client):
     page = auth_client.get("/settings?tab=general").text
     assert 'action="/language"' in page
-    assert '<option value="en" selected>English</option>' in page
-    assert '<option value="pl">Polski</option>' in page
+    pressed = dict(re.findall(r'name="language" value="(\w+)".*?aria-pressed="(\w+)"', page, re.S))
+    assert pressed == {"en": "true", "pl": "false"}, "one click on a language saves it; the current one is marked"
 
 
 def test_a_choice_made_before_sign_in_is_kept_by_the_account(anonymous):

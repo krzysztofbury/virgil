@@ -118,6 +118,11 @@ function libraryFilter() {
                     if (hit) matches += 1;
                 });
                 if (needle !== '') block.open = matches > 0;
+                else if (section !== '') block.open = true;
+                // A match among the hidden exercises opens their group too.
+                block.querySelectorAll('[data-library-hidden]').forEach(function (group) {
+                    group.open = needle !== '' && group.querySelector('[data-library-name]:not([hidden])') !== null;
+                });
             });
         }
     };
