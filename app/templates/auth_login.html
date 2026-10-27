@@ -13,6 +13,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
     <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    {% include "partials/i18n_scripts.html" %}
 </head>
 <body>
 {% include "partials/feedback.html" %}
@@ -35,7 +36,8 @@
            manager sees the email as the username on both steps. #}
         {% set step = step or 'email' %}
         {% if step == 'confirm_link' %}
-        <form method="POST" action="/login/link/confirm">
+        {# Opened in the browser that asked for it, the page sends itself (app.js). #}
+        <form method="POST" action="/login/link/confirm"{% if auto_submit %} data-auto-submit{% endif %}>
             <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
             <input type="hidden" name="token" value="{{ token }}">
             <p class="auth-subtitle">{{ _("Your sign-in link is ready.") }}</p>

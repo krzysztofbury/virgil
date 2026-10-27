@@ -54,6 +54,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   on 3.12 or later, since it runs on the client's machine.
 
 ### Fixed
+- A sign-in link opened in the browser that asked for it signs in at once, with
+  no second click. Opened anywhere else (another device, a mail scanner, a
+  link someone forwarded) it still waits for the click, so a scanner cannot
+  use it up.
+- One email-first sign-in no longer runs into "Too many requests": opening
+  a sign-in page is no longer counted against the sign-in limit, only
+  sending its form is.
+- The sign-in, sign-up, reset, two-factor and recovery-code pages load the
+  translations their script needs. Without them the script stopped at its
+  first translated string.
 - From the design re-check (#163):
   - The dashboard no longer lists an experiment past its last day; the
     Experiments page already showed it as ended.

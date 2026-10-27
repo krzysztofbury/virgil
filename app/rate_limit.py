@@ -119,7 +119,9 @@ class RateLimitMiddleware:
         ip = client_ip(request)
         now = time.monotonic()
 
-        if path in AUTH_PATHS:
+        # Opening a sign-in page checks nothing; one email-first sign-in opens
+        # three of them, so only the form posts spend the sign-in budget.
+        if path in AUTH_PATHS and scope.get("method") not in ("GET", "HEAD"):
             limit, window, key = AUTH_LIMIT, AUTH_WINDOW_SECONDS, f"{ip}:auth"
         elif path in LLM_PATHS:
             limit, window, key = LLM_LIMIT, LLM_WINDOW_SECONDS, f"{ip}:llm"

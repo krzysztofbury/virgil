@@ -85,9 +85,10 @@ def _central_guard_tripped(client):
 def _rate_limited(client):
     import app.rate_limit as rate_limit
 
+    # Only sign-in form posts count; opening the page does not.
     for _ in range(rate_limit.AUTH_LIMIT):
-        client.get("/login")
-    return client.get("/login")
+        client.post("/login", follow_redirects=False)
+    return client.post("/login", follow_redirects=False)
 
 
 @pytest.mark.parametrize(

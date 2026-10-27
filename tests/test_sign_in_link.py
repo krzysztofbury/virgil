@@ -106,3 +106,48 @@ def test_a_link_for_a_disabled_account_does_not_sign_in(client, account):
     response = _confirm(client, token)
     assert "virgil_session" not in response.cookies
     assert response.headers["location"].startswith("/login")
+
+
+AUTO = "data-auto-submit"
+
+
+def _ask_for_link(client, email: str):
+    return client.post(
+        "/login", data={"username": email, "_csrf_token": csrf_token(client, "/login")}, follow_redirects=False
+    )
+
+
+def _mailed_token(mail) -> str:
+    return re.search(r"token=([\w-]+)", mail.text).group(1)
+
+
+def test_a_link_opened_in_the_browser_that_asked_signs_in_without_a_click(client, account, sent_mail):
+    _user_id, email, _central = account
+    _ask_for_link(client, email)
+    page = client.get(f"/login/link?token={_mailed_token(sent_mail[-1])}")
+    assert AUTO in page.text and 'action="/login/link/confirm"' in page.text
+
+
+def test_a_link_opened_anywhere_else_still_asks_for_the_click(client, account, sent_mail):
+    """A mail scanner, or another device: it must not use the link up."""
+    _user_id, email, _central = account
+    _ask_for_link(client, email)
+    client.cookies.clear()
+    page = client.get(f"/login/link?token={_mailed_token(sent_mail[-1])}")
+    assert 'action="/login/link/confirm"' in page.text and AUTO not in page.text
+
+
+def test_a_link_this_browser_did_not_ask_for_needs_the_click(client, account, sent_mail):
+    """Someone who sends over a link they asked for (their own account's, say)
+    must not sign this browser in without a click."""
+    user_id, email, _central = account
+    _ask_for_link(client, email)
+    elsewhere = _link(user_id, email)
+    assert AUTO not in client.get(f"/login/link?token={elsewhere}").text
+
+
+def test_an_unknown_address_gets_the_same_cookie(client, sent_mail):
+    client.cookies.clear()
+    response = _ask_for_link(client, f"nobody-{uuid.uuid4().hex[:8]}@example.com")
+    assert "virgil_link_browser=" in response.headers.get("set-cookie", "")
+    assert sent_mail == []

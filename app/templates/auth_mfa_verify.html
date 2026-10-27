@@ -12,6 +12,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
     <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    {% include "partials/i18n_scripts.html" %}
 </head>
 <body>
 {% include "partials/feedback.html" %}

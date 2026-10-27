@@ -12,10 +12,12 @@ locally; CI installs one and sets VIRGIL_REQUIRE_BROWSER so it cannot skip.
 """
 
 import os
+import re
 import shutil
 import socket
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -83,16 +85,20 @@ def site(tmp_path_factory):
         "VIRGIL_API_KEY": "",
         "VIRGIL_LANDING_PAGE": "true",
         "VIRGIL_CONTACT_EMAIL": "contact@example.com",
+        # Mail is logged, so a test can open the link it carries.
+        "VIRGIL_MAIL_BACKEND": "log",
     }
     subprocess.run(  # noqa: S603
         [sys.executable, "scripts/seed_demo.py"], cwd=ROOT, env=env, check=True, stdout=subprocess.DEVNULL
     )
+    log_path = work / "server.log"
+    log = log_path.open("wb")
     server = subprocess.Popen(  # noqa: S603
         [sys.executable, "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", str(port)],
         cwd=ROOT,
         env=env,
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
+        stdout=log,
+        stderr=subprocess.STDOUT,
     )
     try:
         _wait_until_up(port, server)
@@ -100,7 +106,7 @@ def site(tmp_path_factory):
             browser = _launch(playwright)
             try:
                 base = f"http://127.0.0.1:{port}"
-                yield browser, base, _sign_in(browser, base)
+                yield browser, base, _sign_in(browser, base), log_path
             finally:
                 browser.close()
     finally:
@@ -109,10 +115,11 @@ def site(tmp_path_factory):
             server.wait(timeout=10)
         except subprocess.TimeoutExpired:
             server.kill()
+        log.close()
 
 
 def _signed_in(site, width):
-    browser, base, session = site
+    browser, base, session, _log = site
     phone = width < 600
     context = browser.new_context(
         viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone, storage_state=session
@@ -334,7 +341,7 @@ def _swipe(page, from_x, to_x):
 
 
 def test_a_swipe_on_daily_follows_the_pages_own_day_links(site):
-    browser, base, session = site
+    browser, base, session, _log = site
     context = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, storage_state=session)
     try:
         page = context.new_page()
@@ -353,7 +360,7 @@ def test_a_swipe_on_daily_follows_the_pages_own_day_links(site):
 def test_the_landing_page_renders_and_opens_the_request_panel(site, width):
     """A signed-out visitor at / sees the landing page (#168): no console errors,
     nothing wider than the screen, and Request access opens its panel."""
-    browser, base, _session = site
+    browser, base, _session, _log = site
     phone = width < 600
     context = browser.new_context(viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone)
     page = context.new_page()
@@ -375,6 +382,52 @@ def test_the_landing_page_renders_and_opens_the_request_panel(site, width):
         )
         for src in page.evaluate("[...document.querySelectorAll('img[loading=lazy]')].map(img => img.src)"):
             assert page.request.get(src).ok, src
+        assert problems == []
+    finally:
+        context.close()
+
+
+def test_a_sign_in_link_opened_in_the_same_browser_signs_in_without_a_click(site):
+    """Asked for here, the emailed link signs in by itself (#168): the confirm
+    page sends its own form, and the browser lands past /login."""
+    browser, base, _session, log_path = site
+    context = browser.new_context()
+    page = context.new_page()
+    problems: list[str] = []
+    page.on("pageerror", lambda error: problems.append(str(error)))
+    try:
+        page.goto(f"{base}/login")
+        page.fill("input[name=username]", DEMO_EMAIL)
+        page.click("button[type=submit]")
+        page.click("form[action='/login/link'] button[type=submit]")
+        page.wait_for_selector(".auth-info")
+        link = None
+        for _ in range(50):
+            found = re.findall(r"https?://\S+/login/link\?token=[\w-]+", log_path.read_text(errors="replace"))
+            if found:
+                link = found[-1]
+                break
+            time.sleep(0.1)
+        assert link, "the sign-in link was logged"
+        page.goto(link.replace(link.split("/login/")[0], base))
+        page.wait_for_url(lambda url: "/login" not in url)
+        assert problems == []
+    finally:
+        context.close()
+
+
+@pytest.mark.parametrize("path", ["/login", "/signup"])
+def test_signed_out_pages_run_their_scripts(site, path):
+    """These pages stand alone, outside base.html: app.js there once stopped at
+    its first translated string, so nothing after it ran."""
+    browser, base, _session, _log = site
+    context = browser.new_context()
+    page = context.new_page()
+    problems: list[str] = []
+    page.on("pageerror", lambda error: problems.append(str(error)))
+    try:
+        page.goto(base + path)
+        page.wait_for_load_state("networkidle")
         assert problems == []
     finally:
         context.close()

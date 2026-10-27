@@ -12,9 +12,7 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
     <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
     <meta name="csrf-token" content="{{ request.state.csrf_token }}">
-    {# app.js speaks through gettext (components.js) and the page's catalog. #}
-    <script type="application/json" id="i18n-catalog" nonce="{{ request.state.csp_nonce }}">{{ js_catalog(current_language())|tojson }}</script>
-    <script src="/static/js/components.js?v={{ app_version }}"></script>
+    {% include "partials/i18n_scripts.html" %}
 </head>
 <body>
 {% include "partials/feedback.html" %}
