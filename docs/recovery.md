@@ -44,7 +44,7 @@ as Cloudflare R2. It needs no stop: each database is copied with the SQLite back
 API, consistent on its own like the daily snapshots, and the copy passes the same
 checks as a bundle made with `create` before anything is uploaded. A failed run is
 retried every hour, and `ALERT_WEBHOOK_URL` hears about it at most once a day.
-Settings > Automation shows administrators the newest copy and the last problem.
+Settings > Data shows administrators the newest copy and the last problem.
 
 Each run is a bundle stored one file per object, compressed and then encrypted to
 an [age](https://age-encryption.org) public key:
@@ -214,13 +214,13 @@ a schema deployment; an older image alone cannot undo a migration.
 
 ## One account from a JSON export
 
-Settings > Data > Export JSON downloads one account's data as a versioned
+Settings > Data > Download JSON downloads one account's data as a versioned
 document: `format` (`virgil-user-data`), `format_version` (1), the account's
 `schema_version`, `exported_at`, the portable `settings` and one list of rows
 per table. LLM keys, the Oura connection, the job queue and this server's own
 state (the Oura webhook id, last-run times) are not in it.
 
-Restore from JSON on the same page uploads such a file and checks it first, on
+Restore from a file on the same page uploads such a file and checks it first, on
 a staged copy, without touching the account. The export's schema version is
 rebuilt, the rows are loaded, the newer migrations run, and every reference
 and SQLite's integrity check must pass. A file made by a newer Virgil, or one

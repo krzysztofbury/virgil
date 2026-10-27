@@ -7,9 +7,11 @@
 </div>
 
 <div id="settings-content">
-<!-- Tab Navigation -->
-<nav class="tabs settings-tabs" style="margin-bottom: 1.5rem;">
-    {% set tab_labels = {'general': _('General'), 'configuration': _('App Config'), 'integrations': _('Integrations'), 'data': _('Data'), 'automation': _('Automation'), 'security': _('Security')} %}
+{# Grouped by what a person wants to do, not by how the app is built: every
+   setting about one topic lives on one tab, and each card says what is true
+   now before it offers controls. #}
+<nav class="tabs settings-tabs">
+    {% set tab_labels = {'general': _('General'), 'ai': _('AI'), 'configuration': _('Training'), 'integrations': _('Connections'), 'data': _('Data'), 'security': _('Security')} %}
     {% for t in tabs %}
     <a href="/settings?tab={{ t }}" id="settings-tab-{{ t }}"
        hx-get="/settings?tab={{ t }}"
@@ -21,121 +23,42 @@
     {% endfor %}
 </nav>
 
+{# Confirming it is you: password, else an authenticator code, else a fresh link sign-in (#168). #}
+{% macro identity_fields() %}
+    {% if has_password %}
+    <label>{{ _("Your password") }}
+        <input type="password" name="password" autocomplete="current-password" required>
+    </label>
+    {% elif mfa_enabled %}
+    <label>{{ _("Code from your authenticator app, or a recovery code") }}
+        <input type="text" name="totp_code" autocomplete="one-time-code" required>
+    </label>
+    {% else %}
+    <p class="settings-note">{{ _("A sign-in from a link in the last 15 minutes confirms it.") }}</p>
+    {% endif %}
+{% endmacro %}
+
 {% if active_tab == 'general' %}
-<!-- ═══ GENERAL TAB ═══ -->
-<div class="card" style="margin-bottom: 1rem;" id="language">
+<!-- ═══ GENERAL ═══ -->
+<section class="card settings-card" id="language">
     <div class="card-header"><h3>{{ _("Language") }}</h3></div>
-    {# Kept on the account, so it follows you to another device (#152). #}
-    <form method="POST" action="/language" class="language-setting">
+    {# One click saves; kept on the account, so it follows you to another device (#152). #}
+    <form method="POST" action="/language" class="settings-choice" role="group" aria-label="{{ _("Language") }}">
         <input type="hidden" name="_csrf_token" value="{{ request.state.csrf_token }}">
         <input type="hidden" name="next" value="/settings?tab=general">
-        <label for="language-choice" class="sr-only">{{ _("Language") }}</label>
-        <select id="language-choice" name="language">
-            <option value="en"{% if current_language() == 'en' %} selected{% endif %}>English</option>
-            <option value="pl"{% if current_language() == 'pl' %} selected{% endif %}>Polski</option>
-        </select>
-        <button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button>
+        {# Each name in its own language, as on the sign-in pages. #}
+        <button type="submit" name="language" value="en" lang="en"
+                class="level-chip {{ 'selected' if current_language() == 'en' else '' }}"
+                aria-pressed="{{ 'true' if current_language() == 'en' else 'false' }}">English</button>
+        <button type="submit" name="language" value="pl" lang="pl"
+                class="level-chip {{ 'selected' if current_language() == 'pl' else '' }}"
+                aria-pressed="{{ 'true' if current_language() == 'pl' else 'false' }}">Polski</button>
     </form>
-</div>
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ _("LLM Providers") }}</h3></div>
+</section>
 
-    {% if llm_providers %}
-    <div class="overflow-x" style="margin-bottom: 1rem;">
-        <table>
-            <thead><tr><th>{{ _("Provider") }}</th><th>{{ _("Model") }}</th><th>{{ _("API Key") }}</th><th>{{ _("Status") }}</th><th>{{ _("Actions") }}</th></tr></thead>
-            <tbody>
-                {% for p in llm_providers %}
-                <tr>
-                    <td>{{ p.provider }}</td>
-                    <td><small>{{ p.model }}</small></td>
-                    <td><code>{{ p.api_key_masked }}</code></td>
-                    <td>
-                        {% if p.is_active %}
-                        <span class="flag-normal" style="font-weight:600;">{{ _("Active") }}</span>
-                        {% else %}
-                        <span class="text-muted">-</span>
-                        {% endif %}
-                    </td>
-                    <td style="display:flex;gap:0.25rem;">
-                        {% if not p.is_active %}
-                        <form method="POST" action="/settings/llm/activate" style="margin:0;">
-                            <input type="hidden" name="provider_id" value="{{ p.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Activate") }}</button>
-                        </form>
-                        {% endif %}
-                        <form method="POST" action="/settings/llm/delete" style="margin:0;">
-                            <input type="hidden" name="provider_id" value="{{ p.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline" style="color:var(--flag-h);">{{ _("Delete") }}</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="text-muted" style="margin-bottom: 0.75rem;">
-        {{ _("No providers configured.") }}
-        {% if server_llm %}{{ _("This server's own key is used until you add one.") }}{% else %}{{ _("Add one to use the AI features.") }}{% endif %}
-    </p>
-    {% endif %}
-    <p class="text-muted" style="margin-bottom: 0.75rem;font-size:0.85rem;">
-        {{ _("Keys are stored encrypted with this server's key, so whoever runs the server can read them.") }}
-    </p>
-
-    {# An ordered scale, so it reads as one: pick a level and it saves. A select
-       plus a Save button made three unrelated controls out of one decision.
-       Each chip carries its own value and the server re-renders the choice, so
-       there is no client state to drift and this still works without scripts. #}
-    <form method="POST" action="/settings/llm/reasoning" class="thinking-level">
-        <div class="thinking-level-head">
-            <span class="thinking-level-title" id="thinking-level-title">{{ _("Thinking level") }}</span>
-            <small class="text-muted">{{ _("How much the model may think before answering. Higher levels cost more and take longer.") }}</small>
-        </div>
-        <div class="thinking-level-scale" role="group" aria-labelledby="thinking-level-title">
-            {% for effort in reasoning_efforts %}
-            <button type="submit" name="reasoning_effort" value="{{ effort }}" data-level="{{ effort }}"
-                    class="level-chip {{ 'selected' if effort == reasoning_effort else '' }}"
-                    aria-pressed="{{ 'true' if effort == reasoning_effort else 'false' }}">{{ effort }}</button>
-            {% endfor %}
-        </div>
-    </form>
-
-    <details>
-        <summary style="cursor:pointer;font-weight:500;margin-bottom:0.75rem;">{{ _("Add provider") }}</summary>
-        <form method="POST" action="/settings/llm/add" x-data="llmProviderForm">
-            <div class="grid" style="margin-bottom:0.5rem;">
-                <div>
-                    <label>{{ _("Provider") }}
-                        <select name="provider" required x-model="provider" @change="setProvider">
-                            <option value="anthropic">{{ _("Anthropic") }}</option>
-                            <option value="openai">{{ _("OpenAI") }}</option>
-                            <option value="gemini">{{ _("Google Gemini") }}</option>
-                            <option value="mistral">{{ _("Mistral") }}</option>
-                            <option value="groq">{{ _("Groq") }}</option>
-                            <option value="ollama">{{ _("Ollama (local)") }}</option>
-                            <option value="other">{{ _("Other (LiteLLM)") }}</option>
-                        </select>
-                    </label>
-                </div>
-                <div>
-                    <label>{{ _("Model") }}
-                        <input type="text" name="model" x-model="model" required
-                               :placeholder='isOther ? {{ _("e.g. together_ai/meta-llama/Llama-3-70b")|tojson }} : ""'>
-                    </label>
-                </div>
-            </div>
-            <label>{{ _("API Key") }}
-                <input type="password" name="api_key" placeholder="{{ _("sk-...") }}" required>
-            </label>
-            <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">{{ _("Add") }}</button>
-        </form>
-    </details>
-</div>
-
-<div class="card" style="margin-bottom: 1rem;">
+<section class="card settings-card">
     <div class="card-header"><h3>{{ _("Modules") }}</h3></div>
+    <p class="settings-lead">{{ _("Turn on the parts of Virgil you want. Each one adds its own page.") }}</p>
     <form method="POST" action="/settings/features"
           x-data="{ freedom: {{ 'true' if feature_flags.freedom else 'false' }} }">
         <label class="module-toggle">
@@ -179,25 +102,192 @@
             <button type="submit" class="btn btn-primary btn-sm">{{ _("Save modules") }}</button>
         </div>
     </form>
-</div>
+</section>
 
-{# Reference, not a setting: where the data lives. Last, so the general tab
-   opens on what can be changed. #}
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ _("Storage") }}</h3></div>
-    <p class="settings-path"><strong>{{ _("Database:") }}</strong> <span class="text-muted">{{ db_path }}</span></p>
-</div>
+{% elif active_tab == 'ai' %}
+<!-- ═══ AI ═══ -->
+{% set active_provider = llm_providers | selectattr('is_active') | first %}
+<section class="card settings-card" id="ai-model">
+    <div class="card-header">
+        <h3>{{ _("AI model") }}</h3>
+        {% if active_provider %}
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("Ready to use") }}</span>
+        {% elif server_llm %}
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("Server key") }}</span>
+        {% else %}
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("Not set up") }}</span>
+        {% endif %}
+    </div>
+    <p class="settings-lead">{{ _("Writes the morning briefing and the A.N.D.Y. daily plan, reads your workout notes, sums up experiments and imports lab results.") }}</p>
+
+    {% if llm_providers %}
+    <ul class="settings-list">
+        {% for p in llm_providers %}
+        <li class="settings-list-row">
+            <div class="settings-list-main">
+                <strong>{{ p.provider }}</strong>
+                <span class="settings-list-meta">{{ p.model }} <code>{{ p.api_key_masked }}</code></span>
+            </div>
+            <div class="settings-list-actions">
+                {% if p.is_active %}
+                <span class="job-status-badge job-status-badge-succeeded">{{ _("In use") }}</span>
+                {% else %}
+                <form method="POST" action="/settings/llm/activate">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline">{{ _("Use this") }}</button>
+                </form>
+                {% endif %}
+                <form method="POST" action="/settings/llm/delete"
+                      data-confirm="{% trans name=p.provider %}Remove the {{ name }} key?{% endtrans %}">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline btn-quiet-danger">{{ _("Remove") }}</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="settings-status">
+        {% if server_llm %}{{ _("Virgil uses this server's key until you add your own.") }}{% else %}{{ _("Add a key to turn on the AI features.") }}{% endif %}
+    </p>
+    {% endif %}
+
+    {# An ordered scale, so it reads as one: pick a level and it saves. Each chip
+       carries its own value and the server re-renders the choice, so there is
+       no client state to drift and this still works without scripts. #}
+    <form method="POST" action="/settings/llm/reasoning" class="thinking-level">
+        <div class="thinking-level-head">
+            <span class="thinking-level-title" id="thinking-level-title">{{ _("Thinking level") }}</span>
+            <small class="text-muted">{{ _("How much the model may think before answering. Higher levels cost more and take longer.") }}</small>
+        </div>
+        <div class="thinking-level-scale" role="group" aria-labelledby="thinking-level-title">
+            {% for effort in reasoning_efforts %}
+            <button type="submit" name="reasoning_effort" value="{{ effort }}" data-level="{{ effort }}"
+                    class="level-chip {{ 'selected' if effort == reasoning_effort else '' }}"
+                    aria-pressed="{{ 'true' if effort == reasoning_effort else 'false' }}">{{ effort }}</button>
+            {% endfor %}
+        </div>
+    </form>
+
+    <details class="settings-more" {% if not llm_providers and not server_llm %}open{% endif %}>
+        <summary>{{ _("Add a key") }}</summary>
+        <form method="POST" action="/settings/llm/add" x-data="llmProviderForm" class="settings-form">
+            <div class="grid">
+                <div>
+                    <label>{{ _("Provider") }}
+                        <select name="provider" required x-model="provider" @change="setProvider">
+                            <option value="anthropic">{{ _("Anthropic") }}</option>
+                            <option value="openai">{{ _("OpenAI") }}</option>
+                            <option value="gemini">{{ _("Google Gemini") }}</option>
+                            <option value="mistral">{{ _("Mistral") }}</option>
+                            <option value="groq">{{ _("Groq") }}</option>
+                            <option value="ollama">{{ _("Ollama (local)") }}</option>
+                            <option value="other">{{ _("Other (LiteLLM)") }}</option>
+                        </select>
+                    </label>
+                </div>
+                <div>
+                    <label>{{ _("Model") }}
+                        <input type="text" name="model" x-model="model" required
+                               :placeholder='isOther ? {{ _("e.g. together_ai/meta-llama/Llama-3-70b")|tojson }} : ""'>
+                    </label>
+                </div>
+            </div>
+            <label>{{ _("API Key") }}
+                <input type="password" name="api_key" placeholder="{{ _("sk-...") }}" required>
+            </label>
+            <p class="settings-note">{{ _("Stored encrypted. Whoever runs this server can still read it.") }}</p>
+            <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Add key") }}</button></div>
+        </form>
+    </details>
+</section>
+
+<section class="card settings-card" id="briefing">
+    <div class="card-header">
+        <h3>{{ _("Morning briefing") }}</h3>
+        {% if briefing_enabled %}
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("On") }}</span>
+        {% else %}
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
+        {% endif %}
+    </div>
+    <p class="settings-lead">{{ _("A short read on your day, written by the AI model and shown on the dashboard each morning.") }}</p>
+    {% if not active_provider and not server_llm %}
+    <p class="settings-note">{{ _("It needs an AI model: add a key above first.") }}</p>
+    {% endif %}
+    <form method="POST" action="/settings/automation">
+        <input type="hidden" name="briefing_shown" value="1">
+        {% if not briefing_enabled %}<input type="hidden" name="briefing_enabled" value="1">{% endif %}
+        <button type="submit" class="btn btn-sm {{ 'btn-outline' if briefing_enabled else 'btn-primary' }}">
+            {{ _("Turn off") if briefing_enabled else _("Turn on") }}
+        </button>
+    </form>
+</section>
+
+<section class="card settings-card" id="tokens">
+    <div class="card-header"><h3>{{ _("Connect an assistant") }}</h3></div>
+    <p class="settings-lead">
+        {{ _("A token lets a tool such as Claude Code or a script read or change your data through the API and MCP. It works only for your account, and only within the access you give it.") }}
+    </p>
+    {% if api_tokens %}
+    <div class="overflow-x">
+        <table>
+            <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Token") }}</th><th>{{ _("Access") }}</th><th>{{ _("Last used") }}</th><th>{{ _("Expires") }}</th><th></th></tr></thead>
+            <tbody>
+                {% for t in api_tokens %}
+                <tr>
+                    <td>{{ t.name }}</td>
+                    <td><code>{{ t.token_prefix }}...</code></td>
+                    <td><small>{{ t.scopes }}</small></td>
+                    <td><small>{{ t.last_used_at[:16] | replace('T', ' ') if t.last_used_at else _('Never') }}</small></td>
+                    <td><small>{% if t.expired %}{{ _("Expired") }}{% elif t.expires_at %}{{ t.expires_at[:10] }}{% else %}{{ _("Never") }}{% endif %}</small></td>
+                    <td>
+                        <form method="POST" action="/settings/tokens/{{ t.id }}/revoke" class="settings-inline"
+                              data-confirm="{% trans name=t.name %}Revoke {{ name }}? Tools using it stop working at once.{% endtrans %}">
+                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Revoke") }}</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% endif %}
+    <details class="settings-more" {% if not api_tokens %}open{% endif %}>
+        <summary>{{ _("Create a token") }}</summary>
+        <form method="POST" action="/settings/tokens" class="invite-form">
+            <div class="grid">
+                <div><label>{{ _("Name") }} <input type="text" name="name" maxlength="60" placeholder="{{ _("e.g. Claude Code") }}" required></label></div>
+                <div><label>{{ _("Expires") }}
+                    <select name="expires">
+                        <option value="30">{{ _("In 30 days") }}</option>
+                        <option value="90" selected>{{ _("In 90 days") }}</option>
+                        <option value="365">{{ _("In a year") }}</option>
+                        <option value="never">{{ _("Never") }}</option>
+                    </select>
+                </label></div>
+            </div>
+            <fieldset class="token-scopes">
+                <legend>{{ _("What it can do") }}</legend>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="read" checked> {{ _("Read: see your data (Freedom and finance also need their own scope)") }}</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="write" checked> {{ _("Write: log days, training, goals and the rest") }}</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="sensitive"> {{ _("Freedom: habits, slips and journal entries") }}</label>
+                <label class="checkbox-label"><input type="checkbox" name="scope" value="finance"> {{ _("Finance: balances, the fortress and its settings") }}</label>
+            </fieldset>
+            {{ identity_fields() }}
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Create token") }}</button>
+        </form>
+    </details>
+</section>
 
 {% elif active_tab == 'configuration' %}
-<!-- ═══ APP CONFIG TAB: dictionary tables ═══ -->
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ _("Training Schedule") }}</h3>
-        <small class="text-muted">{{ _("What the A.N.D.Y. planner assumes about your week. It only decides whether today is a training day — it never prescribes movements.") }}</small>
-    </div>
-    <form action="/settings/training-schedule" method="post"
-          style="display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: flex-end;">
+<!-- ═══ TRAINING ═══ -->
+<section class="card settings-card">
+    <div class="card-header"><h3>{{ _("Training days") }}</h3></div>
+    <p class="settings-lead">{{ _("The A.N.D.Y. planner uses these to tell whether today is a training day. It never picks the exercises.") }}</p>
+    <form action="/settings/training-schedule" method="post" class="settings-row">
         <fieldset class="day-chips">
-            <legend>{{ _("Training days") }}</legend>
+            <legend>{{ _("Days you train") }}</legend>
             <input type="hidden" name="training_day_chips" value="1">
             {% for key, label in [('mon', _('Mon')), ('tue', _('Tue')), ('wed', _('Wed')), ('thu', _('Thu')), ('fri', _('Fri')), ('sat', _('Sat')), ('sun', _('Sun'))] %}
             <label class="day-chip">
@@ -206,21 +296,17 @@
             </label>
             {% endfor %}
         </fieldset>
-        <label style="margin:0;">{{ _("Swim sessions / week") }}
-            <input type="number" name="training_swim_per_week" value="{{ training_swim_per_week }}"
-                   min="0" max="7" style="width: 6rem; margin: 0;">
+        <label>{{ _("Swims a week") }}
+            <input type="number" name="training_swim_per_week" value="{{ training_swim_per_week }}" min="0" max="7">
         </label>
         <button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button>
     </form>
-    <p class="text-muted" style="margin-top:0.5rem;"><small>
-        {{ _("Swim has no fixed day - set 0 to drop it from the plan. With no day chosen, the planner is told no fixed days are set, rather than assuming a week you never chose.") }}
-    </small></p>
-</div>
+    <p class="settings-note">{{ _("Swims have no fixed day; 0 leaves them out of the plan. Leave every day off if you have no fixed training days.") }}</p>
+</section>
 
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ _("Exercise Library") }}</h3>
-        <small class="text-muted">{{ _("The vocabulary the workout parser resolves your notes against. Add your own entries; built-in ones can be archived (hidden from the parser) but not edited or deleted.") }}</small>
-    </div>
+<section class="card settings-card">
+    <div class="card-header"><h3>{{ _("Exercise library") }}</h3></div>
+    <p class="settings-lead">{{ _("The exercises Virgil recognises when it reads your workout notes. Add your own; built-in ones can be hidden or tagged, not changed.") }}</p>
 
     <datalist id="lib-tags">
         {% for t in library_all_tags %}<option value="{{ t }}">{% endfor %}
@@ -238,278 +324,398 @@
         </select>
     </div>
 
-    {# The add form was permanently open above a long table. It is one action
-       among several now, so it sits behind its own disclosure. #}
-    <details style="margin-bottom: 1.25rem;">
-        <summary style="cursor:pointer;font-weight:600;">{{ _("Add exercise") }}</summary>
-    <form action="/settings/library/add" method="post"
-          style="display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: 0.5rem;">
-        <input type="text" name="name" placeholder="{{ _("Exercise name") }}" required style="width: 12rem; margin: 0;">
-        <select name="section" style="width: auto; margin: 0;">
-            {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == 'Core' else '' }}>{{ s|label }}</option>{% endfor %}
-        </select>
-        <input type="number" name="sets" placeholder="{{ _("Sets") }}" min="1" max="20" style="width: 4.5rem; margin: 0;">
-        <input type="text" name="reps" placeholder="{{ _("Reps (e.g. 10-12)") }}" style="width: 8rem; margin: 0;">
-        <select name="metric" style="width: auto; margin: 0;">
-            <option value="reps" selected>{{ _("Reps") }}</option>
-            <option value="time">{{ _("Time") }}</option>
-        </select>
-        <input type="text" name="notes" placeholder="{{ _("Cue / notes") }}" style="flex: 1; min-width: 10rem; margin: 0;">
-        <input type="text" name="tags" placeholder="{{ _("Tags (comma-separated)") }}" list="lib-tags" style="width: 10rem; margin: 0;">
-        <button type="submit" class="btn btn-primary btn-sm">{{ _("+ Add") }}</button>
-    </form>
+    <details class="settings-more library-add">
+        <summary>{{ _("Add exercise") }}</summary>
+        <form action="/settings/library/add" method="post" class="library-form">
+            <label class="library-form-wide">{{ _("Name") }}
+                <input type="text" name="name" required>
+            </label>
+            <label>{{ _("Section") }}
+                <select name="section">
+                    {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == 'Core' else '' }}>{{ s|label }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>{{ _("Sets") }}
+                <input type="number" name="sets" min="1" max="20">
+            </label>
+            <label>{{ _("Reps") }}
+                <input type="text" name="reps" placeholder="{{ _("e.g. 10-12") }}">
+            </label>
+            <label>{{ _("Counted in") }}
+                <select name="metric">
+                    <option value="reps" selected>{{ _("Reps") }}</option>
+                    <option value="time">{{ _("Time") }}</option>
+                </select>
+            </label>
+            <label class="library-form-wide">{{ _("Cue or note") }}
+                <input type="text" name="notes">
+            </label>
+            <label class="library-form-wide">{{ _("Tags") }}
+                <input type="text" name="tags" placeholder="{{ _("comma-separated") }}" list="lib-tags">
+            </label>
+            <div class="library-form-wide"><button type="submit" class="btn btn-primary btn-sm">{{ _("Add exercise") }}</button></div>
+        </form>
     </details>
+
+    {% macro library_row(ex) %}
+    <li class="library-row" data-library-name="{{ ex.name }}" data-library-tags="{{ ex.tags | join(' ') }}"
+        data-library-section="{{ ex.section }}">
+        <div class="library-row-main">
+            <span class="library-name">{{ ex.name }}{% if ex.builtin %} <small class="library-builtin">{{ _("built-in") }}</small>{% endif %}</span>
+            <span class="library-dose">{% if ex.sets is not none %}{{ ex.sets }} &times; {% endif %}{{ ex.reps }}{% if ex.metric == 'time' %} <small>{{ _("timed") }}</small>{% endif %}</span>
+            {% if ex.notes %}<span class="library-notes">{{ ex.notes }}</span>{% endif %}
+            {% if ex.tags %}<span class="library-tags">{% for t in ex.tags %}<span class="library-tag">{{ t }}</span>{% endfor %}</span>{% endif %}
+        </div>
+        <details class="library-edit">
+            <summary>{{ _("Edit") }}</summary>
+            <div class="library-edit-body">
+                {% if ex.builtin %}
+                {# Tags are the person's own metadata, not part of a built-in row's
+                   frozen identity, so this form only posts entry_id + tags. #}
+                <form action="/settings/library/update" method="post" class="library-form">
+                    <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                    <label class="library-form-wide">{{ _("Tags") }}
+                        <input type="text" name="tags" value="{{ ex.tags | join(', ') }}" list="lib-tags" placeholder="{{ _("comma-separated") }}">
+                    </label>
+                    <div class="library-form-wide"><button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button></div>
+                </form>
+                {% else %}
+                <form action="/settings/library/update" method="post" class="library-form">
+                    <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                    <label class="library-form-wide">{{ _("Name") }}
+                        <input type="text" name="name" value="{{ ex.name }}" required>
+                    </label>
+                    <label>{{ _("Section") }}
+                        <select name="section">
+                            {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == ex.section else '' }}>{{ s }}</option>{% endfor %}
+                        </select>
+                    </label>
+                    <label>{{ _("Sets") }}
+                        <input type="number" name="sets" value="{{ ex.sets if ex.sets is not none else '' }}" min="1" max="20">
+                    </label>
+                    <label>{{ _("Reps") }}
+                        <input type="text" name="reps" value="{{ ex.reps }}">
+                    </label>
+                    <label>{{ _("Counted in") }}
+                        <select name="metric">
+                            <option value="reps" {{ 'selected' if ex.metric == 'reps' else '' }}>{{ _("Reps") }}</option>
+                            <option value="time" {{ 'selected' if ex.metric == 'time' else '' }}>{{ _("Time") }}</option>
+                        </select>
+                    </label>
+                    <label class="library-form-wide">{{ _("Cue or note") }}
+                        <input type="text" name="notes" value="{{ ex.notes }}">
+                    </label>
+                    <label class="library-form-wide">{{ _("Tags") }}
+                        <input type="text" name="tags" value="{{ ex.tags | join(', ') }}" list="lib-tags" placeholder="{{ _("comma-separated") }}">
+                    </label>
+                    <div class="library-form-wide"><button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button></div>
+                </form>
+                {% endif %}
+                <div class="settings-actions">
+                    <form action="/settings/library/archive" method="post">
+                        <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                        <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
+                        <button type="submit" class="btn btn-outline btn-sm">{{ _('Show again') if ex.archived else _('Hide') }}</button>
+                    </form>
+                    {% if not ex.builtin %}
+                    <form action="/settings/library/delete" method="post"
+                          data-confirm="{% trans name=ex.name %}Delete {{ name }} from the library?{% endtrans %}">
+                        <input type="hidden" name="entry_id" value="{{ ex.id }}">
+                        <button type="submit" class="btn btn-danger btn-sm">{{ _("Delete") }}</button>
+                    </form>
+                    {% endif %}
+                </div>
+            </div>
+        </details>
+    </li>
+    {% endmacro %}
 
     {% for section in section_order %}
-    <details {{ 'open' if loop.first else '' }} style="margin-bottom: 0.75rem;"
-             data-library-block="{{ section }}">
-        <summary style="cursor: pointer; font-weight: 600; margin-bottom: 0.5rem;">{{ section }}
-            <small class="text-muted">({{ library_by_section[section]|length }})</small>
-        </summary>
-        <div class="overflow-x">
-        <table class="exp-metric-table library-table" style="width: 100%;">
-            <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Section") }}</th><th>{{ _("Sets") }}</th><th>{{ _("Reps") }}</th><th>{{ _("Metric") }}</th><th>{{ _("Notes") }}</th><th>{{ _("Tags") }}</th><th></th></tr></thead>
-            <tbody>
-                {% for ex in library_by_section[section] %}
-                <tr {% if ex.archived %}style="opacity: 0.45;"{% endif %}
-                    data-library-name="{{ ex.name }}" data-library-tags="{{ ex.tags | join(' ') }}"
-                    data-library-section="{{ ex.section }}">
-                    {% if ex.builtin %}
-                    <td class="library-name">{{ ex.name }} <span class="badge" style="opacity: 0.7;">{{ _("built-in") }}</span></td>
-                    <td data-label="{{ _("Section") }}">{{ ex.section }}</td>
-                    <td data-label="{{ _("Sets") }}">{{ ex.sets if ex.sets is not none else '' }}</td>
-                    <td data-label="{{ _("Reps") }}">{{ ex.reps }}</td>
-                    <td data-label="{{ _("Metric") }}">{{ ex.metric }}</td>
-                    <td data-label="{{ _("Notes") }}" class="text-muted" style="font-size: var(--text-xs);">{{ ex.notes }}</td>
-                    <td class="library-actions">
-                        <!-- Tags are user metadata, not part of a builtin row's frozen
-                             identity (name/section/metric) — this form only ever posts
-                             entry_id + tags, so it never trips the builtin guard. -->
-                        <form action="/settings/library/update" method="post"
-                              style="display: flex; gap: 0.3rem; align-items: center; margin: 0;">
-                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
-                            <input type="text" name="tags" value="{{ ex.tags | join(', ') }}" list="lib-tags"
-                                   placeholder="{{ _("Tags") }}" style="width: 8rem; margin: 0; font-size: var(--text-xs);">
-                            <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save") }}</button>
-                        </form>
-                    </td>
-                    <td class="library-actions" style="white-space: nowrap;">
-                        <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
-                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
-                            <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
-                            <button type="submit" class="btn btn-secondary btn-sm">{{ _('Restore') if ex.archived else _('Archive') }}</button>
-                        </form>
-                    </td>
-                    {% else %}
-                    <td colspan="7" class="library-custom" style="padding: 0.2rem 0;">
-                        <form action="/settings/library/update" method="post"
-                              style="display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; margin: 0;">
-                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
-                            <input type="text" name="name" value="{{ ex.name }}" required style="width: 11rem; margin: 0; font-size: var(--text-xs);">
-                            <select name="section" style="width: auto; margin: 0; font-size: var(--text-xs);">
-                                {% for s in section_order %}<option value="{{ s }}" {{ 'selected' if s == ex.section else '' }}>{{ s }}</option>{% endfor %}
-                            </select>
-                            <input type="number" name="sets" value="{{ ex.sets if ex.sets is not none else '' }}" min="1" max="20" style="width: 4rem; margin: 0; font-size: var(--text-xs);">
-                            <input type="text" name="reps" value="{{ ex.reps }}" style="width: 6rem; margin: 0; font-size: var(--text-xs);">
-                            <select name="metric" style="width: auto; margin: 0; font-size: var(--text-xs);">
-                                <option value="reps" {{ 'selected' if ex.metric == 'reps' else '' }}>{{ _("Reps") }}</option>
-                                <option value="time" {{ 'selected' if ex.metric == 'time' else '' }}>{{ _("Time") }}</option>
-                            </select>
-                            <input type="text" name="notes" value="{{ ex.notes }}" style="flex: 1; min-width: 8rem; margin: 0; font-size: var(--text-xs);">
-                            <input type="text" name="tags" value="{{ ex.tags | join(', ') }}" list="lib-tags"
-                                   placeholder="{{ _("Tags") }}" style="width: 8rem; margin: 0; font-size: var(--text-xs);">
-                            <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save") }}</button>
-                        </form>
-                    </td>
-                    <td class="library-actions" style="white-space: nowrap;">
-                        <form action="/settings/library/archive" method="post" style="display: inline; margin: 0;">
-                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
-                            <input type="hidden" name="archived" value="{{ 0 if ex.archived else 1 }}">
-                            <button type="submit" class="btn btn-secondary btn-sm">{{ _('Restore') if ex.archived else _('Archive') }}</button>
-                        </form>
-                        <form action="/settings/library/delete" method="post" style="display: inline; margin: 0;"
-                              data-confirm="{% trans name=ex.name %}Delete {{ name }} from the library?{% endtrans %}">
-                            <input type="hidden" name="entry_id" value="{{ ex.id }}">
-                            <button type="submit" class="btn btn-danger btn-sm">&times;</button>
-                        </form>
-                    </td>
-                    {% endif %}
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-        </div>
+    {% set rows = library_by_section[section] %}
+    {% set active_rows = rows | rejectattr('archived') | list %}
+    {% set hidden_rows = rows | selectattr('archived') | list %}
+    <details class="library-section" data-library-block="{{ section }}">
+        <summary>{{ section }} <small class="text-muted">{{ active_rows | length }}</small></summary>
+        <ul class="library-list">
+            {% for ex in active_rows %}{{ library_row(ex) }}{% endfor %}
+        </ul>
+        {% if hidden_rows %}
+        <details class="library-hidden" data-library-hidden>
+            <summary>{% trans count=hidden_rows|length %}{{ count }} hidden exercise{% pluralize %}{{ count }} hidden exercises{% endtrans %}</summary>
+            <p class="settings-note">{{ _("Hidden exercises are not matched when Virgil reads your notes.") }}</p>
+            <ul class="library-list">
+                {% for ex in hidden_rows %}{{ library_row(ex) }}{% endfor %}
+            </ul>
+        </details>
+        {% endif %}
     </details>
     {% endfor %}
-</div>
+</section>
 
 {% elif active_tab == 'integrations' %}
-<!-- ═══ INTEGRATIONS TAB ═══ -->
-
-<!-- Oura Ring -->
-<div class="card integration-card" style="margin-bottom: 1rem;">
+<!-- ═══ CONNECTIONS ═══ -->
+{% set oura_state = oura_integration.status if oura_integration else 'none' %}
+<section class="card settings-card integration-card">
     <div class="card-header">
         <h3>{{ _("Oura Ring") }}</h3>
-        {% if oura_integration and oura_integration.status == 'connected' %}
-        <span class="flag-normal" style="font-weight:600;">{{ _("Connected") }}</span>
-        {% elif oura_integration and oura_integration.status == 'error' %}
-        <span class="flag-h" style="font-weight:600;">{{ _("Error") }}</span>
-        {% elif oura_integration %}
-        <span class="text-muted">{{ _("Configured") }}</span>
+        {% if oura_state == 'connected' %}
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("Connected") }}</span>
+        {% elif oura_state == 'error' %}
+        <span class="job-status-badge job-status-badge-failed">{{ _("Reconnect needed") }}</span>
         {% else %}
-        <span class="text-muted">{{ _("Not configured") }}</span>
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("Not connected") }}</span>
         {% endif %}
     </div>
 
-    {% if oura_integration and oura_integration.status == 'connected' %}
-    <div style="display:flex;flex-wrap:wrap;gap:1rem;margin-bottom:0.75rem;">
-        {% if oura_integration.last_sync_at %}
-        <small class="text-muted">{% trans when=oura_integration.last_sync_at[:16] %}Last sync: {{ when }}{% endtrans %}</small>
-        {% endif %}
-        {% if oura_integration.token_expires_at %}
-        <small class="text-muted">{% trans when=oura_integration.token_expires_at[:16] %}Token expires: {{ when }}{% endtrans %}</small>
-        {% endif %}
-        {% if oura_sync_enabled %}
-        <small class="flag-normal">{{ _("Auto-sync enabled") }}</small>
-        {% endif %}
-    </div>
+    {% if oura_state == 'connected' %}
+    <p class="settings-status">
+        {% if oura_integration.last_sync_at %}{% trans when=oura_integration.last_sync_at[:16] | replace('T', ' ') %}Last synced {{ when }}.{% endtrans %}{% else %}{{ _("Not synced yet.") }}{% endif %}
+    </p>
     {% if oura_integration.scopes and 'workout' not in oura_integration.scopes %}
-    <div style="margin-bottom:0.75rem;padding:0.5rem;background:var(--flag-h-bg, rgba(239,68,68,0.1));border-radius:4px;font-size:var(--text-sm);">
-        {% trans %}New scopes available: <a href="/settings/oura/connect" style="color:var(--accent);font-weight:600;text-decoration:underline;">re-connect</a> to enable workout import.{% endtrans %}
-    </div>
+    <p class="settings-callout">
+        {% trans %}<a href="/settings/oura/connect">Connect again</a> to import your workouts too.{% endtrans %}
+    </p>
     {% endif %}
-    <p style="margin-bottom:0.5rem;"><strong>{{ _("Client ID:") }}</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
-    <div style="display:flex;gap:0.5rem;margin-bottom:1rem;">
-        <form method="POST" action="/settings/oura/sync" style="margin:0;">
-            <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
-            <button type="submit" class="btn btn-primary btn-sm">{{ _("Sync Now") }}</button>
-        </form>
-        <form method="POST" action="/settings/oura/disconnect" style="margin:0;">
-            <button type="submit" class="btn btn-outline btn-sm" style="color:var(--flag-h);">{{ _("Disconnect") }}</button>
+    <form method="POST" action="/settings/oura/sync" class="settings-actions">
+        <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
+        <button type="submit" class="btn btn-primary btn-sm">{{ _("Sync now") }}</button>
+    </form>
+
+    <div class="settings-subsection">
+        <h4>{{ _("Automatic sync") }}</h4>
+        <form method="POST" action="/settings/automation" class="settings-row">
+            <input type="hidden" name="oura_sync_shown" value="1">
+            <label class="settings-switch">
+                <input type="checkbox" name="oura_sync_enabled" {{ 'checked' if oura_sync_enabled else '' }}>
+                {{ _("Sync automatically") }}
+            </label>
+            <label>{{ _("Every (hours)") }}
+                <input type="number" name="oura_sync_interval_hours" value="{{ oura_sync_interval_hours }}" min="1" max="24">
+            </label>
+            <button type="submit" class="btn btn-outline btn-sm">{{ _("Save") }}</button>
         </form>
     </div>
 
-    <!-- Webhook -->
-    <div style="border-top:1px solid var(--border);padding-top:0.75rem;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
-            <h4 style="margin:0;font-size:0.9rem;">{{ _("Webhook (Real-time sync)") }}</h4>
+    <div class="settings-subsection">
+        <div class="settings-subsection-head">
+            <h4>{{ _("Instant updates") }}</h4>
             {% if webhook_registration and webhook_registration.desired_state == 'disabled' %}
-            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">{{ _("Disabling") }}</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Turning off") }}</span>
             {% elif webhook_registration and webhook_registration.status == 'active' %}
-            <span class="flag-normal" style="font-weight:600;font-size:0.75rem;">{{ _("Active") }}</span>
+            <span class="job-status-badge job-status-badge-succeeded">{{ _("On") }}</span>
             {% elif webhook_registration and webhook_registration.status == 'degraded' %}
-            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">{{ _("Partial") }}</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Partly working") }}</span>
             {% elif webhook_registration and webhook_registration.status == 'error' %}
-            <span class="flag-h" style="font-weight:600;font-size:0.75rem;">{{ _("Retrying") }}</span>
+            <span class="job-status-badge job-status-badge-failed">{{ _("Retrying") }}</span>
             {% elif webhook_enabled %}
-            <span class="text-muted" style="font-weight:600;font-size:0.75rem;">{{ _("Pending") }}</span>
+            <span class="job-status-badge job-status-badge-running">{{ _("Starting") }}</span>
+            {% else %}
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
             {% endif %}
         </div>
+        <p class="settings-lead">{{ _("Oura tells Virgil as soon as it has new data, so you don't wait for the next sync.") }}</p>
         {% if webhook_enabled %}
-        <div style="margin-bottom:0.5rem;">
-            <small class="text-muted">{{ _("Listening at") }} <code style="font-size:0.75rem;">{{ webhook_url }}</code></small>
-            {% if webhook_registration.renewal_due_at %}
-            <small class="text-muted" style="display:block;">{% trans when=webhook_registration.renewal_due_at[:16] %}Next subscription renewal: {{ when }}{% endtrans %}</small>
-            {% endif %}
-            {% if webhook_registration.last_error %}
-            <small class="flag-h" style="display:block;">{{ webhook_registration.last_error }}</small>
-            {% endif %}
-        </div>
-        <form method="POST" action="/settings/oura/webhook/disable" style="margin:0;">
+        {% if webhook_registration.last_error %}
+        <p class="settings-callout">{{ webhook_registration.last_error }}</p>
+        {% endif %}
+        <form method="POST" action="/settings/oura/webhook/disable" class="settings-actions">
             <button type="submit" class="btn btn-outline btn-sm">
-                {% if webhook_registration.desired_state == 'disabled' %}{{ _("Retry Disable") }}{% else %}{{ _("Disable Webhook") }}{% endif %}
+                {% if webhook_registration.desired_state == 'disabled' %}{{ _("Try turning off again") }}{% else %}{{ _("Turn off") }}{% endif %}
             </button>
         </form>
+        <details class="settings-more">
+            <summary>{{ _("Technical details") }}</summary>
+            <p class="settings-note">{{ _("Listening at") }} <code>{{ webhook_url }}</code></p>
+            {% if webhook_registration.renewal_due_at %}
+            <p class="settings-note">{% trans when=webhook_registration.renewal_due_at[:16] | replace('T', ' ') %}Next subscription renewal: {{ when }}{% endtrans %}</p>
+            {% endif %}
+        </details>
         {% else %}
-        <p class="text-muted" style="font-size:0.75rem;margin-bottom:0.5rem;">
-            {{ _("Registers a webhook subscription with Oura to receive real-time data pushes.") }}
-        </p>
-        <form method="POST" action="/settings/oura/webhook/enable" style="margin:0;">
-            <button type="submit" class="btn btn-secondary btn-sm">{{ _("Enable Webhook") }}</button>
+        <form method="POST" action="/settings/oura/webhook/enable" class="settings-actions">
+            <button type="submit" class="btn btn-outline btn-sm">{{ _("Turn on") }}</button>
         </form>
         {% endif %}
     </div>
 
-    {% elif oura_integration and oura_integration.status in ('configured', 'error') %}
-    {% if oura_integration.status == 'error' %}
-    <div style="margin-bottom:0.5rem;">
-        <small class="text-muted">{{ _("Token expired or invalid. Please re-connect.") }}</small>
-    </div>
-    {% endif %}
-    <p style="margin-bottom:0.5rem;"><strong>{{ _("Client ID:") }}</strong> <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
-    <div style="display:flex;gap:0.5rem;margin-bottom:0.75rem;">
+    <details class="settings-more settings-subsection">
+        <summary>{{ _("Connection details") }}</summary>
+        <p class="settings-note">{{ _("Client ID:") }} <code>{{ oura_integration.client_id[:8] }}...{{ oura_integration.client_id[-4:] }}</code></p>
+        {% if oura_integration.token_expires_at %}
+        <p class="settings-note">{% trans when=oura_integration.token_expires_at[:16] | replace('T', ' ') %}Access renews by {{ when }}.{% endtrans %}</p>
+        {% endif %}
+        <form method="POST" action="/settings/oura/disconnect" class="settings-actions">
+            <button type="submit" class="btn btn-outline btn-sm btn-quiet-danger">{{ _("Disconnect Oura") }}</button>
+        </form>
+    </details>
+
+    {% elif oura_state in ('configured', 'error') %}
+    <p class="settings-status">
+        {% if oura_state == 'error' %}{{ _("Oura stopped accepting the connection. Connect again to keep syncing.") }}{% else %}{{ _("Your Oura app is saved. Connect to start syncing.") }}{% endif %}
+    </p>
+    <div class="settings-actions">
         <a href="/settings/oura/connect" class="btn btn-primary btn-sm">{{ _("Connect to Oura") }}</a>
     </div>
-    <details>
-        <summary style="cursor:pointer;font-size:var(--text-sm);">{{ _("Change credentials") }}</summary>
-        <form method="POST" action="/settings/oura/save" style="margin-top:0.5rem;">
+    <details class="settings-more settings-subsection">
+        <summary>{{ _("Change app credentials") }}</summary>
+        <form method="POST" action="/settings/oura/save" class="settings-form">
             <div class="grid">
                 <div><label>{{ _("Client ID") }} <input type="text" name="client_id" value="{{ oura_integration.client_id }}" required></label></div>
                 <div><label>{{ _("Client Secret") }} <input type="password" name="client_secret" placeholder="{{ _("(encrypted)") }}" required></label></div>
             </div>
-            <button type="submit" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">{{ _("Save") }}</button>
+            <div><button type="submit" class="btn btn-outline btn-sm">{{ _("Save") }}</button></div>
         </form>
     </details>
 
     {% else %}
-    <ol class="text-muted oura-setup" style="margin-bottom:0.75rem;font-size:var(--text-sm);">
+    <p class="settings-lead">{{ _("Bring your sleep, readiness, activity and workouts in from Oura.") }}</p>
+    <ol class="text-muted oura-setup">
         <li>{% trans %}Create an application at <a href="https://cloud.ouraring.com/oauth/applications" target="_blank" rel="noopener">cloud.ouraring.com/oauth/applications</a>.{% endtrans %}</li>
         <li>{{ _("As its redirect URI, paste") }}
             <code id="oura-redirect-uri">{{ oura_redirect_uri }}</code>
             <button type="button" class="btn btn-outline btn-sm" data-copy="#oura-redirect-uri">{{ _("Copy") }}</button></li>
         <li>{{ _("Enter the application's client ID and secret below and save, then choose Connect to Oura.") }}</li>
     </ol>
-    <form method="POST" action="/settings/oura/save">
+    <form method="POST" action="/settings/oura/save" class="settings-form">
         <div class="grid">
-            <div><label>{{ _("Client ID") }} <input type="text" name="client_id" placeholder="{{ _("XXXXXXXX") }}" required></label></div>
-            <div><label>{{ _("Client Secret") }} <input type="password" name="client_secret" placeholder="{{ _("XXXXXXXX") }}" required></label></div>
+            <div><label>{{ _("Client ID") }} <input type="text" name="client_id" required></label></div>
+            <div><label>{{ _("Client Secret") }} <input type="password" name="client_secret" required></label></div>
         </div>
-        <button type="submit" class="btn btn-primary" style="margin-top:0.5rem;">{{ _("Save") }}</button>
+        <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button></div>
     </form>
     {% endif %}
-</div>
-
-<!-- Garmin placeholder -->
-<div class="card integration-card" style="margin-bottom: 1rem; opacity: 0.5;">
-    <div class="card-header">
-        <h3>{{ _("Garmin Connect") }}</h3>
-        <small class="text-muted">{{ _("Coming soon") }}</small>
-    </div>
-    <p class="text-muted" style="font-size:var(--text-sm);">{{ _("Garmin wearable integration for activity and sleep data.") }}</p>
-</div>
-
-<!-- Apple Health placeholder -->
-<div class="card integration-card" style="opacity: 0.5;">
-    <div class="card-header">
-        <h3>{{ _("Apple Health") }}</h3>
-        <small class="text-muted">{{ _("Coming soon") }}</small>
-    </div>
-    <p class="text-muted" style="font-size:var(--text-sm);">{{ _("Apple Health integration for workouts, heart rate, and more.") }}</p>
-</div>
+</section>
+<p class="settings-later">{{ _("Garmin and Apple Health are planned.") }}</p>
 
 {% elif active_tab == 'data' %}
-<!-- ═══ DATA TAB ═══ -->
+<!-- ═══ DATA ═══ -->
+{% set backup = backup_status %}
+<section class="card settings-card" id="backups">
+    <div class="card-header">
+        <h3>{{ _("Backups") }}</h3>
+        {% if backup.state == 'failed' %}
+        <span class="job-status-badge job-status-badge-failed">{{ _("Failed") }}</span>
+        {% elif backup.state == 'running' %}
+        <span class="job-status-badge job-status-badge-running">{{ _("Running") }}</span>
+        {% elif backup.state == 'overdue' %}
+        <span class="job-status-badge job-status-badge-failed">{{ _("Overdue") }}</span>
+        {% elif backup.state == 'off' %}
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
+        {% elif backup.state == 'none' %}
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("None yet") }}</span>
+        {% else %}
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("On") }}</span>
+        {% endif %}
+    </div>
+    <p class="settings-status" data-backup-state="{{ backup.state }}">
+        {% if backup.state == 'failed' %}{% if backup.failed_error %}{% trans age=backup.failed_age, error=backup.failed_error %}The last backup attempt failed {{ age }}: {{ error }}{% endtrans %}{% else %}{% trans age=backup.failed_age %}The last backup attempt failed {{ age }}.{% endtrans %}{% endif %}
+        {% elif backup.state == 'running' %}{{ _("A backup is queued or running.") }}
+        {% elif backup.state == 'overdue' %}{{ _("No backup in more than two intervals.") }}
+        {% elif backup.state == 'off' %}{{ _("Automated backup is off.") }}
+        {% elif backup.state == 'none' %}{{ _("No backup has been made yet.") }}
+        {% endif %}
+        {% if backup.latest_age %}{% trans age=backup.latest_age, local=backup.latest_local %}Latest backup: {{ age }} ({{ local }}).{% endtrans %}{% endif %}
+    </p>
+    <p class="settings-lead">{{ _("Virgil copies your data on this server on a schedule and keeps the newest copies. Resetting or deleting your account deletes them.") }}</p>
+    <form method="POST" action="/settings/automation">
+        <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
+        <input type="hidden" name="backup_shown" value="1">
+        <label class="settings-switch">
+            <input type="checkbox" name="backup_enabled" {{ 'checked' if backup_enabled else '' }}>
+            {{ _("Back up automatically") }}
+        </label>
+        <div class="settings-row">
+            <label>{{ _("Every (hours)") }}
+                <input type="number" name="backup_interval_hours" value="{{ backup_interval_hours }}" min="1" max="168">
+            </label>
+            <label>{{ _("Copies to keep") }}
+                <input type="number" name="backup_max_copies" value="{{ backup_max_copies }}" min="1" max="30">
+            </label>
+        </div>
+        <div class="settings-actions">
+            <button type="submit" class="btn btn-primary btn-sm">{{ _("Save") }}</button>
+            {# formaction, not a nested <form> (invalid HTML that browsers flatten):
+               the backup endpoint ignores the other fields, and its redirect
+               carries the real outcome. #}
+            <button type="submit" formaction="/settings/backup/now" class="btn btn-outline btn-sm">{{ _("Back up now") }}</button>
+        </div>
+    </form>
 
-<!-- Export to Markdown -->
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ _("Export to Markdown") }}</h3></div>
-    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">{{ _("Download a readable summary of a period, for reading or pasting into an AI assistant.") }}</p>
-    <form method="POST" action="/settings/export">
-        <div style="margin-bottom: 0.75rem;">
-            <label style="font-weight:600;margin-bottom:0.5rem;">{{ _("Scope") }}</label>
-            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+    {% if offsite %}
+    {# Administrators only: off-site copies cover every account. #}
+    <div class="settings-subsection" id="offsite-status">
+        <div class="settings-subsection-head">
+            <h4>{{ _("Off-site copies, all accounts") }}</h4>
+            {% if offsite.state == 'off' %}
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
+            {% elif offsite.state == 'misconfigured' %}
+            <span class="job-status-badge job-status-badge-failed">{{ _("Not running") }}</span>
+            {% elif offsite.state == 'failed' %}
+            <span class="job-status-badge job-status-badge-failed">{{ _("Failed") }}</span>
+            {% elif offsite.state == 'overdue' %}
+            <span class="job-status-badge job-status-badge-failed">{{ _("Overdue") }}</span>
+            {% elif offsite.state == 'none' %}
+            <span class="job-status-badge job-status-badge-cancelled">{{ _("None yet") }}</span>
+            {% else %}
+            <span class="job-status-badge job-status-badge-succeeded">{{ _("On") }}</span>
+            {% endif %}
+        </div>
+        <p class="settings-status" data-offsite-state="{{ offsite.state }}">
+            {% if offsite.state == 'off' %}{{ _("Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings.") }}
+            {% elif offsite.state == 'misconfigured' %}{{ offsite.problem }}.
+            {% elif offsite.state == 'failed' %}{% trans problem=offsite.problem %}The last attempt failed: {{ problem }}. It retries every hour.{% endtrans %}
+            {% elif offsite.state == 'overdue' %}{{ _("No off-site copy in more than two days.") }}
+            {% elif offsite.state == 'none' %}{{ _("The first copy is made within a minute or two of starting.") }}
+            {% endif %}
+            {% if offsite.latest_age %}{% trans age=offsite.latest_age, count=offsite.latest_files, size=offsite.latest_megabytes %}Latest copy: {{ age }}, {{ count }} file, {{ size }} MB.{% pluralize %}Latest copy: {{ age }}, {{ count }} files, {{ size }} MB.{% endtrans %}{% endif %}
+            {% if offsite.pending_deletions %}{% trans count=offsite.pending_deletions %}{{ count }} account deletion waiting to reach it.{% pluralize %}{{ count }} account deletions waiting to reach it.{% endtrans %}{% endif %}
+        </p>
+        <p class="settings-note">
+            {% if offsite.bucket %}{% trans bucket=offsite.bucket %}Once a day every account's database, the registry and the encryption key are encrypted and uploaded to the <code>{{ bucket }}</code> bucket. Deleting or resetting an account deletes its copies there too.{% endtrans %}{% else %}{{ _("Once a day every account's database, the registry and the encryption key are encrypted and uploaded. Deleting or resetting an account deletes its copies there too.") }}{% endif %}
+        </p>
+    </div>
+    {% endif %}
+</section>
+
+<section class="card settings-card" id="export">
+    <div class="card-header"><h3>{{ _("Download your data") }}</h3></div>
+    <ul class="settings-list">
+        <li class="settings-list-row">
+            <div class="settings-list-main">
+                <strong>{{ _("Full export") }}</strong>
+                <span class="settings-list-meta">{{ _("Everything, as JSON. Restore it here or on another server.") }}</span>
+            </div>
+            <div class="settings-list-actions"><a href="/settings/export/json" class="btn btn-outline btn-sm">{{ _("Download JSON") }}</a></div>
+        </li>
+        <li class="settings-list-row">
+            <div class="settings-list-main">
+                <strong>{{ _("Spreadsheet") }}</strong>
+                <span class="settings-list-meta">{{ _("Your records as CSV tables, for Excel or Google Sheets.") }}</span>
+            </div>
+            <div class="settings-list-actions"><a href="/settings/export/csv" class="btn btn-outline btn-sm">{{ _("Download CSV") }}</a></div>
+        </li>
+        <li class="settings-list-row">
+            <div class="settings-list-main">
+                <strong>{{ _("Database file") }}</strong>
+                <span class="settings-list-meta">{{ _("The raw SQLite file, for advanced use.") }}</span>
+            </div>
+            <div class="settings-list-actions"><a href="/settings/backup" class="btn btn-outline btn-sm">{{ _("Download .db") }}</a></div>
+        </li>
+    </ul>
+    <details class="settings-more settings-subsection">
+        <summary>{{ _("Summary to read or give an AI assistant") }}</summary>
+        <p class="settings-note">{{ _("A readable Markdown summary of a period.") }}</p>
+        <form method="POST" action="/settings/export" class="settings-form">
+            <fieldset class="settings-options">
+                <legend>{{ _("Period") }}</legend>
                 {% for scope, label in [('weekly', _('Weekly')), ('monthly', _('Monthly')), ('yearly', _('Yearly')), ('all', _('All'))] %}
-                <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
-                    <input type="radio" name="scope" value="{{ scope }}" {{ 'checked' if scope == 'weekly' else '' }}
-                           style="width:auto;margin:0;">
+                <label class="settings-option">
+                    <input type="radio" name="scope" value="{{ scope }}" {{ 'checked' if scope == 'weekly' else '' }}>
                     {{ label }}
                 </label>
                 {% endfor %}
-            </div>
-        </div>
-        <div style="margin-bottom: 0.75rem;">
-            <label style="font-weight:600;margin-bottom:0.5rem;">{{ _("Sections") }}</label>
-            <div style="display:grid;grid-template-columns:repeat(auto-fill, minmax(180px, 1fr));gap:0.35rem;">
+            </fieldset>
+            <fieldset class="settings-options settings-options-grid">
+                <legend>{{ _("Sections") }}</legend>
                 {% set export_sections = [
                     ('daily_logs', _('Daily Logs')),
                     ('training', _('Training')),
@@ -526,187 +732,35 @@
                     ('goals', _('Goals'))
                 ] %}
                 {% for key, label in export_sections %}
-                <label style="display:inline-flex;align-items:center;gap:0.35rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
-                    <input type="checkbox" name="sections" value="{{ key }}" checked
-                           style="width:auto;margin:0;">
+                <label class="settings-option">
+                    <input type="checkbox" name="sections" value="{{ key }}" checked>
                     {{ label }}
                 </label>
                 {% endfor %}
-            </div>
-        </div>
-        <button type="submit" class="btn btn-primary">{{ _("Download Markdown") }}</button>
-    </form>
-</div>
+            </fieldset>
+            <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Download summary") }}</button></div>
+        </form>
+    </details>
+</section>
 
-<!-- Download & Export -->
-<div class="card">
-    <div class="card-header"><h3>{{ _("Download") }}</h3></div>
-    <div style="display:flex;flex-wrap:wrap;gap:0.5rem;">
-        <a href="/settings/backup" class="btn btn-outline">{{ _("Download virgil.db") }}</a>
-        <a href="/settings/export/json" class="btn btn-outline">{{ _("Export JSON") }}</a>
-        <a href="/settings/export/csv" class="btn btn-outline">{{ _("Export CSV") }}</a>
-    </div>
-</div>
-
-<!-- Restore from a JSON export -->
-<div class="card" style="margin-top: 1rem;">
-    <div class="card-header"><h3>{{ _("Restore from JSON") }}</h3></div>
-    <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-        {{ _("Replace your data with an Export JSON file, from this server or another one. The file is checked first and you see what would change before anything is replaced. LLM keys, the Oura connection and your login are not part of an export and stay as they are.") }}
+<section class="card settings-card" id="restore">
+    <div class="card-header"><h3>{{ _("Restore from a file") }}</h3></div>
+    <p class="settings-lead">
+        {{ _("Replace your data with a full export from this or another server. You see what would change before anything is replaced. AI keys, the Oura connection and your sign-in stay as they are.") }}
     </p>
-    <form method="POST" action="/settings/import" enctype="multipart/form-data">
+    <form method="POST" action="/settings/import" enctype="multipart/form-data" class="settings-form">
         <label>{{ _("Export file") }}
             <input type="file" name="file" accept=".json,application/json" required class="file-input">
         </label>
-        <button type="submit" class="btn btn-outline" style="margin-top: 0.75rem;">{{ _("Check file") }}</button>
+        <div><button type="submit" class="btn btn-outline btn-sm">{{ _("Check file") }}</button></div>
     </form>
-</div>
+</section>
 
-{% elif active_tab == 'automation' %}
-<!-- ═══ AUTOMATION TAB ═══ -->
-
-<form method="POST" action="/settings/automation">
-    <input type="hidden" name="job_nonce" value="{{ job_nonce }}">
-    <!-- Backup -->
-    <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>{{ _("Automated Backup") }}</h3></div>
-        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            {{ _("Creates scheduled SQLite backups on the server with rolling retention. A factory reset or deleting the account deletes them.") }}
-        </p>
-        {% set backup = backup_status %}
-        <p data-backup-state="{{ backup.state }}"
-           style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;margin-bottom:0.75rem;font-size:var(--text-sm);">
-            {% if backup.state == 'failed' %}
-            <span class="job-status-badge job-status-badge-failed">{{ _("Failed") }}</span>
-            <span>{% if backup.failed_error %}{% trans age=backup.failed_age, error=backup.failed_error %}The last backup attempt failed {{ age }}: {{ error }}{% endtrans %}{% else %}{% trans age=backup.failed_age %}The last backup attempt failed {{ age }}.{% endtrans %}{% endif %}</span>
-            {% elif backup.state == 'running' %}
-            <span class="job-status-badge job-status-badge-running">{{ _("Running") }}</span>
-            <span>{{ _("A backup is queued or running.") }}</span>
-            {% elif backup.state == 'overdue' %}
-            <span class="job-status-badge job-status-badge-failed">{{ _("Overdue") }}</span>
-            <span>{{ _("No backup in more than two intervals.") }}</span>
-            {% elif backup.state == 'off' %}
-            <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
-            <span>{{ _("Automated backup is off.") }}</span>
-            {% elif backup.state == 'none' %}
-            <span class="job-status-badge job-status-badge-cancelled">{{ _("None yet") }}</span>
-            <span>{{ _("No backup has been made yet.") }}</span>
-            {% else %}
-            <span class="job-status-badge job-status-badge-succeeded">OK</span>
-            {% endif %}
-            {% if backup.latest_age %}
-            <span>{% trans age=backup.latest_age, local=backup.latest_local %}Latest backup: {{ age }} ({{ local }}).{% endtrans %}</span>
-            {% endif %}
-        </p>
-        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
-            <input type="checkbox" name="backup_enabled" {{ 'checked' if backup_enabled else '' }}
-                   style="width:auto;margin:0;">
-            {{ _("Enable automated backup") }}
-        </label>
-        <div class="grid">
-            <div>
-                <label>{{ _("Interval (hours)") }}
-                    <input type="number" name="backup_interval_hours" value="{{ backup_interval_hours }}" min="1" max="168">
-                </label>
-            </div>
-            <div>
-                <label>{{ _("Max copies") }}
-                    <input type="number" name="backup_max_copies" value="{{ backup_max_copies }}" min="1" max="30">
-                </label>
-            </div>
-        </div>
-        <div style="margin-top:0.75rem;">
-            <!-- formaction submit (NOT a nested <form> — invalid HTML that
-                 browsers flatten): posts to the backup endpoint, which ignores
-                 the surrounding automation fields, and the redirect carries the
-                 real msg/err outcome. The old HTMX hx-swap="none" version showed
-                 "Backup started..." and discarded the response — failures
-                 looked like successes. -->
-            <button type="submit" formaction="/settings/backup/now" class="btn btn-outline btn-sm">{{ _("Backup Now") }}</button>
-        </div>
-    </div>
-
-    {% if offsite %}
-    <!-- Off-site copies: administrators only, they cover every account -->
-    <div class="card" style="margin-bottom: 1rem;" id="offsite-status">
-        <div class="card-header"><h3>{{ _("Off-site Copies") }}</h3></div>
-        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            {% if offsite.bucket %}{% trans bucket=offsite.bucket %}Once a day every account's database, the registry and the encryption key are encrypted and uploaded to the <code>{{ bucket }}</code> bucket. Deleting or resetting an account deletes its copies there too.{% endtrans %}{% else %}{{ _("Once a day every account's database, the registry and the encryption key are encrypted and uploaded. Deleting or resetting an account deletes its copies there too.") }}{% endif %}
-        </p>
-        <p data-offsite-state="{{ offsite.state }}"
-           style="display:flex;flex-wrap:wrap;align-items:center;gap:0.5rem;font-size:var(--text-sm);">
-            {% if offsite.state == 'off' %}
-            <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
-            <span>{{ _("Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings.") }}</span>
-            {% elif offsite.state == 'misconfigured' %}
-            <span class="job-status-badge job-status-badge-failed">{{ _("Not running") }}</span>
-            <span>{{ offsite.problem }}.</span>
-            {% elif offsite.state == 'failed' %}
-            <span class="job-status-badge job-status-badge-failed">{{ _("Failed") }}</span>
-            <span>{% trans problem=offsite.problem %}The last attempt failed: {{ problem }}. It retries every hour.{% endtrans %}</span>
-            {% elif offsite.state == 'overdue' %}
-            <span class="job-status-badge job-status-badge-failed">{{ _("Overdue") }}</span>
-            <span>{{ _("No off-site copy in more than two days.") }}</span>
-            {% elif offsite.state == 'none' %}
-            <span class="job-status-badge job-status-badge-cancelled">{{ _("None yet") }}</span>
-            <span>{{ _("The first copy is made within a minute or two of starting.") }}</span>
-            {% else %}
-            <span class="job-status-badge job-status-badge-succeeded">OK</span>
-            {% endif %}
-            {% if offsite.latest_age %}
-            <span>{% trans age=offsite.latest_age, count=offsite.latest_files, size=offsite.latest_megabytes %}Latest copy: {{ age }}, {{ count }} file, {{ size }} MB.{% pluralize %}Latest copy: {{ age }}, {{ count }} files, {{ size }} MB.{% endtrans %}</span>
-            {% endif %}
-            {% if offsite.pending_deletions %}
-            <span>{% trans count=offsite.pending_deletions %}{{ count }} account deletion waiting to reach it.{% pluralize %}{{ count }} account deletions waiting to reach it.{% endtrans %}</span>
-            {% endif %}
-        </p>
-    </div>
-    {% endif %}
-
-    <!-- Oura Auto-Sync -->
-    <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>{{ _("Oura Auto-Sync") }}</h3></div>
-        {% if oura_connected %}
-        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);margin-bottom:0.75rem;">
-            <input type="checkbox" name="oura_sync_enabled" {{ 'checked' if oura_sync_enabled else '' }}
-                   style="width:auto;margin:0;">
-            {{ _("Enable automatic Oura sync") }}
-        </label>
-        <div class="grid">
-            <div>
-                <label>{{ _("Sync interval (hours)") }}
-                    <input type="number" name="oura_sync_interval_hours" value="{{ oura_sync_interval_hours }}" min="1" max="24">
-                </label>
-            </div>
-        </div>
-        {% else %}
-        <p class="text-muted" style="font-size:var(--text-sm);">
-            {% trans %}Connect Oura Ring in the <a href="/settings?tab=integrations" style="color:var(--accent);">Integrations</a> tab first.{% endtrans %}
-        </p>
-        {% endif %}
-    </div>
-
-    <!-- Morning Briefing -->
-    <div class="card" style="margin-bottom: 1rem;">
-        <div class="card-header"><h3>{{ _("Morning Briefing") }}</h3></div>
-        <p class="text-muted" style="margin-bottom: 0.75rem; font-size: var(--text-sm);">
-            {{ _("AI-generated daily briefing shown on the dashboard. Requires an active LLM provider.") }}
-        </p>
-        <label style="display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;font-size:0.875rem;color:var(--text-primary);">
-            <input type="checkbox" name="briefing_enabled" {{ 'checked' if briefing_enabled else '' }}
-                   style="width:auto;margin:0;">
-            {{ _("Enable morning briefing") }}
-        </label>
-    </div>
-
-    <button type="submit" class="btn btn-primary">{{ _("Save Automation Settings") }}</button>
-</form>
-
-<section class="card job-activity-card" aria-labelledby="recent-jobs-heading">
+<section class="card settings-card job-activity-card" aria-labelledby="recent-jobs-heading">
     <div class="card-header">
         <div>
-            <h3 id="recent-jobs-heading">{{ _("Recent Jobs") }}</h3>
-            <p class="text-muted job-activity-intro">{{ _("Background work and actions that may need your review.") }}</p>
+            <h3 id="recent-jobs-heading">{{ _("Recent activity") }}</h3>
+            <p class="text-muted job-activity-intro">{{ _("Backups, syncs and other work Virgil does in the background.") }}</p>
         </div>
     </div>
     {% if recent_jobs %}
@@ -716,21 +770,47 @@
         {% endfor %}
     </div>
     {% else %}
-    <p class="text-muted">{{ _("No background jobs yet.") }}</p>
+    <p class="text-muted">{{ _("Nothing has run yet.") }}</p>
     {% endif %}
 </section>
 
-{% elif active_tab == 'security' %}
-<!-- ═══ SECURITY TAB ═══ -->
+<section class="card settings-card settings-danger" id="reset">
+    <div class="card-header"><h3>{{ _("Reset all data") }}</h3></div>
+    <p class="settings-lead">
+        {{ _("Deletes everything you have logged and every setting, then starts onboarding again. Your account and sign-in stay. The server's backups of your data, off-site copies included, are deleted too.") }}
+    </p>
+    <details class="settings-more">
+        <summary>{{ _("I understand, show the reset") }}</summary>
+        <div data-reset-backup class="settings-subsection">
+            <p class="settings-status">
+                <strong>{{ _("First, keep a copy.") }}</strong>
+                {% if backup.latest_age %}
+                {% trans age=backup.latest_age %}The newest server backup ({{ age }}) goes with the reset.{% endtrans %}
+                {% else %}
+                {{ _("There is no server backup to restore from.") }}
+                {% endif %}
+                {{ _("The download is the only way back.") }}
+            </p>
+            <a href="/settings/export/json" class="btn btn-outline btn-sm">{{ _("Download JSON") }}</a>
+        </div>
+        <form method="POST" action="/settings/factory-reset" class="settings-form settings-subsection"
+              data-confirm="{{ _("Reset all data? Everything except your account is deleted, and this cannot be undone.") }}">
+            {{ identity_fields() }}
+            <div><button type="submit" class="btn btn-danger">{{ _("Reset all data") }}</button></div>
+        </form>
+    </details>
+</section>
 
-<div class="card" style="margin-bottom: 1rem;">
+{% elif active_tab == 'security' %}
+<!-- ═══ SECURITY ═══ -->
+<section class="card settings-card" id="password">
     <div class="card-header"><h3>{{ _("Password") }}</h3></div>
     {% if not has_password %}
     {# A link-only account (#168) signs in with emailed links; it may add a password. #}
-    <p class="text-muted" style="font-size:0.85rem;">{{ _("You sign in with emailed links. A password lets you sign in without your inbox.") }}</p>
-    <details>
-        <summary style="cursor:pointer;">{{ _("Add a password") }}</summary>
-        <form method="POST" action="/settings/password/add" style="margin-top:0.5rem;">
+    <p class="settings-lead">{{ _("You sign in with emailed links. A password lets you sign in without your inbox.") }}</p>
+    <details class="settings-more">
+        <summary>{{ _("Add a password") }}</summary>
+        <form method="POST" action="/settings/password/add" class="settings-form">
             <div class="grid">
                 <div><label>{{ _("New password") }}
                     <input type="password" name="new_password" autocomplete="new-password" minlength="8" required>
@@ -744,13 +824,14 @@
                 <input type="text" name="totp_code" autocomplete="one-time-code" required>
             </label>
             {% endif %}
-            <button type="submit" class="btn btn-primary btn-sm">{{ _("Add a password") }}</button>
+            <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Add a password") }}</button></div>
         </form>
     </details>
     {% else %}
-    <details>
-        <summary style="cursor:pointer;">{{ _("Change password") }}</summary>
-        <form method="POST" action="/settings/password" style="margin-top:0.5rem;">
+    <p class="settings-lead">{{ _("You sign in with your email and password.") }}</p>
+    <details class="settings-more">
+        <summary>{{ _("Change password") }}</summary>
+        <form method="POST" action="/settings/password" class="settings-form">
             <label>{{ _("Current password") }}
                 <input type="password" name="current_password" autocomplete="current-password" required>
             </label>
@@ -762,109 +843,46 @@
                     <input type="password" name="new_password_confirm" autocomplete="new-password" minlength="8" required>
                 </label></div>
             </div>
-            <p class="text-muted" style="font-size:0.85rem;">{{ _("Every other device signed in to this account is signed out.") }}</p>
-            <button type="submit" class="btn btn-primary btn-sm">{{ _("Change password") }}</button>
+            <p class="settings-note">{{ _("Every other device signed in to this account is signed out.") }}</p>
+            <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Change password") }}</button></div>
         </form>
     </details>
     {% if mail_on %}
-    <details style="margin-top:0.5rem;">
-        <summary style="cursor:pointer;">{{ _("Remove password") }}</summary>
-        <form method="POST" action="/settings/password/remove" style="margin-top:0.5rem;">
-            <p class="text-muted" style="font-size:0.85rem;">{{ _("You will sign in with links sent to your email instead.") }}</p>
+    <details class="settings-more">
+        <summary>{{ _("Remove password") }}</summary>
+        <form method="POST" action="/settings/password/remove" class="settings-form">
+            <p class="settings-note">{{ _("You will sign in with links sent to your email instead.") }}</p>
             <label>{{ _("Current password") }}
                 <input type="password" name="current_password" autocomplete="current-password" required>
             </label>
-            <button type="submit" class="btn btn-outline btn-sm">{{ _("Remove password") }}</button>
+            <div><button type="submit" class="btn btn-outline btn-sm">{{ _("Remove password") }}</button></div>
         </form>
     </details>
     {% endif %}
     {% endif %}
-</div>
+</section>
 
-<div class="card" style="margin-bottom: 1rem;" id="tokens">
-    <div class="card-header"><h3>{{ _("API tokens") }}</h3></div>
-    <p class="text-muted" style="font-size:0.85rem;">
-        {{ _("A token lets a tool such as an AI agent or a script read or change your data through the API and MCP. It acts only for your account, and only within the scopes you give it.") }}
-    </p>
-    {% if api_tokens %}
-    <div class="overflow-x">
-        <table>
-            <thead><tr><th>{{ _("Name") }}</th><th>{{ _("Token") }}</th><th>{{ _("Scopes") }}</th><th>{{ _("Last used") }}</th><th>{{ _("Expires") }}</th><th></th></tr></thead>
-            <tbody>
-                {% for t in api_tokens %}
-                <tr>
-                    <td>{{ t.name }}</td>
-                    <td><code>{{ t.token_prefix }}...</code></td>
-                    <td><small>{{ t.scopes }}</small></td>
-                    <td><small>{{ t.last_used_at[:16] | replace('T', ' ') if t.last_used_at else _('Never') }}</small></td>
-                    <td><small>{% if t.expired %}{{ _("Expired") }}{% elif t.expires_at %}{{ t.expires_at[:10] }}{% else %}{{ _("Never") }}{% endif %}</small></td>
-                    <td>
-                        <form method="POST" action="/settings/tokens/{{ t.id }}/revoke" style="margin:0;"
-                              data-confirm="{% trans name=t.name %}Revoke {{ name }}? Tools using it stop working at once.{% endtrans %}">
-                            <button type="submit" class="btn btn-sm btn-outline">{{ _("Revoke") }}</button>
-                        </form>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% endif %}
-    <details {% if not api_tokens %}open{% endif %}>
-        <summary style="cursor:pointer;">{{ _("Create a token") }}</summary>
-        <form method="POST" action="/settings/tokens" class="invite-form">
-            <div class="grid">
-                <div><label>{{ _("Name") }} <input type="text" name="name" maxlength="60" placeholder="{{ _("e.g. Claude Code") }}" required></label></div>
-                <div><label>{{ _("Expires") }}
-                    <select name="expires">
-                        <option value="30">{{ _("In 30 days") }}</option>
-                        <option value="90" selected>{{ _("In 90 days") }}</option>
-                        <option value="365">{{ _("In a year") }}</option>
-                        <option value="never">{{ _("Never") }}</option>
-                    </select>
-                </label></div>
-            </div>
-            <fieldset class="token-scopes">
-                <legend>{{ _("Scopes") }}</legend>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="read" checked> {{ _("Read: see your data (Freedom and finance also need their own scope)") }}</label>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="write" checked> {{ _("Write: log days, training, goals and the rest") }}</label>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="sensitive"> {{ _("Freedom: habits, slips and journal entries") }}</label>
-                <label class="checkbox-label"><input type="checkbox" name="scope" value="finance"> {{ _("Finance: balances, the fortress and its settings") }}</label>
-            </fieldset>
-            {% if has_password %}
-            <label>{{ _("Your password") }}
-                <input type="password" name="password" autocomplete="current-password" required>
-            </label>
-            {% elif mfa_enabled %}
-            <label>{{ _("Code from your authenticator app, or a recovery code") }}
-                <input type="text" name="totp_code" autocomplete="one-time-code" required>
-            </label>
-            {% else %}
-            {# No password and no authenticator (#168): a recent link sign-in is the proof. #}
-            <p class="text-muted" style="font-size:0.85rem;">{{ _("A sign-in from a link in the last 15 minutes confirms it.") }}</p>
-            {% endif %}
-            <button type="submit" class="btn btn-primary btn-sm">{{ _("Create token") }}</button>
-        </form>
-    </details>
-</div>
-
-<div class="card" style="margin-bottom: 1rem;">
-    <div class="card-header"><h3>{{ _("Two-Factor Authentication") }}</h3></div>
-    <div style="display:flex;align-items:center;gap:0.75rem;">
-        <a href="/settings/mfa" class="btn btn-outline">{{ _("Configure MFA") }}</a>
+<section class="card settings-card" id="two-factor">
+    <div class="card-header">
+        <h3>{{ _("Two-factor sign-in") }}</h3>
         {% if mfa_enabled %}
-        <span class="flag-normal" style="font-weight:600;">{{ _("Enabled") }}</span>
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("On") }}</span>
         {% else %}
-        <span class="text-muted">{{ _("Disabled") }}</span>
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("Off") }}</span>
         {% endif %}
+    </div>
+    <p class="settings-lead">{{ _("Signing in also asks for a code from an authenticator app on your phone, so a stolen password is not enough.") }}</p>
+    <div class="settings-actions">
+        <a href="/settings/mfa" class="btn btn-sm {{ 'btn-outline' if mfa_enabled else 'btn-primary' }}">{{ _("Manage two-factor sign-in") if mfa_enabled else _("Set up two-factor sign-in") }}</a>
     </div>
     {% if mfa_enabled %}
     {# One-time codes for a lost authenticator (#168), confirmed with the second factor. #}
-    <div class="recovery-codes-settings">
-        <p class="text-muted" style="margin:0.75rem 0 0.5rem;">
-            {% trans count=recovery_codes_left %}Recovery codes: {{ count }} left{% pluralize %}Recovery codes: {{ count }} left{% endtrans %}
+    <div class="settings-subsection recovery-codes-settings">
+        <h4>{{ _("Recovery codes") }}</h4>
+        <p class="settings-lead">
+            {% trans count=recovery_codes_left %}{{ count }} left. Each one signs you in once if you lose your phone.{% pluralize %}{{ count }} left. Each one signs you in once if you lose your phone.{% endtrans %}
         </p>
-        <form method="POST" action="/settings/mfa/recovery-codes" class="inline-form">
+        <form method="POST" action="/settings/mfa/recovery-codes" class="settings-row">
             <label>{{ _("Code from your authenticator app") }}
                 <input type="text" name="totp_code" required autocomplete="one-time-code" inputmode="numeric">
             </label>
@@ -874,71 +892,8 @@
         </form>
     </div>
     {% endif %}
-</div>
+</section>
 
-<div class="card">
-    <div class="card-header"><h3>{{ _("Sync Log") }}</h3></div>
-    {% if sync_logs %}
-    <div class="overflow-x">
-        <table>
-            <thead><tr><th>{{ _("Time") }}</th><th>{{ _("File") }}</th><th>{{ _("Status") }}</th><th>{{ _("Message") }}</th></tr></thead>
-            <tbody>
-                {% for l in sync_logs %}
-                <tr>
-                    <td><small>{{ l.created_at }}</small></td>
-                    <td>{{ l.file_name }}</td>
-                    <td class="{{ 'flag-normal' if l.status == 'success' else 'flag-h' }}">{{ l.status }}</td>
-                    <td><small>{{ l.message }}</small></td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <p class="text-muted">{{ _("No entries") }}</p>
-    {% endif %}
-</div>
-
-{% endif %}
-
-<!-- Factory Reset (always visible on security tab) -->
-{% if active_tab == 'security' %}
-<div class="card" style="margin-top:1rem;border:1px solid rgba(229,84,75,0.2);">
-    <div class="card-header"><h3 style="color:var(--red);">{{ _("Factory Reset") }}</h3></div>
-    <p class="text-muted" style="margin-bottom:0.75rem;font-size:0.85rem;">
-        {{ _("Wipe all data and start fresh. Your account and login are kept; profile, goals, training, experiments, health data and settings are deleted, and you'll go through onboarding again. The server's backups of your data, off-site copies included, are deleted too.") }}
-    </p>
-    <details>
-        <summary style="color:var(--red);">{{ _("I understand, show the reset button") }}</summary>
-        <div data-reset-backup style="margin-top:0.75rem;">
-            <p style="margin-bottom:0.5rem;font-size:0.85rem;">
-                <strong>{{ _("First, keep a copy.") }}</strong>
-                {% if backup_status.latest_age %}
-                {% trans age=backup_status.latest_age %}The newest server backup ({{ age }}) goes with the reset.{% endtrans %}
-                {% else %}
-                {{ _("There is no server backup to restore from.") }}
-                {% endif %}
-                {{ _("The download is the only way back.") }}
-            </p>
-            <a href="/settings/backup" class="btn btn-outline">{{ _("Download virgil.db") }}</a>
-        </div>
-        <form method="POST" action="/settings/factory-reset" style="margin-top:0.75rem;" data-confirm="{{ _("Are you absolutely sure? This deletes ALL your data (your account/login is kept) and cannot be undone.") }}">
-            {% if has_password %}
-            <label>{{ _("Your password") }}
-                <input type="password" name="password" autocomplete="current-password" required>
-            </label>
-            {% elif mfa_enabled %}
-            <label>{{ _("Code from your authenticator app, or a recovery code") }}
-                <input type="text" name="totp_code" autocomplete="one-time-code" required>
-            </label>
-            {% else %}
-            {# No password and no authenticator (#168): a recent link sign-in is the proof. #}
-            <p class="text-muted" style="font-size:0.85rem;">{{ _("A sign-in from a link in the last 15 minutes confirms it.") }}</p>
-            {% endif %}
-            <button type="submit" class="btn btn-danger">{{ _("Reset All Data") }}</button>
-        </form>
-    </details>
-</div>
 {% endif %}
 
 </div><!-- #settings-content -->

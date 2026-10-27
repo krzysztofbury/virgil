@@ -1,6 +1,6 @@
 """Shared exercise-library field rules AND write policy.
 
-Both app/routers/settings.py (Settings -> App Config, form-encoded strings) and
+Both app/routers/settings.py (Settings -> Training, form-encoded strings) and
 app/routers/api.py (REST CRUD for MCP clients, pydantic-typed) write to the same
 exercise_library table and must make identical accept/reject decisions — a
 prior pass shared normalization (normalize_library_text, clamp_library_sets,

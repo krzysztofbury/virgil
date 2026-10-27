@@ -361,7 +361,7 @@ Write one free-text note from memory after training and let it be parsed:
   the daily-planner context clean of one-off movements.
 
 The vocabulary is yours to curate — add, rename, delete it in
-**Settings → App Config**, or over the REST API and MCP (see below). Renaming a
+**Settings → Training**, or over the REST API and MCP (see below). Renaming a
 movement that already has logged history is refused, since it would split that
 history across two exercises and halve your Personal Bests.
 
@@ -550,13 +550,16 @@ balances recorded once a month.
     /api/finance/scoring`: the layers and their score rules
 
 ### Settings (`/settings`)
-Six-tab settings page:
-- **General** - Interface language (English or Polski, kept on the account), database info, LLM provider management (add/activate/delete Claude, OpenAI, Gemini keys), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), feature flag modules (enable/disable optional modules like Freedom, with its habit checklist)
-- **App Config** — Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be archived (hidden from the parser) but never edited or deleted. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
-- **Integrations** — OAuth2 connections (Oura Ring), webhook management, sync controls
-- **Data** - Markdown download (weekly/monthly/yearly/all), JSON/CSV download, database backup
-- **Automation** - Backup scheduling, Oura auto-sync interval, morning briefing toggle
-- **Security** — MFA setup/disable (TOTP with QR code), sync log viewer
+Six-tab settings page, grouped by task.
+Every topic lives on one tab, and each card shows its current state before its controls.
+- **General** - Interface language (English or Polski, kept on the account, one click to switch) and optional modules (Freedom, with its habit checklist, and Finance)
+- **AI** - The AI model: your keys (add, put in use, remove Claude, OpenAI, Gemini and others), the thinking level every AI call uses (`none`/`low`/`medium`/`high`/`xhigh`, default `medium`), the morning briefing on or off, and API tokens for assistants and scripts
+- **Training** - Training schedule (which days are training days; what the A.N.D.Y. planner assumes) and the exercise library: the vocabulary the workout parser resolves notes against. Add your own entries, edit/delete them; built-in entries can be hidden from the parser or tagged but never edited or deleted. Rows are read-only until you choose Edit. Over REST/MCP each entry also has a family (Snatch, Squat, Pull...), a default equipment and aliases such as "T2B" or "pistols"; matching is exact name, then alias, then unknown, never a nearest guess
+- **Connections** - The Oura Ring: connect, sync now, automatic sync and its interval, instant updates (the Oura webhook)
+- **Data** - Backups (status, schedule, copies to keep, back up now; off-site copies for administrators), downloads (full JSON export, CSV, the database file, a Markdown summary of a period), restore from a JSON export, recent background activity, and resetting all data
+- **Security** - Password (add, change, remove) and two-factor sign-in (TOTP with QR code) with recovery codes
+
+Old links to `?tab=automation` open the Data tab.
 
 ## Background work
 
@@ -592,7 +595,7 @@ Progress appears in the **notification tray** (top right). The tray polls
 `/api/jobs/active`, so anything still queued or running is visible on every
 page, not only where you started it, together with the outcome of whatever the
 current page enqueued. Confirmations fade after a few seconds; errors and
-unfinished jobs stay until you deal with them. Settings > Automation keeps the
+unfinished jobs stay until you deal with them. Settings > Data keeps the
 full recent-job history with the same retry controls.
 
 ## UI/UX
@@ -782,17 +785,17 @@ Virgil connects to the Oura API v2 via OAuth2 for automatic daily health data sy
 ### Setup
 1. Register an app at [cloud.ouraring.com/oauth/applications](https://cloud.ouraring.com/oauth/applications)
 2. Set the redirect URI to `{VIRGIL_BASE_URL}/settings/oura/callback`
-3. In Virgil Settings > Integrations, enter your `client_id` and `client_secret`
+3. In Virgil Settings > Connections, enter your `client_id` and `client_secret`
 4. Click "Connect to Oura" and authorize access
-5. Click "Sync Now" to pull the last 30 days of data
+5. Click "Sync now" to pull the last 30 days of data
 
 ### Webhook (Real-time Sync)
-1. In Settings > Integrations, click "Enable Webhook" on the Oura card
+1. In Settings > Connections, turn on "Instant updates" on the Oura card
 2. Virgil registers one subscription per handled `(event_type, data_type)` pair with the Oura API, using a **per-user callback URL** (`/api/oura/webhook/{id}`) that routes events to the right user's database
 3. Oura sends a verification challenge — Virgil responds to complete registration
 4. Subsequent data events trigger a 2-day sync window with HMAC-SHA256 signature verification against the user's encrypted webhook secret
 5. The scheduler reconciles remote state, renews each subscription before expiry and retries degraded or interrupted work
-6. To remove, click "Disable Webhook" - Virgil confirms remote teardown before credentials or user data can be replaced
+6. To remove, turn instant updates off - Virgil confirms remote teardown before credentials or user data can be replaced
 
 Subscription orchestration is provider-neutral. The coordinator owns desired
 state, bounded retries, leases and atomic publication; the Oura adapter owns

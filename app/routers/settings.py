@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SETTINGS_TABS = ["general", "configuration", "integrations", "data", "automation", "security"]
+SETTINGS_TABS = ["general", "ai", "configuration", "integrations", "data", "security"]
+# Tabs that were merged into another; their old links still land somewhere useful.
+_TAB_ALIASES = {"automation": "data"}
 
 
 @router.post("/api/settings/theme")
@@ -44,8 +46,14 @@ async def save_theme(request: Request):
     return Response("ok")
 
 
+def _identity_proof(user: dict) -> dict:
+    """What a form that needs the person to confirm it is them can ask for."""
+    return {"mfa_enabled": bool(user.get("totp_enabled")), "has_password": bool(user.get("password_hash"))}
+
+
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, tab: str = Query("general"), job_id: int | None = Query(None, ge=1)):
+    tab = _TAB_ALIASES.get(tab, tab)
     if tab not in SETTINGS_TABS:
         tab = "general"
 
@@ -61,10 +69,15 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
 
     from app.routers.jobs import current_job_view
 
-    if tab != "automation":
+    if tab != "data":
         context["current_job"] = await current_job_view(db, job_id)
 
     if tab == "general":
+        context["feature_flags"] = await get_feature_flags(db)
+        context["freedom_choices"] = await _freedom_choices(db)
+        context["freedom_on_dashboard"] = await get_setting(db, "freedom_on_dashboard", "1") == "1"
+
+    elif tab == "ai":
         providers = await db.execute_fetchall("SELECT * FROM llm_providers ORDER BY created_at DESC")
         providers = [dict(row) for row in providers]
         for p in providers:
@@ -73,18 +86,19 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
                 p["api_key_masked"] = f"{plain[:4]}...{plain[-4:]}" if len(plain) > 8 else "****"
             except Exception:
                 p["api_key_masked"] = "(encrypted)"
-        from app.services.backup import db_main_path
-
-        context["db_path"] = await db_main_path(db)
         context["llm_providers"] = providers
         from app.services.llm import may_use_server_key
 
         context["server_llm"] = await may_use_server_key(db)
-        context["feature_flags"] = await get_feature_flags(db)
-        context["freedom_choices"] = await _freedom_choices(db)
-        context["freedom_on_dashboard"] = await get_setting(db, "freedom_on_dashboard", "1") == "1"
         context["reasoning_efforts"] = list(REASONING_EFFORTS)
         context["reasoning_effort"] = await resolve_reasoning_effort(db)
+        context["briefing_enabled"] = await get_setting(db, "briefing_enabled", "0") == "1"
+        from app.central_db import API_SCOPES, list_api_tokens
+
+        user = getattr(request.state, "user", {})
+        context["api_tokens"] = await list_api_tokens(user["id"])
+        context["api_scopes"] = API_SCOPES
+        context.update(_identity_proof(user))
 
     elif tab == "configuration":
         from app.library_validation import LIBRARY_SECTIONS
@@ -126,6 +140,7 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["oura_integration"] = dict(oura_row[0]) if oura_row else None
         oura_sync_enabled = await get_setting(db, "oura_sync_enabled", "0")
         context["oura_sync_enabled"] = oura_sync_enabled == "1"
+        context["oura_sync_interval_hours"] = await get_setting(db, "oura_sync_interval_hours", "6")
         registration = await get_subscription_registration(request.state.user["id"], "oura")
         context["webhook_registration"] = registration
         context["webhook_enabled"] = registration is not None
@@ -134,15 +149,13 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
         context["oura_redirect_uri"] = f"{BASE_URL}/settings/oura/callback"
 
     elif tab == "data":
-        pass
-
-    elif tab == "automation":
         from app.routers.jobs import build_job_view
         from app.services.jobs import list_recent_job_statuses
 
         context["backup_enabled"] = await get_setting(db, "backup_enabled", "1") == "1"
         context["backup_interval_hours"] = await get_setting(db, "backup_interval_hours", "24")
         context["backup_max_copies"] = await get_setting(db, "backup_max_copies", "7")
+        # The reset at the bottom deletes these backups, so it says what is lost.
         context["backup_status"] = await backup_status(db)
         user = getattr(request.state, "user", None) or {}
         if user.get("role") == "admin":
@@ -150,19 +163,13 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
 
             # The whole instance's copies: an operator's concern, not each account's.
             context["offsite"] = await asyncio.to_thread(offsite_status)
-        context["oura_sync_enabled"] = await get_setting(db, "oura_sync_enabled", "0") == "1"
-        context["oura_sync_interval_hours"] = await get_setting(db, "oura_sync_interval_hours", "6")
-        context["briefing_enabled"] = await get_setting(db, "briefing_enabled", "0") == "1"
-        # Check if oura is connected
-        oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
-        context["oura_connected"] = bool(oura_row and oura_row[0]["status"] == "connected")
         context["recent_jobs"] = [build_job_view(row) for row in await list_recent_job_statuses(db)]
+        context.update(_identity_proof(user))
 
     elif tab == "security":
         # MFA status lives in the central users table, not per-user DB.
         user = getattr(request.state, "user", {})
-        context["mfa_enabled"] = bool(user.get("totp_enabled"))
-        context["has_password"] = bool(user.get("password_hash"))
+        context.update(_identity_proof(user))
         from app.services.mailer import mail_enabled
 
         context["mail_on"] = mail_enabled()
@@ -170,14 +177,6 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
             from app.central_db import count_recovery_codes
 
             context["recovery_codes_left"] = await count_recovery_codes(user["id"])
-        # The reset deletes the server's backups, so the card says what is lost.
-        context["backup_status"] = await backup_status(db)
-        logs = await db.execute_fetchall("SELECT * FROM sync_log ORDER BY created_at DESC LIMIT 50")
-        context["sync_logs"] = [dict(row) for row in logs]
-        from app.central_db import API_SCOPES, list_api_tokens
-
-        context["api_tokens"] = await list_api_tokens(user["id"])
-        context["api_scopes"] = API_SCOPES
 
     return templates.TemplateResponse(request, "settings.html", context)
 
@@ -207,17 +206,17 @@ async def create_token(
     user = request.state.user
     problem = await confirm_identity(request, user, password, totp_code)
     if problem:
-        return error_redirect(request, "/settings?tab=security#tokens", problem + " " + _("No token was created."))
+        return error_redirect(request, "/settings?tab=ai#tokens", problem + " " + _("No token was created."))
     name = name.strip()
     if not name:
         return error_redirect(
-            request, "/settings?tab=security#tokens", _("Give the token a name, such as the tool it is for.")
+            request, "/settings?tab=ai#tokens", _("Give the token a name, such as the tool it is for.")
         )
     if expires not in _TOKEN_EXPIRY_DAYS:
-        return error_redirect(request, "/settings?tab=security#tokens", _("Choose when the token expires."))
+        return error_redirect(request, "/settings?tab=ai#tokens", _("Choose when the token expires."))
     scopes = [s for s in API_SCOPES if s in scope]
     if not scopes:
-        return error_redirect(request, "/settings?tab=security#tokens", _("Choose at least one scope."))
+        return error_redirect(request, "/settings?tab=ai#tokens", _("Choose at least one scope."))
     secret = await create_api_token(user["id"], name, scopes, _TOKEN_EXPIRY_DAYS[expires])
     await record_auth_event(
         "token_create", user_id=user["id"], ip=client_ip(request), detail=f"{name[:60]}: {' '.join(scopes)}"
@@ -238,12 +237,12 @@ async def revoke_token(request: Request, token_id: str):
 
     user = request.state.user
     if not await revoke_api_token(user["id"], token_id):
-        return error_redirect(request, "/settings?tab=security#tokens", _("That token was already revoked."))
+        return error_redirect(request, "/settings?tab=ai#tokens", _("That token was already revoked."))
     await record_auth_event("token_revoke", user_id=user["id"], ip=client_ip(request))
-    return success_redirect(request, "/settings?tab=security#tokens", _("Token revoked. It stops working now."))
+    return success_redirect(request, "/settings?tab=ai#tokens", _("Token revoked. It stops working now."))
 
 
-# --- App Configuration: dictionary tables ---
+# --- Training: schedule and exercise library ---
 # Rules: users add their own rows; built-in (seeded) rows can only be
 # archived/restored — never edited or deleted, so app upgrades stay clean.
 
@@ -353,7 +352,7 @@ async def library_archive(request: Request, entry_id: int = Form(...), archived:
         )
     except LibraryWriteError as exc:
         return error_redirect(request, "/settings?tab=configuration", localized(exc))
-    message = _("Exercise archived.") if archived else _("Exercise restored.")
+    message = _("Exercise hidden.") if archived else _("Exercise shown again.")
     return success_redirect(request, "/settings?tab=configuration", message)
 
 
@@ -435,54 +434,70 @@ async def save_training_schedule(request: Request):
     return success_redirect(request, "/settings?tab=configuration", _("Training schedule saved."))
 
 
-# --- Automation settings ---
+# --- Backups, Oura sync and the briefing (one endpoint, per-card saves) ---
 
 
 @router.post("/settings/automation")
 async def save_automation(request: Request):
+    """Backups, Oura sync and the briefing, each saved from the card on its own tab.
+
+    An unchecked box sends nothing, so each card marks itself with a `*_shown`
+    field and only the groups it shows are written. A form with no marker (a
+    page cached from before the cards were split) still saves all three.
+    """
     from math import isfinite
 
     form = await request.form()
     db = get_user_db_from_request(request)
+    groups = [g for g in ("backup", "oura_sync", "briefing") if form.get(f"{g}_shown")]
+    shown = set(groups) or {"backup", "oura_sync", "briefing"}
+    back = {"backup": "/settings?tab=data", "oura_sync": "/settings?tab=integrations", "briefing": "/settings?tab=ai"}
+    redirect_path = back[groups[0]] if len(groups) == 1 else "/settings?tab=data"
 
     # Validate every value before the first set_setting(), which commits independently.
-    try:
-        backup_interval = float(form.get("backup_interval_hours", "24"))
-    except TypeError, ValueError:
-        return error_redirect(request, "/settings?tab=automation", _("Backup interval must be a number from 1 to 168."))
-    if not isfinite(backup_interval) or not 1 <= backup_interval <= 168:
-        return error_redirect(request, "/settings?tab=automation", _("Backup interval must be a number from 1 to 168."))
+    values: dict[str, str] = {}
+    if "backup" in shown:
+        try:
+            backup_interval = float(form.get("backup_interval_hours", "24"))
+        except TypeError, ValueError:
+            backup_interval = float("nan")
+        if not isfinite(backup_interval) or not 1 <= backup_interval <= 168:
+            return error_redirect(request, redirect_path, _("Backup interval must be a number from 1 to 168."))
+        try:
+            backup_max = int(form.get("backup_max_copies", "7"))
+        except TypeError, ValueError:
+            backup_max = 0
+        if not 1 <= backup_max <= 100:
+            return error_redirect(request, redirect_path, _("Backup copies must be a whole number from 1 to 100."))
+        values["backup_enabled"] = "1" if form.get("backup_enabled") else "0"
+        values["backup_interval_hours"] = str(backup_interval)
+        values["backup_max_copies"] = str(backup_max)
 
-    try:
-        backup_max = int(form.get("backup_max_copies", "7"))
-    except TypeError, ValueError:
-        return error_redirect(
-            request, "/settings?tab=automation", _("Backup copies must be a whole number from 1 to 100.")
-        )
-    if not 1 <= backup_max <= 100:
-        return error_redirect(
-            request, "/settings?tab=automation", _("Backup copies must be a whole number from 1 to 100.")
-        )
+    if "oura_sync" in shown:
+        try:
+            oura_interval = float(form.get("oura_sync_interval_hours", "6"))
+        except TypeError, ValueError:
+            oura_interval = float("nan")
+        if not isfinite(oura_interval) or not 1 <= oura_interval <= 168:
+            return error_redirect(request, redirect_path, _("Oura sync interval must be a number from 1 to 168."))
+        values["oura_sync_enabled"] = "1" if form.get("oura_sync_enabled") else "0"
+        values["oura_sync_interval_hours"] = str(oura_interval)
 
-    try:
-        oura_interval = float(form.get("oura_sync_interval_hours", "6"))
-    except TypeError, ValueError:
-        return error_redirect(
-            request, "/settings?tab=automation", _("Oura sync interval must be a number from 1 to 168.")
-        )
-    if not isfinite(oura_interval) or not 1 <= oura_interval <= 168:
-        return error_redirect(
-            request, "/settings?tab=automation", _("Oura sync interval must be a number from 1 to 168.")
-        )
+    if "briefing" in shown:
+        values["briefing_enabled"] = "1" if form.get("briefing_enabled") else "0"
 
-    await set_setting(db, "backup_enabled", "1" if form.get("backup_enabled") else "0")
-    await set_setting(db, "backup_interval_hours", str(backup_interval))
-    await set_setting(db, "backup_max_copies", str(backup_max))
-    await set_setting(db, "oura_sync_enabled", "1" if form.get("oura_sync_enabled") else "0")
-    await set_setting(db, "oura_sync_interval_hours", str(oura_interval))
-    await set_setting(db, "briefing_enabled", "1" if form.get("briefing_enabled") else "0")
+    for key, value in values.items():
+        await set_setting(db, key, value)
 
-    return success_redirect(request, "/settings?tab=automation", _("Automation settings saved."))
+    messages = {
+        "backup": _("Backup settings saved."),
+        "oura_sync": _("Oura sync settings saved."),
+        "briefing": _("Morning briefing turned on.")
+        if values.get("briefing_enabled") == "1"
+        else _("Morning briefing turned off."),
+    }
+    message = messages[groups[0]] if len(groups) == 1 else _("Automation settings saved.")
+    return success_redirect(request, redirect_path, message)
 
 
 # --- Feature Flags ---
@@ -534,7 +549,7 @@ async def save_features(request: Request):
             except HabitError as exc:
                 return error_redirect(request, "/settings?tab=general", localized(exc))
 
-    return success_redirect(request, "/settings?tab=general", _("Feature settings updated."))
+    return success_redirect(request, "/settings?tab=general", _("Modules saved."))
 
 
 # --- Backup ---
@@ -553,14 +568,14 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
         )
     except Exception:
         logger.exception("Manual backup enqueue failed")
-        return error_redirect(request, "/settings?tab=automation", _("Backup could not be queued. Try again."))
+        return error_redirect(request, "/settings?tab=data", _("Backup could not be queued. Try again."))
     from app.routers.jobs import wake_worker_for
 
     wake_worker_for(request)
 
     return success_redirect(
         request,
-        f"/settings?tab=automation&job_id={result.job_id}",
+        f"/settings?tab=data&job_id={result.job_id}",
         _("Backup queued."),
     )
 
@@ -797,13 +812,13 @@ async def add_llm_provider(
     provider = truncate(provider.strip(), 50)
     model = truncate(model.strip(), 200)
     if not provider or not model or not api_key.strip():
-        return error_redirect(request, "/settings?tab=general", _("Provider, model, and API key are required."))
+        return error_redirect(request, "/settings?tab=ai", _("Provider, model, and API key are required."))
     await db.execute(
         "INSERT INTO llm_providers (provider, api_key_enc, model, is_active) VALUES (?, ?, ?, 0)",
         (provider, encrypt(api_key), model),
     )
     await db.commit()
-    return success_redirect(request, "/settings?tab=general", _("LLM provider added."))
+    return success_redirect(request, "/settings?tab=ai", _("AI key added."))
 
 
 @router.post("/settings/llm/activate")
@@ -811,23 +826,23 @@ async def activate_llm_provider(request: Request, provider_id: int = Form(...)):
     db = get_user_db_from_request(request)
     rows = await db.execute_fetchall("SELECT id FROM llm_providers WHERE id = ?", (provider_id,))
     if not rows:
-        return error_redirect(request, "/settings?tab=general", _("LLM provider not found."))
+        return error_redirect(request, "/settings?tab=ai", _("That AI key no longer exists."))
     await db.execute("UPDATE llm_providers SET is_active = 0")
     cursor = await db.execute("UPDATE llm_providers SET is_active = 1 WHERE id = ?", (provider_id,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/settings?tab=general", _("LLM provider was not activated."))
+        return error_redirect(request, "/settings?tab=ai", _("That AI key could not be put in use."))
     await db.commit()
-    return success_redirect(request, "/settings?tab=general", _("LLM provider activated."))
+    return success_redirect(request, "/settings?tab=ai", _("AI key in use."))
 
 
 @router.post("/settings/llm/reasoning")
 async def save_llm_reasoning(request: Request, reasoning_effort: str = Form(...)):
     if reasoning_effort not in REASONING_EFFORTS:
-        return error_redirect(request, "/settings?tab=general", _("Choose one of the listed thinking levels."))
+        return error_redirect(request, "/settings?tab=ai", _("Choose one of the listed thinking levels."))
     db = get_user_db_from_request(request)
     await set_setting(db, REASONING_EFFORT_SETTING, reasoning_effort)
-    return success_redirect(request, "/settings?tab=general", _("Thinking level saved."))
+    return success_redirect(request, "/settings?tab=ai", _("Thinking level saved."))
 
 
 @router.post("/settings/llm/delete")
@@ -836,12 +851,12 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
     cursor = await db.execute("DELETE FROM llm_providers WHERE id = ?", (provider_id,))
     if cursor.rowcount != 1:
         await db.rollback()
-        return error_redirect(request, "/settings?tab=general", _("LLM provider not found."))
+        return error_redirect(request, "/settings?tab=ai", _("That AI key no longer exists."))
     await db.commit()
-    return success_redirect(request, "/settings?tab=general", _("LLM provider deleted."))
+    return success_redirect(request, "/settings?tab=ai", _("AI key removed."))
 
 
-# --- Factory Reset ---
+# --- Reset all data ---
 
 
 @router.post("/settings/factory-reset")
@@ -871,18 +886,16 @@ async def factory_reset(request: Request, password: str = Form(""), totp_code: s
 
     problem = await confirm_identity(request, user, password, totp_code)
     if problem:
-        return error_redirect(request, "/settings?tab=security", problem + " " + _("Nothing was reset."))
+        return error_redirect(request, "/settings?tab=data", problem + " " + _("Nothing was reset."))
 
     db = get_user_db_from_request(request)
     async with user_lifecycle_operation(user["id"], "factory-reset") as lifecycle_claim:
         if lifecycle_claim is None:
-            return error_redirect(
-                request, "/settings?tab=security", _("Another account operation is already in progress.")
-            )
+            return error_redirect(request, "/settings?tab=data", _("Another account operation is already in progress."))
         if not await _disable_subscription_now(db, user["id"], "factory-reset"):
             return error_redirect(
                 request,
-                "/settings?tab=security",
+                "/settings?tab=data",
                 _("Factory reset stopped because remote subscriptions could not be removed. Try again later."),
             )
         if not await heartbeat_user_lifecycle(user["id"], lifecycle_claim):
@@ -928,7 +941,7 @@ async def save_oura_credentials(
             return error_redirect(
                 request,
                 "/settings?tab=integrations",
-                _("Disable the Oura webhook before changing application credentials."),
+                _("Turn off instant updates before changing the app credentials."),
             )
 
         db = get_user_db_from_request(request)
@@ -1129,11 +1142,11 @@ async def enable_oura_webhook(request: Request):
         creds = await _oura_client_credentials(db)
         if not token or not creds:
             return error_redirect(
-                request, "/settings?tab=integrations", _("Connect Oura again before enabling the webhook.")
+                request, "/settings?tab=integrations", _("Connect Oura again before turning on instant updates.")
             )
 
         if await get_subscription_registration(user["id"], "oura"):
-            return error_redirect(request, "/settings?tab=integrations", _("Oura webhook is already enabled."))
+            return error_redirect(request, "/settings?tab=integrations", _("Instant updates are already on."))
         client_id, _client_secret = creds
         verification_token = secrets.token_urlsafe(32)
         webhook_id = await create_webhook_route(user["id"], "oura", lifecycle_claim=lifecycle_claim)
@@ -1163,14 +1176,14 @@ async def enable_oura_webhook(request: Request):
             return error_redirect(
                 request,
                 "/settings?tab=integrations",
-                _("Webhook setup is pending and will retry automatically."),
+                _("Instant updates are starting and will retry on their own."),
             )
         if result is None:
-            return success_redirect(request, "/settings?tab=integrations", _("Webhook setup queued."))
+            return success_redirect(request, "/settings?tab=integrations", _("Instant updates are starting."))
         if result.status == "active":
-            return success_redirect(request, "/settings?tab=integrations", _("Oura webhook enabled."))
+            return success_redirect(request, "/settings?tab=integrations", _("Instant updates turned on."))
         return error_redirect(
-            request, "/settings?tab=integrations", _("Webhook is partially active and will retry automatically.")
+            request, "/settings?tab=integrations", _("Instant updates are partly working and will retry on their own.")
         )
 
 
@@ -1186,11 +1199,11 @@ async def disable_oura_webhook(request: Request):
                 request, "/settings?tab=integrations", _("Another account operation is already in progress.")
             )
         if not await get_subscription_registration(user["id"], "oura"):
-            return error_redirect(request, "/settings?tab=integrations", _("Oura webhook is not enabled."))
+            return error_redirect(request, "/settings?tab=integrations", _("Instant updates are already off."))
         if await _disable_subscription_now(db, user["id"], "manual"):
-            return success_redirect(request, "/settings?tab=integrations", _("Oura webhook disabled."))
+            return success_redirect(request, "/settings?tab=integrations", _("Instant updates turned off."))
         return error_redirect(
             request,
             "/settings?tab=integrations",
-            _("Webhook disable is pending and will retry automatically."),
+            _("Instant updates are turning off and will retry on their own."),
         )

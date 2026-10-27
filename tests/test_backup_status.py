@@ -170,20 +170,21 @@ def account_backups(auth_client, tmp_path, monkeypatch):
     return tmp_path
 
 
-def test_automation_tab_renders_the_status_line(auth_client, account_backups):
-    html = auth_client.get("/settings?tab=automation").text
+def test_data_tab_renders_the_status_line(auth_client, account_backups):
+    html = auth_client.get("/settings?tab=data").text
 
-    match = re.search(r'<p data-backup-state="([a-z]+)"[^>]*>(.*?)</p>', html, re.S)
-    assert match, "the Automated Backup card has no status line"
+    match = re.search(r'<p [^>]*data-backup-state="([a-z]+)"[^>]*>(.*?)</p>', html, re.S)
+    assert match, "the Backups card has no status line"
     assert match[1] == "ok"
-    assert " ".join(re.sub(r"<[^>]+>", " ", match[2]).split()).startswith("OK Latest backup: 5 hours ago (")
+    assert " ".join(re.sub(r"<[^>]+>", " ", match[2]).split()).startswith("Latest backup: 5 hours ago (")
 
 
 def test_reset_offers_a_download_before_the_reset_button(auth_client, account_backups):
-    html = auth_client.get("/settings?tab=security").text
+    html = auth_client.get("/settings?tab=data").text
 
     offer = html.index("data-reset-backup")
-    download = html.index('href="/settings/backup"', offer)
+    # The full export, because Restore takes it back after the reset.
+    download = html.index('href="/settings/export/json"', offer)
     reset = html.index('action="/settings/factory-reset"')
     assert offer < download < reset
     assert "The newest server backup (5 hours ago) goes with the reset." in html[offer:reset]

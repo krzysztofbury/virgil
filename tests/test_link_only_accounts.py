@@ -315,9 +315,10 @@ def test_forms_ask_a_link_only_account_without_two_factor_for_no_code(auth_clien
     cleanup.append(email)
     _signup(browser, _invite(email), email)
     _finish_onboarding(email)
-    page = browser.get("/settings?tab=security").text
-    assert 'name="totp_code"' not in page
-    assert "A sign-in from a link in the last 15 minutes confirms it." in page
+    for tab in ("ai", "data"):  # the token form, then the reset
+        page = browser.get(f"/settings?tab={tab}").text
+        assert 'name="totp_code"' not in page
+        assert "A sign-in from a link in the last 15 minutes confirms it." in page
 
 
 def test_a_signup_error_keeps_the_chosen_method(auth_client, browser, sent_mail):

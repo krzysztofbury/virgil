@@ -28,7 +28,7 @@ def _any_builtin_id():
 def test_configuration_tab_renders(auth_client):
     resp = auth_client.get("/settings?tab=configuration")
     assert resp.status_code == 200
-    assert "Exercise Library" in resp.text
+    assert "Exercise library" in resp.text
     assert "built-in" in resp.text
 
 

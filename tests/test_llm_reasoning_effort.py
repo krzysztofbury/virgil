@@ -124,7 +124,7 @@ def test_call_llm_always_sends_a_level_so_the_model_never_picks_its_own(monkeypa
 def test_settings_page_offers_the_level_and_shows_the_stored_choice(auth_client):
     _set_effort("high")
     try:
-        html = auth_client.get("/settings?tab=general").text
+        html = auth_client.get("/settings?tab=ai").text
         assert 'action="/settings/llm/reasoning"' in html
         assert 'value="high" data-level="high"\n                    class="level-chip selected"' in html, (
             "the stored level must be the one rendered as picked"
