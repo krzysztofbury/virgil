@@ -21,11 +21,12 @@ from app.central_db import (
     revoke_invites_created_by,
     update_user,
 )
-from app.config import ADMIN_EMAILS, BASE_URL, REGISTRATION_OPEN
+from app.config import ADMIN_EMAILS, BASE_URL
 from app.feedback import error_redirect, success_redirect
 from app.i18n import _, current_language, normalize_language
 from app.main import templates
 from app.rate_limit import client_ip
+from app.server_settings import current
 from app.services import mailer
 from app.services.backup import delete_user_backups
 from app.user_db import delete_user_db
@@ -72,7 +73,7 @@ async def _users_page(request: Request, **extra):
             "request": request,
             "users": users,
             "total": len(users),
-            "registration_open": REGISTRATION_OPEN,
+            "registration_open": current.REGISTRATION_OPEN,
             "admin_emails": ADMIN_EMAILS,
             "events": await list_auth_events(),
             "invites": await list_open_invites(),

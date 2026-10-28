@@ -119,6 +119,24 @@ CREATE TABLE provider_subscription_registrations (
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
         );
 
+-- table server_llm_providers
+CREATE TABLE server_llm_providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            provider TEXT NOT NULL,
+            api_key_enc TEXT NOT NULL,
+            model TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+-- table server_settings
+CREATE TABLE server_settings (
+            name TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_by TEXT NOT NULL DEFAULT ''
+        );
+
 -- table sign_in_links
 CREATE TABLE sign_in_links (
             id TEXT PRIMARY KEY,

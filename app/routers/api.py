@@ -105,7 +105,6 @@ async def authenticate(secret: str) -> ApiCredential:
 
     The server key and the token store are both consulted every time, so the
     response time does not say which one a secret belongs to."""
-    from app import config
     from app.central_db import any_live_api_token, find_api_token, touch_api_token
 
     server_key = bool(API_KEY) and hmac.compare_digest(secret.encode(), API_KEY.encode())
@@ -116,6 +115,8 @@ async def authenticate(secret: str) -> ApiCredential:
                 status_code=503,
                 detail="API user not configured (set VIRGIL_API_USER_EMAIL to the account this key should serve)",
             )
+        from app.server_settings import current
+
         central = await get_central_db()
         rows = await central.execute_fetchall(
             "SELECT id, db_filename FROM users WHERE email = ? AND is_active = 1",
@@ -124,8 +125,8 @@ async def authenticate(secret: str) -> ApiCredential:
         if not rows:
             raise HTTPException(status_code=503, detail="API user not found")
         scopes = {"read", "write"}
-        scopes |= {"sensitive"} if config.API_SENSITIVE else set()
-        scopes |= {"finance"} if config.API_FINANCE else set()
+        scopes |= {"sensitive"} if current.API_SENSITIVE else set()
+        scopes |= {"finance"} if current.API_FINANCE else set()
         return ApiCredential(rows[0]["id"], rows[0]["db_filename"], frozenset(scopes), server_key=True)
     if token:
         await touch_api_token(token["id"], datetime.now(UTC))

@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from app import config
 from app.main import templates
+from app.server_settings import current
 
 router = APIRouter()
 
@@ -18,7 +18,7 @@ async def welcome(request: Request):
         "landing.html",
         {
             "request": request,
-            "contact_email": config.CONTACT_EMAIL,
+            "contact_email": current.CONTACT_EMAIL,
             "registration_open": await registration_allowed(),
         },
     )

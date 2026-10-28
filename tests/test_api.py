@@ -66,12 +66,11 @@ def test_disabled_owner_does_not_hand_the_api_key_to_the_next_admin(auth_client,
     from fastapi.testclient import TestClient
 
     import app.routers.api as api_module
-    import app.routers.auth as auth_module
     from app.main import app
 
     other_email = "other-admin@example.com"
     marker = "other-admin-private-note"
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     second_db = None
     central = sqlite3.connect(os.environ["VIRGIL_CENTRAL_DB_PATH"])
     try:

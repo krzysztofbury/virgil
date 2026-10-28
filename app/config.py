@@ -69,6 +69,14 @@ REQUIRE_TOTP = os.environ.get("VIRGIL_REQUIRE_TOTP", "false").lower() == "true"
 # access" panel, and an invite-only sign-up page, send people.
 LANDING_PAGE = os.environ.get("VIRGIL_LANDING_PAGE", "false").lower() == "true"
 CONTACT_EMAIL = os.environ.get("VIRGIL_CONTACT_EMAIL", "").strip()
+# Plausible Analytics on the public pages only (landing, privacy, terms). The
+# site's script URL from Plausible; empty loads nothing.
+PLAUSIBLE_SCRIPT_URL = os.environ.get("VIRGIL_PLAUSIBLE_SCRIPT_URL", "").strip()
+# Who runs this instance, named as the data controller on the privacy policy
+# and as the provider on the terms. Empty leaves those pages without them.
+OPERATOR_NAME = os.environ.get("VIRGIL_OPERATOR_NAME", "").strip()
+OPERATOR_ADDRESS = os.environ.get("VIRGIL_OPERATOR_ADDRESS", "").strip()
+OPERATOR_TAX_ID = os.environ.get("VIRGIL_OPERATOR_TAX_ID", "").strip()
 
 # Outgoing email (#168). "" sends nothing, "log" writes each message to the log
 # for development, "smtp" sends through the server below. Sign-in links are

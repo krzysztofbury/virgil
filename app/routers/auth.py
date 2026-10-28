@@ -53,11 +53,12 @@ from app.central_db import (
     use_sign_in_link,
     void_sign_in_links,
 )
-from app.config import ADMIN_EMAILS, REGISTRATION_OPEN
+from app.config import ADMIN_EMAILS
 from app.feedback import error_redirect, feedback_url, success_redirect
 from app.i18n import LANGUAGE_COOKIE, N_, _, current_language, ngettext, normalize_language, set_language
 from app.main import templates
 from app.rate_limit import client_ip
+from app.server_settings import current
 from app.services import mailer
 from app.user_db import create_user_db
 from app.validation import valid_email
@@ -120,7 +121,7 @@ def _mfa_setup_response(request: Request, **context):
 async def registration_allowed() -> bool:
     """Signups are allowed when explicitly opened, or on a fresh install —
     the very first account must always be creatable (bootstrap owner)."""
-    if REGISTRATION_OPEN:
+    if current.REGISTRATION_OPEN:
         return True
     return await count_users() == 0
 
@@ -162,12 +163,12 @@ async def signup_page(request: Request, invite: str = ""):
         )
 
     if not await registration_allowed():
-        if config.CONTACT_EMAIL:
+        if current.CONTACT_EMAIL:
             # Waitlist mode (#168): say how to ask for access instead of a dead end.
             return templates.TemplateResponse(
                 request,
                 "auth_signup.html",
-                {"request": request, "invite_only": True, "contact_email": config.CONTACT_EMAIL},
+                {"request": request, "invite_only": True, "contact_email": current.CONTACT_EMAIL},
             )
         return templates.TemplateResponse(
             request,
@@ -279,7 +280,7 @@ async def signup_submit(
         # With registration closed we're only here via the bootstrap-first-user
         # rule, so the INSERT itself enforces it and two concurrent first signups
         # can't both slip through the count check.
-        user = await create_user(email, password, display_name, only_if_first=not REGISTRATION_OPEN)
+        user = await create_user(email, password, display_name, only_if_first=not current.REGISTRATION_OPEN)
         if user is None:
             return error_redirect(request, "/login", _("Registration is closed on this server."))
 
@@ -555,7 +556,7 @@ async def _finish_link_signup(request: Request, link: dict):
             return error_redirect(request, "/login", _("Registration is closed on this server."))
         if email in ADMIN_EMAILS and await count_users() > 0:
             return error_redirect(request, "/login", _(RESERVED_ADDRESS))
-        user = await create_user(email, None, link["display_name"], only_if_first=not REGISTRATION_OPEN)
+        user = await create_user(email, None, link["display_name"], only_if_first=not current.REGISTRATION_OPEN)
         if user is None:
             return error_redirect(request, "/login", _("Registration is closed on this server."))
     set_language(normalize_language(link["language"]))

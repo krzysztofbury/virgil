@@ -184,6 +184,9 @@ async def _start_application(app: FastAPI):
     try:
         await init_central_db()
         await promote_admin_emails()
+        from app import server_settings
+
+        await server_settings.load()
     except Exception:
         app.state.central_migration_failure = True
         logging.getLogger(__name__).exception("Central database migration failed")
@@ -243,7 +246,6 @@ async def _start_application(app: FastAPI):
         len(app.state.migration_failures),
     )
 
-    import app.config as config
     from app.alerts import degraded_start_alert, send_alert
     from app.services.offsite import OffsiteConfigError, offsite_settings
 
@@ -254,9 +256,11 @@ async def _start_application(app: FastAPI):
         # The scheduler skips it quietly, so this is where a typo gets noticed.
         _log.error("%s", exc)
         alert = f"{alert} {exc}." if alert else f"Virgil {_version} started, but: {exc}."
-    if alert and config.ALERT_WEBHOOK_URL:
+    from app.server_settings import current
+
+    if alert and current.ALERT_WEBHOOK_URL:
         # In the background: startup must not wait on a chat service.
-        app.state.startup_alert = asyncio.create_task(send_alert(config.ALERT_WEBHOOK_URL, alert))
+        app.state.startup_alert = asyncio.create_task(send_alert(current.ALERT_WEBHOOK_URL, alert))
 
     from app.services.scheduler import scheduler_loop
 

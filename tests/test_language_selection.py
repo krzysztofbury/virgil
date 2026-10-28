@@ -116,9 +116,8 @@ def test_sign_in_sets_cookie_to_account_language(anonymous):
 
 
 def test_signup_keeps_the_language_chosen_before_it(anonymous, monkeypatch):
-    import app.routers.auth as auth_router
 
-    monkeypatch.setattr(auth_router, "REGISTRATION_OPEN", True, raising=False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     anonymous.cookies.set(LANGUAGE_COOKIE, "pl")
     email = "polish-signup@example.com"
     password = "polish-signup-password-1"  # pragma: allowlist secret

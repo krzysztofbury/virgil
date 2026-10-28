@@ -11,7 +11,6 @@ import pytest
 from conftest import _TMP, TEST_EMAIL, csrf_token
 from fastapi.testclient import TestClient
 
-import app.routers.auth as auth_module
 from app import config
 from app.central_db import create_invite
 
@@ -134,7 +133,7 @@ def test_with_mail_off_signup_has_no_link_only_choice(auth_client, browser, monk
 
 @pytest.mark.parametrize("by_invite", [True, False], ids=["invite", "open-registration"])
 def test_the_link_choice_is_offered_when_mail_is_on(auth_client, browser, sent_mail, monkeypatch, by_invite):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", not by_invite)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", not by_invite)
     page = browser.get(f"/signup?invite={_invite('')}" if by_invite else "/signup").text
     assert 'name="sign_in_method" value="link"' in page and 'name="sign_in_method" value="password"' in page
 
