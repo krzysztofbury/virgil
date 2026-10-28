@@ -6,16 +6,20 @@ VIRGIL_BASE_URL=https://virgil.pl
 VIRGIL_LANDING_PAGE=true
 VIRGIL_REGISTRATION_OPEN=false
 VIRGIL_CONTACT_EMAIL=contact@virgil.pl
+VIRGIL_REQUIRE_TOTP=true
+VIRGIL_API_SENSITIVE=true
+VIRGIL_API_FINANCE=true
 VIRGIL_ADMIN_EMAILS={{ op://Virgil/virgil-production-env/VIRGIL_ADMIN_EMAILS }}
 
 VIRGIL_MAIL_BACKEND=smtp
-VIRGIL_MAIL_FROM=no-reply@virgil.pl
+VIRGIL_MAIL_FROM=Virgil <no-reply@virgil.pl>
 VIRGIL_MAIL_REPLY_TO=contact@virgil.pl
 VIRGIL_SMTP_HOST={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_HOST }}
 VIRGIL_SMTP_PORT={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_PORT }}
 VIRGIL_SMTP_USERNAME={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_USERNAME }}
 VIRGIL_SMTP_PASSWORD={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_PASSWORD }}
 
+VIRGIL_INTERNAL_LLM_MODEL=gemini/gemini-3.8-flash
 VIRGIL_INTERNAL_LLM_KEY={{ op://Virgil/virgil-production-env/VIRGIL_INTERNAL_LLM_KEY }}
 
 VIRGIL_ALERT_WEBHOOK_URL={{ op://Virgil/virgil-production-env/VIRGIL_ALERT_WEBHOOK_URL }}
