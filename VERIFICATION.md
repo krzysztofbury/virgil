@@ -41,8 +41,9 @@ Coverage, a test count or green CI alone is not an entry
   [CI run](https://github.com/krzysztofbury/virgil/actions/runs/40718682769)
   succeeded.
 - **Before the merge:** migration 010 ran as a dry run on a copy of the
-  production registry (`integrity_check` ok, accounts unchanged); the full
-  suite passed with 1625 tests; Settings > Server and Users, phone width, the
+  production registry (`integrity_check` ok, accounts unchanged); the PR
+  reports 1625 passed for the full suite without naming the command; Settings >
+  Server and Users, phone width, the
   signup consent in both languages and the privacy page were checked in a
   browser. All from the [PR description](https://github.com/krzysztofbury/virgil/pull/180).
 - **Command:** `scripts/deploy.py release` with that SHA, run by the owner.
@@ -77,7 +78,8 @@ Coverage, a test count or green CI alone is not an entry
 - **Not proved:** that the restored directory starts and serves pages, password
   and MFA sign-in, and the elapsed time. The
   [2026-10-21 drill](docs/recovery.md#2026-10-21-off-site-copy-restored-on-a-development-machine-47)
-  covered startup and page rendering for an earlier bundle.
+  covered startup and page rendering for an earlier bundle. This drill is not
+  in the recovery guide's drill record, which needs those fields.
 
 ## Data move to the new host (#174, 2026-10-28)
 
