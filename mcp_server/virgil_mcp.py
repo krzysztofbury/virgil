@@ -33,6 +33,7 @@ The Virgil app also serves these same tools over Streamable HTTP at /mcp
 """
 
 import os
+import re
 from urllib.parse import quote
 
 import httpx
@@ -45,6 +46,8 @@ CF_ID = os.environ.get("CF_ACCESS_CLIENT_ID", "")
 CF_SECRET = os.environ.get("CF_ACCESS_CLIENT_SECRET", "")
 
 mcp = MCPServer("virgil")
+# The shape app/api_paths.py routes to the features API; the API names the known flags.
+_FEATURE_NAME = re.compile(r"[A-Za-z0-9_-]+")
 
 _client: httpx.Client | None = None
 
@@ -931,7 +934,11 @@ def set_finance_scoring(layers: list[dict] | None = None, remove: list[str] | No
 def _probe(path: str) -> dict:
     """One health endpoint's status code and body. A 503 is the answer, so it is
     returned as data instead of raised like an API refusal."""
-    resp = _http().get(path)
+    try:
+        resp = _http().get(path)
+    except httpx.HTTPError as exc:
+        # No answer at all is the case this tool exists for: say what failed.
+        return {"status_code": None, "error": f"{type(exc).__name__}: {exc}"}
     try:
         body = resp.json()
     except ValueError:
@@ -966,6 +973,9 @@ def set_feature(name: str, enabled: bool) -> dict:
     `name` is "freedom" or "finance"; any other name is refused. Needs the write scope
     plus sensitive (freedom) or finance (finance). Turning freedom on does not choose
     habits to track; that stays on the Settings page. Returns {"name", "enabled"}."""
+    if not _FEATURE_NAME.fullmatch(name):
+        # Such a name never reaches the API's 404 (it is not an API path there).
+        raise ToolError(f"Unknown feature {name!r}: known are freedom, finance")
     return _put(f"/api/features/{quote(name, safe='')}", {"enabled": enabled})
 
 

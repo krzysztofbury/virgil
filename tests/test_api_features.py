@@ -136,3 +136,23 @@ def test_mcp_feature_tools_keep_the_allowlist_and_the_scopes(auth_client, client
     refused = _rpc(client, reader, "set_feature", {"name": "finance", "enabled": False})
     assert refused["isError"] is True and "lacks the write scope" in refused["content"][0]["text"]
     assert _stored("feature_finance") == "1"
+
+
+@pytest.mark.parametrize("name", ["", "fin.ance", "a b", "freedom/x"])
+def test_mcp_refuses_a_malformed_flag_name_with_the_known_ones(auth_client, client, hosted_tools, name):
+    """Such a name never reaches the API's 404, so the tool has to say it plainly."""
+    writer = _token(["read", "write", "sensitive", "finance"])
+    refused = _rpc(client, writer, "set_feature", {"name": name, "enabled": True})
+    assert refused["isError"] is True
+    assert "freedom" in refused["content"][0]["text"] and "finance" in refused["content"][0]["text"]
+
+
+def test_get_health_reports_an_unreachable_host_as_data(monkeypatch):
+    """The moment health matters most is when the host does not answer."""
+    import httpx
+
+    monkeypatch.setattr(virgil_mcp, "_client", httpx.Client(base_url="http://127.0.0.1:9", timeout=2.0))
+    report = virgil_mcp.get_health()
+    for probe in ("livez", "healthz"):
+        assert report[probe]["status_code"] is None
+        assert "ConnectError" in report[probe]["error"]
