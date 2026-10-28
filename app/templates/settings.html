@@ -11,7 +11,7 @@
    setting about one topic lives on one tab, and each card says what is true
    now before it offers controls. #}
 <nav class="tabs settings-tabs">
-    {% set tab_labels = {'general': _('General'), 'ai': _('AI'), 'configuration': _('Training'), 'integrations': _('Connections'), 'data': _('Data'), 'security': _('Security')} %}
+    {% set tab_labels = {'general': _('General'), 'ai': _('AI'), 'configuration': _('Training'), 'integrations': _('Connections'), 'data': _('Data'), 'security': _('Security'), 'users': _('Users'), 'server': _('Server')} %}
     {% for t in tabs %}
     <a href="/settings?tab={{ t }}" id="settings-tab-{{ t }}"
        hx-get="/settings?tab={{ t }}"
@@ -172,30 +172,7 @@
     <details class="settings-more" {% if not llm_providers and not server_llm %}open{% endif %}>
         <summary>{{ _("Add a key") }}</summary>
         <form method="POST" action="/settings/llm/add" x-data="llmProviderForm" class="settings-form">
-            <div class="grid">
-                <div>
-                    <label>{{ _("Provider") }}
-                        <select name="provider" required x-model="provider" @change="setProvider">
-                            <option value="anthropic">{{ _("Anthropic") }}</option>
-                            <option value="openai">{{ _("OpenAI") }}</option>
-                            <option value="gemini">{{ _("Google Gemini") }}</option>
-                            <option value="mistral">{{ _("Mistral") }}</option>
-                            <option value="groq">{{ _("Groq") }}</option>
-                            <option value="ollama">{{ _("Ollama (local)") }}</option>
-                            <option value="other">{{ _("Other (LiteLLM)") }}</option>
-                        </select>
-                    </label>
-                </div>
-                <div>
-                    <label>{{ _("Model") }}
-                        <input type="text" name="model" x-model="model" required
-                               :placeholder='isOther ? {{ _("e.g. together_ai/meta-llama/Llama-3-70b")|tojson }} : ""'>
-                    </label>
-                </div>
-            </div>
-            <label>{{ _("API Key") }}
-                <input type="password" name="api_key" placeholder="{{ _("sk-...") }}" required>
-            </label>
+            {% include "partials/llm_provider_fields.html" %}
             <p class="settings-note">{{ _("Stored encrypted. Whoever runs this server can still read it.") }}</p>
             <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Add key") }}</button></div>
         </form>
@@ -893,6 +870,12 @@
     </div>
     {% endif %}
 </section>
+
+{% elif active_tab == 'users' %}
+{% include "partials/settings_users.html" %}
+
+{% elif active_tab == 'server' %}
+{% include "partials/settings_server.html" %}
 
 {% endif %}
 

@@ -1,0 +1,26 @@
+{# Provider, model and key: the same fields for an account's own key and the server's (#179). #}
+<div class="grid">
+    <div>
+        <label>{{ _("Provider") }}
+            <select name="provider" required x-model="provider" @change="setProvider">
+                <option value="anthropic">{{ _("Anthropic") }}</option>
+                <option value="openai">{{ _("OpenAI") }}</option>
+                <option value="gemini">{{ _("Google Gemini") }}</option>
+                <option value="mistral">{{ _("Mistral") }}</option>
+                <option value="groq">{{ _("Groq") }}</option>
+                <option value="xai">{{ _("xAI (Grok)") }}</option>
+                <option value="ollama">{{ _("Ollama (local)") }}</option>
+                <option value="other">{{ _("Other (LiteLLM)") }}</option>
+            </select>
+        </label>
+    </div>
+    <div>
+        <label>{{ _("Model") }}
+            <input type="text" name="model" x-model="model" required
+                   :placeholder='isOther ? {{ _("e.g. together_ai/meta-llama/Llama-3-70b")|tojson }} : ""'>
+        </label>
+    </div>
+</div>
+<label>{{ _("API Key") }}
+    <input type="password" name="api_key" placeholder="{{ _("sk-...") }}" required>
+</label>

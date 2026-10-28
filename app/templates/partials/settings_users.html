@@ -1,22 +1,15 @@
-{% extends "base.html" %}
-{% block title %}{{ _("Virgil - Admin") }}{% endblock %}
-
-{% block content %}
-<div class="page-header">
-    <div class="flex-between">
-        <h1>{{ _("User Management") }}</h1>
+{# Settings > Users, for admins (#179): what was the admin panel. #}
+<section class="card settings-card" id="users">
+    <div class="card-header">
+        <h3>{{ _("Users") }}</h3>
         <small class="text-muted">{% trans count=total %}{{ count }} user{% pluralize %}{{ count }} users{% endtrans %} &middot; {% if registration_open %}{{ _("Registration open") }}{% else %}{{ _("Registration closed") }}{% endif %}</small>
     </div>
-</div>
-
-{% if reset_link %}
-<div class="card invite-link" role="status" style="margin-bottom:1rem;">
-    <p><strong>{% trans email=reset_email %}Send this link to {{ email }}.{% endtrans %}</strong> {% trans minutes=reset_minutes %}It sets a new password once, works for {{ minutes }} minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked.{% endtrans %}</p>
-    <input type="text" value="{{ reset_link }}" readonly aria-label="{{ _("Password reset link") }}">
-</div>
-{% endif %}
-
-<div class="card">
+    {% if reset_link %}
+    <div class="card invite-link" role="status">
+        <p><strong>{% trans email=reset_email %}Send this link to {{ email }}.{% endtrans %}</strong> {% trans minutes=reset_minutes %}It sets a new password once, works for {{ minutes }} minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked.{% endtrans %}</p>
+        <input type="text" value="{{ reset_link }}" readonly aria-label="{{ _("Password reset link") }}">
+    </div>
+    {% endif %}
     <div class="overflow-x">
         <table>
             <thead>
@@ -101,9 +94,9 @@
             </tbody>
         </table>
     </div>
-</div>
+</section>
 
-<div class="card" style="margin-top:1rem;" id="invites">
+<section class="card settings-card" id="invites">
     <div class="card-header"><h3>{{ _("Invites") }}</h3></div>
     {% if new_invite_link %}
     <div class="invite-link" role="status">
@@ -163,9 +156,9 @@
         </table>
     </div>
     {% endif %}
-</div>
+</section>
 
-<div class="card" style="margin-top:1rem;">
+<section class="card settings-card" id="security-events">
     <div class="card-header"><h3>{{ _("Security events") }}</h3></div>
     <p class="text-muted" style="font-size:0.85rem;">{{ _("Sign-ins, sign-outs and account changes from the last 180 days, newest first.") }}</p>
     {% if events %}
@@ -188,5 +181,4 @@
     {% else %}
     <p class="text-muted">{{ _("No events yet.") }}</p>
     {% endif %}
-</div>
-{% endblock %}
+</section>

@@ -377,6 +377,7 @@ AUTH_EVENTS = frozenset(
         "reset_link_create",
         "password_reset",
         "llm_access_change",
+        "server_setting",
         "token_create",
         "token_revoke",
         "user_disable",

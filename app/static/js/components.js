@@ -57,6 +57,7 @@ function llmProviderForm() {
             'gemini': 'gemini/gemini-3-flash-preview',
             'mistral': 'mistral/mistral-small-latest',
             'groq': 'groq/llama-3.3-70b-versatile',
+            'xai': 'xai/grok-4.7',
             'ollama': 'ollama/llama3.2',
             'other': ''
         },
