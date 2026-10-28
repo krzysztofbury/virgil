@@ -1454,6 +1454,48 @@ msgid "Oura sync queued."
 msgstr "Synchronizacja Oura dodana do kolejki."
 
 #: app/routers/settings.py
+msgid "Something does not work"
+msgstr "Coś nie działa"
+
+#: app/routers/settings.py
+msgid "A feature idea"
+msgstr "Pomysł na funkcję"
+
+#: app/routers/settings.py app/templates/freedom.html
+#: app/templates/settings.html
+msgid "Something else"
+msgstr "Coś innego"
+
+#: app/routers/settings.py
+msgid "Sending feedback is not set up on this server."
+msgstr "Wysyłanie opinii nie jest skonfigurowane na tym serwerze."
+
+#: app/routers/settings.py
+msgid "Choose what the message is about."
+msgstr "Wybierz, czego dotyczy wiadomość."
+
+#: app/routers/settings.py
+msgid "Write a message first."
+msgstr "Najpierw napisz wiadomość."
+
+#: app/routers/settings.py
+#, python-brace-format
+msgid "Keep it under {count} characters."
+msgstr "Zmieść się w {count} znakach."
+
+#: app/routers/settings.py
+msgid "The page must be an address in Virgil, such as /training."
+msgstr "Strona musi być adresem w Virgilu, na przykład /training."
+
+#: app/routers/settings.py
+msgid "That is enough for this hour. Try again later."
+msgstr "Na tę godzinę wystarczy. Spróbuj później."
+
+#: app/routers/settings.py
+msgid "Sent. Thank you."
+msgstr "Wysłano. Dziękujemy."
+
+#: app/routers/settings.py
 msgid "No token was created."
 msgstr "Nie utworzono tokenu."
 
@@ -3919,6 +3961,30 @@ msgstr "dzisiaj"
 msgid "%(days_left)sd left"
 msgstr "zostało %(days_left)s dni"
 
+#: app/templates/email/feedback.html
+#, python-format
+msgid "%(label)s from %(who)s &lt;%(sender)s&gt;."
+msgstr "%(label)s od %(who)s &lt;%(sender)s&gt;."
+
+#: app/templates/email/feedback.html app/templates/email/feedback.txt
+#, python-format
+msgid "About %(page)s."
+msgstr "Dotyczy %(page)s."
+
+#: app/templates/email/feedback.html app/templates/email/feedback.txt
+msgid "Reply to this email to answer them."
+msgstr "Odpowiedz na ten e-mail, aby odpisać nadawcy."
+
+#: app/templates/email/feedback.txt
+#, python-format
+msgid "Virgil feedback (%(kind)s) from %(sender)s"
+msgstr "Opinia o Virgilu (%(kind)s) od %(sender)s"
+
+#: app/templates/email/feedback.txt
+#, python-format
+msgid "%(label)s from %(who)s <%(sender)s>."
+msgstr "%(label)s od %(who)s <%(sender)s>."
+
 #: app/templates/email/invite.html app/templates/email/invite.txt
 msgid "You're invited to Virgil: one place for your days, training, sleep and goals, which your AI assistant can read too."
 msgstr "Zapraszamy do Virgila: jednego miejsca na Twoje dni, treningi, sen i cele, które może czytać także Twój asystent AI."
@@ -4827,10 +4893,6 @@ msgstr "Zapisz ubezpieczenia"
 #: app/templates/freedom.html
 msgid "Virgil - Freedom"
 msgstr "Virgil - Freedom"
-
-#: app/templates/freedom.html app/templates/settings.html
-msgid "Something else"
-msgstr "Coś innego"
 
 #: app/templates/freedom.html
 msgid "Something else, in your words"
@@ -6686,6 +6748,35 @@ msgstr "Twoja finansowa forteca: warstwy, które definiujesz, konta i ich salda 
 #: app/templates/settings.html
 msgid "Save modules"
 msgstr "Zapisz moduły"
+
+#: app/templates/settings.html
+msgid "Feedback"
+msgstr "Opinie"
+
+#: app/templates/settings.html
+msgid "Tell us what does not work or what you miss. It goes by email to the people who run Virgil, and their answer comes to your email."
+msgstr "Napisz, co nie działa albo czego brakuje. Wiadomość trafi e-mailem do osób prowadzących Virgila, a odpowiedź przyjdzie na Twój e-mail."
+
+#: app/templates/settings.html
+msgid "About"
+msgstr "Czego dotyczy"
+
+#: app/templates/settings.html
+msgid "Page (optional)"
+msgstr "Strona (opcjonalnie)"
+
+#: app/templates/settings.html
+msgid "Message"
+msgstr "Wiadomość"
+
+#: app/templates/settings.html
+msgid "Send"
+msgstr "Wyślij"
+
+#: app/templates/settings.html
+#, python-format
+msgid "Tell us what does not work or what you miss: write to %(email)s."
+msgstr "Napisz, co nie działa albo czego brakuje: %(email)s."
 
 #: app/templates/settings.html
 msgid "AI model"

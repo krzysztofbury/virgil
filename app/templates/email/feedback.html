@@ -1,0 +1,6 @@
+{% extends "email/base.html" %}
+{% block body %}
+{# Sent to the instance's contact address, in English, with the sender as Reply-To (#167). #}
+<p style="margin:0 0 16px;color:#5c6b7e;font-size:14px;">{% trans label=_(kind_label), who=(name or sender), sender=sender %}{{ label }} from {{ who }} &lt;{{ sender }}&gt;.{% endtrans %}{% if page %} {% trans page=page %}About {{ page }}.{% endtrans %}{% endif %} {{ _("Reply to this email to answer them.") }}</p>
+<p style="margin:0;white-space:pre-wrap;">{{ message }}</p>
+{% endblock %}

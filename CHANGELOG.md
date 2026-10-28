@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Feedback from inside the app (#167): Settings > General has a short form
+  (what it is about, an optional page, the message) that emails the
+  instance's contact address with the sender's account as Reply-To. Nothing is
+  stored, and each account may send five an hour. Without mail, the card shows
+  the contact address instead; without a contact address, it is hidden.
 - MCP tools for operating a deploy (#177). `get_health` returns the status code
   and body of `/livez` and `/healthz`, so an agent can tell a live process with
   degraded migrations from a healthy one without the HTML. `get_features` and
