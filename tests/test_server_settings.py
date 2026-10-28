@@ -155,3 +155,17 @@ def test_a_malformed_environment_script_url_never_reaches_the_policy(monkeypatch
 
     monkeypatch.setattr(config, "PLAUSIBLE_SCRIPT_URL", "https://a.example; script-src *")
     assert "script-src *" not in content_security_policy("n")
+
+
+def test_a_credential_cannot_fall_back_to_the_environment_for_a_new_address(settings, monkeypatch):
+    """Reset after a new host would hand the environment's password to that host."""
+    monkeypatch.setattr(config, "SMTP_HOST", "old.example")
+    monkeypatch.setattr(config, "SMTP_PASSWORD", "env-credential")
+    settings(server_settings.save, "SMTP_HOST", "new.example")
+    with pytest.raises(SettingError):
+        settings(server_settings.reset, "SMTP_PASSWORD")
+    assert current.SMTP_PASSWORD == ""
+
+    settings(server_settings.reset, "SMTP_HOST")
+    settings(server_settings.reset, "SMTP_PASSWORD")
+    assert current.SMTP_PASSWORD == "env-credential"

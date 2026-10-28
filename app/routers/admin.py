@@ -308,7 +308,8 @@ async def _server_change(request: Request, admin: dict, what: str, alert_url: st
 
         from app.alerts import send_alert
 
-        task = asyncio.create_task(send_alert(alert_url, f"Virgil: {admin['email']} changed {what}."))
+        text = f"Virgil: {admin['email']} changed {what}."  # i18n: internal (the operator's alert)
+        task = asyncio.create_task(send_alert(alert_url, text))
         _pending_alerts.add(task)
         task.add_done_callback(_pending_alerts.discard)
 
@@ -381,7 +382,10 @@ async def reset_server_setting(request: Request, attribute: str):
         item = server_settings.setting(attribute)
     except server_settings.SettingError:
         return error_redirect(request, SERVER_TAB, _("That setting cannot be changed in the app."))
-    await server_settings.reset(item.attribute)
+    try:
+        await server_settings.reset(item.attribute)
+    except server_settings.SettingError as exc:
+        return error_redirect(request, f"{SERVER_TAB}#{item.attribute}", _(str(exc)))
     await _server_change(request, admin, f"{item.env_name} (back to the environment's value)", alert_url)
     return success_redirect(request, f"{SERVER_TAB}#{item.attribute}", _("The environment's value applies again."))
 

@@ -43,7 +43,7 @@
         <li class="settings-list-row">
             <div class="settings-list-main">
                 <strong>{{ _("From the environment") }}</strong>
-                <span class="settings-list-meta">{{ env_llm_model }} <code>{{ env_llm_key }}</code> <small>VIRGIL_INTERNAL_LLM_MODEL, VIRGIL_INTERNAL_LLM_KEY</small></span>
+                <span class="settings-list-meta">{{ env_llm_model }} <code>{{ env_llm_key }}</code> <code>VIRGIL_INTERNAL_LLM_MODEL</code> <code>VIRGIL_INTERNAL_LLM_KEY</code></span>
             </div>
             <div class="settings-list-actions">
                 {% if not active_server %}<span class="job-status-badge job-status-badge-succeeded">{{ _("In use") }}</span>{% endif %}
@@ -63,6 +63,13 @@
 {% for group in server_groups %}
 <section class="card settings-card" id="server-{{ group.id }}">
     <div class="card-header"><h3>{{ group.title }}</h3></div>
+    {% if group.id == 'email' %}
+    <p class="settings-note">{{ _("A new SMTP host clears the saved password: enter it again after the host.") }}</p>
+    {% elif group.id == 'offsite' %}
+    <p class="settings-note">{{ _("A new endpoint clears the saved secret access key: enter it again after the endpoint. Copies are encrypted to the recipient key, so keep its private half where you can restore from it.") }}</p>
+    {% elif group.id == 'operator' %}
+    <p class="settings-note">{{ _("Named as the data controller on the privacy policy and as the provider on the terms.") }}</p>
+    {% endif %}
     <ul class="settings-list server-settings">
         {% for s in group.rows %}
         <li class="settings-list-row server-setting" id="{{ s.attribute }}">

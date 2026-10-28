@@ -26,6 +26,8 @@ SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
 PUBLIC_PATHS = frozenset(
     {
         "/welcome",
+        "/privacy",
+        "/terms",
         "/login",
         "/login/link",
         "/login/link/confirm",

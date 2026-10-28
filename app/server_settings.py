@@ -211,6 +211,10 @@ async def reset(attribute: str) -> None:
     from app.central_db import get_central_db
 
     setting(attribute)
+    address = next((name for name, credential in _CREDENTIAL_OF.items() if credential == attribute), None)
+    if address and str(getattr(current, address) or "") != str(getattr(config, address) or ""):
+        # The environment's credential belongs to the environment's address.
+        raise SettingError(N_("Reset the address first: the environment's credential belongs to its own address."))
     db = await get_central_db()
     await db.execute("DELETE FROM server_settings WHERE name = ?", (attribute,))
     await db.commit()
