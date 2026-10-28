@@ -664,7 +664,7 @@
             {% endif %}
         </div>
         <p class="settings-status" data-offsite-state="{{ offsite.state }}">
-            {% if offsite.state == 'off' %}{{ _("Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings.") }}
+            {% if offsite.state == 'off' %}{{ _("Not configured. Set it up under Settings > Server, Off-site copies; docs/recovery.md explains the settings.") }}
             {% elif offsite.state == 'misconfigured' %}{{ offsite.problem }}.
             {% elif offsite.state == 'failed' %}{% trans problem=offsite.problem %}The last attempt failed: {{ problem }}. It retries every hour.{% endtrans %}
             {% elif offsite.state == 'overdue' %}{{ _("No off-site copy in more than two days.") }}

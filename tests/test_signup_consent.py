@@ -24,7 +24,7 @@ def _signup(client, monkeypatch, **extra):
 
 def _accepted_at():
     with sqlite3.connect(Path(_TMP) / "central.db") as central:
-        row = central.execute("SELECT terms_accepted_at FROM users WHERE email = ?", (EMAIL,)).fetchone()
+        row = central.execute("SELECT terms_accepted_at, terms_version FROM users WHERE email = ?", (EMAIL,)).fetchone()
     return row
 
 
@@ -60,7 +60,9 @@ def test_acceptance_is_recorded_with_the_account(client, auth_client, monkeypatc
     try:
         _browser, response = _signup(client, monkeypatch, accept_terms="1")
         assert response.status_code == 303
-        (accepted,) = _accepted_at()
-        assert accepted and accepted.startswith("20")
+        from app.legal import LEGAL_VERSION
+
+        accepted, version = _accepted_at()
+        assert accepted and accepted.startswith("20") and version == LEGAL_VERSION
     finally:
         _forget()

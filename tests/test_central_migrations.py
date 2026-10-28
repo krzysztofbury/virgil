@@ -39,7 +39,7 @@ def test_pending_discovery_does_not_modify_unversioned_database(tmp_path):
 
         db = await _create_unversioned_registry(tmp_path / "central.db")
         try:
-            assert await count_pending_migrations(db) == 10
+            assert await count_pending_migrations(db) == 11
             tracking = await db.execute_fetchall(
                 "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'central_schema_migrations'"
             )
@@ -79,6 +79,7 @@ def test_fresh_database_gets_baseline_and_version_record(tmp_path):
                 (8, "008_user_language.py"),
                 (9, "009_sign_in_links_and_recovery_codes.py"),
                 (10, "010_server_settings.py"),
+                (11, "011_terms_version.py"),
             ]
         finally:
             await db.close()
@@ -103,7 +104,7 @@ def test_unversioned_registry_upgrades_without_losing_data(tmp_path):
                 }
             ]
             versions = await db.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         finally:
             await db.close()
 
@@ -201,7 +202,7 @@ def test_failed_migration_rolls_back_schema_and_version_then_retries(tmp_path, m
         try:
             await run_migrations(reopened)
             versions = await reopened.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         finally:
             await reopened.close()
 
@@ -476,6 +477,7 @@ def test_concurrent_central_initialization_serializes_snapshot_and_migration(tmp
                 (8, "008_user_language.py"),
                 (9, "009_sign_in_links_and_recovery_codes.py"),
                 (10, "010_server_settings.py"),
+                (11, "011_terms_version.py"),
             ]
         finally:
             await first.close()
@@ -582,8 +584,28 @@ def test_real_upgrade_failure_snapshots_rolls_back_and_quarantines_app(tmp_path,
         try:
             await central_db.migrate_central_db(recovered)
             versions = await recovered.execute_fetchall("SELECT version FROM central_schema_migrations")
-            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+            assert [row["version"] for row in versions] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]
         finally:
             await recovered.close()
 
     asyncio.run(run())
+
+
+def test_migration_011_gives_live_signup_links_the_version_their_form_showed(tmp_path):
+    """The consent box shipped with 010, so a signup link waiting at upgrade time had it ticked."""
+    import importlib
+
+    import aiosqlite
+
+    async def run():
+        db = await aiosqlite.connect(tmp_path / "central.db")
+        db.row_factory = aiosqlite.Row
+        await db.execute("CREATE TABLE users (id TEXT)")
+        await db.execute("CREATE TABLE sign_in_links (id TEXT, purpose TEXT)")
+        await db.executemany("INSERT INTO sign_in_links VALUES (?, ?)", [("a", "signup"), ("b", "sign_in")])
+        await importlib.import_module("app.central_migrations.011_terms_version").up(db)
+        rows = await db.execute_fetchall("SELECT id, terms_version FROM sign_in_links ORDER BY id")
+        await db.close()
+        return [tuple(row) for row in rows]
+
+    assert asyncio.run(run()) == [("a", "2026-10-28"), ("b", None)]
