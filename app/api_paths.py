@@ -22,6 +22,9 @@ _SHAPES = {
     "day": "[0-9]{4}-[0-9]{2}-[0-9]{2}",
     # A habit slug: lowercase ASCII letters, digits and hyphens (habits.slugify).
     "habit": "[a-z0-9-]+",
+    # A feature flag name. Wider than the known names on purpose, so an unknown or
+    # miscased one reaches the route and is refused there with the list of known ones.
+    "feature": "[A-Za-z0-9_-]+",
 }
 
 

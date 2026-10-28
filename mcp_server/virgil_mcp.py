@@ -9,7 +9,7 @@
 
 Exposes Virgil data (daily habits, Oura, streaks, experiments, training, finance)
 and its writes (goals, daily log and A.N.D.Y., Freedom habits, training,
-finance balances) to MCP
+finance balances), plus deploy health and the optional modules' switches, to MCP
 clients (Claude Code, OpenClaw). No local DB access — everything goes
 through the authenticated REST API, so it works from any machine.
 
@@ -923,6 +923,50 @@ def set_finance_scoring(layers: list[dict] | None = None, remove: list[str] | No
     if remove is not None:
         payload["remove"] = remove
     return _put("/api/finance/scoring", payload)
+
+
+# --- Operating Virgil: deploy health and the module switches ---
+
+
+def _probe(path: str) -> dict:
+    """One health endpoint's status code and body. A 503 is the answer, so it is
+    returned as data instead of raised like an API refusal."""
+    resp = _http().get(path)
+    try:
+        body = resp.json()
+    except ValueError:
+        body = resp.text[:200]
+    return {"status_code": resp.status_code, "body": body}
+
+
+@mcp.tool()
+def get_health() -> dict:
+    """Check whether this Virgil deploy is healthy: the status code and JSON body of
+    /livez (the process answers) and /healthz (every database passed its startup
+    migrations). Both 200: healthy. /livez 200 with /healthz 503 {"status": "degraded"}:
+    the process is up but migrations are degraded, so some account's data is unavailable;
+    a restart will not fix it. Use after a deploy or when tools start failing; it reads no
+    personal data and cannot restart or deploy anything. The hosted /mcp is itself down
+    while the central database failed its migrations; only the stdio server answers then."""
+    return {"livez": _probe("/livez"), "healthz": _probe("/healthz")}
+
+
+@mcp.tool()
+def get_features() -> dict:
+    """Which optional modules are on for this account: {"features": {"freedom": bool,
+    "finance": bool}}. A flag is null when the token lacks the scope guarding its data
+    (sensitive for freedom, finance for finance). These are the only names set_feature
+    accepts."""
+    return _get("/api/features")
+
+
+@mcp.tool()
+def set_feature(name: str, enabled: bool) -> dict:
+    """Switch one optional module on or off for this account, as Settings > General does.
+    `name` is "freedom" or "finance"; any other name is refused. Needs the write scope
+    plus sensitive (freedom) or finance (finance). Turning freedom on does not choose
+    habits to track; that stays on the Settings page. Returns {"name", "enabled"}."""
+    return _put(f"/api/features/{quote(name, safe='')}", {"enabled": enabled})
 
 
 if __name__ == "__main__":

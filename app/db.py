@@ -31,6 +31,11 @@ async def set_setting(db, key: str, value: str) -> None:
     await db.commit()
 
 
+# The optional modules Settings > General offers, each with the API scope that
+# guards its data. The REST API and MCP may read and switch only these.
+FEATURE_FLAGS = {"freedom": "sensitive", "finance": "finance"}
+
+
 async def get_feature_flags(db) -> dict[str, bool]:
     """Load all feature_* settings as a {name: bool} dict."""
     rows = await db.execute_fetchall("SELECT key, value FROM app_settings WHERE key LIKE 'feature_%'")

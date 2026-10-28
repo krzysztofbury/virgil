@@ -1,6 +1,7 @@
 """Hosted MCP endpoint (/mcp): the API-key gate and a real tool call over Streamable HTTP."""
 
 import importlib
+import json
 from datetime import date, timedelta
 
 import pytest
@@ -102,3 +103,26 @@ def test_freedom_tools_write_through_the_new_paths_and_the_old_names_still_work(
     finally:
         for day in (old_day, new_day):
             auth_client.delete(f"/api/freedom/porn/days/{day}", headers=KEY)
+
+
+def test_get_health_reports_a_red_healthz_as_data_beside_a_green_livez(client, monkeypatch):
+    """A 503 from /healthz is the answer, not a tool failure: the agent needs both codes."""
+    rest = TestClient(app, headers=KEY)
+    rest.portal = client.portal
+    monkeypatch.setattr(virgil_mcp, "_client", rest)
+
+    def health() -> dict:
+        result = _rpc(client, "tools/call", {"name": "get_health", "arguments": {}}).json()["result"]
+        assert result["isError"] is False, result
+        return json.loads(result["content"][0]["text"])
+
+    assert health() == {
+        "livez": {"status_code": 200, "body": {"status": "live"}},
+        "healthz": {"status_code": 200, "body": {"status": "ok"}},
+    }
+
+    monkeypatch.setattr(app.state, "migration_failures", ["broken-user.db"], raising=False)
+    assert health() == {
+        "livez": {"status_code": 200, "body": {"status": "live"}},
+        "healthz": {"status_code": 503, "body": {"status": "degraded"}},
+    }

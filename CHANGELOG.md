@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- MCP tools for operating a deploy (#177). `get_health` returns the status code
+  and body of `/livez` and `/healthz`, so an agent can tell a live process with
+  degraded migrations from a healthy one without the HTML. `get_features` and
+  `set_feature` (`GET /api/features`, `PUT /api/features/{name}`) read and
+  switch only the Freedom and Finance modules; an unknown name is refused, and
+  each flag needs the scope of its data (`sensitive` or `finance`) on top of
+  `read` or `write`.
 - Server settings in the app (#179). Settings > Server lets an admin named in
   `VIRGIL_ADMIN_EMAILS` change
   mail, the alert webhook, off-site copies, the contact address, registration,
