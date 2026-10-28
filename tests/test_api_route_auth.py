@@ -17,7 +17,7 @@ from app.routers.api import router
 KEY = {"X-API-Key": "test-key-123"}
 
 # Values that name nothing in the shared database: nothing can be read or changed.
-_SAMPLES = {"day": "1999-01-01", "habit": "porn"}
+_SAMPLES = {"day": "1999-01-01", "habit": "porn", "feature": "freedom"}
 
 
 def _url(path: str) -> str:
@@ -54,6 +54,9 @@ SENSITIVE = {
     ("PATCH", "/api/feniks/bricks/{brick_id}"),
     ("DELETE", "/api/feniks/bricks/{brick_id}"),
     ("PATCH", "/api/feniks/config"),
+    # Switching the Freedom module reveals it is in use; the body below is not a
+    # valid flag body, so a 403 also shows the scope is checked first.
+    ("PUT", "/api/features/{feature}"),
 }
 # A valid body, so the refusal comes from the scope and not from validation.
 _BODIES = {"PUT": {"slipped": False}, "POST": {"date": "1999-01-01", "hook": "x"}, "PATCH": {"hook": "x"}}

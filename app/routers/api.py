@@ -9,7 +9,7 @@ disabled while neither exists. `/mcp` uses this same resolution. Writes cover ca
 exercise-library CRUD,
 the daily log (habits and A.N.D.Y.), Freedom (/api/freedom: habits, their days, bricks and
 settings; the /api/feniks paths are deprecated aliases), training
-sessions and body measurements.
+sessions, body measurements and the optional modules' flags (/api/features).
 """
 
 import hmac
@@ -25,6 +25,7 @@ from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
+from app.db import FEATURE_FLAGS, get_feature_flags, set_setting
 from app.library_validation import LibraryWriteError, normalize_tag
 from app.services.daily_log import DailyLogError, delete_daily_log, get_daily_log, upsert_daily_log
 from app.services.experiment_weeks import experiment_calendar, experiment_week_number
@@ -1426,6 +1427,42 @@ async def api_delete_measurements(day: str, db: ApiDb):
     if not await delete_measurements(db, _iso_day(day)):
         raise HTTPException(status_code=404, detail="No measurements for that date")
     return {"deleted": True, "date": _iso_day(day)}
+
+
+# --- Feature flags: only the modules Settings offers, each behind its data's scope ---
+
+
+class ApiFeature(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    enabled: bool
+
+
+@router.get("/features")
+async def api_features(request: Request, db: ApiDb):
+    """Each module's flag; null where the token lacks the scope that guards its data,
+    since even knowing that Freedom is on says something intimate."""
+    scopes = request.state.api_credential.scopes
+    stored = await get_feature_flags(db)
+    return {
+        "features": {
+            name: stored.get(name, False) if scope in scopes else None for name, scope in FEATURE_FLAGS.items()
+        }
+    }
+
+
+async def feature_db(feature: str, request: Request, db: ApiDb):
+    """A known flag, then the scope of the data it reveals, both before the body is validated."""
+    if feature not in FEATURE_FLAGS:
+        raise HTTPException(status_code=404, detail=f"Unknown feature; known: {', '.join(sorted(FEATURE_FLAGS))}")
+    require_scope(request, FEATURE_FLAGS[feature])
+    return db
+
+
+@router.put("/features/{feature}")
+async def api_set_feature(feature: str, payload: ApiFeature, db: Annotated[aiosqlite.Connection, Depends(feature_db)]):
+    await set_setting(db, f"feature_{feature}", "1" if payload.enabled else "0")
+    return {"name": feature, "enabled": payload.enabled}
 
 
 # --- Finance ---

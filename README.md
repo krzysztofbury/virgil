@@ -213,6 +213,21 @@ The endpoint runs in stateless JSON mode; every tool still calls the REST API
 (over loopback) with the caller's own credential, so `/mcp` and `/api` share
 one auth path, one account mapping and one set of scopes.
 
+For checking a deploy and switching modules, agents use these instead of the HTML:
+
+- `get_health` returns the status code and body of `/livez` and `/healthz`.
+  `/livez` 200 with `/healthz` 503 means the process is up but a database failed
+  its startup migrations; a restart does not fix that. The hosted `/mcp` is
+  itself unavailable while the central database is quarantined, so check from
+  the stdio wrapper or `curl /healthz` then.
+- `get_features` / `set_feature` → `GET /api/features`, `PUT
+  /api/features/{name}` with `{"enabled": true}`: only `freedom` and `finance`,
+  the modules Settings > General offers; any other name is refused with 404.
+  Reading needs `read`, switching needs `write`, and each flag also needs the
+  scope of its data (`sensitive` for Freedom, `finance` for Finance); without
+  it the flag reads as `null`. Switching Freedom on does not pick habits to
+  track; that stays in Settings.
+
 Tests and Docker use bundled LiteLLM capability metadata for reproducibility.
 Updating that metadata is part of a reviewed dependency update.
 
