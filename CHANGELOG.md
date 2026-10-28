@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   switch only the Freedom and Finance modules; an unknown name is refused, and
   each flag needs the scope of its data (`sensitive` or `finance`) on top of
   `read` or `write`.
+- `AGENTS.md` for coding agents (#175): the claim ban, what is not evidence,
+  skill pointers and Virgil's boundaries. `VERIFICATION.md` records what was
+  run against production and what it does not prove, with a post-deploy
+  evidence template in `docs/post-deploy-evidence.md` (#176).
 - Each account stores which version of the terms and the privacy policy it
   accepted (`users.terms_version`, central migration 011). The pages show the
   effective date from `app/legal.py`. A signup link sent before the consent

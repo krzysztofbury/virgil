@@ -1,5 +1,8 @@
 # Contributing to Virgil
 
+Coding agents start with [AGENTS.md](AGENTS.md): what counts as evidence, the
+checks to run, and where production evidence is recorded.
+
 ## Setup
 
 Use Python 3.14.7 and uv 0.12.7, matching the production image and CI.
@@ -142,5 +145,8 @@ file: open an issue for a follow-up, and close it from the PR that does it.
 ## Submitting and reporting
 
 Open a PR against `main` with the problem, resulting behavior, and validation.
+Record what a production release or drill proved, and what it did not, in
+[VERIFICATION.md](VERIFICATION.md), using
+[the post-deploy template](docs/post-deploy-evidence.md) on the owning issue.
 Keep private data and credentials out of code, fixtures, logs, and screenshots.
 Report security problems using [SECURITY.md](SECURITY.md), not a public issue.
