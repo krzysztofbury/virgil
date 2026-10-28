@@ -544,6 +544,10 @@ msgid "Please enter a valid email address."
 msgstr "Podaj prawidłowy adres e-mail."
 
 #: app/routers/auth.py
+msgid "Accept the terms and the privacy policy to create an account."
+msgstr "Aby założyć konto, zaakceptuj regulamin i politykę prywatności."
+
+#: app/routers/auth.py
 msgid "An account with that email already exists."
 msgstr "Konto z tym adresem e-mail już istnieje."
 
@@ -3302,6 +3306,11 @@ msgstr "Hasłem"
 #: app/templates/auth_signup.html
 msgid "Confirm Password"
 msgstr "Potwierdź hasło"
+
+#: app/templates/auth_signup.html
+#, python-format
+msgid "I accept the %(terms)sterms%(end)s and the %(privacy)sprivacy policy%(end)s, including the processing of the health data I enter."
+msgstr "Akceptuję %(terms)sregulamin%(end)s i %(privacy)spolitykę prywatności%(end)s, w tym przetwarzanie danych o zdrowiu, które wpiszę."
 
 #: app/templates/auth_signup.html
 msgid "Create Account"

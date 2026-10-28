@@ -1,4 +1,5 @@
-"""Server settings an admin changes in the app, and the server's AI keys (#179).
+"""Server settings an admin changes in the app, the server's AI keys, and when
+each account accepted the terms and the privacy policy (#179).
 
 A row in server_settings overrides the environment variable of the same name
 until it is deleted. Secrets are stored encrypted with the instance key, like
@@ -28,6 +29,9 @@ async def up(db: aiosqlite.Connection) -> None:
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         )"""
     )
+    # Accepting the terms includes the explicit consent to health data (art. 9
+    # GDPR) the privacy policy describes. Accounts made before stay NULL.
+    await db.execute("ALTER TABLE users ADD COLUMN terms_accepted_at TEXT")
 
 
 async def validate(db: aiosqlite.Connection) -> None:
@@ -38,3 +42,6 @@ async def validate(db: aiosqlite.Connection) -> None:
         found = {row["name"] for row in await db.execute_fetchall(f"PRAGMA table_info({table})")}
         if found != columns:
             raise RuntimeError(f"Central {table} does not match migration 010")
+    users = {row["name"] for row in await db.execute_fetchall("PRAGMA table_info(users)")}
+    if "terms_accepted_at" not in users:
+        raise RuntimeError("Central users.terms_accepted_at does not match migration 010")

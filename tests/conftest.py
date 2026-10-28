@@ -238,6 +238,7 @@ def auth_client(client):
         resp = authenticated.post(
             "/signup",
             data={
+                "accept_terms": "1",
                 "email": TEST_EMAIL,
                 "display_name": "Test",
                 "password": TEST_PASSWORD,

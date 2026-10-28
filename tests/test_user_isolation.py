@@ -29,6 +29,7 @@ def _sign_up_second_account(client) -> str:
     response = client.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "second@example.com",
             "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
             "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture

@@ -79,6 +79,7 @@ def test_disabled_owner_does_not_hand_the_api_key_to_the_next_admin(auth_client,
         created = second.post(
             "/signup",
             data={
+                "accept_terms": "1",
                 "email": other_email,
                 "password": "other-admin-password",  # pragma: allowlist secret - synthetic fixture
                 "password_confirm": "other-admin-password",  # pragma: allowlist secret - synthetic fixture

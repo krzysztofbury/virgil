@@ -191,6 +191,7 @@ async def signup_submit(
     password_confirm: str = Form(""),
     invite: str = Form(""),
     sign_in_method: str = Form("password"),
+    accept_terms: str = Form(""),
 ):
     if not invite and not await registration_allowed():
         return error_redirect(request, "/login", _("Registration is closed on this server."))
@@ -219,6 +220,10 @@ async def signup_submit(
 
     if not valid_email(email):
         return _render_error(_("Please enter a valid email address."))
+    if not accept_terms:
+        # A signup link is only ever sent after this, so an account made from
+        # one has accepted too (#179).
+        return _render_error(_("Accept the terms and the privacy policy to create an account."))
 
     if link_only and not (invite_email and invite_email == email):
         # No password (#168): an address nobody vouched for gets a link first, and
@@ -306,7 +311,8 @@ async def _start_account(request: Request, user: dict, *, used_invite: bool, lan
         return None
 
     await _event(request, "invite_consume" if used_invite else "signup", user["id"])
-    await update_user(user["id"], language=normalize_language(language))
+    accepted = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+    await update_user(user["id"], language=normalize_language(language), terms_accepted_at=accepted)
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg=_("Account created."))
     response = RedirectResponse(target, status_code=303)

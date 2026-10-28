@@ -65,7 +65,8 @@ def _invite(email: str = "") -> str:
 
 def _signup(browser, invite: str, email: str, method: str = "link", password: str | None = None):
     page = f"/signup?invite={invite}" if invite else "/signup"
-    data = {"email": email, "display_name": "Ala", "sign_in_method": method, "_csrf_token": csrf_token(browser, page)}
+    data = {"email": email, "display_name": "Ala", "sign_in_method": method, "accept_terms": "1"}
+    data["_csrf_token"] = csrf_token(browser, page)
     if invite:
         data["invite"] = invite
     if password:
@@ -326,6 +327,7 @@ def test_a_signup_error_keeps_the_chosen_method(auth_client, browser, sent_mail)
     page = browser.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "chooser@example.com",
             "sign_in_method": "password",
             "password": "first-password-1",  # pragma: allowlist secret - synthetic fixture

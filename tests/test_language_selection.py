@@ -124,7 +124,13 @@ def test_signup_keeps_the_language_chosen_before_it(anonymous, monkeypatch):
     token = csrf_token(anonymous, "/signup")
     response = anonymous.post(
         "/signup",
-        data={"email": email, "password": password, "password_confirm": password, "_csrf_token": token},
+        data={
+            "accept_terms": "1",
+            "email": email,
+            "password": password,
+            "password_confirm": password,
+            "_csrf_token": token,
+        },
         follow_redirects=False,
     )
     central = sqlite3.connect(Path(_TMP) / "central.db")

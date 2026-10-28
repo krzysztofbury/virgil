@@ -33,7 +33,8 @@ def make_account(auth_client, client):
         browser = TestClient(app)
         browser.portal = client.portal
         invite = asyncio.run(create_invite(admin_id, email=email))
-        data = {"email": email, "invite": invite, "_csrf_token": csrf_token(browser, f"/signup?invite={invite}")}
+        data = {"email": email, "invite": invite, "accept_terms": "1"}
+        data["_csrf_token"] = csrf_token(browser, f"/signup?invite={invite}")
         if password is None:
             data["sign_in_method"] = "link"
         else:
@@ -178,6 +179,7 @@ def test_a_new_password_account_can_set_up_totp_before_onboarding(auth_client, c
         browser.post(
             "/signup",
             data={
+                "accept_terms": "1",
                 "email": email,
                 "invite": invite,
                 "password": password,

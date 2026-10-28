@@ -192,6 +192,7 @@ _UPDATABLE_COLUMNS = frozenset(
         "email",
         "password_hash",
         "display_name",
+        "terms_accepted_at",
         "role",
         "is_active",
         "totp_secret",

@@ -362,6 +362,7 @@ def test_same_numeric_job_id_resolves_inside_each_users_database(auth_client, mo
         signup = second.post(
             "/signup",
             data={
+                "accept_terms": "1",
                 "email": "jobs-second@example.com",
                 "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
                 "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture

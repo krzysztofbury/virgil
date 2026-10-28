@@ -40,6 +40,7 @@ def test_signup_refuses_a_hostile_address_quickly(auth_client, monkeypatch):
     resp = auth_client.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "a@" + "." * 50_000 + "@",
             "password": "password-123",  # pragma: allowlist secret - synthetic fixture
             "password_confirm": "password-123",  # pragma: allowlist secret - synthetic fixture
