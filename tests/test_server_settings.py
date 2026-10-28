@@ -86,3 +86,34 @@ def test_an_unknown_setting_cannot_be_saved(settings):
     for attribute in ("ENCRYPTION_KEY", "ADMIN_EMAILS", "REQUIRE_TOTP", "BASE_URL"):
         with pytest.raises(SettingError):
             settings(server_settings.save, attribute, "x")
+
+
+def test_off_site_fields_merge_one_by_one_before_the_half_set_check(settings, monkeypatch):
+    """Two fields saved in the app, three from the environment: one destination."""
+    from pyrage import x25519
+
+    from app.services import offsite
+
+    identity = x25519.Identity.generate()
+    for name, value in {
+        "OFFSITE_ENDPOINT": "https://env.r2.example",
+        "OFFSITE_BUCKET": "env-bucket",
+        "OFFSITE_ACCESS_KEY_ID": "env-id",
+        "OFFSITE_SECRET_ACCESS_KEY": "env-secret",  # pragma: allowlist secret
+        "OFFSITE_RECIPIENT": str(identity.to_public()),
+    }.items():
+        monkeypatch.setattr(config, name, value)
+    settings(server_settings.save, "OFFSITE_BUCKET", "app-bucket")
+    settings(server_settings.save, "OFFSITE_SECRET_ACCESS_KEY", "app-secret")  # pragma: allowlist secret
+
+    destination = offsite.offsite_settings()
+    assert (destination.endpoint, destination.bucket, destination.access_key_id) == (
+        "https://env.r2.example",
+        "app-bucket",
+        "env-id",
+    )
+    assert destination.secret_access_key == "app-secret"  # pragma: allowlist secret
+
+    settings(server_settings.save, "OFFSITE_ENDPOINT", "")
+    with pytest.raises(offsite.OffsiteConfigError, match="VIRGIL_OFFSITE_ENDPOINT"):
+        offsite.offsite_settings()

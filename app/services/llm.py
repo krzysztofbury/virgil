@@ -56,10 +56,10 @@ async def get_active_provider(db) -> dict | None:
 
 
 async def may_use_server_key(db) -> bool:
-    """Whether the server's VIRGIL_INTERNAL_LLM_* key is configured and this account may spend it."""
-    from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
+    """Whether the server has a key (saved by an admin, or VIRGIL_INTERNAL_LLM_*) this account may spend."""
+    from app.services.server_llm import server_model_and_key
 
-    if not (INTERNAL_LLM_KEY and INTERNAL_LLM_MODEL):
+    if await server_model_and_key() is None:
         return False
     return await _account_may_use_server_key(db)
 
@@ -79,7 +79,7 @@ async def _account_may_use_server_key(db) -> bool:
 
 async def resolve_provider(db) -> tuple[str, str]:
     """Return (model_string, api_key). The user's own provider first; the
-    server's VIRGIL_INTERNAL_LLM_* only for an account allowed to spend it.
+    server's key (the one an admin put in use, else VIRGIL_INTERNAL_LLM_*) only for an account allowed to spend it.
 
     Every paid call goes through here, scheduled ones included, so an invited
     account without the flag never bills the operator. Raises ValueError if
@@ -93,11 +93,12 @@ async def resolve_provider(db) -> tuple[str, str]:
         if api_key and model:
             return model, api_key
 
-    # 2. Fall back to internal provider from env vars.
-    from app.config import INTERNAL_LLM_KEY, INTERNAL_LLM_MODEL
+    # 2. The server's key: the one an admin put in use, else VIRGIL_INTERNAL_LLM_*.
+    from app.services.server_llm import server_model_and_key
 
-    if INTERNAL_LLM_KEY and INTERNAL_LLM_MODEL and await _account_may_use_server_key(db):
-        return INTERNAL_LLM_MODEL, INTERNAL_LLM_KEY
+    server = await server_model_and_key()
+    if server is not None and await _account_may_use_server_key(db):
+        return server
 
     raise ValueError("No LLM provider available: add your own API key in Settings")
 

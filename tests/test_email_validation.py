@@ -34,7 +34,6 @@ def test_a_hostile_address_is_refused_quickly():
 def test_signup_refuses_a_hostile_address_quickly(auth_client, monkeypatch):
     from conftest import csrf_token
 
-
     monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     token = csrf_token(auth_client, "/login")
     started = time.perf_counter()
