@@ -1,0 +1,218 @@
+{% extends "legal/legal_page.html" %}
+{% block title %}Regulamin{% endblock %}
+{% block legal_body %}
+{# Self-hosting: these terms describe the virgil.pl instance (free private
+   beta, invite-only, required two-factor in section 3, the backups and AI
+   providers it uses). Adapt them before
+   publishing for your own instance. The operator's details come from
+   Settings > Server, Operator. The English page (terms_en.html) is a
+   translation of this one: keep both in step. #}
+{% set kontakt %}{% if contact_email %} pod adresem <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}{% endset %}
+<h1>Regulamin</h1>
+<p>Dokument obowiązuje od 28.10.2026</p>
+
+<p>
+    Regulamin określa zasady korzystania z instancji Virgila{% if base_url %} pod
+    adresem {{ base_url }}{% endif %}. Virgil to aplikacja do prowadzenia własnego
+    dziennika: dnia, nawyków, treningów, snu, pomiarów, wyników badań, celów,
+    eksperymentów i finansów osobistych.
+</p>
+
+<h2>1. Usługodawca</h2>
+{% if operator_name %}
+<p>
+    Usługodawcą jest:<br>
+    {{ operator_name }}{% if operator_address %}<br>
+    {{ operator_address }}{% endif %}{% if operator_tax_id %}<br>
+    NIP: {{ operator_tax_id }}{% endif %}{% if contact_email %}<br>
+    E-mail: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}
+</p>
+{% else %}
+<p>
+    Usługodawcą jest osoba lub firma prowadząca tę instancję Virgila{% if base_url %}
+    pod adresem {{ base_url }}{% endif %}{% if contact_email %}, dostępna pod adresem
+    e-mail <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}.
+</p>
+{% endif %}
+<p>W regulaminie nazywamy go operatorem.</p>
+
+<h2>2. Czym jest Virgil</h2>
+<p>
+    Virgil jest bezpłatnym projektem hobbystycznym w fazie prywatnej bety.
+    Konto można założyć wyłącznie z zaproszenia. Za korzystanie z Virgila nie
+    pobieramy obecnie żadnych opłat i nie zawieramy umów odpłatnych. Jeśli to
+    się zmieni, nowe zasady opublikujemy z wyprzedzeniem (punkt 14) i nie
+    obejmą one nikogo bez jego zgody.
+</p>
+<p>
+    Umowa o świadczenie usługi drogą elektroniczną zostaje zawarta z chwilą
+    założenia konta, na czas nieokreślony, i kończy się z chwilą usunięcia
+    konta (punkt 10). Strony publiczne, takie jak strona główna i ten
+    regulamin, możesz czytać bez konta.
+</p>
+
+<h2>3. Konto i dostęp</h2>
+<ul>
+    <li>Z Virgila mogą korzystać wyłącznie osoby, które ukończyły 18 lat.</li>
+    <li>Konto jest osobiste: jedno konto dla jednej osoby. Nie udostępniaj go innym.</li>
+    <li>Logujesz się linkiem wysyłanym na adres e-mail albo hasłem, jeśli je ustawisz. Na tej instancji konto z hasłem musi mieć włączone uwierzytelnianie dwuskładnikowe (TOTP). Kody odzyskiwania przechowuj w bezpiecznym miejscu.</li>
+    <li>Dbasz o bezpieczeństwo swojej skrzynki e-mail, hasła, aplikacji uwierzytelniającej i tokenów API. Jeśli podejrzewasz, że ktoś uzyskał dostęp do konta, zmień dane logowania, unieważnij tokeny i napisz do operatora{{ kontakt }}.</li>
+</ul>
+
+<h2>4. Wymagania techniczne i zagrożenia</h2>
+<p>
+    Potrzebujesz urządzenia z aktualną przeglądarką internetową z włączoną
+    obsługą JavaScript i plików cookies, dostępu do Internetu i adresu e-mail.
+    Do połączenia własnego asystenta AI potrzebny jest klient obsługujący API
+    lub protokół MCP.
+</p>
+<p>
+    Korzystanie z usług przez Internet wiąże się z typowymi zagrożeniami, takimi
+    jak złośliwe oprogramowanie, przejęcie skrzynki e-mail czy wyłudzanie danych
+    logowania. Operator nigdy nie poprosi Cię o hasło, kod uwierzytelniający ani
+    token API.
+</p>
+
+<h2>5. Brak porad medycznych, psychologicznych i finansowych</h2>
+<p>
+    Virgil nie jest wyrobem medycznym. Nie diagnozuje, nie leczy, nie
+    zapobiega chorobom i nie udziela porad medycznych, psychologicznych,
+    terapeutycznych ani finansowych. Wykresy, serie, zakresy referencyjne i
+    oceny pokazują wyłącznie to, co wpisałeś lub zaimportowałeś.
+</p>
+<p>
+    Funkcje AI (poranny briefing, plan dnia A.N.D.Y., rozpoznawanie notatek z
+    treningu, podsumowania eksperymentów, import wyników badań) tworzą treści
+    automatycznie i mogą się mylić: pominąć lub źle odczytać wynik, coś
+    zmyślić albo zasugerować coś, co Ci nie służy. Sprawdzaj je, zanim na nich
+    polegasz. W sprawach zdrowia skonsultuj się z lekarzem, w sprawach zdrowia
+    psychicznego i uzależnień ze specjalistą, a w sprawach finansów z
+    doradcą. W nagłym zagrożeniu życia lub zdrowia dzwoń pod numer 112.
+</p>
+
+<h2>6. Twoje dane, klucze i tokeny</h2>
+<ul>
+    <li>Odpowiadasz za treści, które wpisujesz i importujesz. Wpisuj dane dotyczące siebie; nie wpisuj danych innych osób bez podstawy prawnej.</li>
+    <li>Jeśli dodasz własny klucz API do dostawcy AI, korzystasz z niego na podstawie swojej umowy z tym dostawcą i pokrywasz jego koszty. Operator nie odpowiada za działanie ani rozliczenia Twojego dostawcy.</li>
+    <li>Z klucza AI serwera może korzystać tylko konto, któremu administrator na to zezwolił. Zezwolenie można cofnąć, na przykład przy nadmiernym użyciu.</li>
+    <li>Osobiste tokeny API dają dostęp do Twoich danych w zakresie, który wybierzesz. Odpowiadasz za to, komu i jakiemu asystentowi AI je przekazujesz; przepływ danych do Twojego asystenta podlega warunkom jego dostawcy.</li>
+    <li>Łącząc pierścień Oura, korzystasz z własnej aplikacji Oura na warunkach Oura.</li>
+</ul>
+<p>
+    Zasady przetwarzania danych osobowych opisuje
+    <a href="/privacy">polityka prywatności</a>.
+</p>
+
+<h2>7. Zasady korzystania</h2>
+<p>Korzystając z Virgila, nie możesz:</p>
+<ul>
+    <li>naruszać prawa ani dobrych obyczajów, ani umieszczać treści bezprawnych,</li>
+    <li>próbować uzyskać dostępu do cudzych kont lub danych, obchodzić zabezpieczeń ani limitów,</li>
+    <li>zakłócać działania serwisu, w tym przeciążać go automatycznymi zapytaniami przez interfejs, API lub MCP,</li>
+    <li>przekazywać zaproszeń ani dostępu do konta osobom trzecim bez zgody operatora,</li>
+    <li>używać klucza AI serwera do celów niezwiązanych z prowadzeniem własnego dziennika w Virgilu.</li>
+</ul>
+<p>
+    Jeśli znajdziesz lukę bezpieczeństwa, zgłoś ją operatorowi{{ kontakt }}, zamiast
+    z niej korzystać.
+</p>
+
+<h2>8. Dostępność i kopie zapasowe</h2>
+<p>
+    Virgil działa na jednym serwerze. Dokładamy starań, aby był dostępny i
+    bezpieczny, ale nie gwarantujemy ciągłości działania. Serwis może być
+    niedostępny z powodu konserwacji, aktualizacji, awarii serwera, sieci lub
+    dostawców albo zdarzeń poza naszą kontrolą.
+</p>
+<p>
+    Aplikacja tworzy kopie zapasowe: lokalne kopie bazy Twojego konta na
+    serwerze (domyślnie raz na dobę, 7 ostatnich kopii, ustawienia w
+    Ustawienia &gt; Dane) oraz codzienną zaszyfrowaną kopię całej instancji
+    poza serwerem, przechowywaną 30 dni, a kopie miesięczne 365 dni.
+    Szczegóły opisuje <a href="/privacy">polityka prywatności</a>. Kopie
+    zmniejszają ryzyko utraty danych, ale go nie wykluczają; odtworzenie z
+    kopii może oznaczać utratę wpisów z ostatnich godzin lub dni.
+</p>
+
+<h2>9. Bezpłatna usługa bez gwarancji i odpowiedzialność</h2>
+{# TO CONFIRM: this whole section should get a lawyer's read before it is
+   relied on, in particular the scope of the exclusion against consumers. #}
+<p>
+    Virgil jest bezpłatnym projektem hobbystycznym. Udostępniamy go w takim
+    stanie, w jakim jest, bez gwarancji, w tym bez gwarancji nieprzerwanego
+    działania, braku błędów, przydatności do określonego celu ani zachowania
+    danych.
+</p>
+<p>
+    Wpisujesz i przechowujesz dane w Virgilu na własne ryzyko. Regularnie
+    pobieraj własną kopię danych: eksport JSON, CSV lub plik bazy danych w
+    Ustawienia &gt; Dane.
+</p>
+<p>
+    W najszerszym zakresie dozwolonym przez prawo operator nie odpowiada za
+    szkody wynikłe z korzystania z Virgila lub z braku możliwości korzystania z
+    niego, w tym za utratę, uszkodzenie lub ujawnienie wpisanych danych,
+    przerwy w działaniu, błędy aplikacji, treści wygenerowane przez AI oraz
+    działania dostawców zewnętrznych.
+</p>
+<p>To wyłączenie ma granice, których regulamin nie może przekroczyć:</p>
+<ul>
+    <li>operator odpowiada za szkodę wyrządzoną umyślnie; tej odpowiedzialności nie można wyłączyć (art. 473 § 2 Kodeksu cywilnego),</li>
+    <li>prawa konsumenta, których nie można wyłączyć ani ograniczyć umową, pozostają w mocy; postanowienia tego punktu nie stosuje się w zakresie, w jakim byłoby z nimi sprzeczne,</li>
+    <li>regulamin nie zmienia obowiązków operatora jako administratora danych wynikających z RODO, w tym obowiązku odpowiedniego zabezpieczenia danych i zgłaszania ich naruszeń, ani Twoich praw z RODO.</li>
+</ul>
+
+<h2>10. Zakończenie korzystania, konta i bety</h2>
+<ul>
+    <li>Możesz w każdej chwili przestać korzystać z Virgila, bez kosztów i bez podawania przyczyny. W Ustawienia &gt; Dane możesz sam wyczyścić wszystkie swoje dane. Aby usunąć całe konto, napisz do operatora{{ kontakt }}; usunięcie konta kończy umowę.</li>
+    <li>Operator może zablokować lub usunąć konto, które narusza regulamin, po wcześniejszym wezwaniu do zaprzestania naruszeń, a bez wezwania, gdy naruszenie zagraża bezpieczeństwu serwisu lub innych użytkowników. O blokadzie poinformujemy Cię e-mailem, a przed usunięciem konta dostaniesz możliwość pobrania danych, chyba że wykluczają to przepisy prawa.</li>
+    <li>Operator może zakończyć betę lub działanie Virgila. Poinformuje o tym użytkowników e-mailem co najmniej 30 dni wcześniej, aby każdy mógł pobrać swoje dane. Po tym terminie konta i dane zostaną usunięte, a ich kopie zapasowe wygasną zgodnie z polityką prywatności.</li>
+</ul>
+{# TO CONFIRM: the 30-day notice for ending the beta. #}
+
+<h2>11. Kod open source</h2>
+<p>
+    Kod Virgila jest otwarty i dostępny na licencji MIT, której treść znajduje
+    się w repozytorium projektu (link Otwarty kod w stopce strony).
+    Licencja dotyczy kodu. Ten regulamin dotyczy korzystania z usługi
+    udostępnianej przez operatora tej instancji. Instancje uruchamiane przez
+    inne osoby na własnych serwerach działają na ich zasadach i na ich
+    odpowiedzialność.
+</p>
+
+<h2>12. Prywatność</h2>
+<p>
+    Jakie dane przetwarzamy, komu je przekazujemy, jak długo je przechowujemy
+    i jakie masz prawa, opisuje <a href="/privacy">polityka prywatności</a>.
+</p>
+
+<h2>13. Reklamacje i kontakt</h2>
+<p>
+    Uwagi i reklamacje dotyczące działania Virgila wyślij do operatora{{ kontakt }}.
+    Opisz problem i oczekiwany sposób jego rozwiązania; nie wysyłaj w
+    wiadomości swoich danych zdrowotnych, haseł ani tokenów. Odpowiemy bez
+    zbędnej zwłoki, nie później niż w ciągu 14 dni.
+</p>
+
+<h2>14. Zmiany regulaminu</h2>
+<p>
+    Regulamin może się zmienić wraz z rozwojem Virgila lub zmianą prawa. O
+    zmianie poinformujemy użytkowników e-mailem co najmniej 14
+    dni przed jej wejściem w życie, a nowa wersja z datą obowiązywania będzie
+    na tej stronie. Jeśli nie akceptujesz zmian, możesz przed tym terminem
+    pobrać dane i poprosić o usunięcie konta. Zmiany wymagane nagle przez
+    prawo lub bezpieczeństwo mogą wejść w życie wcześniej.
+</p>
+{# TO CONFIRM: the 14-day notice period for changes to the terms. #}
+
+<h2>15. Prawo właściwe</h2>
+<p>
+    Do regulaminu i umowy stosuje się prawo polskie. Jeśli jesteś
+    konsumentem, wybór prawa nie pozbawia Cię ochrony, jaką dają Ci
+    bezwzględnie obowiązujące przepisy państwa Twojego zwykłego pobytu.
+    Spory rozstrzygają sądy właściwe według przepisów ogólnych.
+    Konsument może też skorzystać z pozasądowych sposobów rozpatrywania
+    reklamacji, na przykład za pośrednictwem miejskiego lub powiatowego
+    rzecznika konsumentów.
+</p>
+{% endblock %}

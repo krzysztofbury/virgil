@@ -1,0 +1,330 @@
+{% extends "legal/legal_page.html" %}
+{% block title %}Polityka prywatności{% endblock %}
+{% block legal_body %}
+{# Self-hosting: sections 7, 9, 11 and 14 describe the
+   providers of the virgil.pl instance, and section 5 states its required
+   two-factor setting (VIRGIL_REQUIRE_TOTP) (mikr.us, Cloudflare, the SMTP provider,
+   xAI, Plausible). Replace them with your own before publishing this page. The
+   operator's details come from Settings > Server, Operator. The English page
+   (privacy_en.html) is a translation of this one: keep both in step. #}
+{% set kontakt %}{% if contact_email %} pod adresem <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}{% endset %}
+<h1>Polityka prywatności</h1>
+<p>Dokument obowiązuje od 28.10.2026</p>
+
+<p>
+    Virgil to aplikacja do prowadzenia własnego dziennika: dnia, nawyków,
+    treningów, snu, pomiarów, wyników badań, celów, eksperymentów i finansów
+    osobistych. Ta polityka opisuje, jakie dane przetwarza instancja Virgila{% if base_url %}
+    pod adresem {{ base_url }}{% endif %}, w jakim celu, gdzie są przechowywane i komu
+    są przekazywane.
+</p>
+<p>
+    Virgil jest bezpłatnym projektem hobbystycznym, prowadzonym bez zasobów
+    firmy i udostępnianym bez gwarancji, co szerzej opisuje
+    <a href="/terms">regulamin</a>. Nie zmienia to opisanych niżej
+    zabezpieczeń: opisujemy to, co aplikacja faktycznie robi.
+</p>
+
+<h2>1. Administrator danych</h2>
+{% if operator_name %}
+<p>
+    Administratorem danych osobowych jest:<br>
+    {{ operator_name }}{% if operator_address %}<br>
+    {{ operator_address }}{% endif %}{% if operator_tax_id %}<br>
+    NIP: {{ operator_tax_id }}{% endif %}{% if contact_email %}<br>
+    E-mail: <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}
+</p>
+{% else %}
+<p>
+    Administratorem danych osobowych jest osoba lub firma prowadząca tę
+    instancję Virgila{% if base_url %} pod adresem {{ base_url }}{% endif %}{% if contact_email %},
+    dostępna pod adresem e-mail
+    <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}.
+</p>
+{% endif %}
+<p>
+    W tej polityce nazywamy go operatorem. W sprawach danych osobowych napisz
+    do operatora{{ kontakt }}.
+</p>
+
+<h2>2. Jakie dane przetwarzamy</h2>
+<p>Dane konta:</p>
+<ul>
+    <li>adres e-mail, nazwa wyświetlana, wybrany język i rola konta,</li>
+    <li>hasło, jeśli je ustawisz, zapisane wyłącznie jako skrót bcrypt (nie da się z niego odczytać hasła),</li>
+    <li>sekret uwierzytelniania dwuskładnikowego (TOTP), jeśli je włączysz, zaszyfrowany kluczem instancji, oraz kody odzyskiwania zapisane wyłącznie jako skróty,</li>
+    <li>jednorazowe linki logowania wysyłane e-mailem, zaproszenia i osobiste tokeny API, zapisane wyłącznie jako skróty SHA-256, z datą utworzenia, ważności i użycia,</li>
+    <li>data ostatniego logowania.</li>
+</ul>
+<p>Dane, które sam wpisujesz lub importujesz:</p>
+<ul>
+    <li>dziennik dnia, energia, notatki i plan dnia,</li>
+    <li>nawyki, w tym moduł Freedom, w którym możesz notować potknięcia związane z pornografią lub alkoholem oraz towarzyszące im emocje i wyzwalacze,</li>
+    <li>treningi, ćwiczenia i notatki z treningów,</li>
+    <li>pomiary ciała, wyniki badań krwi i inne pomiary,</li>
+    <li>profil z wdrożenia (płeć, wiek, wzrost, waga, sytuacja rodzinna, nawyki, rutyna dnia i treningu),</li>
+    <li>cele, eksperymenty i ich podsumowania,</li>
+    <li>salda kont i założenia w module finansów osobistych,</li>
+    <li>dane snu, gotowości, aktywności, tętna i treningów z pierścienia Oura, jeśli go połączysz (punkt 10),</li>
+    <li>Twoje klucze API do dostawców AI i dane aplikacji Oura, zaszyfrowane kluczem instancji.</li>
+</ul>
+<p>Dane techniczne i bezpieczeństwa:</p>
+<ul>
+    <li>zdarzenia bezpieczeństwa (logowanie, nieudane logowanie, wylogowanie, zmiany hasła, uwierzytelniania dwuskładnikowego i tokenów, zmiany konta przez administratora) z datą i adresem IP,</li>
+    <li>dziennik żądań serwera (metoda, ścieżka, kod odpowiedzi, czas), bez treści Twoich wpisów; sekrety z linków zaproszeń są w nim zastępowane,</li>
+    <li>dane, które zwykle otrzymuje serwis internetowy, takie jak adres IP i nagłówki przeglądarki, przetwarzane przez Cloudflare (punkt 9).</li>
+</ul>
+<p>
+    Podanie adresu e-mail jest potrzebne do założenia konta i logowania.
+    Wszystko inne wpisujesz dobrowolnie i sam decydujesz, z których modułów
+    korzystasz.
+</p>
+
+<h2>3. Dane szczególnych kategorii</h2>
+<p>
+    Wyniki badań, pomiary, dane snu i tętna, treningi oraz wpisy w module
+    Freedom to dane dotyczące zdrowia, a wpisy o pornografii mogą dotyczyć
+    także seksualności. Są to szczególne kategorie danych w rozumieniu art. 9
+    RODO. Przetwarzamy je wyłącznie dlatego, że sam postanawiasz je wpisać,
+    zaimportować lub pobrać, i wyłącznie w celu, w jakim to robisz:
+    prowadzenia Twojego dziennika i pokazania Ci go.
+</p>
+<p>
+    Wpisując lub importując takie dane, włączając moduł Freedom, łącząc
+    pierścień Oura albo uruchamiając funkcję AI, która z nich korzysta,
+    wyrażasz wyraźną zgodę na ich przetwarzanie w opisanym tu zakresie
+    (art. 9 ust. 2 lit. a RODO). Zgodę możesz w każdej chwili wycofać, usuwając
+    te wpisy, wyłączając moduł lub funkcję, odłączając Oura albo czyszcząc
+    wszystkie dane (punkt 15). Wycofanie zgody nie wpływa na zgodność z prawem
+    przetwarzania przed jej wycofaniem.
+</p>
+{# TO CONFIRM: the app has no separate consent checkbox at signup, onboarding,
+   Freedom activation or lab import. Consider adding an explicit tick box so
+   the art. 9(2)(a) consent is a clear affirmative act and can be shown. #}
+
+<h2>4. Cele i podstawy prawne</h2>
+<ul>
+    <li>Prowadzenie konta, logowanie i działanie aplikacji: art. 6 ust. 1 lit. b RODO (umowa o świadczenie usługi zgodnie z <a href="/terms">regulaminem</a>).</li>
+    <li>Dane dotyczące zdrowia i seksualności: Twoja wyraźna zgoda, art. 9 ust. 2 lit. a RODO (punkt 3), a w zakresie samego świadczenia usługi także art. 6 ust. 1 lit. b RODO.</li>
+    <li>Bezpieczeństwo, ochrona przed nadużyciami, dziennik zdarzeń bezpieczeństwa, dziennik żądań i kopie zapasowe: prawnie uzasadniony interes operatora i użytkowników polegający na ochronie kont i danych, art. 6 ust. 1 lit. f RODO.</li>
+    <li>Statystyki odwiedzin stron publicznych: prawnie uzasadniony interes operatora polegający na poznaniu zagregowanej liczby odwiedzin, art. 6 ust. 1 lit. f RODO (punkt 14).</li>
+    <li>Korespondencja: art. 6 ust. 1 lit. b lub f RODO, zależnie od jej treści.</li>
+</ul>
+<p>
+    Nie sprzedajemy danych, nie używamy ich do reklam ani profilowania
+    marketingowego. Virgil nie podejmuje wobec Ciebie decyzji opartych
+    wyłącznie na zautomatyzowanym przetwarzaniu, które wywoływałyby skutki
+    prawne. Podsumowania i plany tworzone przez AI są wyłącznie sugestiami.
+</p>
+
+<h2>5. Gdzie i jak przechowujemy dane</h2>
+<p>
+    Każde konto ma własną bazę danych SQLite na serwerze instancji. Rejestr
+    kont (adres e-mail, nazwa wyświetlana, skróty haseł i tokenów, zdarzenia
+    bezpieczeństwa) jest osobną bazą na tym samym serwerze.
+</p>
+<ul>
+    <li>Klucze API do dostawców AI, dane i tokeny aplikacji Oura oraz sekrety uwierzytelniania dwuskładnikowego są szyfrowane kluczem instancji.</li>
+    <li>Hasła są zapisywane jako skróty bcrypt, a linki logowania, kody odzyskiwania i tokeny API jako skróty SHA-256.</li>
+    <li>Połączenie z serwisem jest szyfrowane (HTTPS).</li>
+    <li>Na tej instancji konto z hasłem musi mieć włączone uwierzytelnianie dwuskładnikowe.</li>
+    <li>Pozostałe wpisy są zapisane w bazie konta bez dodatkowego szyfrowania. Dostęp do serwera ma wyłącznie operator. Operator nie przegląda Twoich wpisów; korzysta z dostępu do plików tylko w celu utrzymania serwisu, odtworzenia danych z kopii lub na Twoją prośbę.</li>
+</ul>
+{# TO CONFIRM: the commitment that the operator does not browse entries and
+   uses file access only for maintenance, restore or on request. #}
+
+<h2>6. Kopie zapasowe</h2>
+<p>
+    Kopie lokalne: aplikacja tworzy kopię bazy każdego konta na serwerze,
+    domyślnie raz na 24 godziny, i przechowuje domyślnie 7 ostatnich kopii.
+    Częstotliwość, liczbę kopii i ich wyłączenie ustawiasz w Ustawienia &gt;
+    Dane. Rejestr kont jest kopiowany raz na dobę, z 7 ostatnimi kopiami.
+    Przed aktualizacją schematu bazy i przed importem danych powstaje
+    dodatkowa kopia bezpieczeństwa.
+</p>
+<p>
+    Kopie poza serwerem: raz na dobę zaszyfrowana kopia całej instancji
+    trafia do magazynu Cloudflare R2. Kopia jest szyfrowana na serwerze
+    narzędziem age, zanim zostanie wysłana, a klucz do jej odszyfrowania nie
+    jest przechowywany ani na serwerze, ani w Cloudflare, więc Cloudflare nie
+    może jej odczytać. Kopie dzienne są usuwane po 30 dniach, a kopie
+    miesięczne po 365 dniach.
+</p>
+<p>
+    Wyczyszczenie danych konta albo usunięcie konta usuwa wszystkie lokalne
+    kopie bazy tego konta i zleca usunięcie jej plików ze wszystkich kopii
+    poza serwerem, dziennych i miesięcznych. Starsze kopie rejestru kont, zarówno
+    lokalne, jak i poza serwerem, zawierają jednak nadal wiersz usuniętego
+    konta (adres e-mail, nazwę wyświetlaną, skrót hasła, zaszyfrowany sekret
+    TOTP) do czasu ich wygaśnięcia: zwykłe kopie lokalne w ciągu około 7 dni,
+    kopie poza serwerem najpóźniej po 365 dniach, a 3 ostatnie kopie
+    bezpieczeństwa sprzed aktualizacji schematu bazy do czasu, aż zastąpią je
+    kopie z kolejnych aktualizacji. Nie zawierają Twoich wpisów.
+</p>
+
+<h2>7. Funkcje AI</h2>
+<p>
+    Niektóre funkcje korzystają z modelu językowego. Każdą z nich uruchamiasz
+    sam:
+</p>
+<ul>
+    <li>podsumowanie profilu po wdrożeniu (dane profilu z punktu 2),</li>
+    <li>poranny briefing (domyślnie wyłączony; dane dnia, nawyki, w tym serie z modułu Freedom, jeśli jest włączony, oraz dzisiejsze dane Oura),</li>
+    <li>plan dnia A.N.D.Y. (cele, plan tygodnia, harmonogram treningów i zapisane treningi),</li>
+    <li>rozpoznawanie notatek z treningu (tekst notatki),</li>
+    <li>podsumowania eksperymentów (wpisy eksperymentu i dane Oura z danego tygodnia),</li>
+    <li>import wyników badań (przesłany plik PDF lub wklejony tekst).</li>
+</ul>
+<p>
+    Gdy z nich korzystasz, potrzebne dane są wysyłane do dostawcy modelu
+    językowego:
+</p>
+<ul>
+    <li>Jeśli dodasz własny klucz API (Ustawienia &gt; AI), dane trafiają do wybranego przez Ciebie dostawcy na podstawie Twojej umowy z nim. Za ten przepływ i jego koszty odpowiadasz Ty i Twój dostawca.</li>
+    <li>Jeśli nie masz własnego klucza, a administrator zezwolił Twojemu kontu na korzystanie z klucza serwera, dane trafiają do dostawcy wybranego przez operatora. Obecnie jest to xAI LLC (model Grok) z siedzibą w USA (punkt 11). Bez takiego zezwolenia funkcje AI nie korzystają z klucza serwera. O zmianie tego dostawcy poinformujemy na tej stronie.</li>
+</ul>
+{# TO CONFIRM: xAI LLC as the current server-key provider (infra env sets
+   xai/grok-4.7; the code default is Gemini and an admin can switch it in
+   Settings > Server). Also whether xAI retains or trains on API inputs. #}
+<p>
+    Przesłany plik z wynikami badań czeka na serwerze zaszyfrowany kluczem
+    instancji i jest usuwany po zapisaniu wyników, a najpóźniej po 24
+    godzinach. Odpowiedzi AI mogą być błędne; zawsze je sprawdzaj.
+</p>
+
+<h2>8. Twój asystent AI (API i MCP)</h2>
+<p>
+    Możesz utworzyć osobisty token (Ustawienia &gt; AI) i podłączyć
+    własnego asystenta AI przez API lub serwer MCP Virgila. Sam wybierasz
+    zakres tokenu: odczyt, zapis, dane wrażliwe (moduł Freedom) i finanse.
+    Dane, które asystent pobierze, trafiają do jego dostawcy. Ten przepływ jest
+    pod Twoją kontrolą i podlega warunkom Twojego dostawcy asystenta. Token
+    możesz w każdej chwili unieważnić.
+</p>
+
+<h2>9. Odbiorcy danych</h2>
+<p>
+    Dane powierzamy wyłącznie dostawcom potrzebnym do działania serwisu, w
+    zakresie niezbędnym do ich zadań:
+</p>
+<ul>
+    <li>Hosting: serwer VPS wynajmowany w serwisie mikr.us; fizyczny serwer znajduje się w centrum danych w Finlandii (UE). Na nim są bazy danych i kopie lokalne.{# TO CONFIRM: mikr.us legal entity (name, address) for the processing agreement, and that this VPS is in a Finnish data centre. #}</li>
+    <li>Cloudflare, Inc. (USA): DNS, certyfikat TLS i Cloudflare Tunnel. Cały ruch do serwisu przechodzi przez Cloudflare, który widzi adres IP, dane urządzenia i treść żądań w zakresie niezbędnym do ich dostarczenia i ochrony. Cloudflare R2 przechowuje zaszyfrowane kopie zapasowe, których nie może odczytać (punkt 6).</li>
+    <li>Poczta wychodząca: linki logowania, linki rejestracji i zaproszenia wysyłamy przez serwer SMTP firmy hostingowej zenbox.pl z Polski. Otrzymuje ona adres e-mail odbiorcy i treść wiadomości.{# TO CONFIRM: zenbox.pl legal entity and its data processing agreement. #}</li>
+    <li>Dostawca modelu językowego dla klucza serwera, obecnie xAI LLC (USA), wyłącznie gdy korzystasz z funkcji AI na kluczu serwera (punkt 7).</li>
+    <li>Oura Health Oy (Finlandia), jeśli połączysz pierścień Oura (punkt 10).</li>
+    <li>Plausible Insights OÜ (Estonia): statystyki odwiedzin stron publicznych (punkt 14).</li>
+</ul>
+<p>
+    Operator otrzymuje powiadomienia techniczne przez webhook komunikatora
+    (na przykład o nieudanej kopii zapasowej lub zmianie ustawień serwera).
+    Zawierają one liczby i adres e-mail administratora, nie dane kont.
+</p>
+<p>
+    Dane możemy też udostępnić organom publicznym, jeśli wymaga tego prawo.
+</p>
+
+<h2>10. Oura</h2>
+<p>
+    Jeśli połączysz pierścień Oura (Ustawienia &gt; Połączenia), podajesz dane
+    własnej aplikacji Oura i logujesz się w Oura. Tokeny dostępu i
+    odświeżania są przechowywane zaszyfrowane kluczem instancji. Virgil pobiera
+    z API Oura dane snu, gotowości, aktywności, tętna, SpO2 i treningów, a Oura
+    powiadamia serwer o nowych danych przez webhook. Oura Health Oy
+    przetwarza Twoje dane na podstawie Twojej umowy z Oura. Połączenie możesz w
+    każdej chwili usunąć.
+</p>
+
+<h2>11. Przekazywanie danych poza EOG</h2>
+<p>
+    Cloudflare, Inc. i xAI LLC mają siedzibę w USA, więc przekazanie im danych
+    może oznaczać transfer poza Europejski Obszar Gospodarczy. Odbywa się on na
+    podstawie decyzji Komisji Europejskiej o odpowiednim stopniu ochrony
+    (EU-US Data Privacy Framework), jeśli dostawca jest w nim certyfikowany,
+    albo standardowych klauzul umownych zatwierdzonych przez Komisję
+    Europejską. Hosting, Oura i Plausible działają w Unii Europejskiej. Jeśli
+    korzystasz z własnego dostawcy AI lub asystenta, transfer zależy od Twojej
+    umowy z nim.
+</p>
+{# TO CONFIRM: for Cloudflare, Inc. and xAI LLC, which mechanism applies
+   (DPF certification or SCCs in their DPA), and whether a DPA with xAI is in
+   place for the server key. #}
+
+<h2>12. Jak długo przechowujemy dane</h2>
+<ul>
+    <li>Dane konta i wpisy: do czasu wyczyszczenia danych lub usunięcia konta, albo zakończenia działania serwisu (regulamin, punkt 10).</li>
+    <li>Zdarzenia bezpieczeństwa z adresem IP: 180 dni, potem są usuwane automatycznie.</li>
+    <li>Kopie zapasowe: zgodnie z punktem 6.</li>
+    <li>Przesłane pliki z wynikami badań: do zapisania wyników, najpóźniej 24 godziny.</li>
+    <li>Linki logowania: ważne 15 minut; zaproszenia: ważne 7 dni.</li>
+    <li>Dziennik żądań serwera: usuwany automatycznie po przekroczeniu limitu rozmiaru; dziennik systemowy serwera najdłużej 14 dni.</li>
+    <li>Korespondencja: tak długo, jak trzeba do obsługi sprawy, a potem do upływu okresu potrzebnego do obrony przed roszczeniami.</li>
+</ul>
+
+<h2>13. Pliki cookies i pamięć przeglądarki</h2>
+<p>
+    Virgil używa wyłącznie plików cookies i pamięci przeglądarki niezbędnych do
+    działania usługi, o którą prosisz. Nie używa cookies reklamowych,
+    analitycznych ani śledzących, dlatego nie wyświetla banera zgody.
+</p>
+<ul>
+    <li><code>virgil_session</code>: utrzymuje zalogowanie, 7 dni.</li>
+    <li><code>csrf_token</code>: chroni formularze przed podszyciem się innej strony, 24 godziny.</li>
+    <li><code>virgil_lang</code>: zapamiętuje język interfejsu, 1 rok.</li>
+    <li><code>virgil_lang_chosen</code>: zapamiętuje język wybrany przed zalogowaniem, do najbliższego logowania lub zamknięcia przeglądarki.</li>
+    <li><code>virgil_link_browser</code>: pozwala, by link logowania otwarty w tej samej przeglądarce zalogował bez dodatkowego kliknięcia; zawiera tylko skróty linków, 15 minut.</li>
+    <li><code>oura_oauth_state</code>: zabezpiecza łączenie z Oura, 10 minut, tylko podczas łączenia.</li>
+    <li><code>virgil-theme</code> w localStorage: zapamiętuje jasny lub ciemny motyw.</li>
+    <li>Wersje robocze formularzy w sessionStorage: tekst wpisany w formularz, zanim go zapiszesz, usuwany po zapisaniu, wylogowaniu lub zamknięciu karty.</li>
+    <li>Pamięć podręczna service workera: pliki statyczne aplikacji (style, skrypty, ikony) i strona offline, nigdy strony po zalogowaniu.</li>
+</ul>
+<p>
+    Możesz usunąć lub zablokować te dane w ustawieniach przeglądarki; bez
+    cookie sesji nie da się jednak zalogować.
+</p>
+
+<h2>14. Analityka Plausible</h2>
+<p>
+    Na stronach publicznych, czyli na stronie głównej, w polityce prywatności i
+    w regulaminie, korzystamy z Plausible Analytics, usługi Plausible Insights
+    OÜ z Estonii. Plausible nie używa cookies ani pamięci przeglądarki i nie
+    śledzi osób między dniami, urządzeniami ani serwisami.
+</p>
+<p>
+    Wysyłamy do Plausible wyłącznie odsłony tych trzech ścieżek, bez
+    parametrów zapytania, fragmentu adresu i strony odsyłającej. Na podstawie
+    żądania Plausible rozpoznaje typ urządzenia, przeglądarkę, system i
+    przybliżoną lokalizację; adres IP służy chwilowo do wyliczenia dziennego
+    identyfikatora i nie jest przechowywany. Strony po zalogowaniu nie ładują
+    Plausible, więc żadne Twoje wpisy ani dane konta do niego nie trafiają.
+</p>
+
+<h2>15. Twoje prawa</h2>
+<p>Masz prawo do:</p>
+<ul>
+    <li>dostępu do danych i ich kopii: w Ustawienia &gt; Dane pobierzesz eksport JSON, CSV, podsumowanie Markdown i plik bazy danych,</li>
+    <li>sprostowania danych: większość z nich poprawisz sam w aplikacji,</li>
+    <li>usunięcia danych: w Ustawienia &gt; Dane opcja Wyczyść wszystkie dane, po potwierdzeniu tożsamości, usuwa wszystkie Twoje wpisy i ich kopie, zostawiając samo konto; usunięcie całego konta wykonuje operator na Twoją prośbę (połączenie z Oura trzeba najpierw odłączyć),</li>
+    <li>ograniczenia przetwarzania,</li>
+    <li>przenoszenia danych: eksport JSON i CSV w Ustawienia &gt; Dane,</li>
+    <li>sprzeciwu wobec przetwarzania opartego na prawnie uzasadnionym interesie,</li>
+    <li>wycofania zgody w dowolnym momencie, bez wpływu na przetwarzanie przed jej wycofaniem (punkt 3).</li>
+</ul>
+<p>
+    Aby skorzystać z praw, których nie wykonasz sam w aplikacji, napisz do
+    operatora{{ kontakt }}. Odpowiemy bez zbędnej zwłoki, nie później niż w
+    ciągu miesiąca.
+</p>
+<p>
+    Możesz też złożyć skargę do Prezesa Urzędu Ochrony Danych Osobowych,
+    ul. Stawki 2, 00-193 Warszawa.
+</p>
+
+<h2>16. Zmiany polityki</h2>
+<p>
+    Polityka może się zmienić wraz z rozwojem Virgila, zmianą dostawców lub
+    prawa. Aktualna wersja i data jej obowiązywania są zawsze na tej stronie.
+    O istotnych zmianach, takich jak nowy odbiorca danych, poinformujemy
+    użytkowników e-mailem z wyprzedzeniem.
+</p>
+{% endblock %}
