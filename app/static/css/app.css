@@ -1240,6 +1240,7 @@ input[type="range"]#energy-slider::-moz-range-thumb {
 }
 .freedom-status.clean { color: var(--green); background: rgba(44, 182, 125, 0.12); }
 .freedom-status.slipped { color: var(--red); background: rgba(229, 83, 75, 0.12); }
+.freedom-status.near { color: #f59e0b; background: rgba(217, 119, 6, 0.12); }
 .freedom-habit-head { margin: 0.5rem 0 1rem; }
 .freedom-habit-head h2 { margin-bottom: 0.25rem; }
 .freedom-why { color: var(--text-secondary); font-style: italic; max-width: 60ch; }
@@ -2906,6 +2907,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   border-color: rgba(239,68,68,0.4);
   color: #ef4444;
 }
+.week-dot.near {
+  background: rgba(217,119,6,0.16);
+  border-color: rgba(217,119,6,0.55);
+  color: #f59e0b;
+}
 .week-dot.future { opacity: 0.35; }
 
 .day-card form { display: flex; flex-direction: column; gap: 1rem; }
@@ -2956,6 +2962,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   background: rgba(44,182,125,0.14);
   color: var(--accent);
   box-shadow: 0 0 18px var(--accent-glow);
+}
+.day-choice-btn.clean.near-selected {
+  border-color: rgba(217,119,6,0.6);
+  background: rgba(217,119,6,0.12);
+  color: #f59e0b;
+  box-shadow: none;
 }
 .day-choice-btn.watched.selected {
   border-color: rgba(239,68,68,0.6);
@@ -3138,6 +3150,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .timeline-badge.brick { background: rgba(44,182,125,0.16); color: var(--accent); }
 .timeline-badge.used { background: rgba(239,68,68,0.12); color: #ef4444; }
 .timeline-badge.clean { background: var(--bg-surface); color: var(--text-secondary); }
+.timeline-badge.near { background: rgba(217,119,6,0.12); color: #f59e0b; }
 .timeline-note { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
 
 @media (max-width: 560px) {

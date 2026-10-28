@@ -181,7 +181,7 @@ async def _section_feniks(db, start: str, end: str) -> list[str]:
     lines = ["## Freedom", ""]
     for habit in habits:
         streak_days, _ = await get_streak(db, habit["id"])
-        lines.append(f"**{habit['name']}:** {streak_days} days since the last slip")
+        lines.append(f"**{habit['name']}:** {streak_days} days clean")
     lines.append("")
 
     if journal:
