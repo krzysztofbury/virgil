@@ -19,7 +19,7 @@ VIRGIL_SMTP_PORT={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_PORT }}
 VIRGIL_SMTP_USERNAME={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_USERNAME }}
 VIRGIL_SMTP_PASSWORD={{ op://Virgil/virgil-production-env/VIRGIL_SMTP_PASSWORD }}
 
-VIRGIL_INTERNAL_LLM_MODEL=gemini/gemini-3.8-flash
+VIRGIL_INTERNAL_LLM_MODEL=xai/grok-4.7
 VIRGIL_INTERNAL_LLM_KEY={{ op://Virgil/virgil-production-env/VIRGIL_INTERNAL_LLM_KEY }}
 
 VIRGIL_ALERT_WEBHOOK_URL={{ op://Virgil/virgil-production-env/VIRGIL_ALERT_WEBHOOK_URL }}
