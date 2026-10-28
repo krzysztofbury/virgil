@@ -68,7 +68,11 @@ diagnostyka"), which runs commands as root without SSH:
 install -d -m 0700 /root/.ssh && echo '<operator public key>' >> /root/.ssh/authorized_keys && chmod 0600 /root/.ssh/authorized_keys
 ```
 
-That also proves the break-glass path works, which the tailnet cutover needs.
+Paste exactly the content of the materialized `infra/ansible/files/root_authorized_keys`:
+`site.yml` replaces `authorized_keys` with that file, then proves a fresh login
+with it. Running `hostname` and `lsb_release -a` the same way proves the
+break-glass path, which the tailnet cutover needs, and confirms the host runs
+Ubuntu 24.04, which the pinned package sources assume.
 
 ## Apply
 

@@ -11,6 +11,12 @@ healthy. It then checks that the public site serves that commit. There is no
 automatic rollback: migrations are one-way and an older image refuses a newer
 database (RELEASE.md). The previous pin stays in release.env.previous.
 
+Order on a new host: run `env` before the first `release`, because Compose
+requires /etc/virgil/virgil.env. Until the tunnel routes the public name, pass
+`--no-public-check`; the release then ends once the container is healthy.
+Pruning removes the previous image, so going back to release.env.previous
+pulls it from GHCR again.
+
 The host address comes from the materialized, ignored host variables
 (infra/ansible/README.md). Nothing here holds a secret.
 """
@@ -174,7 +180,7 @@ def wait_for_public_revision(base_url: str, revision: str, attempts: int = 10) -
     raise DeployError(f"{base_url} does not serve {revision} yet")
 
 
-def release(revision: str | None, base_url: str) -> None:
+def release(revision: str | None, base_url: str, *, public_check: bool = True) -> None:
     revision = revision or remote_main_sha()
     if _SHA.fullmatch(revision) is None:
         raise DeployError("give the full 40-character commit SHA")
@@ -184,6 +190,9 @@ def release(revision: str | None, base_url: str) -> None:
     print(f"Releasing {revision} as {image}")
     ssh("install -m 0600 -o root -g root /dev/stdin /opt/virgil/compose.yaml", stdin=COMPOSE.read_bytes())
     ssh("sh -s --", image, revision, stdin=_RELEASE_SCRIPT.encode())
+    if not public_check:
+        print(f"Released {revision}; the container is healthy. Public check skipped.")
+        return
     wait_for_public_revision(base_url, revision)
     print(f"{base_url} serves {revision}.")
 
@@ -208,11 +217,14 @@ def main() -> int:
     release_parser = commands.add_parser("release", help="release a commit on main by digest")
     release_parser.add_argument("revision", nargs="?", help="full commit SHA; default the head of remote main")
     release_parser.add_argument("--base-url", default=BASE_URL)
+    release_parser.add_argument(
+        "--no-public-check", action="store_true", help="stop at a healthy container, before the tunnel serves it"
+    )
     commands.add_parser("env", help="render the host's env files from 1Password")
     arguments = parser.parse_args()
     try:
         if arguments.command == "release":
-            release(arguments.revision, arguments.base_url)
+            release(arguments.revision, arguments.base_url, public_check=not arguments.no_public_check)
         else:
             render_env()
     except DeployError as error:
