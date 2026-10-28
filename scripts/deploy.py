@@ -41,6 +41,7 @@ ENV_TEMPLATES = {
     "/etc/virgil/cloudflared.env": ROOT / "infra/compose/cloudflared.env.tpl",
 }
 BASE_URL = "https://virgil.pl"
+_USER_AGENT = f"virgil-deploy (+https://github.com/{REPOSITORY})"
 _SHA = re.compile(r"[0-9a-f]{40}")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 _MANIFEST_TYPES = ", ".join(
@@ -170,7 +171,9 @@ def wait_for_public_revision(base_url: str, revision: str, attempts: int = 10) -
         raise DeployError("the public URL must be https://")
     for attempt in range(attempts):
         try:
-            with urllib.request.urlopen(f"{base_url}/login", timeout=20) as response:  # nosec B310: https only
+            # Cloudflare answers 403 to urllib's default User-Agent.
+            request = urllib.request.Request(f"{base_url}/login", headers={"User-Agent": _USER_AGENT})
+            with urllib.request.urlopen(request, timeout=20) as response:  # nosec B310: https only
                 if serves_revision(response.read().decode(), revision):
                     return
         except OSError:
