@@ -187,9 +187,12 @@ async def load() -> None:
         try:
             values[row["name"]] = decrypt(row["value"]) if item.secret else row["value"]
         except Exception:
-            # Saved under another encryption key (a restore, a changed key): the
-            # environment's value applies, and one bad row cannot stop the start.
-            logger.error("Server setting %s cannot be decrypted; the environment's value applies", row["name"])
+            # Saved under another encryption key (a restore, a changed key). Empty,
+            # not the environment's value: that credential belongs to the
+            # environment's address, and the address in use may be one saved here.
+            # One bad row cannot stop the start; the admin enters it again.
+            logger.error("Server setting %s cannot be decrypted; it is empty until saved again", row["name"])
+            values[row["name"]] = ""
     _values.clear()
     _values.update(values)
 

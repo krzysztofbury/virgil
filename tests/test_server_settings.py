@@ -185,10 +185,13 @@ def test_resetting_the_address_drops_the_credential_saved_for_the_other_one(sett
     assert getattr(current, credential) == "env-credential"  # pragma: allowlist secret
 
 
-def test_an_undecryptable_secret_is_skipped_not_fatal(settings, caplog):
+def test_an_undecryptable_secret_is_skipped_not_fatal(settings, caplog, monkeypatch):
+    monkeypatch.setattr(config, "SMTP_PASSWORD", "env-credential")  # pragma: allowlist secret
     settings(server_settings.save, "SMTP_PASSWORD", "readable-secret")  # pragma: allowlist secret
     with sqlite3.connect(Path(_TMP) / "central.db") as central:
         central.execute("UPDATE server_settings SET value = 'not-a-fernet-token' WHERE name = 'SMTP_PASSWORD'")
     settings(server_settings.load)
-    assert server_settings.source("SMTP_PASSWORD") != "app"
+    # Empty, not the environment's: that one belongs to the environment's host,
+    # and the host in use may be one saved here.
+    assert current.SMTP_PASSWORD == ""
     assert "SMTP_PASSWORD" in caplog.text
