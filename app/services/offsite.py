@@ -73,7 +73,15 @@ def offsite_settings() -> OffsiteSettings | None:
         return None
     missing = [name for name, value in values.items() if not value]
     if missing:
-        raise OffsiteConfigError(f"Off-site copies are off: {', '.join(missing)} not set")
+        from app import server_settings
+
+        # Name where the gap is: an empty value saved in the app hides the
+        # environment's, so pointing at the variable alone would mislead.
+        where = [
+            f"{name} (empty in Settings > Server)" if server_settings.source(_SETTINGS[name]) == "app" else name
+            for name in missing
+        ]
+        raise OffsiteConfigError(f"Off-site copies are off: {', '.join(where)} not set")
     if not values["VIRGIL_OFFSITE_ENDPOINT"].startswith("https://"):
         raise OffsiteConfigError("Off-site copies are off: VIRGIL_OFFSITE_ENDPOINT must be an https:// URL")
     try:

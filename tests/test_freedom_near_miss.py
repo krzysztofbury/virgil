@@ -453,3 +453,20 @@ def test_mcp_log_freedom_day_keeps_edging_when_not_slipped_and_says_so(auth_clie
     finally:
         _execute("DELETE FROM feniks_daily WHERE date = ?", (day,))
         _execute("DELETE FROM pmo_events WHERE date = ?", (day,))
+
+
+def test_the_markdown_export_lists_near_miss_days(freedom_db):
+    """The streak counts a near miss, so the export has to show it, or a short streak is unexplained."""
+    from app.services.markdown_export import _section_feniks
+
+    db, habits = freedom_db
+
+    async def scenario():
+        await save_day(db, habits["porn"], "2026-10-12", slipped=True, amount=15, near_miss=False, note="")
+        await save_day(db, habits["porn"], "2026-10-13", slipped=False, amount=None, near_miss=True, note="")
+        return "\n".join(await _section_feniks(db, "2026-10-01", "2026-10-31"))
+
+    section = asyncio.run(scenario())
+    assert "### Near misses" in section
+    assert "- 2026-10-13: Porn (Edging)" in section
+    assert "2026-10-12: Porn (Edging)" not in section

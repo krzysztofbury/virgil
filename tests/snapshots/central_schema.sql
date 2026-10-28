@@ -150,7 +150,7 @@ CREATE TABLE sign_in_links (
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             expires_at TEXT NOT NULL,
             used_at TEXT NOT NULL DEFAULT ''
-        );
+        , terms_version TEXT);
 
 -- table user_lifecycle_leases
 CREATE TABLE user_lifecycle_leases (
@@ -176,7 +176,7 @@ CREATE TABLE users (
     totp_enabled INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     last_login_at TEXT
-, session_epoch INTEGER NOT NULL DEFAULT 0, mfa_failed_attempts INTEGER NOT NULL DEFAULT 0, mfa_locked_until TEXT NOT NULL DEFAULT '', allow_shared_llm INTEGER NOT NULL DEFAULT 1 CHECK(allow_shared_llm IN (0, 1)), language TEXT NOT NULL DEFAULT 'en' CHECK(language IN ('en', 'pl')), terms_accepted_at TEXT);
+, session_epoch INTEGER NOT NULL DEFAULT 0, mfa_failed_attempts INTEGER NOT NULL DEFAULT 0, mfa_locked_until TEXT NOT NULL DEFAULT '', allow_shared_llm INTEGER NOT NULL DEFAULT 1 CHECK(allow_shared_llm IN (0, 1)), language TEXT NOT NULL DEFAULT 'en' CHECK(language IN ('en', 'pl')), terms_accepted_at TEXT, terms_version TEXT);
 
 -- table webhook_routes
 CREATE TABLE webhook_routes (
