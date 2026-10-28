@@ -21,15 +21,21 @@ Coverage, a test count or green CI alone is not an entry
   `infra/compose/virgil.env.tpl`). Main
   [CI run](https://github.com/krzysztofbury/virgil/actions/runs/40726524260)
   succeeded.
-- **Command:** `scripts/deploy.py release` with that SHA, run by the owner.
-- **Outcome:** the owner's
-  [phase 6 comment on #174](https://github.com/krzysztofbury/virgil/issues/174#issuecomment-6475068818)
-  lists #181 among the releases since the move.
-- **Not proved by this record:** no command output was captured, so neither
-  the script's own public check nor `/healthz` after the release is on record.
-  Nothing records that `deploy.py env` re-rendered `/etc/virgil/virgil.env`
-  from the new template, or that a pasted Plausible snippet was accepted on
-  production.
+- **Commands:** with the owner's approval, `uv run python scripts/deploy.py env`
+  (rendered both env files from the new template), then
+  `uv run python scripts/deploy.py release ef954959cc7ddc409c83f47036e64cdca454b00e`.
+- **Outcome:**
+  - The release pinned
+    `sha256:2f52d92048bacfe7e9ac80d09fbaf13d5462ab9c5acdb68f6999119cf9155c7e`
+    and its public check passed (`https://virgil.pl serves ef95495...`).
+  - On the host, `/etc/virgil/virgil.env` and the running container's
+    environment no longer hold `VIRGIL_INTERNAL_LLM_*`.
+  - The container reported healthy.
+  - `/privacy` named the AI key saved in Settings > Server ("currently
+    OpenAI").
+- **Not proved by this record:** that a pasted Plausible snippet was saved on
+  production (covered by the PR's tests only), or `/healthz` by itself after the
+  release (the container health check uses `/livez`).
 
 ## Release of 7114520 with central migration 010 (#180, 2026-10-28)
 
@@ -41,18 +47,25 @@ Coverage, a test count or green CI alone is not an entry
   [CI run](https://github.com/krzysztofbury/virgil/actions/runs/40718682769)
   succeeded.
 - **Before the merge:** migration 010 ran as a dry run on a copy of the
-  production registry (`integrity_check` ok, accounts unchanged); the PR
-  reports 1625 passed for the full suite without naming the command; Settings >
-  Server and Users, phone width, the
-  signup consent in both languages and the privacy page were checked in a
-  browser. All from the [PR description](https://github.com/krzysztofbury/virgil/pull/180).
-- **Command:** `scripts/deploy.py release` with that SHA, run by the owner.
-- **Outcome:** listed among the releases since the move in the
-  [phase 6 comment on #174](https://github.com/krzysztofbury/virgil/issues/174#issuecomment-6475068818).
-- **Not proved by this record:** that migration 010 applied on the live
-  registry (only the dry run on a copy is recorded), the startup migration
-  line, `/healthz` after the release, the script's public check, or any
-  Settings > Server change on production.
+  production registry (`integrity_check` ok, accounts unchanged). The full
+  suite (`uv run pytest -q`) passed with 1625 tests. Settings > Server and Users,
+  phone width, the signup consent in both languages and the privacy page were
+  checked in a browser ([PR description](https://github.com/krzysztofbury/virgil/pull/180)).
+- **Command:** with the owner's approval,
+  `uv run python scripts/deploy.py release 7114520fcc658509081d48200a7405f2f93caa32`.
+- **Outcome:**
+  - The release pinned
+    `sha256:ce538acac2fc2b4c581c90c8b48f2a2322435bc8915bb3460d023b76fe197dac`
+    and its public check passed.
+  - The start log shows a central pre-migration snapshot
+    (`virgil-central-pre-migration-v009.db`), then "Applying central migration
+    010", then "central migration=ok, user migrations OK for 1 DB(s), 0
+    failed".
+  - The container reported healthy.
+  - `/`, `/privacy`, `/terms`, `/login` and `/signup` answered 200.
+- **Not proved by this record:** any Settings > Server change on production at
+  release time, and the consent checkbox on production (signup there is
+  invite-only, so `/signup` shows the waitlist message).
 
 ## Cutover follow-up: Oura and MCP clients (2026-10-28)
 

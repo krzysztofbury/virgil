@@ -87,7 +87,7 @@ release, a host or Settings > Server change, external evidence), write
   webhook, off-site copies, AI key, Plausible, operator, server API key scopes)
   in Settings > Server; the environment is the fallback. A config claim must say
   which source applied.
-- API credentials: per-account tokens from Settings > Security, or the server
+- API credentials: per-account tokens from Settings > AI, or the server
   `VIRGIL_API_KEY`, which fails closed without `VIRGIL_API_USER_EMAIL`
   (`app/routers/api.py`). `VIRGIL_REQUIRE_TOTP` forces an authenticator.
 - Feature flags are per account in Settings and are not exposed over MCP.
