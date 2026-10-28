@@ -56,6 +56,7 @@ from app.central_db import (
 from app.config import ADMIN_EMAILS
 from app.feedback import error_redirect, feedback_url, success_redirect
 from app.i18n import LANGUAGE_COOKIE, N_, _, current_language, ngettext, normalize_language, set_language
+from app.legal import LEGAL_VERSION
 from app.main import templates
 from app.rate_limit import client_ip
 from app.server_settings import current
@@ -241,6 +242,7 @@ async def signup_submit(
             display_name=display_name,
             language=current_language(),
             token=token,
+            terms_version=LEGAL_VERSION,
         ):
             mailer.schedule(
                 mailer.render_mail(
@@ -289,11 +291,13 @@ async def signup_submit(
         if user is None:
             return error_redirect(request, "/login", _("Registration is closed on this server."))
 
-    response = await _start_account(request, user, used_invite=bool(invite), language=current_language())
+    response = await _start_account(
+        request, user, used_invite=bool(invite), language=current_language(), terms_version=LEGAL_VERSION
+    )
     return response or _render_error(_("Could not create your account. Please try again."))
 
 
-async def _start_account(request: Request, user: dict, *, used_invite: bool, language: str):
+async def _start_account(request: Request, user: dict, *, used_invite: bool, language: str, terms_version: str | None):
     """Provision a new account's database and sign it in, or None after rolling
     the account back when provisioning failed."""
     try:
@@ -311,8 +315,12 @@ async def _start_account(request: Request, user: dict, *, used_invite: bool, lan
         return None
 
     await _event(request, "invite_consume" if used_invite else "signup", user["id"])
-    accepted = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-    await update_user(user["id"], language=normalize_language(language), terms_accepted_at=accepted)
+    await update_user(user["id"], language=normalize_language(language))
+    if terms_version:
+        # None for a signup link sent before the consent box existed: its form
+        # asked nothing, so no acceptance is recorded (#182).
+        accepted = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
+        await update_user(user["id"], terms_accepted_at=accepted, terms_version=terms_version)
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg=_("Account created."))
     response = RedirectResponse(target, status_code=303)
@@ -566,7 +574,13 @@ async def _finish_link_signup(request: Request, link: dict):
         if user is None:
             return error_redirect(request, "/login", _("Registration is closed on this server."))
     set_language(normalize_language(link["language"]))
-    response = await _start_account(request, user, used_invite=bool(link["invite_id"]), language=link["language"])
+    response = await _start_account(
+        request,
+        user,
+        used_invite=bool(link["invite_id"]),
+        language=link["language"],
+        terms_version=link["terms_version"],
+    )
     return response or error_redirect(request, "/login", _("Could not create your account. Please try again."))
 
 

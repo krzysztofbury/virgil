@@ -9,7 +9,7 @@
    which is the primary text: keep both in step. #}
 {% set contact %}{% if contact_email %} at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}{% endset %}
 <h1>Terms of service</h1>
-<p>Effective from 28 October 2026</p>
+<p>Effective from {{ effective_date }}</p>
 
 <p>
     These terms set out the rules for using the Virgil instance{% if base_url %} at

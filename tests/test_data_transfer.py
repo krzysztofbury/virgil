@@ -338,3 +338,20 @@ def test_the_web_flow_refuses_a_file_that_is_not_an_export(auth_client):
         "not+a+Virgil+JSON+export" in response.headers["location"] or "not%20a%20Virgil" in response.headers["location"]
     )
     assert _counts() == before
+
+
+@pytest.mark.parametrize(
+    ("stem", "token"),
+    [
+        ("account", "../../../../etc/passwd"),
+        ("account", "a" * 21),
+        ("../account", "a" * 22),
+        ("acc/ount", "a" * 22),
+        ("", "a" * 22),
+    ],
+)
+def test_an_import_path_never_leaves_the_import_directory(stem, token):
+    from app.services.data_transfer import ImportRefused, staged_report
+
+    with pytest.raises(ImportRefused):
+        staged_report(stem, token)

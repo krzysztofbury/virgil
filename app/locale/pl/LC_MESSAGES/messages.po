@@ -7132,8 +7132,8 @@ msgid "Not running"
 msgstr "Nie działa"
 
 #: app/templates/settings.html
-msgid "Not configured. docs/recovery.md explains the VIRGIL_OFFSITE_* settings."
-msgstr "Nie skonfigurowano. docs/recovery.md opisuje ustawienia VIRGIL_OFFSITE_*."
+msgid "Not configured. Set it up under Settings > Server, Off-site copies; docs/recovery.md explains the settings."
+msgstr "Nieskonfigurowane. Ustaw je w Ustawienia > Serwer, Kopie poza serwerem; docs/recovery.md opisuje ustawienia."
 
 #: app/templates/settings.html
 #, python-format
