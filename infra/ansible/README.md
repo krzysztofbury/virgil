@@ -119,7 +119,7 @@ onto the owner's Tailscale tailnet and the public paths close.
 Rollout, each production run approved separately:
 
 1. Apply `infra/tailscale/policy.hujson` in the admin console and store the
-   tagged auth key in 1Password as item and field `virgil-production-tailscale`.
+   tagged auth key in 1Password as an API Credential item `virgil-production-tailscale` (field `credential`).
 2. Prove the break-glass runner reaches the host (`hostname`).
 3. Join over the current public SSH:
 
@@ -127,7 +127,7 @@ Rollout, each production run approved separately:
    umask 077
    key_file="$(mktemp)"
    trap 'rm -f -- "$key_file"' EXIT
-   op read "op://Virgil/virgil-production-tailscale/virgil-production-tailscale" > "$key_file"
+   op read "op://Virgil/virgil-production-tailscale/credential" > "$key_file"
    ANSIBLE_CONFIG=infra/ansible/ansible.cfg uvx --from ansible-core==2.21.4 \
      ansible-playbook infra/ansible/ssh-tailnet.yml -e ssh_tailnet_stage=join \
      -e "tailscale_auth_key_source=$key_file"

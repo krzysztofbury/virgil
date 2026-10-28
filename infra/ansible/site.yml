@@ -537,6 +537,16 @@
       ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
       when: ssh_exposure == 'tailnet'
 
+    # sshd -t needs its privilege separation directory, which exists only while
+    # ssh.service runs; the package upgrade above can restart it under us.
+    - name: Provide the sshd privilege separation directory for validation
+      ansible.builtin.file:
+        path: /run/sshd
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
     - name: Install the candidate SSH hardening drop-in
       ansible.builtin.template:
         src: templates/10-virgil-hardening.conf.j2
