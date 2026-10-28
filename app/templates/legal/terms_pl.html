@@ -9,7 +9,7 @@
    translation of this one: keep both in step. #}
 {% set kontakt %}{% if contact_email %} pod adresem <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}{% endset %}
 <h1>Regulamin</h1>
-<p>Dokument obowiązuje od 28.10.2026</p>
+<p>Dokument obowiązuje od {{ effective_date }}</p>
 
 <p>
     Regulamin określa zasady korzystania z instancji Virgila{% if base_url %} pod

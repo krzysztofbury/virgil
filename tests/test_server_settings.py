@@ -205,3 +205,21 @@ def test_the_whole_plausible_snippet_is_accepted_and_reduced_to_its_script(setti
     )
     settings(server_settings.save, "PLAUSIBLE_SCRIPT_URL", snippet)
     assert current.PLAUSIBLE_SCRIPT_URL == "https://plausible.io/js/pa-abc_DEF123.js"
+
+
+def test_an_off_site_value_cleared_in_the_app_is_reported_as_the_apps(settings, monkeypatch):
+    from pyrage import x25519
+
+    from app.services import offsite
+
+    for name, value in {
+        "OFFSITE_ENDPOINT": "https://env.r2.example",
+        "OFFSITE_BUCKET": "env-bucket",
+        "OFFSITE_ACCESS_KEY_ID": "env-id",
+        "OFFSITE_SECRET_ACCESS_KEY": "env-secret",  # pragma: allowlist secret
+        "OFFSITE_RECIPIENT": str(x25519.Identity.generate().to_public()),
+    }.items():
+        monkeypatch.setattr(config, name, value)
+    settings(server_settings.save, "OFFSITE_BUCKET", "")
+    with pytest.raises(offsite.OffsiteConfigError, match=r"VIRGIL_OFFSITE_BUCKET \(empty in Settings > Server\)"):
+        offsite.offsite_settings()

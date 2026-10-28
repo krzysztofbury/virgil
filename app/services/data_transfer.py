@@ -431,8 +431,13 @@ async def _settle_orphans(db: aiosqlite.Connection) -> int:
 def _paths(stem: str, token: str) -> tuple[Path, Path, Path]:
     if not _TOKEN.fullmatch(token) or not stem or "/" in stem or ".." in stem:
         raise ImportRefused(N_("That import was not found. Upload the file again."))
-    base = IMPORT_DIR / f"{stem}-{token}"
-    return base.with_suffix(".upload"), base.with_suffix(".db"), base.with_suffix(".json")
+    # Both parts are checked above; the resolved path is checked again, so no
+    # value from a request can name a file outside the import directory.
+    root = os.path.realpath(IMPORT_DIR)
+    base = os.path.realpath(os.path.join(root, f"{stem}-{token}"))
+    if not base.startswith(root + os.sep):
+        raise ImportRefused(N_("That import was not found. Upload the file again."))
+    return Path(base + ".upload"), Path(base + ".db"), Path(base + ".json")
 
 
 def new_upload(stem: str) -> tuple[str, Path]:

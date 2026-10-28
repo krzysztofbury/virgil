@@ -193,6 +193,7 @@ _UPDATABLE_COLUMNS = frozenset(
         "password_hash",
         "display_name",
         "terms_accepted_at",
+        "terms_version",
         "role",
         "is_active",
         "totp_secret",
@@ -655,6 +656,7 @@ async def create_sign_in_link(
     display_name: str = "",
     language: str = "en",
     token: str | None = None,
+    terms_version: str | None = None,
 ) -> str | None:
     """Store a one-time sign-in (or signup) link and return its secret, or None
     when the address already had SIGN_IN_LINKS_PER_WINDOW links in the window.
@@ -676,8 +678,9 @@ async def create_sign_in_link(
                 return None
             await db.execute(
                 """INSERT INTO sign_in_links
-                   (id, purpose, user_id, email, token_hash, invite_id, display_name, language, created_at, expires_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (id, purpose, user_id, email, token_hash, invite_id, display_name, language, created_at,
+                    expires_at, terms_version)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (
                     str(uuid.uuid4()),
                     purpose,
@@ -689,6 +692,7 @@ async def create_sign_in_link(
                     language,
                     _utc_stamp(now),
                     _utc_stamp(now + timedelta(minutes=SIGN_IN_LINK_TTL_MINUTES)),
+                    terms_version,
                 ),
             )
             await db.commit()

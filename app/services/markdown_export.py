@@ -171,11 +171,18 @@ async def _section_feniks(db, start: str, end: str) -> list[str]:
         "WHERE e.date BETWEEN ? AND ? ORDER BY e.date",
         (start, end),
     )
+    # A near miss breaks the streak without a relapse marker, so it is listed
+    # on its own; otherwise a shorter streak has no explanation here.
+    near_misses = await db.execute_fetchall(
+        "SELECT d.date, h.name AS habit, h.near_miss_label FROM feniks_daily d JOIN habits h ON h.id = d.habit_id "
+        "WHERE d.near_miss = 1 AND d.date BETWEEN ? AND ? ORDER BY d.date",
+        (start, end),
+    )
     from app.services.habits import list_habits
     from app.services.streak import get_streak
 
     habits = await list_habits(db)
-    if not journal and not pleasures and not relapses and not habits:
+    if not journal and not pleasures and not relapses and not near_misses and not habits:
         return []
 
     lines = ["## Freedom", ""]
@@ -211,6 +218,13 @@ async def _section_feniks(db, start: str, end: str) -> list[str]:
             r = dict(r)
             notes = f" - {r['notes']}" if r.get("notes") else ""
             lines.append(f"- {r['date']}: {r['habit']} {r['event_type']}{notes}")
+        lines.append("")
+
+    if near_misses:
+        lines.append("### Near misses")
+        for n in near_misses:
+            label = f" ({n['near_miss_label']})" if n["near_miss_label"] else ""
+            lines.append(f"- {n['date']}: {n['habit']}{label}")
         lines.append("")
 
     return lines

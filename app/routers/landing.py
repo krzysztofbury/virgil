@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 
 from app.config import BASE_URL
 from app.i18n import current_language
+from app.legal import effective_date
 from app.main import templates
 from app.server_settings import current
 
@@ -53,6 +54,7 @@ async def _server_ai_provider() -> str:
 async def _legal_context(request: Request) -> dict:
     return {
         "server_ai_provider": await _server_ai_provider(),
+        "effective_date": effective_date(current_language()),
         "request": request,
         "contact_email": current.CONTACT_EMAIL,
         "operator_name": current.OPERATOR_NAME,
