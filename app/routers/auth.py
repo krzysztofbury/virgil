@@ -315,12 +315,12 @@ async def _start_account(request: Request, user: dict, *, used_invite: bool, lan
         return None
 
     await _event(request, "invite_consume" if used_invite else "signup", user["id"])
-    await update_user(user["id"], language=normalize_language(language))
+    fields = {"language": normalize_language(language)}
     if terms_version:
         # None for a signup link sent before the consent box existed: its form
         # asked nothing, so no acceptance is recorded (#182).
-        accepted = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S")
-        await update_user(user["id"], terms_accepted_at=accepted, terms_version=terms_version)
+        fields |= {"terms_accepted_at": datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S"), "terms_version": terms_version}
+    await update_user(user["id"], **fields)
     token = create_session(user["id"], user["session_epoch"])
     target = feedback_url("/onboarding", msg=_("Account created."))
     response = RedirectResponse(target, status_code=303)

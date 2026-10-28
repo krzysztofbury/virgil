@@ -589,3 +589,23 @@ def test_real_upgrade_failure_snapshots_rolls_back_and_quarantines_app(tmp_path,
             await recovered.close()
 
     asyncio.run(run())
+
+
+def test_migration_011_gives_live_signup_links_the_version_their_form_showed(tmp_path):
+    """The consent box shipped with 010, so a signup link waiting at upgrade time had it ticked."""
+    import importlib
+
+    import aiosqlite
+
+    async def run():
+        db = await aiosqlite.connect(tmp_path / "central.db")
+        db.row_factory = aiosqlite.Row
+        await db.execute("CREATE TABLE users (id TEXT)")
+        await db.execute("CREATE TABLE sign_in_links (id TEXT, purpose TEXT)")
+        await db.executemany("INSERT INTO sign_in_links VALUES (?, ?)", [("a", "signup"), ("b", "sign_in")])
+        await importlib.import_module("app.central_migrations.011_terms_version").up(db)
+        rows = await db.execute_fetchall("SELECT id, terms_version FROM sign_in_links ORDER BY id")
+        await db.close()
+        return [tuple(row) for row in rows]
+
+    assert asyncio.run(run()) == [("a", "2026-10-28"), ("b", None)]

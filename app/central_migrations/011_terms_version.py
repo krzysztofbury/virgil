@@ -1,8 +1,10 @@
 """Which version of the terms and the privacy policy an account accepted (#182).
 
 users.terms_version is the version accepted at signup. A signup link carries
-the version its form showed, so an account made from a link sent before the
-consent box existed records no acceptance. Both stay NULL for older rows.
+the version its form showed. The consent box shipped with migration 010, and a
+signup link lives 15 minutes, so every signup link waiting at upgrade time was
+sent from a form with the box ticked: those get the first version, 2026-10-28.
+Accounts made before stay NULL.
 """
 
 import aiosqlite
@@ -11,6 +13,7 @@ import aiosqlite
 async def up(db: aiosqlite.Connection) -> None:
     await db.execute("ALTER TABLE users ADD COLUMN terms_version TEXT")
     await db.execute("ALTER TABLE sign_in_links ADD COLUMN terms_version TEXT")
+    await db.execute("UPDATE sign_in_links SET terms_version = '2026-10-28' WHERE purpose = 'signup'")
 
 
 async def validate(db: aiosqlite.Connection) -> None:
