@@ -1,0 +1,84 @@
+# The hosted instance's runtime (#174). scripts/deploy.py installs this file as
+# /opt/virgil/compose.yaml and writes the image pin into /opt/virgil/release.env;
+# nothing on the host follows a mutable tag. Self-hosters use the repository's
+# docker-compose.yml instead.
+#
+# Memory: the host has 1 GB for everything, and the load check peaked at 688 MB
+# with 10 MB uploads (docs/load-check.md). The limit keeps a spike inside the
+# container: the kernel kills Virgil, the restart policy brings it back, and
+# tailscaled and sshd survive.
+name: virgil
+
+services:
+  virgil:
+    image: ${VIRGIL_IMAGE:?set by scripts/deploy.py}
+    container_name: virgil
+    restart: unless-stopped
+    init: true
+    mem_limit: 640m
+    memswap_limit: 640m
+    pids_limit: 256
+    expose:
+      - "8123"
+    # Secrets and per-instance settings, rendered from 1Password, mode 0600.
+    env_file: /etc/virgil/virgil.env
+    environment:
+      VIRGIL_CENTRAL_DB_PATH: /data/virgil-central.db
+      VIRGIL_ENV: prod
+      VIRGIL_BACKUP_DIR: /backups
+      # cloudflared is the only ingress and has a fixed address on this network.
+      VIRGIL_TRUST_CLOUDFLARE_HEADERS: "true"
+      VIRGIL_TRUSTED_PROXY_IPS: 172.30.0.2
+      TZ: Europe/Warsaw
+    volumes:
+      - type: bind
+        source: /var/lib/virgil/data
+        target: /data
+        bind:
+          create_host_path: false
+      - type: bind
+        source: /var/lib/virgil/backups
+        target: /backups
+        bind:
+          create_host_path: false
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    healthcheck:
+      # Liveness only, as in docker-compose.yml: /healthz stays 503 while a
+      # database failed its migrations, and a restart cannot fix that.
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8123/livez')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 300s
+    networks:
+      edge:
+        ipv4_address: 172.30.0.3
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.10.4@sha256:c6c7ae1d5dfdcb094ad344ed68ccffc26635c9c6be80965664c33baf064b0515
+    container_name: virgil-cloudflared
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    env_file: /etc/virgil/cloudflared.env
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    mem_limit: 96m
+    pids_limit: 64
+    # No depends_on: the tunnel stays up when Virgil does not, and the edge
+    # serves a 502, which is the visible failure.
+    networks:
+      edge:
+        ipv4_address: 172.30.0.2
+
+networks:
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

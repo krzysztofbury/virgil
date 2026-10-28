@@ -1,0 +1,8 @@
+[Unit]
+Description=Restart Virgil when Docker reports it unhealthy
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/virgil-heal

@@ -1,0 +1,26 @@
+// Tailnet policy shared by the owner's servers (Minos #227, Virgil #174): the
+// complete file for the Tailscale admin console's JSON editor. The Minos
+// repository keeps the same file; change both together.
+{
+	// Only tailnet admins may tag a device as a server; each host joins with a
+	// one-time auth key carrying its tag.
+	"tagOwners": {
+		"tag:minos-server":  ["autogroup:admin"],
+		"tag:virgil-server": ["autogroup:admin"],
+	},
+
+	"grants": [
+		// The owner's own devices keep reaching each other, as under the
+		// default allow-all rule this replaces.
+		{"src": ["autogroup:member"], "dst": ["autogroup:self"], "ip": ["*"]},
+
+		// Admin devices reach each server on SSH only. No grant names a server
+		// as a source, so a server starts no connection on the tailnet and the
+		// two servers cannot reach each other.
+		{"src": ["autogroup:admin"], "dst": ["tag:minos-server"], "ip": ["tcp:22"]},
+		{"src": ["autogroup:admin"], "dst": ["tag:virgil-server"], "ip": ["tcp:22"]},
+	],
+
+	// No "ssh" section, so Tailscale SSH is denied on every device. Servers
+	// run OpenSSH with a pinned host key and join with --ssh=false.
+}

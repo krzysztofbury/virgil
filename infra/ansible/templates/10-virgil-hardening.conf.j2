@@ -1,0 +1,31 @@
+{% if ssh_exposure == 'tailnet' %}
+# Public SSH is closed (#174): tailscaled in userspace mode proxies tailnet
+# connections to loopback, so sshd listens nowhere else.
+ListenAddress 127.0.0.1
+ListenAddress ::1
+{% endif %}
+PermitRootLogin prohibit-password
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+AuthenticationMethods publickey
+PermitEmptyPasswords no
+StrictModes yes
+MaxAuthTries 3
+MaxSessions 4
+MaxStartups 10:30:30
+LoginGraceTime 30
+X11Forwarding no
+AllowAgentForwarding no
+AllowTcpForwarding no
+# Unix-socket forwarding has its own switch; AllowTcpForwarding does not cover it.
+AllowStreamLocalForwarding no
+GatewayPorts no
+PermitTunnel no
+PermitUserEnvironment no
+ClientAliveInterval 300
+ClientAliveCountMax 2
+RekeyLimit 512M 1h
+LogLevel VERBOSE
+AllowUsers root

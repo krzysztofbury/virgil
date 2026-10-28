@@ -1,0 +1,532 @@
+---
+# Take SSH off the public internet (#174) in two separately approved runs.
+#
+# join:    over public SSH, install tailscaled in userspace mode, join the
+#          tailnet with a one-time tagged key, and prove a fresh SSH login over
+#          the tailnet. Public SSH is untouched.
+# private: over the tailnet only, make sshd listen on loopback, prove a fresh
+#          login again, then remove the UFW SSH rule. Any failure before the
+#          rule is removed restores the prior sshd configuration.
+#
+# The prior configuration listens on every address, loopback included, so the
+# tailnet path works before, during and after a rollback.
+- name: Move Virgil SSH to the tailnet
+  hosts: virgil-production
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    # Tailscale's published apt signing key fingerprint: public, not a secret.
+    tailscale_key_fingerprint: 2596A99EAAB33821893C0A79458CA832957F5868  # gitleaks:allow # pragma: allowlist secret
+    tailscale_key_url: https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg
+    tailscale_auth_key_path: /run/virgil-tailscale-authkey
+
+  pre_tasks:
+    - name: Require one reviewed stage on the reviewed host
+      ansible.builtin.assert:
+        that:
+          - ssh_tailnet_stage | default('') in ['join', 'private']
+          - ssh_exposure | default('') in ['public', 'tailnet']
+          - ssh_exposure == ('public' if ssh_tailnet_stage == 'join' else 'tailnet')
+          - ansible_facts.distribution_release == "noble"
+          - ansible_facts.virtualization_type == "lxc"
+          - ansible_facts.hostname == expected_hostname
+        fail_msg: >-
+          Run -e ssh_tailnet_stage=join over public SSH, then re-materialize the
+          tailnet address and run -e ssh_tailnet_stage=private over the tailnet.
+
+  tasks:
+    - name: Join the tailnet while public SSH still works
+      when: ssh_tailnet_stage == 'join'
+      block:
+        - name: Install the key inspection tool
+          ansible.builtin.apt:
+            name: gpg
+            state: present
+
+        - name: Create a private directory for the key inspection
+          ansible.builtin.tempfile:
+            state: directory
+            prefix: virgil-tailscale-key.
+          register: tailscale_key_dir
+
+        - name: Inspect and install only the pinned signing key
+          block:
+            - name: Download the Tailscale repository signing key for inspection
+              ansible.builtin.get_url:
+                url: "{{ tailscale_key_url }}"
+                dest: "{{ tailscale_key_dir.path }}/candidate.gpg"
+                owner: root
+                group: root
+                mode: "0600"
+                force: true
+
+            # gpg refuses a GNUPGHOME it did not create, so it gets its own
+            # mode-0700 directory inside the private one.
+            - name: Create the throwaway GnuPG home
+              ansible.builtin.file:
+                path: "{{ tailscale_key_dir.path }}/gnupg"
+                state: directory
+                owner: root
+                group: root
+                mode: "0700"
+
+            - name: Read the candidate keys
+              ansible.builtin.command:
+                argv:
+                  - gpg
+                  - --show-keys
+                  - --with-colons
+                  - --with-fingerprint
+                  - "{{ tailscale_key_dir.path }}/candidate.gpg"
+              environment:
+                GNUPGHOME: "{{ tailscale_key_dir.path }}/gnupg"
+              register: tailscale_key_listing
+              changed_when: false
+
+            # apt trusts every key in the keyring, so it must hold exactly the
+            # reviewed one.
+            - name: Require exactly the pinned Tailscale signing key
+              vars:
+                primaries: "{{ tailscale_key_listing.stdout_lines | select('match', '^pub:') | list }}"
+                fingerprints: >-
+                  {{ tailscale_key_listing.stdout_lines
+                     | select('match', '^fpr:') | map('split', ':')
+                     | map(attribute=9) | list }}
+              ansible.builtin.assert:
+                that:
+                  - primaries | length == 1
+                  - fingerprints | first == tailscale_key_fingerprint
+                fail_msg: The Tailscale repository keyring is not exactly the reviewed key.
+
+            - name: Install the pinned Tailscale signing key
+              ansible.builtin.copy:
+                src: "{{ tailscale_key_dir.path }}/candidate.gpg"
+                dest: /etc/apt/keyrings/tailscale.gpg
+                remote_src: true
+                owner: root
+                group: root
+                mode: "0644"
+
+          always:
+            - name: Remove the key inspection directory
+              ansible.builtin.file:
+                path: "{{ tailscale_key_dir.path }}"
+                state: absent
+
+        - name: Configure the official Tailscale repository
+          ansible.builtin.copy:
+            src: files/tailscale.sources
+            dest: /etc/apt/sources.list.d/tailscale.sources
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Keep tailscaled on security updates
+          ansible.builtin.copy:
+            src: files/52virgil-unattended-upgrades
+            dest: /etc/apt/apt.conf.d/52virgil-unattended-upgrades
+            owner: root
+            group: root
+            mode: "0644"
+
+        - name: Install tailscaled
+          ansible.builtin.apt:
+            name: tailscale
+            state: present
+            update_cache: true
+
+        - name: Run tailscaled in userspace mode
+          ansible.builtin.copy:
+            dest: /etc/default/tailscaled
+            owner: root
+            group: root
+            mode: "0644"
+            content: |
+              # Managed by Virgil (#174). The LXC guest has no guaranteed TUN
+              # device; userspace mode proxies tailnet connections to loopback.
+              PORT="41641"
+              FLAGS="--tun=userspace-networking"
+          register: tailscaled_options
+
+        - name: Start tailscaled with the reviewed options
+          ansible.builtin.systemd_service:
+            name: tailscaled.service
+            enabled: true
+            state: "{{ 'restarted' if tailscaled_options.changed else 'started' }}"
+
+        - name: Read the tailnet state before joining
+          ansible.builtin.command:
+            argv: ["tailscale", "status", "--json", "--self=true", "--peers=false"]
+          register: tailnet_before
+          changed_when: false
+
+        - name: Join with the one-time tagged auth key
+          when: (tailnet_before.stdout | from_json).BackendState != 'Running'
+          block:
+            - name: Require an auth key file argument
+              ansible.builtin.assert:
+                that:
+                  - tailscale_auth_key_source is defined
+                fail_msg: Supply -e tailscale_auth_key_source=<file> for the first join.
+
+            - name: Inspect the supplied auth key
+              ansible.builtin.stat:
+                path: "{{ tailscale_auth_key_source }}"
+              delegate_to: localhost
+              become: false
+              register: tailscale_auth_key_file
+
+            - name: Require one bounded, owner-only auth key file
+              ansible.builtin.assert:
+                that:
+                  - tailscale_auth_key_file.stat.isreg | default(false)
+                  - tailscale_auth_key_file.stat.mode | default('') in ['0400', '0600']
+                  # A key pre-signed with `tailscale lock sign` for Tailnet Lock
+                  # (#258) carries a signature and a wrapped signing key, so it
+                  # is longer than a plain auth key.
+                  - tailscale_auth_key_file.stat.size | default(0) in range(20, 1025)
+                fail_msg: >-
+                  Supply -e tailscale_auth_key_source=<file> holding a one-time,
+                  pre-authorised key tagged tag:virgil-server, mode 0400 or 0600;
+                  under Tailnet Lock, the key printed by `tailscale lock sign`.
+
+            # The copy module stages its source in the remote temporary
+            # directory; keep that on tmpfs so the key never reaches disk.
+            # Only this task: the workstation-side tasks keep their default.
+            - name: Place the auth key on the host's tmpfs
+              vars:
+                ansible_remote_tmp: /run/virgil-ansible-tmp
+              ansible.builtin.copy:
+                src: "{{ tailscale_auth_key_source }}"
+                dest: "{{ tailscale_auth_key_path }}"
+                owner: root
+                group: root
+                mode: "0400"
+              no_log: true
+
+            - name: Join the tailnet as the tagged server
+              ansible.builtin.command:
+                argv:
+                  - tailscale
+                  - up
+                  - "--auth-key=file:{{ tailscale_auth_key_path }}"
+                  - --hostname=virgil-production
+                  - --advertise-tags=tag:virgil-server
+                  - --ssh=false
+                  - --accept-dns=false
+                  - --accept-routes=false
+                  - --timeout=60s
+              changed_when: true
+              no_log: true
+
+          always:
+            - name: Remove the auth key and its staging directory from the host
+              ansible.builtin.file:
+                path: "{{ item }}"
+                state: absent
+              loop:
+                - "{{ tailscale_auth_key_path }}"
+                - /run/virgil-ansible-tmp
+
+        - name: Read the joined tailnet state
+          ansible.builtin.command:
+            argv: ["tailscale", "status", "--json", "--self=true", "--peers=false"]
+          register: tailnet_joined
+          changed_when: false
+
+        - name: Require the tagged server on the tailnet
+          vars:
+            joined: "{{ tailnet_joined.stdout | from_json }}"
+          ansible.builtin.assert:
+            that:
+              - joined.BackendState == 'Running'
+              - "'tag:virgil-server' in (joined.Self.Tags | default([]))"
+              - joined.Self.HostName == 'virgil-production'
+              - joined.Self.DNSName is match('^virgil-production\\.[a-z0-9-]+\\.ts\\.net\\.$')
+            fail_msg: The host is not the tagged virgil-production node on the tailnet.
+
+        - name: Record the tailnet address
+          ansible.builtin.set_fact:
+            tailnet_ssh_host: "{{ (tailnet_joined.stdout | from_json).Self.DNSName | regex_replace('\\.$', '') }}"
+
+        - name: Pin the host key for the tailnet name in a private file
+          ansible.builtin.tempfile:
+            state: file
+            prefix: virgil-tailnet-known-hosts.
+          delegate_to: localhost
+          become: false
+          register: tailnet_known_hosts
+
+        - name: Prove a fresh SSH login over the tailnet
+          block:
+            - name: Write the tailnet host key pin
+              ansible.builtin.copy:
+                dest: "{{ tailnet_known_hosts.path }}"
+                mode: "0600"
+                content: >-
+                  {{ tailnet_ssh_host }}
+                  {{ (lookup('file', playbook_dir ~ '/known_hosts').split())[1:3] | join(' ') }}
+              delegate_to: localhost
+              become: false
+
+            - name: Log in over the tailnet with the pinned host key
+              ansible.builtin.command:
+                argv:
+                  - ssh
+                  - -o
+                  - ControlMaster=no
+                  - -o
+                  - ControlPath=none
+                  - -o
+                  - BatchMode=yes
+                  - -o
+                  - ConnectTimeout=20
+                  - -o
+                  - StrictHostKeyChecking=yes
+                  - -o
+                  - "UserKnownHostsFile={{ tailnet_known_hosts.path }}"
+                  - -o
+                  - GlobalKnownHostsFile=/dev/null
+                  - -o
+                  - KnownHostsCommand=none
+                  - -o
+                  - VerifyHostKeyDNS=no
+                  - -o
+                  - UpdateHostKeys=no
+                  - -o
+                  - CheckHostIP=no
+                  - -o
+                  - HostKeyAlgorithms=ssh-ed25519
+                  - -o
+                  - IdentitiesOnly=yes
+                  - -o
+                  - PreferredAuthentications=publickey
+                  - -i
+                  - "{{ lookup('env', 'HOME') }}/.ssh/virgil_mikrus_ed25519"
+                  - -p
+                  - "22"
+                  - "root@{{ tailnet_ssh_host }}"
+                  - /usr/bin/true
+              delegate_to: localhost
+              become: false
+              changed_when: false
+
+          always:
+            - name: Remove the temporary host key pin
+              ansible.builtin.file:
+                path: "{{ tailnet_known_hosts.path }}"
+                state: absent
+              delegate_to: localhost
+              become: false
+
+        - name: Report the next owner steps
+          ansible.builtin.debug:
+            msg: >-
+              Joined as {{ tailnet_ssh_host }} and logged in over the tailnet.
+              Public SSH is unchanged. Next: prove that M.A.R.I.A.N reaches the
+              host, set ansible_host={{ tailnet_ssh_host }} and ansible_port=22 in the
+              1Password deployment item, re-materialize, then run
+              -e ssh_tailnet_stage=private.
+
+    - name: Close public SSH from the tailnet
+      when: ssh_tailnet_stage == 'private'
+      block:
+        - name: Require the tailnet path for this session
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
+          vars:
+            tailnet_require_ssh_service: false
+
+        - name: Read SSH socket activation state
+          ansible.builtin.command:
+            argv: ["systemctl", "is-active", "ssh.socket"]
+          register: ssh_socket_active
+          changed_when: false
+          failed_when: false
+
+        - name: Inspect the prior SSH hardening drop-in
+          ansible.builtin.stat:
+            path: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+          register: ssh_hardening_prior
+
+        - name: Require a prior drop-in to roll back to
+          ansible.builtin.assert:
+            that:
+              - ssh_hardening_prior.stat.exists
+            fail_msg: Run the site baseline before closing public SSH.
+
+        - name: Inspect the socket ordering drop-in of upgraded hosts
+          ansible.builtin.stat:
+            path: /etc/systemd/system/ssh.service.d/00-socket.conf
+          register: ssh_socket_dropin
+
+        - name: Switch sshd to loopback and prove it
+          block:
+            # Socket activation takes listen addresses from the socket unit,
+            # so ListenAddress would be ignored. Sessions survive: Ubuntu's
+            # ssh.service kills only the listener, never its session children.
+            - name: Serve SSH from ssh.service instead of socket activation
+              when: >-
+                ssh_socket_enabled.stdout | trim not in ['disabled', 'masked', ''] or
+                ssh_socket_active.stdout | trim == 'active' or
+                ssh_socket_dropin.stat.exists
+              block:
+                - name: Keep the socket ordering drop-in for review
+                  ansible.builtin.copy:
+                    src: /etc/systemd/system/ssh.service.d/00-socket.conf
+                    dest: /etc/virgil/ssh-00-socket.conf.disabled
+                    remote_src: true
+                    owner: root
+                    group: root
+                    mode: "0644"
+                  when: ssh_socket_dropin.stat.exists
+
+                # It pulls ssh.socket back in, which would fight sshd for port 22.
+                - name: Remove the socket ordering drop-in
+                  ansible.builtin.file:
+                    path: /etc/systemd/system/ssh.service.d/00-socket.conf
+                    state: absent
+
+                - name: Enable ssh.service at boot
+                  ansible.builtin.systemd_service:
+                    name: ssh.service
+                    enabled: true
+                    daemon_reload: true
+
+                - name: Disable SSH socket activation
+                  ansible.builtin.systemd_service:
+                    name: ssh.socket
+                    enabled: false
+                    state: stopped
+
+                - name: Keep the SSH listener running
+                  ansible.builtin.systemd_service:
+                    name: ssh.service
+                    state: started
+
+            - name: Install the loopback-only SSH hardening drop-in
+              ansible.builtin.template:
+                src: templates/10-virgil-hardening.conf.j2
+                dest: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+                owner: root
+                group: root
+                mode: "0644"
+                backup: true
+                validate: /usr/sbin/sshd -t -f %s
+              register: ssh_hardening
+
+            - name: Validate all SSH configuration files
+              ansible.builtin.command: /usr/sbin/sshd -t
+              changed_when: false
+
+            - name: Rebind sshd to the reviewed addresses
+              ansible.builtin.systemd_service:
+                name: ssh.service
+                state: restarted
+                daemon_reload: true
+
+            - name: Prove a fresh SSH login over the tailnet
+              ansible.builtin.command: &tailnet_login
+                argv:
+                  - ssh
+                  - -o
+                  - ControlMaster=no
+                  - -o
+                  - ControlPath=none
+                  - -o
+                  - BatchMode=yes
+                  - -o
+                  - ConnectTimeout=20
+                  - -o
+                  - StrictHostKeyChecking=yes
+                  - -o
+                  - "UserKnownHostsFile={{ playbook_dir }}/known_hosts"
+                  - -o
+                  - GlobalKnownHostsFile=/dev/null
+                  - -o
+                  - KnownHostsCommand=none
+                  - -o
+                  - VerifyHostKeyDNS=no
+                  - -o
+                  - UpdateHostKeys=no
+                  - -o
+                  - CheckHostIP=no
+                  - -o
+                  - HostKeyAlgorithms=ssh-ed25519
+                  - -o
+                  - IdentitiesOnly=yes
+                  - -o
+                  - PreferredAuthentications=publickey
+                  - -i
+                  - "{{ lookup('env', 'HOME') }}/.ssh/virgil_mikrus_ed25519"
+                  - -p
+                  - "22"
+                  - "root@{{ ansible_host }}"
+                  - /usr/bin/true
+              delegate_to: localhost
+              become: false
+              changed_when: false
+
+            - name: Require loopback-only SSH listeners
+              ansible.builtin.import_tasks: tasks/tailnet-ssh-listeners.yml
+
+          rescue:
+            - name: Restore the prior SSH drop-in
+              ansible.builtin.copy:
+                src: "{{ (ssh_hardening | default({})).backup_file }}"
+                dest: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+                remote_src: true
+                owner: root
+                group: root
+                mode: "0644"
+              when: (ssh_hardening | default({})).backup_file is defined
+
+            - name: Restart sshd on the prior addresses
+              ansible.builtin.systemd_service:
+                name: ssh.service
+                state: restarted
+                daemon_reload: true
+
+            - name: Prove a fresh SSH login after rollback
+              ansible.builtin.command: *tailnet_login
+              delegate_to: localhost
+              become: false
+              changed_when: false
+
+            - name: Stop before touching the firewall
+              ansible.builtin.fail:
+                msg: >-
+                  Restored the prior sshd drop-in
+                  {{ '' if (ssh_hardening | default({})).backup_file is defined else '(none was replaced)' }}
+                  and kept sshd on ssh.service; the UFW SSH rule was not removed.
+
+        - name: Remove the public SSH firewall rule
+          ansible.builtin.command: ufw delete allow 22/tcp
+          register: ufw_delete
+          changed_when: "'Rule deleted' in ufw_delete.stdout"
+
+        - name: Read the effective firewall
+          ansible.builtin.command: ufw status verbose
+          environment:
+            LC_ALL: C
+          register: ufw_private
+          changed_when: false
+
+        - name: Require a firewall with no inbound allow rule
+          ansible.builtin.assert:
+            that:
+              - "'Status: active' in ufw_private.stdout"
+              - "'Default: deny (incoming), allow (outgoing), deny (routed)' in ufw_private.stdout"
+              - "'ALLOW' not in ufw_private.stdout"
+            fail_msg: The firewall still allows inbound traffic.
+
+        - name: Require the final tailnet state
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
+
+        - name: Report the owner's final check
+          ansible.builtin.debug:
+            msg: >-
+              sshd listens on loopback only and UFW allows no inbound traffic.
+              From the workstation, prove that the provider IPv4 port and IPv6
+              port 22 refuse, and record it in #174.
