@@ -5,6 +5,16 @@ import pytest
 from app import config
 
 SCRIPT = "https://plausible.io/js/pa-test.js"
+PLAUSIBLE = "https://plausible.io"
+
+
+def _directives(policy: str) -> dict[str, list[str]]:
+    """Each CSP directive's sources, compared as whole tokens."""
+    parsed = {}
+    for directive in policy.split(";"):
+        name, *sources = directive.split()
+        parsed[name] = sources
+    return parsed
 
 
 @pytest.fixture
@@ -42,9 +52,9 @@ def test_plausible_loads_on_public_pages_only_once_set(public, auth_client, monk
     for path in ("/", "/privacy", "/terms"):
         response = public.get(path)
         assert f'src="{SCRIPT}"' in response.text, path
-        csp = response.headers["content-security-policy"]
-        assert "script-src 'self'" in csp and "https://plausible.io" in csp.split("script-src")[1].split(";")[0]
-        assert "https://plausible.io" in csp.split("connect-src")[1].split(";")[0]
+        directives = _directives(response.headers["content-security-policy"])
+        assert PLAUSIBLE in directives["script-src"] and "'self'" in directives["script-src"]
+        assert directives["connect-src"] == ["'self'", PLAUSIBLE]
 
     signed_in = auth_client.get("/").text
     assert SCRIPT not in signed_in and "plausible-init" not in signed_in

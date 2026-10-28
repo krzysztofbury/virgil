@@ -168,4 +168,4 @@ def test_a_credential_cannot_fall_back_to_the_environment_for_a_new_address(sett
 
     settings(server_settings.reset, "SMTP_HOST")
     settings(server_settings.reset, "SMTP_PASSWORD")
-    assert current.SMTP_PASSWORD == "env-credential"
+    assert current.SMTP_PASSWORD == "env-credential"  # pragma: allowlist secret

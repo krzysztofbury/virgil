@@ -105,7 +105,8 @@ def test_reset_returns_to_the_environment(admin):
 
 def test_the_server_ai_key_is_added_and_put_in_use_from_the_page(admin):
     client, _sent = admin
-    _post(client, "/admin/server/llm/add", provider="xai", model="xai/grok-4.7", api_key="xai-key-0000-9876")
+    key = "xai-key-0000-9876"  # pragma: allowlist secret - synthetic fixture
+    _post(client, "/admin/server/llm/add", provider="xai", model="xai/grok-4.7", api_key=key)
     with sqlite3.connect(Path(_TMP) / "central.db") as central:
         (provider_id,) = central.execute("SELECT id FROM server_llm_providers").fetchone()
     _post(client, "/admin/server/llm/activate", provider_id=str(provider_id))

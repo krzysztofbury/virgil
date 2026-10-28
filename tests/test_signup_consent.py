@@ -16,7 +16,8 @@ def _signup(client, monkeypatch, **extra):
     monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     browser = TestClient(app)
     browser.portal = client.portal
-    data = {"email": EMAIL, "password": "consent-pass-123", "password_confirm": "consent-pass-123", **extra}
+    password = "consent-pass-123"  # pragma: allowlist secret - synthetic fixture
+    data = {"email": EMAIL, "password": password, "password_confirm": password, **extra}
     data["_csrf_token"] = csrf_token(browser, "/signup")
     return browser, browser.post("/signup", data=data, follow_redirects=False)
 
