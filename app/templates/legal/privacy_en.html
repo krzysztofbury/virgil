@@ -3,8 +3,8 @@
 {% block legal_body %}
 {# Self-hosting: sections 7, 9, 11 and 14 describe the providers of the
    virgil.pl instance, and section 5 states its required two-factor setting
-   (VIRGIL_REQUIRE_TOTP) (mikr.us, Cloudflare, the SMTP provider, xAI,
-   Plausible). Replace them with your own before publishing this page. The
+   (VIRGIL_REQUIRE_TOTP) (mikr.us, Cloudflare, the SMTP provider,
+   Plausible). The server's AI provider is named from Settings > Server. Replace them with your own before publishing this page. The
    operator's details come from Settings > Server, Operator. This page is a
    translation of privacy_pl.html, which is the primary text: keep both in step. #}
 {% set contact %}{% if contact_email %} at <a href="mailto:{{ contact_email }}">{{ contact_email }}</a>{% endif %}{% endset %}
@@ -90,17 +90,15 @@
     for: keeping your log and showing it to you.
 </p>
 <p>
-    By entering or importing such data, turning on the Freedom module,
-    connecting an Oura ring or starting an AI feature that uses them, you give
-    your explicit consent to their processing as described here (art. 9(2)(a)
+    You give it by ticking the box accepting the terms and this policy when you
+    create your account, and then by entering or importing such data, turning
+    on the Freedom module, connecting an Oura ring or starting an AI feature
+    that uses them. This is your explicit consent to their processing as described here (art. 9(2)(a)
     GDPR). You can withdraw consent at any time by deleting those entries,
     turning off the module or feature, disconnecting Oura or erasing all your
     data (section 15). Withdrawing consent does not affect the lawfulness of
     processing before the withdrawal.
 </p>
-{# TO CONFIRM: the app has no separate consent checkbox at signup, onboarding,
-   Freedom activation or lab import. Consider adding an explicit tick box so
-   the art. 9(2)(a) consent is a clear affirmative act and can be shown. #}
 
 <h2>4. Purposes and legal bases</h2>
 <ul>
@@ -130,8 +128,6 @@
     <li>On this instance, an account with a password must have two-factor authentication turned on.</li>
     <li>Your other entries are stored in your account's database without additional encryption. Only the operator has access to the server. The operator does not browse your entries and uses access to the files only to maintain the service, to restore data from a backup or at your request.</li>
 </ul>
-{# TO CONFIRM: the commitment that the operator does not browse entries and
-   uses file access only for maintenance, restore or on request. #}
 
 <h2>6. Backups</h2>
 <p>
@@ -179,11 +175,8 @@
 </p>
 <ul>
     <li>If you add your own API key (Settings &gt; AI), the data goes to the provider you chose, under your own agreement with that provider. You and your provider are responsible for that flow and its costs.</li>
-    <li>If you have no key of your own and an administrator has allowed your account to use the server's key, the data goes to the provider the operator chose. Currently this is xAI LLC (the Grok model), based in the USA (section 11). Without that permission, AI features do not use the server's key. We will announce a change of this provider on this page.</li>
+    <li>If you have no key of your own and an administrator has allowed your account to use the server's key, the data goes to the model provider the operator chose, for example OpenAI, Anthropic, Google, Mistral or xAI. The operator can change it at any time, and this page always names the current one{% if server_ai_provider %}: currently {{ server_ai_provider }}{% endif %}. The provider may process data outside the EEA (section 11). Without that permission, AI features do not use the server's key.</li>
 </ul>
-{# TO CONFIRM: xAI LLC as the current server-key provider (infra env sets
-   xai/grok-4.7; the code default is Gemini and an admin can switch it in
-   Settings > Server). Also whether xAI retains or trains on API inputs. #}
 <p>
     An uploaded lab results file waits on the server encrypted with the
     instance key and is deleted once the results are saved, or after 24 hours
@@ -206,10 +199,10 @@
     as their tasks require:
 </p>
 <ul>
-    <li>Hosting: a VPS rented from mikr.us; the physical server is in a data centre in Finland (EU). The databases and local copies are on it.{# TO CONFIRM: mikr.us legal entity (name, address) for the processing agreement, and that this VPS is in a Finnish data centre. #}</li>
+    <li>Hosting: a VPS rented from mikr.us; the physical server is in a data centre in Finland (EU). The databases and local copies are on it.</li>
     <li>Cloudflare, Inc. (USA): DNS, the TLS certificate and Cloudflare Tunnel. All traffic to the service passes through Cloudflare, which sees the IP address, device data and request content as far as needed to deliver and protect it. Cloudflare R2 stores the encrypted backups, which it cannot read (section 6).</li>
-    <li>Outgoing email: sign-in links, signup links and invites are sent through the SMTP server of the Polish hosting company zenbox.pl. It receives the recipient's email address and the content of the message.{# TO CONFIRM: zenbox.pl legal entity and its data processing agreement. #}</li>
-    <li>The language model provider for the server's key, currently xAI LLC (USA), only when you use AI features on the server's key (section 7).</li>
+    <li>Outgoing email: sign-in links, signup links and invites are sent through the SMTP server of the Polish hosting company zenbox.pl. It receives the recipient's email address and the content of the message.</li>
+    <li>The language model provider for the server's key{% if server_ai_provider %} (currently {{ server_ai_provider }}){% endif %}, only when you use AI features on the server's key (section 7).</li>
     <li>Oura Health Oy (Finland), if you connect an Oura ring (section 10).</li>
     <li>Plausible Insights OÜ (Estonia): visit statistics for the public pages (section 14).</li>
 </ul>
@@ -235,7 +228,8 @@
 
 <h2>11. Transfers outside the EEA</h2>
 <p>
-    Cloudflare, Inc. and xAI LLC are based in the USA, so giving them data may
+    Cloudflare, Inc. is based in the USA, and the model provider for the
+    server's key may process data outside the Union, so giving them data may
     mean a transfer outside the European Economic Area. It is based on the
     European Commission's adequacy decision (the EU-US Data Privacy
     Framework), where the provider is certified under it, or on standard
@@ -243,9 +237,6 @@
     and Plausible operate in the European Union. If you use your own AI
     provider or assistant, the transfer depends on your agreement with it.
 </p>
-{# TO CONFIRM: for Cloudflare, Inc. and xAI LLC, which mechanism applies
-   (DPF certification or SCCs in their DPA), and whether a DPA with xAI is in
-   place for the server key. #}
 
 <h2>12. How long we keep data</h2>
 <ul>

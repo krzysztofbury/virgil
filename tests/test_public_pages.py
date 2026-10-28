@@ -49,3 +49,24 @@ def test_plausible_loads_on_public_pages_only_once_set(public, auth_client, monk
     signed_in = auth_client.get("/").text
     assert SCRIPT not in signed_in and "plausible-init" not in signed_in
     assert SCRIPT not in auth_client.get("/settings").text
+
+
+def test_the_privacy_policy_names_the_server_ai_provider_in_use(public, client, monkeypatch):
+    from app.services import server_llm
+
+    monkeypatch.setattr(config, "INTERNAL_LLM_MODEL", "xai/grok-4.7")
+    monkeypatch.setattr(config, "INTERNAL_LLM_KEY", "env-key-0000")
+    assert "currently xAI" in public.get("/privacy").text
+
+    provider = client.portal.call(server_llm.add_provider, "openai", "openai/gpt-5", "openai-key-1111")
+    try:
+        client.portal.call(server_llm.activate_provider, provider)
+        page = public.get("/privacy").text
+        assert "currently OpenAI" in page and "currently xAI" not in page
+    finally:
+        client.portal.call(server_llm.delete_provider, provider)
+
+    monkeypatch.setattr(config, "INTERNAL_LLM_KEY", "")
+    assert (
+        "currently" not in public.get("/privacy").text.split("model provider the operator chose")[1].split("</li>")[0]
+    )

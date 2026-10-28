@@ -26,8 +26,29 @@ async def welcome(request: Request):
     )
 
 
-def _legal_context(request: Request) -> dict:
+# The companies behind LiteLLM's provider prefixes, as the privacy policy names them.
+_AI_PROVIDERS = {
+    "openai": "OpenAI",
+    "anthropic": "Anthropic",
+    "gemini": "Google",
+    "vertex_ai": "Google",
+    "mistral": "Mistral AI",
+    "groq": "Groq",
+    "xai": "xAI",
+}
+
+
+async def _server_ai_provider() -> str:
+    """Who receives data sent on the server's AI key now, or "" when unknown or none."""
+    from app.services.server_llm import server_model_and_key
+
+    server = await server_model_and_key()
+    return _AI_PROVIDERS.get(server[0].split("/", 1)[0], "") if server else ""
+
+
+async def _legal_context(request: Request) -> dict:
     return {
+        "server_ai_provider": await _server_ai_provider(),
         "request": request,
         "contact_email": current.CONTACT_EMAIL,
         "operator_name": current.OPERATOR_NAME,
@@ -39,9 +60,11 @@ def _legal_context(request: Request) -> dict:
 
 @router.get("/privacy", response_class=HTMLResponse)
 async def privacy(request: Request):
-    return templates.TemplateResponse(request, f"legal/privacy_{current_language()}.html", _legal_context(request))
+    return templates.TemplateResponse(
+        request, f"legal/privacy_{current_language()}.html", await _legal_context(request)
+    )
 
 
 @router.get("/terms", response_class=HTMLResponse)
 async def terms(request: Request):
-    return templates.TemplateResponse(request, f"legal/terms_{current_language()}.html", _legal_context(request))
+    return templates.TemplateResponse(request, f"legal/terms_{current_language()}.html", await _legal_context(request))
