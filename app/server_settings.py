@@ -133,6 +133,10 @@ def _check(item: Setting, raw: str) -> str:
         if parts.scheme != "https" or not parts.netloc:
             raise SettingError(N_("Enter an https:// address."))
     elif item.kind == "plausible":
+        # Plausible hands out a whole snippet; its one script address is what counts.
+        found = _PLAUSIBLE_SCRIPT.findall(raw)
+        if len(found) == 1 and raw.lstrip().startswith("<"):
+            raw = found[0]
         if not _PLAUSIBLE_SCRIPT.fullmatch(raw):
             raise SettingError(N_("Enter the script address Plausible gives, https://plausible.io/js/....js."))
     elif item.kind == "recipient":
