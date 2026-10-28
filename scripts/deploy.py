@@ -40,7 +40,7 @@ ENV_TEMPLATES = {
     "/etc/virgil/virgil.env": ROOT / "infra/compose/virgil.env.tpl",
     "/etc/virgil/cloudflared.env": ROOT / "infra/compose/cloudflared.env.tpl",
 }
-BASE_URL = "https://app.virgil.pl"
+BASE_URL = "https://virgil.pl"
 _SHA = re.compile(r"[0-9a-f]{40}")
 _DIGEST = re.compile(r"sha256:[0-9a-f]{64}")
 _MANIFEST_TYPES = ", ".join(

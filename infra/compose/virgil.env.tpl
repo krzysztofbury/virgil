@@ -2,7 +2,7 @@
 # written to /etc/virgil/virgil.env with mode 0600. Secrets stay in 1Password,
 # item virgil-production-env in the Virgil vault, one field per variable.
 # Settings that are not secret are written here as plain values.
-VIRGIL_BASE_URL=https://app.virgil.pl
+VIRGIL_BASE_URL=https://virgil.pl
 VIRGIL_LANDING_PAGE=true
 VIRGIL_REGISTRATION_OPEN=false
 VIRGIL_CONTACT_EMAIL=contact@virgil.pl
