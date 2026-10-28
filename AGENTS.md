@@ -90,7 +90,7 @@ release, a host or Settings > Server change, external evidence), write
 - API credentials: per-account tokens from Settings > AI, or the server
   `VIRGIL_API_KEY`, which fails closed without `VIRGIL_API_USER_EMAIL`
   (`app/routers/api.py`). `VIRGIL_REQUIRE_TOTP` forces an authenticator.
-- Feature flags are per account in Settings and are not exposed over MCP.
+- Feature flags are per account. Settings > General switches them, and over the API and MCP only the allowlisted `freedom` (needs the sensitive scope) and `finance` (needs the finance scope) can be read or set (`app/db.py` `FEATURE_FLAGS`).
 - MCP has two entry points: the hosted `/mcp` (`app/mcp_endpoint.py`) and the
   stdio wrapper `mcp_server/virgil_mcp.py` with its own lock. Both call the
   REST API with the caller's credential.
