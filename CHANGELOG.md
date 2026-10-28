@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Feedback from inside the app (#167): Settings > General has a short form
+  (what it is about, an optional page, the message) that emails the
+  instance's contact address with the sender's account as Reply-To. Nothing is
+  stored, and each account may send five an hour. Without mail, the card shows
+  the contact address instead; without a contact address, it is hidden.
 - Server settings in the app (#179). Settings > Server lets an admin named in
   `VIRGIL_ADMIN_EMAILS` change
   mail, the alert webhook, off-site copies, the contact address, registration,

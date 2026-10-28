@@ -104,6 +104,33 @@
     </form>
 </section>
 
+{% if feedback_mode %}
+<section class="card settings-card" id="feedback">
+    <div class="card-header"><h3>{{ _("Feedback") }}</h3></div>
+    {% if feedback_mode == 'form' %}
+    <p class="settings-lead">{{ _("Tell us what does not work or what you miss. It goes by email to the people who run Virgil, and their answer comes to your email.") }}</p>
+    <form method="POST" action="/feedback" class="settings-form">
+        <div class="grid">
+            <label>{{ _("About") }}
+                <select name="kind" required>
+                    {% for value, label in feedback_kinds.items() %}<option value="{{ value }}">{{ _(label) }}</option>{% endfor %}
+                </select>
+            </label>
+            <label>{{ _("Page (optional)") }}
+                <input type="text" name="page" maxlength="300" placeholder="{{ '/training' }}" autocomplete="off">
+            </label>
+        </div>
+        <label>{{ _("Message") }}
+            <textarea name="message" rows="4" maxlength="4000" required></textarea>
+        </label>
+        <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Send") }}</button></div>
+    </form>
+    {% else %}
+    <p class="settings-lead">{% trans email=contact_link %}Tell us what does not work or what you miss: write to {{ email }}.{% endtrans %}</p>
+    {% endif %}
+</section>
+{% endif %}
+
 {% elif active_tab == 'ai' %}
 <!-- ═══ AI ═══ -->
 {% set active_provider = llm_providers | selectattr('is_active') | first %}

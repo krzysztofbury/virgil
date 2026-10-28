@@ -1,0 +1,6 @@
+{% autoescape false %}Subject: {% trans kind=kind, sender=sender %}Virgil feedback ({{ kind }}) from {{ sender }}{% endtrans %}
+{% trans label=_(kind_label), who=(name or sender), sender=sender %}{{ label }} from {{ who }} <{{ sender }}>.{% endtrans %}{% if page %} {% trans page=page %}About {{ page }}.{% endtrans %}{% endif %}
+{{ _("Reply to this email to answer them.") }}
+
+{{ message }}
+{% endautoescape %}

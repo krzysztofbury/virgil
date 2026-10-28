@@ -1,6 +1,7 @@
 import asyncio
 import contextlib
 import csv
+import dataclasses
 import io
 import json
 import logging
@@ -98,6 +99,7 @@ async def render_settings(request: Request, tab: str, job_id: int | None = None,
         context["current_job"] = await current_job_view(db, job_id)
 
     if tab == "general":
+        context.update(_feedback_context())
         context["feature_flags"] = await get_feature_flags(db)
         context["freedom_choices"] = await _freedom_choices(db)
         context["freedom_on_dashboard"] = await get_setting(db, "freedom_on_dashboard", "1") == "1"
@@ -217,6 +219,74 @@ async def render_settings(request: Request, tab: str, job_id: int | None = None,
     if tab in ADMIN_TABS:
         response.headers["Cache-Control"] = "no-store"
     return response
+
+
+# --- Feedback (#167) ---
+
+FEEDBACK_KINDS = {"bug": N_("Something does not work"), "idea": N_("A feature idea"), "other": N_("Something else")}
+FEEDBACK_MAX_LENGTH = 4000
+FEEDBACK_PER_HOUR = 5
+# account id -> send times in the last hour. One process (app/__main__.py), and
+# nothing about a message is kept beyond this count.
+_feedback_sent: dict[str, list[float]] = {}
+
+
+def _feedback_context() -> dict:
+    """The form when mail can reach the contact address, else just the address."""
+    from markupsafe import Markup
+
+    from app.server_settings import current
+    from app.services.mailer import mail_enabled
+
+    contact = current.CONTACT_EMAIL
+    mode = ("form" if mail_enabled() else "address") if contact else ""
+    # Markup.format escapes the address, so the link is the only markup.
+    link = Markup('<a href="mailto:{0}">{0}</a>').format(contact)
+    return {"feedback_mode": mode, "contact_link": link, "feedback_kinds": FEEDBACK_KINDS}
+
+
+@router.post("/feedback")
+async def send_feedback(request: Request, kind: str = Form(""), message: str = Form(""), page: str = Form("")):
+    """Email one message to the instance's contact address, the sender as Reply-To.
+
+    The message is not stored: it exists only in the email."""
+    import time
+
+    from app.server_settings import current
+    from app.services import mailer
+
+    back = "/settings#feedback"
+    if _feedback_context()["feedback_mode"] != "form":
+        return error_redirect(request, back, _("Sending feedback is not set up on this server."))
+    message = message.strip()
+    page = page.strip()
+    if kind not in FEEDBACK_KINDS:
+        return error_redirect(request, back, _("Choose what the message is about."))
+    if not message:
+        return error_redirect(request, back, _("Write a message first."))
+    if len(message) > FEEDBACK_MAX_LENGTH:
+        return error_redirect(request, back, _("Keep it under {count} characters.").format(count=FEEDBACK_MAX_LENGTH))
+    if page and (not page.startswith("/") or page.startswith("//") or len(page) > 300):
+        return error_redirect(request, back, _("The page must be an address in Virgil, such as /training."))
+    user = request.state.user
+    now = time.monotonic()
+    recent = [moment for moment in _feedback_sent.get(user["id"], []) if now - moment < 3600]
+    if len(recent) >= FEEDBACK_PER_HOUR:
+        return error_redirect(request, back, _("That is enough for this hour. Try again later."))
+    _feedback_sent[user["id"]] = [*recent, now]
+    mail = mailer.render_mail(
+        "feedback",
+        "en",
+        to=current.CONTACT_EMAIL,
+        kind=kind,
+        kind_label=FEEDBACK_KINDS[kind],
+        message=message,
+        page=page,
+        sender=user["email"],
+        name=user.get("display_name") or "",
+    )
+    mailer.schedule(dataclasses.replace(mail, reply_to=user["email"]))
+    return success_redirect(request, back, _("Sent. Thank you."))
 
 
 # --- Personal API tokens ---
