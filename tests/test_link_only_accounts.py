@@ -347,3 +347,38 @@ def test_a_signup_link_opened_in_the_same_browser_needs_no_second_click(auth_cli
     _signup(browser, _invite(""), email)
     token = re.search(r"token=([\w-]+)", sent_mail[-1].text).group(1)
     assert "data-auto-submit" in browser.get(f"/login/link?token={token}").text
+
+
+def _acceptance(email: str):
+    central = _central()
+    try:
+        row = central.execute("SELECT terms_accepted_at, terms_version FROM users WHERE email = ?", (email,)).fetchone()
+        return None if row is None else (row["terms_accepted_at"], row["terms_version"])
+    finally:
+        central.close()
+
+
+def test_an_account_records_which_terms_it_accepted(auth_client, browser, sent_mail, cleanup):
+    from app.legal import LEGAL_VERSION
+
+    email = f"version-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(""), email)
+    (mail,) = sent_mail
+    _open_link(browser, mail)
+    accepted_at, version = _acceptance(email)
+    assert accepted_at and version == LEGAL_VERSION
+
+
+def test_a_signup_link_from_before_the_consent_box_records_no_acceptance(auth_client, browser, sent_mail, cleanup):
+    """Its form had no checkbox, so opening it later must not claim one was ticked."""
+    email = f"older-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    _signup(browser, _invite(""), email)
+    central = _central()
+    central.execute("UPDATE sign_in_links SET terms_version = NULL WHERE email = ?", (email,))
+    central.commit()
+    central.close()
+    (mail,) = sent_mail
+    assert _open_link(browser, mail).status_code == 303
+    assert _acceptance(email) == (None, None)

@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   switch only the Freedom and Finance modules; an unknown name is refused, and
   each flag needs the scope of its data (`sensitive` or `finance`) on top of
   `read` or `write`.
+- Each account stores which version of the terms and the privacy policy it
+  accepted (`users.terms_version`, central migration 011). The pages show the
+  effective date from `app/legal.py`. A signup link sent before the consent
+  box existed records no acceptance (#182).
+- The Markdown export lists near-miss days under Freedom (#182).
 - Server settings in the app (#179). Settings > Server lets an admin named in
   `VIRGIL_ADMIN_EMAILS` change
   mail, the alert webhook, off-site copies, the contact address, registration,
@@ -67,6 +72,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- Off-site copy errors name Settings > Server when the missing value was
+  cleared there (#182).
 - The admin panel moved into Settings as the Users and Server tabs, shown to
   admins only; `/admin/users` redirects to Settings > Users.
 - The UI is no longer English only (reverses #40). A validation error from a
@@ -131,6 +138,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skipped and carried over.
 
 ### Security
+- Import paths are resolved and checked to stay inside the import directory,
+  beside the token and account checks (code scanning alert 22, #182).
 - An account without a password needs a sign-in from the last 15 minutes, or
   its second factor, before it can add a password, enroll an authenticator, or
   create a token or reset its data. Two-factor checks in Settings share the
