@@ -30,6 +30,7 @@
     # The image's appuser; the data and backup mounts must be writable by it.
     virgil_uid: 1000
     virgil_gid: 1000
+    ufw_provider_default_rules: ["ufw allow 22"]
 
   pre_tasks:
     - name: Require the materialized host variables
@@ -431,7 +432,9 @@
       ansible.builtin.assert:
         that:
           - ufw_is_inactive or ufw_is_active
-          - not ufw_is_inactive or ufw_added_rules | length == 0
+          # The provider image ships an inactive UFW with one rule, `ufw allow 22`
+          # (TCP and UDP); it is replaced below by the TCP-only rule.
+          - not ufw_is_inactive or ufw_added_rules in [[], ufw_provider_default_rules]
           - >-
             not ufw_is_active or ssh_exposure != 'public' or
             (ufw_added_rules == ["ufw allow 22/tcp comment 'Virgil SSH'"] and
@@ -455,6 +458,11 @@
     - name: Initialize the reviewed firewall boundary
       when: ufw_is_inactive and not ansible_check_mode
       block:
+        - name: Remove the provider image's default SSH rule
+          ansible.builtin.command: ufw delete allow 22
+          changed_when: true
+          when: ufw_added_rules == ufw_provider_default_rules
+
         - name: Set the default incoming firewall policy
           ansible.builtin.command: ufw default deny incoming
           changed_when: true
