@@ -195,3 +195,13 @@ def test_an_undecryptable_secret_is_skipped_not_fatal(settings, caplog, monkeypa
     # and the host in use may be one saved here.
     assert current.SMTP_PASSWORD == ""
     assert "SMTP_PASSWORD" in caplog.text
+
+
+def test_the_whole_plausible_snippet_is_accepted_and_reduced_to_its_script(settings):
+    snippet = (
+        "<!-- Privacy-friendly analytics by Plausible -->\n"
+        '<script async src="https://plausible.io/js/pa-abc_DEF123.js"></script>\n'
+        "<script>window.plausible=window.plausible||function(){};plausible.init()</script>"
+    )
+    settings(server_settings.save, "PLAUSIBLE_SCRIPT_URL", snippet)
+    assert current.PLAUSIBLE_SCRIPT_URL == "https://plausible.io/js/pa-abc_DEF123.js"
