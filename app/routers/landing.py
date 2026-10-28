@@ -39,11 +39,15 @@ _AI_PROVIDERS = {
 
 
 async def _server_ai_provider() -> str:
-    """Who receives data sent on the server's AI key now, or "" when unknown or none."""
-    from app.services.server_llm import server_model_and_key
+    """Who receives data sent on the server's AI key now, or "" when there is none.
 
-    server = await server_model_and_key()
-    return _AI_PROVIDERS.get(server[0].split("/", 1)[0], "") if server else ""
+    A provider not in the list is named by its LiteLLM prefix, so the page always
+    says something true. The key itself is never read on a public page."""
+    from app.services.server_llm import active_model
+
+    model = await active_model()
+    prefix = model.split("/", 1)[0]
+    return _AI_PROVIDERS.get(prefix, prefix)
 
 
 async def _legal_context(request: Request) -> dict:

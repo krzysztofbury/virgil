@@ -80,3 +80,9 @@ def test_the_privacy_policy_names_the_server_ai_provider_in_use(public, client, 
     assert (
         "currently" not in public.get("/privacy").text.split("model provider the operator chose")[1].split("</li>")[0]
     )
+
+
+def test_an_unlisted_provider_is_still_named(public, monkeypatch):
+    monkeypatch.setattr(config, "INTERNAL_LLM_MODEL", "openrouter/anthropic/claude")
+    monkeypatch.setattr(config, "INTERNAL_LLM_KEY", "env-key-0000")
+    assert "currently openrouter" in public.get("/privacy").text

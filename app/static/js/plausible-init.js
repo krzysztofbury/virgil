@@ -8,7 +8,7 @@ window.plausible.init = window.plausible.init || function (options) {
     window.plausible.o = options || {};
 };
 
-var plausiblePagePaths = ["/", "/privacy", "/terms"];
+var plausiblePagePaths = ["/", "/welcome", "/privacy", "/terms"];
 
 window.plausible.init({
     autoCapturePageviews: true,

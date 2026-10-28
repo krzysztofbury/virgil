@@ -169,3 +169,26 @@ def test_a_credential_cannot_fall_back_to_the_environment_for_a_new_address(sett
     settings(server_settings.reset, "SMTP_HOST")
     settings(server_settings.reset, "SMTP_PASSWORD")
     assert current.SMTP_PASSWORD == "env-credential"  # pragma: allowlist secret
+
+
+@pytest.mark.parametrize(
+    ("address", "credential"), [("SMTP_HOST", "SMTP_PASSWORD"), ("OFFSITE_ENDPOINT", "OFFSITE_SECRET_ACCESS_KEY")]
+)
+def test_resetting_the_address_drops_the_credential_saved_for_the_other_one(settings, monkeypatch, address, credential):
+    env_address = "https://env.example" if address == "OFFSITE_ENDPOINT" else "env.example"
+    monkeypatch.setattr(config, address, env_address)
+    monkeypatch.setattr(config, credential, "env-credential")  # pragma: allowlist secret
+    settings(server_settings.save, address, "https://b.example" if address == "OFFSITE_ENDPOINT" else "b.example")
+    settings(server_settings.save, credential, "credential-for-b")  # pragma: allowlist secret
+    settings(server_settings.reset, address)
+    assert getattr(current, address) == env_address
+    assert getattr(current, credential) == "env-credential"  # pragma: allowlist secret
+
+
+def test_an_undecryptable_secret_is_skipped_not_fatal(settings, caplog):
+    settings(server_settings.save, "SMTP_PASSWORD", "readable-secret")  # pragma: allowlist secret
+    with sqlite3.connect(Path(_TMP) / "central.db") as central:
+        central.execute("UPDATE server_settings SET value = 'not-a-fernet-token' WHERE name = 'SMTP_PASSWORD'")
+    settings(server_settings.load)
+    assert server_settings.source("SMTP_PASSWORD") != "app"
+    assert "SMTP_PASSWORD" in caplog.text

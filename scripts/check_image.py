@@ -15,8 +15,11 @@ page = client.open(base + '/signup', timeout=5).read().decode()
 token = re.search(r'<meta name="csrf-token" content="([^"]+)"', page).group(1)
 data = urllib.parse.urlencode(dict(email='smoke@example.com', display_name='Smoke',
     # pragma: allowlist nextline secret - synthetic fixture
-    password='synthetic-smoke-password', password_confirm='synthetic-smoke-password', _csrf_token=token)).encode()
-assert client.open(base + '/signup', data=data, timeout=10).status == 200
+    password='synthetic-smoke-password', password_confirm='synthetic-smoke-password', accept_terms='1',
+    _csrf_token=token)).encode()
+response = client.open(base + '/signup', data=data, timeout=10)
+# A refused signup also answers 200: only landing on onboarding proves the account exists.
+assert response.status == 200 and urllib.parse.urlparse(response.url).path == '/onboarding', response.url
 assert client.open(base + '/static/css/app.css', timeout=5).status == 200
 assert client.open(base + '/healthz', timeout=5).status == 200
 print('Signup, migrations, templates, and static assets verified.')

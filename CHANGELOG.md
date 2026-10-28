@@ -8,7 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Server settings in the app (#179). Settings > Server lets an admin change
+- Server settings in the app (#179). Settings > Server lets an admin named in
+  `VIRGIL_ADMIN_EMAILS` change
   mail, the alert webhook, off-site copies, the contact address, registration,
   the landing page, Plausible, the operator and the server API key's scopes
   without a restart; a saved value overrides the environment until Reset,

@@ -55,6 +55,22 @@ async def _protected(user_id: str) -> str | None:
     return user["email"] if user and user["email"] in ADMIN_EMAILS else None
 
 
+def is_operator(user: dict | None) -> bool:
+    """An admin named in VIRGIL_ADMIN_EMAILS: the person who runs the instance."""
+    return bool(user) and user["role"] == "admin" and user["email"] in ADMIN_EMAILS
+
+
+def _require_operator(request: Request) -> dict:
+    """Server settings redirect mail, alerts and the off-site copies of every
+    account, so an admin made in the app may not change them (#179)."""
+    user = _require_admin(request)
+    if not is_operator(user):
+        raise HTTPException(
+            status_code=403, detail="Only an admin named in VIRGIL_ADMIN_EMAILS changes server settings"
+        )
+    return user
+
+
 def _require_admin(request: Request) -> dict:
     """Return user dict if admin, raise 403 otherwise."""
     user = getattr(request.state, "user", None)
@@ -355,7 +371,7 @@ async def server_context() -> dict:
 async def save_server_setting(request: Request, attribute: str, value: str = Form("")):
     from app import server_settings
 
-    admin = _require_admin(request)
+    admin = _require_operator(request)
     alert_url = current.ALERT_WEBHOOK_URL
     try:
         item = server_settings.setting(attribute)
@@ -376,7 +392,7 @@ async def save_server_setting(request: Request, attribute: str, value: str = For
 async def reset_server_setting(request: Request, attribute: str):
     from app import server_settings
 
-    admin = _require_admin(request)
+    admin = _require_operator(request)
     alert_url = current.ALERT_WEBHOOK_URL
     try:
         item = server_settings.setting(attribute)
@@ -395,7 +411,7 @@ async def add_server_llm(request: Request, provider: str = Form(...), model: str
     from app.services.server_llm import add_provider
     from app.validation import truncate
 
-    admin = _require_admin(request)
+    admin = _require_operator(request)
     provider, model = truncate(provider.strip(), 50), truncate(model.strip(), 200)
     if not provider or not model or not api_key.strip():
         return error_redirect(request, f"{SERVER_TAB}#server-ai", _("Provider, model, and API key are required."))
@@ -409,7 +425,7 @@ async def add_server_llm(request: Request, provider: str = Form(...), model: str
 async def activate_server_llm(request: Request, provider_id: int = Form(...)):
     from app.services.server_llm import activate_provider
 
-    admin = _require_admin(request)
+    admin = _require_operator(request)
     alert_url = current.ALERT_WEBHOOK_URL
     if not await activate_provider(provider_id):
         return error_redirect(request, f"{SERVER_TAB}#server-ai", _("That AI key no longer exists."))
@@ -421,7 +437,7 @@ async def activate_server_llm(request: Request, provider_id: int = Form(...)):
 async def delete_server_llm(request: Request, provider_id: int = Form(...)):
     from app.services.server_llm import delete_provider
 
-    admin = _require_admin(request)
+    admin = _require_operator(request)
     alert_url = current.ALERT_WEBHOOK_URL
     if not await delete_provider(provider_id):
         return error_redirect(request, f"{SERVER_TAB}#server-ai", _("That AI key no longer exists."))

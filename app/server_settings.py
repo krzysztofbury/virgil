@@ -14,6 +14,7 @@ protection (the break-glass admin list, required two-factor sign-in) are not
 here and stay environment-only.
 """
 
+import logging
 import re
 from dataclasses import dataclass
 from email.utils import parseaddr
@@ -22,6 +23,8 @@ from urllib.parse import urlsplit
 from app import config
 from app.i18n import N_
 from app.validation import valid_email
+
+logger = logging.getLogger(__name__)
 
 
 class SettingError(ValueError):
@@ -179,8 +182,14 @@ async def load() -> None:
     values = {}
     for row in rows:
         item = _BY_ATTRIBUTE.get(row["name"])
-        if item is not None:
+        if item is None:
+            continue
+        try:
             values[row["name"]] = decrypt(row["value"]) if item.secret else row["value"]
+        except Exception:
+            # Saved under another encryption key (a restore, a changed key): the
+            # environment's value applies, and one bad row cannot stop the start.
+            logger.error("Server setting %s cannot be decrypted; the environment's value applies", row["name"])
     _values.clear()
     _values.update(values)
 
@@ -196,14 +205,19 @@ async def save(attribute: str, raw: str, *, by: str = "") -> None:
     if credential and value != str(getattr(current, attribute) or ""):
         writes[credential] = ""
     db = await get_central_db()
-    for name, text in writes.items():
-        await db.execute(
-            """INSERT INTO server_settings (name, value, updated_by) VALUES (?, ?, ?)
-               ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by,
-               updated_at = datetime('now')""",
-            (name, encrypt(text) if _BY_ATTRIBUTE[name].secret and text else text, by),
-        )
-    await db.commit()
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        for name, text in writes.items():
+            await db.execute(
+                """INSERT INTO server_settings (name, value, updated_by) VALUES (?, ?, ?)
+                   ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by,
+                   updated_at = datetime('now')""",
+                (name, encrypt(text) if _BY_ATTRIBUTE[name].secret and text else text, by),
+            )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
     _values.update(writes)
 
 
@@ -215,7 +229,13 @@ async def reset(attribute: str) -> None:
     if address and str(getattr(current, address) or "") != str(getattr(config, address) or ""):
         # The environment's credential belongs to the environment's address.
         raise SettingError(N_("Reset the address first: the environment's credential belongs to its own address."))
+    # Back to the environment's address: a credential saved for the app's one
+    # goes too, or it would be sent to the environment's server.
+    names = [attribute]
+    if (credential := _CREDENTIAL_OF.get(attribute)) and credential in _values:
+        names.append(credential)
     db = await get_central_db()
-    await db.execute("DELETE FROM server_settings WHERE name = ?", (attribute,))
+    await db.executemany("DELETE FROM server_settings WHERE name = ?", [(name,) for name in names])
     await db.commit()
-    _values.pop(attribute, None)
+    for name in names:
+        _values.pop(name, None)

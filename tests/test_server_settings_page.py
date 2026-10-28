@@ -27,7 +27,7 @@ def admin(auth_client, client, monkeypatch):
 
 
 def _post(client, path: str, **data):
-    data["_csrf_token"] = csrf_token(client, "/settings?tab=server")
+    data["_csrf_token"] = csrf_token(client, "/settings")
     return client.post(path, data=data, follow_redirects=False)
 
 
@@ -112,3 +112,17 @@ def test_the_server_ai_key_is_added_and_put_in_use_from_the_page(admin):
     _post(client, "/admin/server/llm/activate", provider_id=str(provider_id))
     page = client.get("/settings?tab=server").text
     assert "xai/grok-4.7" in page and "...9876" in page and "xai-key-0000" not in page
+
+
+def test_only_the_operators_own_admins_change_server_settings(admin, monkeypatch):
+    """An admin made in the app could otherwise redirect mail or the off-site copies."""
+    client, sent = admin
+    monkeypatch.setattr("app.config.ADMIN_EMAILS", ["someone-else@example.com"])
+    monkeypatch.setattr("app.routers.admin.ADMIN_EMAILS", ["someone-else@example.com"])
+    assert client.get("/settings?tab=server").status_code == 403
+    assert "tab=server" not in client.get("/settings").text
+    assert "tab=users" in client.get("/settings").text
+    refused = _post(client, "/admin/server/settings/SMTP_HOST", value="evil.example")
+    assert refused.status_code == 403
+    assert _post(client, "/admin/server/llm/add", provider="x", model="x/y", api_key="k").status_code == 403
+    assert server_settings.source("SMTP_HOST") != "app" and sent == []

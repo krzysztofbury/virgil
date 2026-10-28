@@ -260,8 +260,9 @@ All configuration via environment variables:
 
 Port is always **8123**.
 
-**Changing settings in the app.** An admin changes most of the settings above
-under Settings > Server, without a restart: mail, the alert webhook, off-site
+**Changing settings in the app.** An admin named in `VIRGIL_ADMIN_EMAILS`
+changes most of the settings above under Settings > Server, without a restart
+(admins made in the app manage users only): mail, the alert webhook, off-site
 copies, the contact address, registration, the landing page, Plausible, the
 operator and the server API key's scopes. A value saved there overrides the
 variable until Reset. Secrets are stored encrypted and never shown back. Each

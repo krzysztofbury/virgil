@@ -62,12 +62,23 @@ def _is_admin(request: Request) -> bool:
     return getattr(request.state, "user", {}).get("role") == "admin"
 
 
+def _may_open(request: Request, tab: str) -> bool:
+    """Users is for every admin; Server only for the operator's own (VIRGIL_ADMIN_EMAILS)."""
+    if tab not in ADMIN_TABS:
+        return True
+    if tab == "server":
+        from app.routers.admin import is_operator
+
+        return is_operator(getattr(request.state, "user", None))
+    return _is_admin(request)
+
+
 async def render_settings(request: Request, tab: str, job_id: int | None = None, **extra):
     """One settings tab. `extra` carries what a form shows once, such as a new invite link."""
     tab = _TAB_ALIASES.get(tab, tab)
     if tab not in SETTINGS_TABS:
         tab = "general"
-    if tab in ADMIN_TABS and not _is_admin(request):
+    if not _may_open(request, tab):
         raise HTTPException(status_code=403, detail="Admin access required")
 
     db = get_user_db_from_request(request)
@@ -76,7 +87,7 @@ async def render_settings(request: Request, tab: str, job_id: int | None = None,
     context: dict = {
         "request": request,
         "active_tab": tab,
-        "tabs": [t for t in SETTINGS_TABS if t not in ADMIN_TABS or _is_admin(request)],
+        "tabs": [t for t in SETTINGS_TABS if _may_open(request, t)],
         "job_nonce": secrets.token_hex(16),
         **extra,
     }

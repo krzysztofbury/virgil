@@ -108,3 +108,15 @@ def test_the_key_is_stored_encrypted_and_listed_masked(account):
     (listed,) = call(server_llm.list_providers)
     assert listed["api_key_masked"] == "...1234"
     assert "api_key_enc" not in listed
+
+
+def test_an_undecryptable_server_key_counts_as_none(account):
+    from app.services.llm import llm_available
+
+    call, db, _central, _filename = account
+    call(server_llm.activate_provider, call(server_llm.add_provider, "xai", "xai/grok-4.7", "xai-key"))
+    with sqlite3.connect(Path(_TMP) / "central.db") as central:
+        central.execute("UPDATE server_llm_providers SET api_key_enc = 'not-a-fernet-token'")
+    assert call(server_llm.server_model_and_key) is None
+    assert call(llm_available, db) is False
+    assert call(server_llm.active_model) == "xai/grok-4.7"

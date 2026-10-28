@@ -5,8 +5,12 @@ it has no key of its own. With none active, VIRGIL_INTERNAL_LLM_KEY and
 VIRGIL_INTERNAL_LLM_MODEL from the environment still apply.
 """
 
+import logging
+
 from app.central_db import get_central_db
 from app.services.encryption import decrypt, encrypt
+
+logger = logging.getLogger(__name__)
 
 
 def _masked(plain: str) -> str:
@@ -60,7 +64,12 @@ async def server_model_and_key() -> tuple[str, str] | None:
     db = await get_central_db()
     rows = await db.execute_fetchall("SELECT model, api_key_enc FROM server_llm_providers WHERE is_active = 1")
     if rows:
-        key = decrypt(rows[0]["api_key_enc"])
+        try:
+            key = decrypt(rows[0]["api_key_enc"])
+        except Exception:
+            # Saved under another encryption key: no server key, not an error page.
+            logger.error("The server AI key in use cannot be decrypted; add it again in Settings > Server")
+            return None
         if key and rows[0]["model"]:
             return rows[0]["model"], key
     from app import config
@@ -68,3 +77,14 @@ async def server_model_and_key() -> tuple[str, str] | None:
     if config.INTERNAL_LLM_KEY and config.INTERNAL_LLM_MODEL:
         return config.INTERNAL_LLM_MODEL, config.INTERNAL_LLM_KEY
     return None
+
+
+async def active_model() -> str:
+    """The model the server's key would use, without decrypting the key, or ""."""
+    db = await get_central_db()
+    rows = await db.execute_fetchall("SELECT model FROM server_llm_providers WHERE is_active = 1")
+    if rows:
+        return rows[0]["model"]
+    from app import config
+
+    return config.INTERNAL_LLM_MODEL if config.INTERNAL_LLM_KEY else ""
