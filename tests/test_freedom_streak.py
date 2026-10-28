@@ -1,8 +1,8 @@
 """Streak and weekly clean rate belong to one habit.
 
-Both read relapse markers from pmo_events. Ignoring which habit a marker belongs
-to, or never subtracting relapses from the week, passed the suite: the existing
-tests only checked that the keys were there.
+Both read that habit's relapse markers, and a near miss on its day log. Ignoring
+which habit a marker belongs to, or never subtracting relapses from the week,
+passed the suite: the existing tests only checked that the keys were there.
 """
 
 import asyncio

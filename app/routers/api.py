@@ -1096,7 +1096,11 @@ async def api_put_daily(day: str, payload: ApiDailyPatch, db: ApiDb):
 
 
 class ApiFreedomDay(BaseModel):
-    """One habit's day: clean or slipped, with the amount and near miss the habit asks for."""
+    """One habit's day. slipped and near_miss are separate; amount is kept only for a slip.
+
+    A near miss with slipped false is stored and is not a clean day. It does not
+    write a relapse marker.
+    """
 
     model_config = ConfigDict(extra="forbid")
 

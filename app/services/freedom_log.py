@@ -7,7 +7,12 @@ rate stay consistent with the day log.
 
 Whether a day counts as a slip is the habit's own definition: with an amount
 unit, a slip needs at least `slip_threshold` of it (porn: 5 minutes), and less
-stays a clean day with the detail in the note.
+is not a slip, with the detail in the note. The amount is kept only for a slip.
+
+A near miss (edging, when the habit has a label for it) is a separate question.
+It is stored on a day that is not a slip. That day is not clean: the streak and
+the week count it. It does not write a relapse marker, because a relapse marker
+means the person slipped.
 """
 
 from datetime import date as calendar_date
@@ -61,7 +66,6 @@ async def save_day(db, habit: dict, day: str, *, slipped: bool, amount: int | No
         )
     if not slipped:
         amount = None
-        near_miss = False
     if not habit["near_miss_label"]:
         near_miss = False
     note = (note or "")[:NOTE_MAX]
@@ -204,6 +208,15 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
         ):
             raise FreedomWriteError(N_("There is already a relapse on {event_date}."), event_date=event_date)
         if event_type == "relapse" and await _logged_as(db, habit, event_date, slipped=False):
+            near = await db.execute_fetchall(
+                "SELECT near_miss FROM feniks_daily WHERE habit_id = ? AND date = ?",
+                (habit["id"], event_date),
+            )
+            if near and near[0]["near_miss"]:
+                raise FreedomWriteError(
+                    N_("{event_date} has a near miss, not a slip. Log that day as slipped to record a relapse."),
+                    event_date=event_date,
+                )
             raise FreedomWriteError(
                 N_("{event_date} is logged as clean. Log that day as slipped instead."), event_date=event_date
             )
@@ -233,6 +246,50 @@ async def delete_relapse_event(db, habit: dict, event_id: int) -> None:
     except BaseException:
         await db.rollback()
         raise
+
+
+async def correct_near_miss(db, habit: dict, day: str) -> dict:
+    """Set near_miss on a day that was already logged, and change nothing else.
+
+    For a day whose edging was dropped on the way in: the note, the amount, the
+    slip flag, bricks and relapse markers stay as they are. A missing day is not
+    invented. A habit with no near-miss label cannot grow one. Running it again
+    reports changed=False.
+    """
+    entry_date = past_or_today(day)
+    if entry_date is None:
+        raise FreedomWriteError(N_("Choose a date of today or earlier."))
+    if not habit["near_miss_label"]:
+        raise FreedomWriteError(N_("This habit does not record a near miss."))
+    _require_idle(db)
+    await db.execute("BEGIN IMMEDIATE")
+    try:
+        rows = await db.execute_fetchall(
+            "SELECT slipped, amount, near_miss, note FROM feniks_daily WHERE habit_id = ? AND date = ?",
+            (habit["id"], entry_date),
+        )
+        if not rows:
+            raise FreedomWriteError(N_("No day entry for that date."))
+        current = dict(rows[0])
+        changed = not current["near_miss"]
+        if changed:
+            await db.execute(
+                "UPDATE feniks_daily SET near_miss = 1 WHERE habit_id = ? AND date = ?",
+                (habit["id"], entry_date),
+            )
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        raise
+    return {
+        "habit": habit["slug"],
+        "date": entry_date,
+        "slipped": current["slipped"],
+        "amount": current["amount"],
+        "near_miss": 1,
+        "note": current["note"],
+        "changed": changed,
+    }
 
 
 async def add_brick(db, habit: dict, day: str, *, hook: str, craving: int | None, story: str) -> dict:
@@ -339,4 +396,5 @@ async def habit_overview(db, habit: dict) -> dict:
         "week_clean": {"clean_days": clean, "days_elapsed": elapsed, "pct": pct},
         "today": dict(entry[0]) if entry else None,
         "bricks_total": bricks[0]["c"],
+        "near_miss_label": habit["near_miss_label"],
     }

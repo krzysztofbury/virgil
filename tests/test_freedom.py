@@ -1,7 +1,8 @@
 """Freedom: habits being broken, each with one day log (clean / slipped, plus the
 amount and near miss the habit asks for) and bricks (urges survived: hook, craving,
-story) on one page with one timeline. A day-based streak cannot see a near miss,
-hence the day log. The weekly 75% clean rate (Gola) never resets to 0.
+story) on one page with one timeline. A near miss is not a clean day, and the
+streak counts it without calling it a slip. The weekly 75% clean rate (Gola)
+never resets to 0.
 
 The Porn habit carries the old No Porn module's contract: a slip ("I watched")
 needs at least 5 minutes, and edging is its near miss.
@@ -130,6 +131,10 @@ def test_a_porn_slip_needs_at_least_five_minutes(auth_client):
 
 
 def test_a_clean_day_clears_slip_values_but_keeps_the_note(auth_client):
+    """A clean correction leaves edging unchecked. Amount and the near miss clear; the note stays.
+
+    Checking edging on a day with no porn is a different outcome: that day is not clean.
+    """
     porn = _enable(auth_client)["porn"]
     day = (date.today() - timedelta(days=4)).isoformat()
 
@@ -140,7 +145,6 @@ def test_a_clean_day_clears_slip_values_but_keeps_the_note(auth_client):
         date=day,
         slipped="0",
         amount="12",
-        near_miss="1",
         note="brief accidental exposure under five minutes",
     )
 
@@ -488,7 +492,7 @@ def test_the_today_row_is_the_quick_log_and_the_day_card_adds_details(auth_clien
 
     slip = auth_client.get("/freedom?habit=porn&slip=1").text
     # &#39; is the quote, escaped in the attribute; the browser reads used: '1'.
-    assert '<div class="card day-card" id="day-card" x-data="{ used: &#39;1&#39; }">' in slip
+    assert '<div class="card day-card" id="day-card" x-data="{ used: &#39;1&#39;, edged: false }">' in slip
 
     past = (date.today() - timedelta(days=3)).isoformat()
     earlier = auth_client.get(f"/freedom?habit=porn&date={past}").text

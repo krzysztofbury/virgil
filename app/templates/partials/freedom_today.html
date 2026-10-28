@@ -17,10 +17,22 @@
             </a>
             {% if o.today %}
             {# Same id as the Clean button it replaces, so htmx moves keyboard focus here. #}
-            <a href="/freedom?habit={{ o.habit }}#day-card" id="freedom-today-{{ o.habit }}" class="freedom-status {{ 'slipped' if o.today.slipped else 'clean' }}">
-                <i data-lucide="{{ 'x' if o.today.slipped else 'check' }}" aria-hidden="true"></i>
-                {{ _('Slipped') if o.today.slipped else _('Clean') }}
+            {% if o.today.slipped %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" id="freedom-today-{{ o.habit }}" class="freedom-status slipped">
+                <i data-lucide="x" aria-hidden="true"></i>
+                {{ _('Slipped') }}
             </a>
+            {% elif o.today.near_miss %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" id="freedom-today-{{ o.habit }}" class="freedom-status near">
+                <i data-lucide="minus" aria-hidden="true"></i>
+                {{ o.near_miss_label or _('Not clean') }}
+            </a>
+            {% else %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" id="freedom-today-{{ o.habit }}" class="freedom-status clean">
+                <i data-lucide="check" aria-hidden="true"></i>
+                {{ _('Clean') }}
+            </a>
+            {% endif %}
             {% else %}
             <div class="freedom-today-actions">
                 <form method="POST" action="/freedom/{{ o.habit }}/clean-today"

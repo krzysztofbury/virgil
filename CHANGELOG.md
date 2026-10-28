@@ -68,6 +68,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path shown on the General tab.
 
 ### Fixed
+- Freedom edging (`near_miss`) is stored when the day was not a porn slip. A day
+  with edging is not clean: it breaks the streak and lowers the week's clean
+  rate, and it does not write a relapse marker (that marker means the person
+  slipped). Days logged on 2026-10-26 and 2026-10-27 with edging notes were
+  left at `near_miss` 0 by the old wipe; correct them with
+  `scripts/correct_freedom_near_miss.py` (dry-run, then `--apply`), which sets
+  only that flag.
 - A sign-in link opened in the browser that asked for it signs in at once, with
   no second click. Opened anywhere else (another device, a mail scanner, a
   link someone forwarded) it still waits for the click, so a scanner cannot

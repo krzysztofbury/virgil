@@ -2363,6 +2363,15 @@ msgid "{event_date} is logged as clean. Log that day as slipped instead."
 msgstr "{event_date} jest zapisany jako czysty. Zapisz ten dzień jako potknięcie."
 
 #: app/services/freedom_log.py
+#, python-brace-format
+msgid "{event_date} has a near miss, not a slip. Log that day as slipped to record a relapse."
+msgstr "{event_date} ma sytuację na włosku, nie potknięcie. Zapisz ten dzień jako potknięcie, żeby dodać nawrót."
+
+#: app/services/freedom_log.py
+msgid "This habit does not record a near miss."
+msgstr "Ten nawyk nie zapisuje sytuacji na włosku."
+
+#: app/services/freedom_log.py
 msgid "Name the brick before saving it."
 msgstr "Nazwij cegłę, zanim ją zapiszesz."
 
@@ -4898,6 +4907,10 @@ msgid "Clean"
 msgstr "Czysto"
 
 #: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Not clean"
+msgstr "Nieczysto"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
 msgid "Slipped"
 msgstr "Potknięcie"
 
@@ -4931,8 +4944,8 @@ msgstr "cel %(weekly_target)s%%"
 
 #: app/templates/freedom.html
 #, python-format
-msgid "Target %(weekly_target)s%% a week. A slip lowers the rate; it never resets it to 0."
-msgstr "Cel %(weekly_target)s%% w tygodniu. Potknięcie obniża wynik, ale nigdy nie zeruje go do 0."
+msgid "Target %(weekly_target)s%% a week. A slip or a near miss lowers the rate; it never resets it to 0."
+msgstr "Cel %(weekly_target)s%% w tygodniu. Potknięcie albo sytuacja na włosku obniża wynik, ale nigdy nie zeruje go do 0."
 
 #: app/templates/freedom.html
 msgid "Add details or log a slip for today"
@@ -4962,6 +4975,11 @@ msgstr "Co liczy się jako potknięcie:"
 #: app/templates/freedom.html
 msgid "Clean day"
 msgstr "Czysty dzień"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "%(label)s means this day is not clean."
+msgstr "%(label)s oznacza, że ten dzień nie jest czysty."
 
 #: app/templates/freedom.html
 msgid "Day note"
@@ -5080,6 +5098,10 @@ msgstr "potknięcie"
 #: app/templates/freedom.html
 msgid "clean"
 msgstr "czysto"
+
+#: app/templates/freedom.html
+msgid "not clean"
+msgstr "nieczysto"
 
 #: app/templates/freedom.html
 #, python-format
