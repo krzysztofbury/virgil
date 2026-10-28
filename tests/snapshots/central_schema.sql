@@ -119,6 +119,24 @@ CREATE TABLE provider_subscription_registrations (
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE RESTRICT
         );
 
+-- table server_llm_providers
+CREATE TABLE server_llm_providers (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            provider TEXT NOT NULL,
+            api_key_enc TEXT NOT NULL,
+            model TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+-- table server_settings
+CREATE TABLE server_settings (
+            name TEXT PRIMARY KEY,
+            value TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_by TEXT NOT NULL DEFAULT ''
+        );
+
 -- table sign_in_links
 CREATE TABLE sign_in_links (
             id TEXT PRIMARY KEY,
@@ -158,7 +176,7 @@ CREATE TABLE users (
     totp_enabled INTEGER DEFAULT 0,
     created_at TEXT DEFAULT (datetime('now')),
     last_login_at TEXT
-, session_epoch INTEGER NOT NULL DEFAULT 0, mfa_failed_attempts INTEGER NOT NULL DEFAULT 0, mfa_locked_until TEXT NOT NULL DEFAULT '', allow_shared_llm INTEGER NOT NULL DEFAULT 1 CHECK(allow_shared_llm IN (0, 1)), language TEXT NOT NULL DEFAULT 'en' CHECK(language IN ('en', 'pl')));
+, session_epoch INTEGER NOT NULL DEFAULT 0, mfa_failed_attempts INTEGER NOT NULL DEFAULT 0, mfa_locked_until TEXT NOT NULL DEFAULT '', allow_shared_llm INTEGER NOT NULL DEFAULT 1 CHECK(allow_shared_llm IN (0, 1)), language TEXT NOT NULL DEFAULT 'en' CHECK(language IN ('en', 'pl')), terms_accepted_at TEXT);
 
 -- table webhook_routes
 CREATE TABLE webhook_routes (

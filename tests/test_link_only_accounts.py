@@ -11,7 +11,6 @@ import pytest
 from conftest import _TMP, TEST_EMAIL, csrf_token
 from fastapi.testclient import TestClient
 
-import app.routers.auth as auth_module
 from app import config
 from app.central_db import create_invite
 
@@ -66,7 +65,8 @@ def _invite(email: str = "") -> str:
 
 def _signup(browser, invite: str, email: str, method: str = "link", password: str | None = None):
     page = f"/signup?invite={invite}" if invite else "/signup"
-    data = {"email": email, "display_name": "Ala", "sign_in_method": method, "_csrf_token": csrf_token(browser, page)}
+    data = {"email": email, "display_name": "Ala", "sign_in_method": method, "accept_terms": "1"}
+    data["_csrf_token"] = csrf_token(browser, page)
     if invite:
         data["invite"] = invite
     if password:
@@ -134,7 +134,7 @@ def test_with_mail_off_signup_has_no_link_only_choice(auth_client, browser, monk
 
 @pytest.mark.parametrize("by_invite", [True, False], ids=["invite", "open-registration"])
 def test_the_link_choice_is_offered_when_mail_is_on(auth_client, browser, sent_mail, monkeypatch, by_invite):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", not by_invite)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", not by_invite)
     page = browser.get(f"/signup?invite={_invite('')}" if by_invite else "/signup").text
     assert 'name="sign_in_method" value="link"' in page and 'name="sign_in_method" value="password"' in page
 
@@ -327,6 +327,7 @@ def test_a_signup_error_keeps_the_chosen_method(auth_client, browser, sent_mail)
     page = browser.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "chooser@example.com",
             "sign_in_method": "password",
             "password": "first-password-1",  # pragma: allowlist secret - synthetic fixture

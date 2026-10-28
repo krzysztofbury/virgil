@@ -23,6 +23,9 @@ TEMPLATES = APP / "templates"
 # The service worker caches one offline page for everyone, and the language
 # switch names itself so either reader finds it: both carry both languages.
 BILINGUAL_TEMPLATES = {"offline.html", "partials/language_switch.html"}
+# The privacy policy and the terms are whole documents, one file per language,
+# picked by the reader's language (#179).
+BILINGUAL_TEMPLATES |= {f"legal/{page}_{lang}.html" for page in ("privacy", "terms") for lang in ("en", "pl")}
 
 # Words that are the same in both languages: product names and units.
 SAME_IN_BOTH = re.compile(

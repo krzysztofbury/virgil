@@ -50,10 +50,22 @@
                 <small>{% trans count=o.streak_days, pct=o.week_clean.pct %}{{ count }} day clean · this week {{ pct }}%{% pluralize %}{{ count }} days clean · this week {{ pct }}%{% endtrans %}</small>
             </a>
             {% if o.today %}
-            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status {{ 'slipped' if o.today.slipped else 'clean' }}">
-                <i data-lucide="{{ 'x' if o.today.slipped else 'check' }}" aria-hidden="true"></i>
-                {{ _('Slipped') if o.today.slipped else _('Clean') }}
+            {% if o.today.slipped %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status slipped">
+                <i data-lucide="x" aria-hidden="true"></i>
+                {{ _('Slipped') }}
             </a>
+            {% elif o.today.near_miss %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status near">
+                <i data-lucide="minus" aria-hidden="true"></i>
+                {{ o.near_miss_label or _('Not clean') }}
+            </a>
+            {% else %}
+            <a href="/freedom?habit={{ o.habit }}#day-card" class="freedom-status clean">
+                <i data-lucide="check" aria-hidden="true"></i>
+                {{ _('Clean') }}
+            </a>
+            {% endif %}
             {% else %}
             <div class="freedom-today-actions">
                 <form method="POST" action="/freedom/{{ o.habit }}/daily">
@@ -97,17 +109,18 @@
             <div class="fill" style="width: {{ selected.week_clean.pct }}%"></div>
             <div class="streak-target-mark" style="left: {{ weekly_target }}%;" title="{% trans %}target {{ weekly_target }}%{% endtrans %}"></div>
         </div>
-        <small class="text-muted streak-progress-note">{% trans %}Target {{ weekly_target }}% a week. A slip lowers the rate; it never resets it to 0.{% endtrans %}</small>
+        <small class="text-muted streak-progress-note">{% trans %}Target {{ weekly_target }}% a week. A slip or a near miss lowers the rate; it never resets it to 0.{% endtrans %}</small>
     </div>
 </div>
 
 <!-- The day: one question, one save -->
 {% set day_state = "'" ~ form_daily.slipped ~ "'" if form_daily else ("'1'" if preselect_slip else 'null') %}
+{% set edged_state = 'true' if form_daily and form_daily.near_miss else 'false' %}
 {% if day_card_collapsed %}
-<details class="card day-card day-card-details" id="day-card" x-data="{ used: {{ day_state }} }">
+<details class="card day-card day-card-details" id="day-card" x-data="{ used: {{ day_state }}, edged: {{ edged_state }} }">
     <summary>{{ _("Add details or log a slip for today") }} <small class="text-muted">{{ _("Clean above logs the day in one tap.") }}</small></summary>
 {% else %}
-<div class="card day-card" id="day-card" x-data="{ used: {{ day_state }} }">
+<div class="card day-card" id="day-card" x-data="{ used: {{ day_state }}, edged: {{ edged_state }} }">
 {% endif %}
     <form method="POST" action="/freedom/{{ habit.slug }}/daily" hx-post="/freedom/{{ habit.slug }}/daily" hx-swap="none"
           data-draft-key="freedom-daily:{{ habit.slug }}:{{ form_date }}" data-draft-fields="note">
@@ -121,35 +134,40 @@
         {% endif %}
         <input type="hidden" name="slipped" :value="used">
         <div class="day-choice">
-            <button type="button" class="day-choice-btn clean" :class="{ selected: used === '0' }" @click="used = '0'" :aria-pressed="(used === '0').toString()">
-                <span class="day-choice-mark">&#10003;</span> {{ _("Clean day") }}
+            <button type="button" class="day-choice-btn clean" :class="{ selected: used === '0' && !edged, 'near-selected': used === '0' && edged }" @click="used = '0'" :aria-pressed="(used === '0').toString()">
+                <span class="day-choice-mark" x-text="edged ? '!' : '✓'">&#10003;</span>
+                <span x-show="!edged">{{ _("Clean day") }}</span>
+                <span x-show="edged" x-cloak>{{ habit.near_miss_label }}</span>
             </button>
             <button type="button" class="day-choice-btn watched" :class="{ selected: used === '1' }" @click="used = '1'" :aria-pressed="(used === '1').toString()">
                 <span class="day-choice-mark">&#10007;</span> {{ habit.slip_label }}
             </button>
         </div>
-        {% if habit.amount_unit or habit.near_miss_label %}
-        <div class="day-detail" x-show="used === '1'" x-cloak>
+        {% if habit.amount_unit %}
+        <div class="day-detail day-amount" x-show="used === '1'" x-cloak>
             <div class="day-detail-row">
-                {% if habit.amount_unit %}
                 <label class="field-inline">{{ habit.amount_unit | capitalize }}
                     <input type="number" name="amount" min="{{ habit.slip_threshold or 1 }}" max="1440" inputmode="numeric"
                            placeholder="{{ habit.slip_threshold or 1 }}+"
                            :required="used === '1'"
                            value="{{ form_daily.amount if form_daily and form_daily.amount is not none else '' }}">
                 </label>
-                {% endif %}
-                {% if habit.near_miss_label %}
+            </div>
+        </div>
+        {% endif %}
+        {% if habit.near_miss_label %}
+        <div class="day-detail day-near-miss" x-show="used !== null" x-cloak>
+            <div class="day-detail-row">
                 <label class="switch-label">
                     <span class="switch">
-                        <input type="checkbox" name="near_miss" value="1"
-                               {{ 'checked' if form_daily and form_daily.near_miss else '' }}>
+                        <input type="checkbox" name="near_miss" value="1" x-model="edged"
+                               {% if form_daily and form_daily.near_miss %}checked{% endif %}>
                         <span class="switch-track"></span>
                     </span>
                     {{ habit.near_miss_label }}
                 </label>
-                {% endif %}
             </div>
+            <small class="text-muted" x-show="edged" x-cloak>{% trans label=habit.near_miss_label %}{{ label }} means this day is not clean.{% endtrans %}</small>
         </div>
         {% endif %}
         <label>{{ _("Day note") }} <small class="text-muted">{{ _("trigger, a near miss, or context (optional)") }}</small>
@@ -236,8 +254,9 @@
             </div>
             {% endfor %}
             {% if t.day %}
-            <div class="timeline-entry {{ 'used' if t.day.slipped else 'clean' }}">
-                <span class="timeline-badge {{ 'used' if t.day.slipped else 'clean' }}">{{ _("slip") if t.day.slipped else _("clean") }}</span>
+            {% set outcome = 'used' if t.day.slipped else ('near' if t.day.near_miss else 'clean') %}
+            <div class="timeline-entry {{ outcome }}">
+                <span class="timeline-badge {{ outcome }}">{% if t.day.slipped %}{{ _("slip") }}{% elif t.day.near_miss %}{{ (habit.near_miss_label or _("not clean")) | lower }}{% else %}{{ _("clean") }}{% endif %}</span>
                 <div>
                     {% if t.day.slipped %}
                     {{ (t.day.amount ~ ' ' ~ habit.amount_unit) if t.day.amount is not none else '' }}

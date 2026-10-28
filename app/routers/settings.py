@@ -8,7 +8,7 @@ import secrets
 from datetime import UTC, date
 from urllib.parse import quote
 
-from fastapi import APIRouter, Form, Query, Request
+from fastapi import APIRouter, Form, HTTPException, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
 
 from app.config import BASE_URL
@@ -30,7 +30,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
-SETTINGS_TABS = ["general", "ai", "configuration", "integrations", "data", "security"]
+SETTINGS_TABS = ["general", "ai", "configuration", "integrations", "data", "security", "users", "server"]
+# The instance's own settings, for admins only (#179): what was the admin panel.
+ADMIN_TABS = frozenset({"users", "server"})
 # Tabs that were merged into another; their old links still land somewhere useful.
 _TAB_ALIASES = {"automation": "data"}
 
@@ -53,9 +55,31 @@ def _identity_proof(user: dict) -> dict:
 
 @router.get("/settings", response_class=HTMLResponse)
 async def settings_page(request: Request, tab: str = Query("general"), job_id: int | None = Query(None, ge=1)):
+    return await render_settings(request, tab, job_id)
+
+
+def _is_admin(request: Request) -> bool:
+    return getattr(request.state, "user", {}).get("role") == "admin"
+
+
+def _may_open(request: Request, tab: str) -> bool:
+    """Users is for every admin; Server only for the operator's own (VIRGIL_ADMIN_EMAILS)."""
+    if tab not in ADMIN_TABS:
+        return True
+    if tab == "server":
+        from app.routers.admin import is_operator
+
+        return is_operator(getattr(request.state, "user", None))
+    return _is_admin(request)
+
+
+async def render_settings(request: Request, tab: str, job_id: int | None = None, **extra):
+    """One settings tab. `extra` carries what a form shows once, such as a new invite link."""
     tab = _TAB_ALIASES.get(tab, tab)
     if tab not in SETTINGS_TABS:
         tab = "general"
+    if not _may_open(request, tab):
+        raise HTTPException(status_code=403, detail="Admin access required")
 
     db = get_user_db_from_request(request)
 
@@ -63,8 +87,9 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
     context: dict = {
         "request": request,
         "active_tab": tab,
-        "tabs": SETTINGS_TABS,
+        "tabs": [t for t in SETTINGS_TABS if _may_open(request, t)],
         "job_nonce": secrets.token_hex(16),
+        **extra,
     }
 
     from app.routers.jobs import current_job_view
@@ -178,7 +203,20 @@ async def settings_page(request: Request, tab: str = Query("general"), job_id: i
 
             context["recovery_codes_left"] = await count_recovery_codes(user["id"])
 
-    return templates.TemplateResponse(request, "settings.html", context)
+    elif tab == "users":
+        from app.routers.admin import users_context
+
+        context.update(await users_context())
+
+    elif tab == "server":
+        from app.routers.admin import server_context
+
+        context.update(await server_context())
+
+    response = templates.TemplateResponse(request, "settings.html", context)
+    if tab in ADMIN_TABS:
+        response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 # --- Personal API tokens ---

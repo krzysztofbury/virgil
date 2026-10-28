@@ -66,6 +66,11 @@
                     <input type="password" name="password_confirm" {% if not mail_on %}required {% endif %}autocomplete="new-password">
                 </label>
             </div>
+            {# Required: accepting both includes the explicit consent to health data (#179). #}
+            <label class="checkbox-label signup-consent">
+                <input type="checkbox" name="accept_terms" value="1" required>
+                <span>{% trans terms='<a href="/terms" target="_blank" rel="noopener">'|safe, privacy='<a href="/privacy" target="_blank" rel="noopener">'|safe, end='</a>'|safe %}I accept the {{ terms }}terms{{ end }} and the {{ privacy }}privacy policy{{ end }}, including the processing of the health data I enter.{% endtrans %}</span>
+            </label>
             <button type="submit" class="btn btn-primary" style="width:100%;margin-top:0.5rem;">{{ _("Create Account") }}</button>
         </form>
         {% endif %}
@@ -88,6 +93,9 @@ form:has(#signup-method-password:checked) .signup-password-optional { display:bl
 .auth-footer { color:var(--text-muted); font-size:var(--text-sm); text-align:center; margin-top:1rem; }
 .auth-footer a { color:var(--accent); text-decoration:none; }
 .auth-footer a:hover { text-decoration:underline; }
+.signup-consent { align-items:flex-start; gap:0.5rem; font-size:var(--text-sm); color:var(--text-muted); margin:0.25rem 0 0.75rem; }
+.signup-consent input { margin-top:0.2rem; }
+.signup-consent a { color:var(--accent); text-decoration:underline; }
 </style>
 <script src="/static/js/app.js?v={{ app_version }}"></script>
 </body>

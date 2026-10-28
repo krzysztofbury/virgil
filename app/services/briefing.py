@@ -21,7 +21,8 @@ async def _gather_context(db) -> str:
     if await get_setting(db, "feature_freedom", "0") == "1":
         for habit in await list_habits(db):
             streak_days, _ = await get_streak(db, habit["id"])
-            parts.append(f"{habit['name']}-free streak: {streak_days} days")
+            # Clean days: a near miss breaks the streak as a slip does.
+            parts.append(f"{habit['name']}: {streak_days} clean days in a row")
 
     # Yesterday's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (yesterday,))

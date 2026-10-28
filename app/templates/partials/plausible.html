@@ -1,0 +1,8 @@
+{# Plausible on the public pages only (#179): no cookies, and the init script
+   sends nothing but the page's path. It loads before the library, which
+   reads its options on start. Off unless an admin sets the script URL. #}
+{% set plausible_url = plausible_script_url() %}
+{% if plausible_url %}
+<script src="/static/js/plausible-init.js?v={{ app_version }}"></script>
+<script async src="{{ plausible_url }}"></script>
+{% endif %}

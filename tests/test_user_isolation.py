@@ -29,6 +29,7 @@ def _sign_up_second_account(client) -> str:
     response = client.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "second@example.com",
             "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
             "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture
@@ -45,10 +46,9 @@ def _sign_up_second_account(client) -> str:
 
 
 def test_one_accounts_writes_never_reach_another_account(auth_client, monkeypatch):
-    import app.routers.auth as auth_routes
     from app.main import app
 
-    monkeypatch.setattr(auth_routes, "REGISTRATION_OPEN", True)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     users_dir = os.path.join(os.environ["_VIRGIL_TEST_TMP"], "users")
     second = TestClient(app)
     second.portal = auth_client.portal

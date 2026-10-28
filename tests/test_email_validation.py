@@ -34,14 +34,13 @@ def test_a_hostile_address_is_refused_quickly():
 def test_signup_refuses_a_hostile_address_quickly(auth_client, monkeypatch):
     from conftest import csrf_token
 
-    import app.routers.auth as auth_module
-
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     token = csrf_token(auth_client, "/login")
     started = time.perf_counter()
     resp = auth_client.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "a@" + "." * 50_000 + "@",
             "password": "password-123",  # pragma: allowlist secret - synthetic fixture
             "password_confirm": "password-123",  # pragma: allowlist secret - synthetic fixture

@@ -91,3 +91,11 @@ assets/
 
 # Logs
 *.log
+
+# Host metadata materialized from the password manager (infra/ansible/README.md).
+# The repository is public: these files never enter Git.
+/infra/ansible/inventory/host_vars/
+/infra/ansible/known_hosts
+/infra/ansible/files/root_authorized_keys
+/infra/ansible/.*.tmp
+/infra/ansible/files/.*.tmp

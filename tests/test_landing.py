@@ -5,7 +5,6 @@ from urllib.parse import parse_qs, urlsplit
 
 import pytest
 
-import app.routers.auth as auth_module
 from app import config
 
 CONTACT = "contact@example.com"
@@ -76,7 +75,6 @@ def test_the_landing_page_is_polish_with_the_cookie(client, auth_client, landing
 
 
 def test_open_registration_turns_the_buttons_into_create_account(client, landing, monkeypatch):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
     monkeypatch.setattr(config, "REGISTRATION_OPEN", True)
     client.cookies.clear()
     page = client.get("/").text
@@ -85,7 +83,7 @@ def test_open_registration_turns_the_buttons_into_create_account(client, landing
 
 
 def test_signup_without_an_invite_shows_the_invite_only_message(client, auth_client, landing, monkeypatch):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
     client.cookies.clear()
     page = client.get("/signup").text
     assert "Virgil is invite-only for now." in page
@@ -93,7 +91,7 @@ def test_signup_without_an_invite_shows_the_invite_only_message(client, auth_cli
 
 
 def test_without_a_contact_address_signup_stays_as_today(client, auth_client, monkeypatch):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
     monkeypatch.setattr(config, "CONTACT_EMAIL", "")
     client.cookies.clear()
     assert "Registration is closed on this server." in client.get("/signup").text

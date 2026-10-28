@@ -26,6 +26,8 @@ SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
 PUBLIC_PATHS = frozenset(
     {
         "/welcome",
+        "/privacy",
+        "/terms",
         "/login",
         "/login/link",
         "/login/link/confirm",
@@ -255,9 +257,9 @@ class AuthMiddleware:
         # A signed-out visitor to "/" sees the landing page there (#168), when the
         # instance has one; the address stays "/".
         if path == "/":
-            from app import config
+            from app.server_settings import current
 
-            if config.LANDING_PAGE and not session_identity(Request(scope).cookies.get(SESSION_COOKIE, "")):
+            if current.LANDING_PAGE and not session_identity(Request(scope).cookies.get(SESSION_COOKIE, "")):
                 scope = {**scope, "path": "/welcome", "raw_path": b"/welcome"}
                 path = "/welcome"
 

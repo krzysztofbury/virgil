@@ -1,0 +1,114 @@
+{# Settings > Server, for admins (#179). A value saved here overrides the
+   environment variable named under it until Reset; secrets are never shown
+   back, only their last characters. Every change is logged and sent to the
+   alert webhook that was set before it. #}
+<p class="settings-lead">{{ _("These apply to the whole server and take effect at once. A value saved here replaces the one from the environment until you reset it. Every change is listed under Users, Security events, and sent to the alert webhook.") }}</p>
+
+<section class="card settings-card" id="server-ai">
+    <div class="card-header">
+        <h3>{{ _("Server AI model") }}</h3>
+        {% set active_server = server_llm_providers | selectattr('is_active') | first %}
+        {% if active_server or env_llm_model %}
+        <span class="job-status-badge job-status-badge-succeeded">{{ _("Ready to use") }}</span>
+        {% else %}
+        <span class="job-status-badge job-status-badge-cancelled">{{ _("Not set up") }}</span>
+        {% endif %}
+    </div>
+    <p class="settings-lead">{{ _("Used by accounts allowed to spend the server's key (Users, Server LLM key) when they have no key of their own.") }}</p>
+    <ul class="settings-list">
+        {% for p in server_llm_providers %}
+        <li class="settings-list-row">
+            <div class="settings-list-main">
+                <strong>{{ p.provider }}</strong>
+                <span class="settings-list-meta">{{ p.model }} <code>{{ p.api_key_masked }}</code></span>
+            </div>
+            <div class="settings-list-actions">
+                {% if p.is_active %}
+                <span class="job-status-badge job-status-badge-succeeded">{{ _("In use") }}</span>
+                {% else %}
+                <form method="POST" action="/admin/server/llm/activate">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline">{{ _("Use this") }}</button>
+                </form>
+                {% endif %}
+                <form method="POST" action="/admin/server/llm/delete"
+                      data-confirm="{% trans name=p.provider %}Remove the {{ name }} key?{% endtrans %}">
+                    <input type="hidden" name="provider_id" value="{{ p.id }}">
+                    <button type="submit" class="btn btn-sm btn-outline btn-quiet-danger">{{ _("Remove") }}</button>
+                </form>
+            </div>
+        </li>
+        {% endfor %}
+        {% if env_llm_model %}
+        <li class="settings-list-row">
+            <div class="settings-list-main">
+                <strong>{{ _("From the environment") }}</strong>
+                <span class="settings-list-meta">{{ env_llm_model }} <code>{{ env_llm_key }}</code> <code>VIRGIL_INTERNAL_LLM_MODEL</code> <code>VIRGIL_INTERNAL_LLM_KEY</code></span>
+            </div>
+            <div class="settings-list-actions">
+                {% if not active_server %}<span class="job-status-badge job-status-badge-succeeded">{{ _("In use") }}</span>{% endif %}
+            </div>
+        </li>
+        {% endif %}
+    </ul>
+    <details class="settings-more" {% if not server_llm_providers and not env_llm_model %}open{% endif %}>
+        <summary>{{ _("Add a key") }}</summary>
+        <form method="POST" action="/admin/server/llm/add" x-data="llmProviderForm" class="settings-form">
+            {% include "partials/llm_provider_fields.html" %}
+            <div><button type="submit" class="btn btn-primary btn-sm">{{ _("Add key") }}</button></div>
+        </form>
+    </details>
+</section>
+
+{% for group in server_groups %}
+<section class="card settings-card" id="server-{{ group.id }}">
+    <div class="card-header"><h3>{{ group.title }}</h3></div>
+    {% if group.id == 'email' %}
+    <p class="settings-note">{{ _("A new SMTP host clears the saved password: enter it again after the host.") }}</p>
+    {% elif group.id == 'offsite' %}
+    <p class="settings-note">{{ _("A new endpoint clears the saved secret access key: enter it again after the endpoint. Copies are encrypted to the recipient key, so keep its private half where you can restore from it.") }}</p>
+    {% elif group.id == 'operator' %}
+    <p class="settings-note">{{ _("Named as the data controller on the privacy policy and as the provider on the terms.") }}</p>
+    {% endif %}
+    <ul class="settings-list server-settings">
+        {% for s in group.rows %}
+        <li class="settings-list-row server-setting" id="{{ s.attribute }}">
+            <form method="POST" action="/admin/server/settings/{{ s.attribute }}" class="server-setting-form">
+                <label for="server-{{ s.attribute }}">{{ s.label }}
+                    <small class="settings-list-meta">{{ s.env_name }} &middot;
+                        {% if s.source == 'app' %}{{ _("saved here") }}{% elif s.source == 'environment' %}{{ _("from the environment") }}{% else %}{{ _("not set") }}{% endif %}
+                        {% if s.secret and s.masked %}&middot; <code>{{ s.masked }}</code>{% endif %}
+                    </small>
+                </label>
+                <div class="server-setting-input">
+                    {% if s.kind == 'bool' %}
+                    <select name="value" id="server-{{ s.attribute }}">
+                        <option value="true"{% if s.checked %} selected{% endif %}>{{ _("On") }}</option>
+                        <option value="false"{% if not s.checked %} selected{% endif %}>{{ _("Off") }}</option>
+                    </select>
+                    {% elif s.kind == 'choice' %}
+                    <select name="value" id="server-{{ s.attribute }}">
+                        {% for choice in s.choices %}
+                        <option value="{{ choice }}"{% if s.value == choice %} selected{% endif %}>{{ choice or _("Off") }}</option>
+                        {% endfor %}
+                    </select>
+                    {% elif s.secret %}
+                    <input type="password" name="value" id="server-{{ s.attribute }}" autocomplete="new-password"
+                           placeholder="{{ _('Enter a new value') if s.masked else '' }}">
+                    {% else %}
+                    <input type="{{ 'number' if s.kind == 'int' else 'text' }}" name="value" id="server-{{ s.attribute }}"
+                           value="{{ s.value }}" autocomplete="off"{% if s.kind == 'int' %} min="1" max="65535"{% endif %}>
+                    {% endif %}
+                    <button type="submit" class="btn btn-sm btn-primary">{{ _("Save") }}</button>
+                </div>
+            </form>
+            {% if s.source == 'app' %}
+            <form method="POST" action="/admin/server/settings/{{ s.attribute }}/reset" class="server-setting-reset">
+                <button type="submit" class="btn btn-sm btn-outline">{{ _("Reset") }}</button>
+            </form>
+            {% endif %}
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+{% endfor %}

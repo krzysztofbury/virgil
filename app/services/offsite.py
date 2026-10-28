@@ -27,6 +27,7 @@ from pathlib import Path
 from app import config
 from app.formatting import time_ago
 from app.recovery import SEALED_SUFFIX, USER_FILE, create, parse_recipient, seal
+from app.server_settings import current
 from app.services import backup
 
 logger = logging.getLogger(__name__)
@@ -67,7 +68,7 @@ class OffsiteSettings:
 
 def offsite_settings() -> OffsiteSettings | None:
     """The configured destination, None when off, OffsiteConfigError when half set."""
-    values = {name: getattr(config, attribute) for name, attribute in _SETTINGS.items()}
+    values = {name: getattr(current, attribute) for name, attribute in _SETTINGS.items()}
     if not any(values.values()):
         return None
     missing = [name for name, value in values.items() if not value]
@@ -267,13 +268,13 @@ async def _fail(state: dict, now: datetime, problem: str) -> None:
     state["last_failure_at"] = now.isoformat()
     state["last_error"] = problem
     last_alert = _parse(state.get("last_alert_at"))
-    if config.ALERT_WEBHOOK_URL and (last_alert is None or now - last_alert >= ALERT_EVERY):
+    if current.ALERT_WEBHOOK_URL and (last_alert is None or now - last_alert >= ALERT_EVERY):
         from app.alerts import send_alert
 
         last_success = _parse(state.get("last_success_at"))
         newest = f"is {time_ago(last_success, now)}" if last_success else "does not exist yet"
         if await send_alert(
-            config.ALERT_WEBHOOK_URL,
+            current.ALERT_WEBHOOK_URL,
             f"Virgil could not make its off-site copy ({problem}). The newest one {newest}. "
             "It retries every hour; Settings > Data shows the state.",
         ):

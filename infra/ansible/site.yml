@@ -1,0 +1,717 @@
+---
+# One-time host baseline for the hosted Virgil instance (#174), adapted from
+# the Minos mikr.us baseline. It ends where the app begins: Docker is installed
+# and the app directories exist. The Compose file, .env and releases belong to
+# scripts/deploy.py, so this playbook never touches the running app.
+- name: Harden the Virgil mikr.us host
+  hosts: virgil-production
+  gather_facts: true
+  serial: 1
+  any_errors_fatal: true
+
+  vars:
+    docker_engine_version: 5:29.8.1-1~ubuntu.24.04~noble
+    docker_containerd_version: 2.3.5-1~ubuntu.24.04~noble
+    docker_compose_version: 5.5.1-1~ubuntu.24.04~noble
+    docker_conflicting_packages:
+      - containerd
+      - docker-buildx
+      - docker-compose
+      - docker-compose-v2
+      - docker-doc
+      - docker.io
+      - podman-docker
+      - runc
+    docker_packages:
+      - "containerd.io={{ docker_containerd_version }}"
+      - "docker-ce={{ docker_engine_version }}"
+      - "docker-ce-cli={{ docker_engine_version }}"
+      - "docker-compose-plugin={{ docker_compose_version }}"
+    # The image's appuser; the data and backup mounts must be writable by it.
+    virgil_uid: 1000
+    virgil_gid: 1000
+    ufw_provider_default_rules: ["ufw allow 22"]
+
+  pre_tasks:
+    - name: Require the materialized host variables
+      ansible.builtin.assert:
+        that:
+          - expected_hostname | default('') is match('^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$')
+          - ssh_exposure | default('') in ['public', 'tailnet']
+          - >-
+            (ssh_exposure == 'tailnet') ==
+            (ansible_host is match('^[a-z0-9.-]+\\.ts\\.net$') and
+             ansible_port | int == 22)
+        fail_msg: Run scripts/materialize_ansible_host.py; ssh_exposure follows ansible_host.
+
+    - name: Require the reviewed production host
+      ansible.builtin.assert:
+        that:
+          - ansible_facts.distribution == "Ubuntu"
+          - ansible_facts.distribution_release == "noble"
+          - ansible_facts.distribution_version is match("^24\\.04(\\.|$)")
+          - ansible_facts.virtualization_type == "lxc"
+          - ansible_facts.user_id == "root"
+          - ansible_facts.hostname == expected_hostname
+        fail_msg: Refusing to apply the mikr.us baseline to an unexpected host.
+
+    - name: Verify IPv4 and IPv6 netfilter access in the LXC guest
+      ansible.builtin.command:
+        argv: ["{{ item }}", "-S"]
+      loop:
+        - iptables
+        - ip6tables
+      changed_when: false
+      check_mode: false
+
+    - name: Verify nftables access in the LXC guest
+      ansible.builtin.command: nft list ruleset
+      changed_when: false
+      check_mode: false
+
+  tasks:
+    - name: Preserve the reviewed root SSH key directory
+      ansible.builtin.file:
+        path: /root/.ssh
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+
+    - name: Install the reviewed root SSH key
+      ansible.builtin.copy:
+        src: files/root_authorized_keys
+        dest: /root/.ssh/authorized_keys
+        owner: root
+        group: root
+        mode: "0600"
+
+    - name: Inventory installed packages before adding Docker
+      ansible.builtin.package_facts:
+        manager: apt
+
+    - name: Reject packages that conflict with the official Docker distribution
+      ansible.builtin.assert:
+        that:
+          - docker_conflicting_packages | intersect(ansible_facts.packages.keys()) | length == 0
+        fail_msg: Refusing to replace an unreviewed container runtime.
+
+    - name: Create the APT keyring directory
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the pinned Docker repository signing key
+      ansible.builtin.get_url:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        dest: /etc/apt/keyrings/docker.asc
+        checksum: sha256:1500c1f56fa9e26b9b8f42452a553675796ade0807cdce11975eb98170b3a570
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure the official Docker repository
+      ansible.builtin.copy:
+        src: files/docker.sources
+        dest: /etc/apt/sources.list.d/docker.sources
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Pin the reviewed Docker package set
+      ansible.builtin.copy:
+        dest: /etc/apt/preferences.d/virgil-docker
+        owner: root
+        group: root
+        mode: "0644"
+        content: |
+          Package: docker-ce docker-ce-cli
+          Pin: version {{ docker_engine_version }}
+          Pin-Priority: 1001
+
+          Package: containerd.io
+          Pin: version {{ docker_containerd_version }}
+          Pin-Priority: 1001
+
+          Package: docker-compose-plugin
+          Pin: version {{ docker_compose_version }}
+          Pin-Priority: 1001
+
+    - name: Refresh the APT package index
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Apply available package upgrades
+      ansible.builtin.apt:
+        upgrade: dist
+
+    - name: Install baseline security packages
+      ansible.builtin.apt:
+        name:
+          - ca-certificates
+          - unattended-upgrades
+          - ufw
+        state: present
+
+    - name: Create the Docker configuration directory
+      ansible.builtin.file:
+        path: /etc/docker
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Configure the Docker daemon security and log boundary
+      ansible.builtin.copy:
+        src: files/docker-daemon.json
+        dest: /etc/docker/daemon.json
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart Docker
+
+    - name: Install the exact Docker Engine and Compose package set
+      ansible.builtin.apt:
+        name: "{{ docker_packages }}"
+        state: present
+        install_recommends: false
+      when: not ansible_check_mode
+
+    - name: Enable Docker Engine and containerd
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - containerd.service
+        - docker.service
+      when: not ansible_check_mode
+
+    - name: Apply Docker configuration before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Read the effective Docker Engine settings
+      ansible.builtin.command:
+        argv:
+          - docker
+          - info
+          - --format
+          - "{{ '{{.Driver}}|{{.LoggingDriver}}|{{.LiveRestoreEnabled}}|{{.DockerRootDir}}' }}"
+      register: docker_effective
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read the Docker and Compose versions
+      ansible.builtin.command:
+        argv: "{{ item }}"
+      loop:
+        - [docker, version, --format, "{{ '{{.Server.Version}}' }}"]
+        - [docker, compose, version, --short]
+      register: docker_versions
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Inspect the Docker socket
+      ansible.builtin.stat:
+        path: /var/run/docker.sock
+      register: docker_socket
+      when: not ansible_check_mode
+
+    - name: Read the Docker operator group
+      ansible.builtin.getent:
+        database: group
+        key: docker
+      when: not ansible_check_mode
+
+    - name: Inspect TCP listeners after starting Docker
+      ansible.builtin.command:
+        argv: [ss, -H, -lntp]
+      register: tcp_listeners_after_docker
+      changed_when: false
+      when: not ansible_check_mode
+
+    # The socket is root-equivalent: no group members, no TCP listener.
+    - name: Require the reviewed Docker runtime boundary
+      ansible.builtin.assert:
+        that:
+          - docker_effective.stdout.split('|')[0] in ['overlay2', 'overlayfs']
+          - docker_effective.stdout.split('|')[1:] == ['local', 'true', '/var/lib/docker']
+          - docker_versions.results[0].stdout == "29.8.1"
+          - docker_versions.results[1].stdout == "5.5.1"
+          - docker_socket.stat.pw_name == "root"
+          - docker_socket.stat.mode == "0660"
+          - ansible_facts.getent_group.docker[2] | length == 0
+          - "'dockerd' not in tcp_listeners_after_docker.stdout"
+        fail_msg: The effective Docker runtime differs from the reviewed boundary.
+      when: not ansible_check_mode
+
+    - name: Exercise the container runtime without network or host publication
+      ansible.builtin.command:
+        argv:
+          - docker
+          - run
+          - --rm
+          - --network
+          - none
+          - docker.io/library/hello-world@sha256:5e23090353324d887c48ad5e5c56d294eab81588df9605b07d1afe895f9cc8f8
+      register: docker_smoke_test
+      changed_when: false
+      failed_when: docker_smoke_test.rc != 0 or 'Hello from Docker!' not in docker_smoke_test.stdout
+      when: not ansible_check_mode
+
+    - name: Create the root-only configuration and release directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: root
+        group: root
+        mode: "0700"
+      loop:
+        - /etc/virgil
+        - /opt/virgil
+
+    - name: Create the app data and backup directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ virgil_uid }}"
+        group: "{{ virgil_gid }}"
+        mode: "0700"
+      loop:
+        - /var/lib/virgil
+        - /var/lib/virgil/data
+        - /var/lib/virgil/backups
+
+    - name: Install the health restarter
+      ansible.builtin.copy:
+        src: files/virgil-heal.sh
+        dest: /usr/local/sbin/virgil-heal
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the health restarter units
+      ansible.builtin.copy:
+        src: "files/{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        group: root
+        mode: "0644"
+      loop:
+        - virgil-heal.service
+        - virgil-heal.timer
+
+    - name: Enable the health restarter
+      ansible.builtin.systemd_service:
+        name: virgil-heal.timer
+        enabled: true
+        state: started
+        daemon_reload: true
+      when: not ansible_check_mode
+
+    - name: Enable periodic package maintenance
+      ansible.builtin.copy:
+        src: files/20auto-upgrades
+        dest: /etc/apt/apt.conf.d/20auto-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Configure unattended security upgrades
+      ansible.builtin.copy:
+        src: files/52virgil-unattended-upgrades
+        dest: /etc/apt/apt.conf.d/52virgil-unattended-upgrades
+        owner: root
+        group: root
+        mode: "0644"
+
+    - name: Unmask APT maintenance services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        masked: false
+      loop:
+        - apt-daily.service
+        - apt-daily-upgrade.service
+        - unattended-upgrades.service
+
+    - name: Enable APT maintenance timers
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        masked: false
+        enabled: true
+        state: started
+      loop:
+        - apt-daily.timer
+        - apt-daily-upgrade.timer
+
+    - name: Enable unattended upgrades
+      ansible.builtin.systemd_service:
+        name: unattended-upgrades.service
+        enabled: true
+        state: started
+
+    - name: Read the effective APT configuration
+      ansible.builtin.command: apt-config dump
+      register: apt_effective
+      changed_when: false
+      check_mode: false
+
+    - name: Require the reviewed unattended-upgrades boundary
+      ansible.builtin.assert:
+        that:
+          - "'APT::Periodic::Enable \"1\";' in apt_effective.stdout"
+          - "'APT::Periodic::Unattended-Upgrade \"1\";' in apt_effective.stdout"
+          - "'Unattended-Upgrade::Automatic-Reboot \"false\";' in apt_effective.stdout"
+          - "'${distro_id}:${distro_codename}-security' in apt_effective.stdout"
+      when: not ansible_check_mode
+
+    - name: Create persistent journal storage
+      ansible.builtin.file:
+        path: /var/log/journal
+        state: directory
+        owner: root
+        group: systemd-journal
+        mode: "2755"
+      notify: Restart systemd-journald
+
+    - name: Create journald override directory
+      ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Bound persistent journal storage
+      ansible.builtin.copy:
+        src: files/90-virgil-journald.conf
+        dest: /etc/systemd/journald.conf.d/90-virgil.conf
+        owner: root
+        group: root
+        mode: "0644"
+      notify: Restart systemd-journald
+
+    - name: Apply journald changes before verification
+      ansible.builtin.meta: flush_handlers
+
+    - name: Flush volatile journal entries to persistent storage
+      ansible.builtin.command: journalctl --flush
+      changed_when: false
+      when: not ansible_check_mode
+
+    - name: Read existing firewall status
+      ansible.builtin.command:
+        argv: ["ufw", "status", "numbered"]
+      environment:
+        LC_ALL: C
+      register: ufw_before
+      changed_when: false
+      check_mode: false
+
+    - name: Read configured firewall rules
+      ansible.builtin.command:
+        argv: ["ufw", "show", "added"]
+      environment:
+        LC_ALL: C
+      register: ufw_added_before
+      changed_when: false
+      check_mode: false
+
+    - name: Classify the existing firewall boundary
+      ansible.builtin.set_fact:
+        ufw_is_inactive: "{{ 'Status: inactive' in ufw_before.stdout }}"
+        ufw_is_active: "{{ 'Status: active' in ufw_before.stdout }}"
+        ufw_added_rules: "{{ ufw_added_before.stdout_lines | select('match', '^ufw ') | list }}"
+        ufw_numbered_rules: "{{ ufw_before.stdout_lines | select('match', '^\\[\\s*[0-9]+\\]') | list }}"
+
+    - name: Reject an unknown pre-existing firewall state
+      ansible.builtin.assert:
+        that:
+          - ufw_is_inactive or ufw_is_active
+          # The provider image ships an inactive UFW with one rule, `ufw allow 22`
+          # (TCP and UDP); it is replaced below by the TCP-only rule.
+          - not ufw_is_inactive or ufw_added_rules in [[], ufw_provider_default_rules]
+          - >-
+            not ufw_is_active or ssh_exposure != 'public' or
+            (ufw_added_rules == ["ufw allow 22/tcp comment 'Virgil SSH'"] and
+             ufw_numbered_rules | length == 2)
+          # A tailnet host has no inbound allow rule at all.
+          - >-
+            not ufw_is_active or ssh_exposure != 'tailnet' or
+            (ufw_added_rules | length == 0 and ufw_numbered_rules | length == 0)
+        fail_msg: Refusing to replace an unreviewed firewall rule set.
+
+    - name: Require UFW to manage IPv6 explicitly
+      ansible.builtin.lineinfile:
+        path: /etc/default/ufw
+        regexp: ^IPV6=
+        line: IPV6=yes
+        owner: root
+        group: root
+        mode: "0644"
+      register: ufw_ipv6
+
+    - name: Initialize the reviewed firewall boundary
+      when: ufw_is_inactive and not ansible_check_mode
+      block:
+        - name: Remove the provider image's default SSH rule
+          ansible.builtin.command: ufw delete allow 22
+          changed_when: true
+          when: ufw_added_rules == ufw_provider_default_rules
+
+        - name: Set the default incoming firewall policy
+          ansible.builtin.command: ufw default deny incoming
+          changed_when: true
+
+        - name: Set the default routed firewall policy
+          ansible.builtin.command: ufw default deny routed
+          changed_when: true
+
+        - name: Set the default outgoing firewall policy
+          ansible.builtin.command: ufw default allow outgoing
+          changed_when: true
+
+        # mikr.us maps a provider IPv4 port to guest port 22; IPv6 reaches 22
+        # directly. Both need the rule until SSH moves to the tailnet.
+        - name: Allow SSH on IPv4 and direct global IPv6
+          ansible.builtin.command: ufw allow 22/tcp comment 'Virgil SSH'
+          changed_when: true
+          when: ssh_exposure == 'public'
+
+        - name: Enable low-volume firewall logging
+          ansible.builtin.command: ufw logging low
+          changed_when: true
+
+        - name: Enable the firewall
+          ansible.builtin.command: ufw --force enable
+          changed_when: true
+
+    - name: Reload an existing firewall after an IPv6 configuration change
+      ansible.builtin.command: ufw reload
+      when: ufw_is_active and ufw_ipv6.changed and not ansible_check_mode
+      changed_when: true
+
+    - name: Read the effective firewall status
+      ansible.builtin.command: ufw status verbose
+      environment:
+        LC_ALL: C
+      register: ufw_effective
+      changed_when: false
+      check_mode: false
+
+    - name: Read the effective numbered firewall rules
+      ansible.builtin.command: ufw status numbered
+      environment:
+        LC_ALL: C
+      register: ufw_numbered_effective
+      changed_when: false
+      check_mode: false
+
+    - name: Require the exact effective firewall boundary
+      vars:
+        ufw_effective_rules: "{{ ufw_numbered_effective.stdout_lines | select('match', '^\\[\\s*[0-9]+\\]') | list }}"
+      ansible.builtin.assert:
+        that:
+          - "'Status: active' in ufw_effective.stdout"
+          - "'Default: deny (incoming), allow (outgoing), deny (routed)' in ufw_effective.stdout"
+          - ufw_effective_rules | length == (2 if ssh_exposure == 'public' else 0)
+          - >-
+            ssh_exposure != 'public' or
+            ufw_effective_rules[0] is match("^\\[\\s*1\\]\\s+22/tcp\\s+ALLOW IN\\s+Anywhere\\s+# Virgil SSH$")
+          - >-
+            ssh_exposure != 'public' or
+            ufw_effective_rules[1] is match("^\\[\\s*2\\]\\s+22/tcp \\(v6\\)\\s+ALLOW IN\\s+Anywhere \\(v6\\)\\s+# Virgil SSH$")
+        fail_msg: The effective IPv4 and IPv6 firewall differs from the reviewed boundary.
+      when: not ansible_check_mode
+
+    - name: Inspect the prior SSH hardening drop-in
+      ansible.builtin.stat:
+        path: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+      register: ssh_hardening_prior
+
+    - name: Require the tailnet management path before a loopback-only sshd
+      ansible.builtin.import_tasks: tasks/tailnet-ssh-checks.yml
+      when: ssh_exposure == 'tailnet'
+
+    # sshd -t needs its privilege separation directory, which exists only while
+    # ssh.service runs; the package upgrade above can restart it under us.
+    - name: Provide the sshd privilege separation directory for validation
+      ansible.builtin.file:
+        path: /run/sshd
+        state: directory
+        owner: root
+        group: root
+        mode: "0755"
+
+    - name: Install the candidate SSH hardening drop-in
+      ansible.builtin.template:
+        src: templates/10-virgil-hardening.conf.j2
+        dest: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+        owner: root
+        group: root
+        mode: "0644"
+        backup: true
+        validate: /usr/sbin/sshd -t -f %s
+      register: ssh_hardening
+
+    - name: Validate and activate the complete SSH configuration
+      when: not ansible_check_mode
+      block:
+        - name: Validate all SSH configuration files
+          ansible.builtin.command: /usr/sbin/sshd -t
+          changed_when: false
+
+        - name: Read the root connection SSH context
+          ansible.builtin.command:
+            argv:
+              - /usr/sbin/sshd
+              - -T
+              - -C
+              - "user=root,host={{ ansible_facts.hostname }},addr={{ ansible_facts.env.SSH_CONNECTION.split()[0] }},laddr={{ ansible_facts.default_ipv4.address }},lport=22"
+          register: sshd_effective
+          changed_when: false
+
+        - name: Require the effective SSH authentication boundary
+          ansible.builtin.assert:
+            that:
+              - "'permitrootlogin without-password' in sshd_effective.stdout"
+              - "'pubkeyauthentication yes' in sshd_effective.stdout"
+              - "'passwordauthentication no' in sshd_effective.stdout"
+              - "'kbdinteractiveauthentication no' in sshd_effective.stdout"
+              - "'authenticationmethods publickey' in sshd_effective.stdout"
+              - "'allowusers root' in sshd_effective.stdout"
+              - "'x11forwarding no' in sshd_effective.stdout"
+              - "'allowagentforwarding no' in sshd_effective.stdout"
+              - "'allowtcpforwarding no' in sshd_effective.stdout"
+              - "'allowstreamlocalforwarding no' in sshd_effective.stdout"
+              - "'denyusers root' not in sshd_effective.stdout"
+
+        - name: Reload SSH only after effective validation
+          ansible.builtin.systemd_service:
+            name: ssh.service
+            state: reloaded
+          when: ssh_hardening.changed
+
+        - name: Prove a fresh pinned-host-key SSH login after reload
+          ansible.builtin.command: &fresh_ssh_login
+            argv:
+              - ssh
+              - -o
+              - ControlMaster=no
+              - -o
+              - ControlPath=none
+              - -o
+              - BatchMode=yes
+              - -o
+              - ConnectTimeout=20
+              - -o
+              - StrictHostKeyChecking=yes
+              - -o
+              - "UserKnownHostsFile={{ playbook_dir }}/known_hosts"
+              - -o
+              - GlobalKnownHostsFile=/dev/null
+              - -o
+              - KnownHostsCommand=none
+              - -o
+              - VerifyHostKeyDNS=no
+              - -o
+              - UpdateHostKeys=no
+              - -o
+              - CheckHostIP=no
+              - -o
+              - HostKeyAlgorithms=ssh-ed25519
+              - -o
+              - IdentitiesOnly=yes
+              - -o
+              - PreferredAuthentications=publickey
+              - -o
+              - HostbasedAuthentication=no
+              - -o
+              - KbdInteractiveAuthentication=no
+              - -o
+              - PasswordAuthentication=no
+              - -i
+              - "{{ lookup('env', 'HOME') }}/.ssh/virgil_mikrus_ed25519"
+              - -p
+              - "{{ ansible_port | default(22) | string }}"
+              - "{{ ansible_user | default('root') }}@{{ ansible_host | default(inventory_hostname) }}"
+              - /usr/bin/true
+          delegate_to: localhost
+          become: false
+          changed_when: false
+          when: ssh_hardening.changed
+
+        - name: Require loopback-only SSH listeners on a tailnet host
+          ansible.builtin.import_tasks: tasks/tailnet-ssh-listeners.yml
+          when: ssh_exposure == 'tailnet'
+
+      rescue:
+        - name: Restore the prior SSH drop-in
+          ansible.builtin.copy:
+            src: "{{ ssh_hardening.backup_file }}"
+            dest: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+            remote_src: true
+            owner: root
+            group: root
+            mode: "0644"
+          when: ssh_hardening.backup_file is defined
+
+        - name: Remove a rejected first SSH drop-in
+          ansible.builtin.file:
+            path: /etc/ssh/sshd_config.d/10-virgil-hardening.conf
+            state: absent
+          when:
+            - ssh_hardening.changed
+            - not ssh_hardening_prior.stat.exists
+            - ssh_hardening.backup_file is not defined
+
+        - name: Validate the restored SSH configuration
+          ansible.builtin.command: /usr/sbin/sshd -t
+          changed_when: false
+
+        - name: Reload the restored SSH configuration
+          ansible.builtin.systemd_service:
+            name: ssh.service
+            state: reloaded
+          when: ssh_hardening.changed
+
+        - name: Prove a fresh pinned-host-key SSH login after rollback
+          ansible.builtin.command: *fresh_ssh_login
+          delegate_to: localhost
+          become: false
+          changed_when: false
+          when: ssh_hardening.changed
+
+        - name: Stop after restoring the prior SSH configuration
+          ansible.builtin.fail:
+            msg: Rejected the candidate SSH boundary and restored the prior configuration.
+
+    # reset_connection ignores inherited block conditions, so keep it outside.
+    - name: Drop the multiplexed SSH connection after validation
+      ansible.builtin.meta: reset_connection
+
+    - name: Detect a required reboot
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required
+
+    - name: Report required reboot without performing it
+      ansible.builtin.debug:
+        msg: A reboot is required; do it as a controlled step from the mikr.us panel.
+      when: reboot_required.stat.exists
+
+  handlers:
+    - name: Restart systemd-journald
+      ansible.builtin.systemd_service:
+        name: systemd-journald.service
+        state: restarted
+
+    - name: Restart Docker
+      ansible.builtin.systemd_service:
+        name: docker.service
+        state: restarted
+      when: not ansible_check_mode

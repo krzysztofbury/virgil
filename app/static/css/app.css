@@ -1240,6 +1240,7 @@ input[type="range"]#energy-slider::-moz-range-thumb {
 }
 .freedom-status.clean { color: var(--green); background: rgba(44, 182, 125, 0.12); }
 .freedom-status.slipped { color: var(--red); background: rgba(229, 83, 75, 0.12); }
+.freedom-status.near { color: #f59e0b; background: rgba(217, 119, 6, 0.12); }
 .freedom-habit-head { margin: 0.5rem 0 1rem; }
 .freedom-habit-head h2 { margin-bottom: 0.25rem; }
 .freedom-why { color: var(--text-secondary); font-style: italic; max-width: 60ch; }
@@ -2906,6 +2907,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   border-color: rgba(239,68,68,0.4);
   color: #ef4444;
 }
+.week-dot.near {
+  background: rgba(217,119,6,0.16);
+  border-color: rgba(217,119,6,0.55);
+  color: #f59e0b;
+}
 .week-dot.future { opacity: 0.35; }
 
 .day-card form { display: flex; flex-direction: column; gap: 1rem; }
@@ -2956,6 +2962,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   background: rgba(44,182,125,0.14);
   color: var(--accent);
   box-shadow: 0 0 18px var(--accent-glow);
+}
+.day-choice-btn.clean.near-selected {
+  border-color: rgba(217,119,6,0.6);
+  background: rgba(217,119,6,0.12);
+  color: #f59e0b;
+  box-shadow: none;
 }
 .day-choice-btn.watched.selected {
   border-color: rgba(239,68,68,0.6);
@@ -3138,6 +3150,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .timeline-badge.brick { background: rgba(44,182,125,0.16); color: var(--accent); }
 .timeline-badge.used { background: rgba(239,68,68,0.12); color: #ef4444; }
 .timeline-badge.clean { background: var(--bg-surface); color: var(--text-secondary); }
+.timeline-badge.near { background: rgba(217,119,6,0.12); color: #f59e0b; }
 .timeline-note { color: var(--text-secondary); font-size: 0.82rem; margin-top: 0.2rem; }
 
 @media (max-width: 560px) {
@@ -3398,3 +3411,27 @@ details.library-edit > .library-edit-body { margin-top: 0.4rem; }
 details.library-hidden { margin: 0 0 0.75rem; }
 details.library-hidden > summary { border: none; padding: 0.35rem 0.25rem; font-size: 0.85rem; }
 .library-hidden .library-row { opacity: 0.7; }
+
+/* Settings > Server (#179): one row per setting, label left, field and Save
+   right; on a phone the field takes the full width under its label. */
+.server-setting { align-items: flex-end; }
+.server-setting-form { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 0.5rem 1rem; flex: 1 1 32rem; min-width: 0; margin: 0; }
+.server-setting-form > label { display: flex; flex-direction: column; gap: 0.15rem; margin: 0; flex: 1 1 14rem; min-width: 0; }
+.server-setting-input { display: flex; gap: 0.5rem; align-items: center; flex: 1 1 18rem; min-width: 0; }
+.server-setting-input input, .server-setting-input select { margin: 0; flex: 1 1 auto; min-width: 0; }
+.server-setting-reset { margin: 0; }
+
+/* The privacy policy and the terms: the landing page's frame, a reading column. */
+.legal a.lp-brand { color: var(--text-primary); text-decoration: none; }
+.legal-body { max-width: 72ch; margin: 0 auto; padding: 1.5rem 1.75rem; line-height: 1.65; }
+.legal-body h1 { margin-top: 0; }
+.legal-body h2 { font-size: 1.15rem; margin-top: 2rem; }
+.legal-body ul { padding-left: 1.25rem; }
+.legal-body li + li { margin-top: 0.35rem; }
+.legal-body a { color: var(--accent); text-decoration: underline; }
+.lp-foot-links { display: flex; flex-wrap: wrap; gap: 1rem; }
+@media (max-width: 640px) {
+  .legal-body { padding: 1.1rem 1rem; }
+}
+/* A link to one setting lands below the sticky top bar. */
+.server-setting, #server-ai { scroll-margin-top: 5rem; }

@@ -351,11 +351,10 @@ def test_job_routes_are_session_only_and_missing_ids_are_not_cached(client, auth
 
 
 def test_same_numeric_job_id_resolves_inside_each_users_database(auth_client, monkeypatch):
-    import app.routers.auth as auth_module
 
     first_path = user_db_path()
     _insert_job(first_path, "failed", kind="first_private", job_id=1)
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     second = TestClient(app)
     users_dir = Path(os.environ["_VIRGIL_TEST_TMP"]) / "users"
     second_db_filename = None
@@ -363,6 +362,7 @@ def test_same_numeric_job_id_resolves_inside_each_users_database(auth_client, mo
         signup = second.post(
             "/signup",
             data={
+                "accept_terms": "1",
                 "email": "jobs-second@example.com",
                 "password": "second-password-123",  # pragma: allowlist secret - synthetic fixture
                 "password_confirm": "second-password-123",  # pragma: allowlist secret - synthetic fixture

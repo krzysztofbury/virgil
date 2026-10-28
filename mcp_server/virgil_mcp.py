@@ -141,8 +141,10 @@ def get_oura_stats() -> dict:
 @mcp.tool()
 def get_streaks() -> dict:
     """Freedom status of the first tracked habit (Porn, for an account that started with
-    the No Porn module): days since its last slip and that date. get_habits covers every
-    habit being tracked. Requires the sensitive scope."""
+    the No Porn module): streak_days counts the clean days since the later of the last
+    slip and the last near miss (edging), and last_relapse is the last slip's date, so a
+    near miss after it can make the streak shorter than that date suggests. get_habits
+    covers every habit being tracked. Requires the sensitive scope."""
     status = _get("/api/summary")["feniks"]
     if status is None:
         raise ToolError("Freedom data needs the sensitive scope (a token with it, or VIRGIL_API_SENSITIVE=true)")
@@ -391,8 +393,9 @@ def get_training_detail(days: int = 7) -> dict:
 def get_noporn(days: int = 30) -> dict:
     """Freedom's Porn habit (formerly the No Porn module) for the last N days (1-365): config,
     streak, current-week clean rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
-    pleasures, the daily log (used/minutes/edging/note — the honest metric, a day counter
-    cannot see edging) and bricks (urges survived: hook/craving/story — the progress unit).
+    pleasures, the daily log (used/minutes/edging/note; edging is a near miss, so that day
+    is not clean and the streak counts it, without a relapse marker) and bricks (urges
+    survived: hook/craving/story, the progress unit).
     Use this to see WHY relapses happened — get_streaks only gives the count."""
     return _get("/api/noporn", params={"range": days})
 
@@ -575,12 +578,15 @@ def log_freedom_day(
     habit: str, date: str, slipped: bool, amount: int | None = None, near_miss: bool = False, note: str = ""
 ) -> dict:
     """Record one Freedom habit's day (YYYY-MM-DD, today or earlier), replacing that day's entry.
-    `habit` is a slug from get_habits. slipped=true means the person slipped. `amount` is in
-    the habit's own unit (minutes for porn, drinks for alcohol), required for a slip when the
-    habit has a threshold (porn: at least 5 minutes; less is slipped=false with the detail in
-    `note`). `near_miss` is the habit's near miss (edging for porn), when it has one.
-    A slip also marks a relapse for that habit's streak; correcting it to clean removes only
-    that marker. Requires the sensitive scope."""
+    `habit` is a slug from get_habits. slipped=true means the person slipped (for porn: watched
+    porn). `amount` is in the habit's own unit (minutes for porn, drinks for alcohol). A slip
+    needs at least the habit's threshold when it has one (porn: 5 minutes); less is not a slip,
+    and the detail goes in `note`. `amount` is stored only for a slip.
+    `near_miss` is separate (edging for porn). It is stored when slipped is false, if the habit
+    has a near-miss label. That day is not clean: it breaks the streak and lowers the week's
+    clean rate. It does not write a relapse marker. Only a slip does. Correcting a day to
+    slipped=false and near_miss=false removes only the relapse marker that slip wrote.
+    Requires the sensitive scope."""
     return _put(
         f"/api/freedom/{_habit_slug(habit)}/days/{date}",
         {"slipped": slipped, "amount": amount, "near_miss": near_miss, "note": note},
@@ -592,7 +598,8 @@ def log_feniks_day(
     date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "", habit: str = ""
 ) -> dict:
     """Deprecated: use log_freedom_day. Same write with the No Porn names: used=slipped,
-    minutes=amount, edging=near_miss; empty `habit` means the first tracked habit."""
+    minutes=amount, edging=near_miss. Edging is stored when used is false and that day is
+    not clean; it does not write a relapse marker. Empty `habit` means the first tracked habit."""
     return log_freedom_day(habit, date, used, minutes, edging, note)
 
 

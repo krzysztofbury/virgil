@@ -1,0 +1,7 @@
+---
+# The address, port and expected hostname come from the materialized, ignored
+# host_vars/virgil-production.yml (scripts/materialize_ansible_host.py).
+all:
+  hosts:
+    virgil-production:
+      ansible_python_interpreter: /usr/bin/python3

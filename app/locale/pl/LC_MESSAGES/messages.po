@@ -190,7 +190,7 @@ msgstr "Lis"
 msgid "Dec"
 msgstr "Gru"
 
-#: app/i18n.py app/templates/admin_users.html
+#: app/i18n.py app/templates/partials/settings_users.html
 msgid "Active"
 msgstr "Aktywny"
 
@@ -248,11 +248,11 @@ msgstr "Mężczyzna"
 msgid "Female"
 msgstr "Kobieta"
 
-#: app/i18n.py app/templates/admin_users.html
+#: app/i18n.py app/templates/partials/settings_users.html
 msgid "Admin"
 msgstr "Administrator"
 
-#: app/i18n.py app/templates/admin_users.html
+#: app/i18n.py app/templates/partials/settings_users.html
 msgid "User"
 msgstr "Użytkownik"
 
@@ -483,6 +483,42 @@ msgstr "Zanim usuniesz konto, wyłącz zdalne subskrypcje użytkownika."
 msgid "User account deleted."
 msgstr "Konto użytkownika usunięte."
 
+#: app/routers/admin.py app/server_settings.py
+msgid "That setting cannot be changed in the app."
+msgstr "Tego ustawienia nie można zmienić w aplikacji."
+
+#: app/routers/admin.py
+msgid "Enter the new value. Reset returns to the environment's."
+msgstr "Wpisz nową wartość. Reset przywraca wartość ze środowiska."
+
+#: app/routers/admin.py
+msgid "Saved. It applies now."
+msgstr "Zapisano. Działa od teraz."
+
+#: app/routers/admin.py
+msgid "The environment's value applies again."
+msgstr "Znowu obowiązuje wartość ze środowiska."
+
+#: app/routers/admin.py app/routers/settings.py
+msgid "Provider, model, and API key are required."
+msgstr "Dostawca, model i klucz API są wymagane."
+
+#: app/routers/admin.py app/routers/settings.py
+msgid "AI key added."
+msgstr "Klucz AI dodany."
+
+#: app/routers/admin.py app/routers/settings.py
+msgid "That AI key no longer exists."
+msgstr "Ten klucz AI już nie istnieje."
+
+#: app/routers/admin.py app/routers/settings.py
+msgid "AI key in use."
+msgstr "Klucz AI w użyciu."
+
+#: app/routers/admin.py app/routers/settings.py
+msgid "AI key removed."
+msgstr "Klucz AI usunięty."
+
 #: app/routers/auth.py
 msgid "This invite link is invalid, used or expired. Ask for a new one."
 msgstr "Ten link z zaproszeniem jest nieprawidłowy, wykorzystany albo wygasł. Poproś o nowy."
@@ -506,6 +542,10 @@ msgstr "Rejestracja na tym serwerze jest zamknięta."
 #: app/routers/auth.py
 msgid "Please enter a valid email address."
 msgstr "Podaj prawidłowy adres e-mail."
+
+#: app/routers/auth.py
+msgid "Accept the terms and the privacy policy to create an account."
+msgstr "Aby założyć konto, zaakceptuj regulamin i politykę prywatności."
 
 #: app/routers/auth.py
 msgid "An account with that email already exists."
@@ -1563,24 +1603,8 @@ msgid "Import cancelled. Nothing was changed."
 msgstr "Import anulowany. Nic nie zostało zmienione."
 
 #: app/routers/settings.py
-msgid "Provider, model, and API key are required."
-msgstr "Dostawca, model i klucz API są wymagane."
-
-#: app/routers/settings.py
-msgid "AI key added."
-msgstr "Klucz AI dodany."
-
-#: app/routers/settings.py
-msgid "That AI key no longer exists."
-msgstr "Ten klucz AI już nie istnieje."
-
-#: app/routers/settings.py
 msgid "That AI key could not be put in use."
 msgstr "Nie udało się użyć tego klucza AI."
-
-#: app/routers/settings.py
-msgid "AI key in use."
-msgstr "Klucz AI w użyciu."
 
 #: app/routers/settings.py
 msgid "Choose one of the listed thinking levels."
@@ -1589,10 +1613,6 @@ msgstr "Wybierz jeden z podanych poziomów myślenia."
 #: app/routers/settings.py
 msgid "Thinking level saved."
 msgstr "Poziom myślenia zapisany."
-
-#: app/routers/settings.py
-msgid "AI key removed."
-msgstr "Klucz AI usunięty."
 
 #: app/routers/settings.py
 msgid "Sign in again before resetting data."
@@ -1854,6 +1874,159 @@ msgstr "Sesja nie została usunięta: nie istnieje."
 #: app/routers/training.py
 msgid "Training session deleted."
 msgstr "Sesja treningowa usunięta."
+
+#: app/server_settings.py app/templates/auth_login.html
+#: app/templates/auth_signup.html app/templates/partials/settings_users.html
+msgid "Email"
+msgstr "E-mail"
+
+#: app/server_settings.py
+msgid "Alerts"
+msgstr "Alerty"
+
+#: app/server_settings.py
+msgid "Off-site copies"
+msgstr "Kopie poza serwerem"
+
+#: app/server_settings.py
+msgid "Instance"
+msgstr "Instancja"
+
+#: app/server_settings.py
+msgid "API access"
+msgstr "Dostęp przez API"
+
+#: app/server_settings.py
+msgid "Operator"
+msgstr "Operator"
+
+#: app/server_settings.py
+msgid "Sending"
+msgstr "Wysyłka"
+
+#: app/server_settings.py
+msgid "SMTP host"
+msgstr "Serwer SMTP"
+
+#: app/server_settings.py
+msgid "SMTP port"
+msgstr "Port SMTP"
+
+#: app/server_settings.py
+msgid "SMTP username"
+msgstr "Login SMTP"
+
+#: app/server_settings.py
+msgid "SMTP password"
+msgstr "Hasło SMTP"
+
+#: app/server_settings.py
+msgid "Sender"
+msgstr "Nadawca"
+
+#: app/server_settings.py
+msgid "Reply-to address"
+msgstr "Adres do odpowiedzi"
+
+#: app/server_settings.py
+msgid "Alert webhook URL"
+msgstr "Adres webhooka alertów"
+
+#: app/server_settings.py
+msgid "Endpoint"
+msgstr "Endpoint"
+
+#: app/server_settings.py
+msgid "Bucket"
+msgstr "Bucket"
+
+#: app/server_settings.py
+msgid "Access key ID"
+msgstr "ID klucza dostępu"
+
+#: app/server_settings.py
+msgid "Secret access key"
+msgstr "Tajny klucz dostępu"
+
+#: app/server_settings.py
+msgid "Encryption recipient (age public key)"
+msgstr "Odbiorca szyfrowania (klucz publiczny age)"
+
+#: app/server_settings.py
+msgid "Contact address"
+msgstr "Adres kontaktowy"
+
+#: app/server_settings.py
+msgid "Anyone can create an account"
+msgstr "Każdy może założyć konto"
+
+#: app/server_settings.py
+msgid "Show the landing page to signed-out visitors"
+msgstr "Pokazuj stronę startową niezalogowanym"
+
+#: app/server_settings.py
+msgid "Plausible script URL"
+msgstr "Adres skryptu Plausible"
+
+#: app/server_settings.py
+msgid "The server API key may read Freedom data"
+msgstr "Klucz API serwera może czytać dane Wolności"
+
+#: app/server_settings.py
+msgid "The server API key may read finance data"
+msgstr "Klucz API serwera może czytać finanse"
+
+#: app/server_settings.py
+msgid "Name or company"
+msgstr "Imię i nazwisko lub firma"
+
+#: app/server_settings.py
+msgid "Address"
+msgstr "Adres"
+
+#: app/server_settings.py
+msgid "Tax ID"
+msgstr "NIP"
+
+#: app/server_settings.py
+msgid "That value is too long."
+msgstr "Ta wartość jest za długa."
+
+#: app/server_settings.py
+msgid "Choose on or off."
+msgstr "Wybierz: włączone albo wyłączone."
+
+#: app/server_settings.py
+msgid "Enter a port number from 1 to 65535."
+msgstr "Wpisz numer portu od 1 do 65535."
+
+#: app/server_settings.py
+msgid "Choose one of the listed options."
+msgstr "Wybierz jedną z opcji z listy."
+
+#: app/server_settings.py
+msgid "Enter an email address."
+msgstr "Wpisz adres e-mail."
+
+#: app/server_settings.py
+msgid "Enter an address, optionally with a name: Virgil <no-reply@example.com>."
+msgstr "Wpisz adres, opcjonalnie z nazwą: Virgil <no-reply@example.com>."
+
+#: app/server_settings.py
+msgid "Enter an https:// address."
+msgstr "Wpisz adres zaczynający się od https://."
+
+#: app/server_settings.py
+msgid "Enter the script address Plausible gives, https://plausible.io/js/....js."
+msgstr "Wpisz adres skryptu z Plausible, https://plausible.io/js/....js."
+
+#: app/server_settings.py
+msgid "Enter an age public key, which starts with age1."
+msgstr "Wpisz klucz publiczny age, zaczynający się od age1."
+
+#: app/server_settings.py
+msgid "Reset the address first: the environment's credential belongs to its own address."
+msgstr "Najpierw zresetuj adres: dane logowania ze środowiska należą do adresu ze środowiska."
 
 #: app/services/daily_log.py
 #, python-brace-format
@@ -2356,6 +2529,11 @@ msgstr "Ta notatka jest zarezerwowana dla wpisów tworzonych z dziennika."
 #, python-brace-format
 msgid "There is already a relapse on {event_date}."
 msgstr "Nawrót z {event_date} już istnieje."
+
+#: app/services/freedom_log.py
+#, python-brace-format
+msgid "{event_date} has a near miss, not a slip. Log that day as slipped to record a relapse."
+msgstr "{event_date} ma sytuację na włosku, nie potknięcie. Zapisz ten dzień jako potknięcie, żeby dodać nawrót."
 
 #: app/services/freedom_log.py
 #, python-brace-format
@@ -2900,245 +3078,6 @@ msgstr[2] "{num} pól wymaga uwagi."
 msgid "Recently used"
 msgstr "Ostatnio używane"
 
-#: app/templates/admin_users.html
-msgid "Virgil - Admin"
-msgstr "Virgil - Administracja"
-
-#: app/templates/admin_users.html
-msgid "User Management"
-msgstr "Zarządzanie użytkownikami"
-
-#: app/templates/admin_users.html
-#, python-format
-msgid "%(count)s user"
-msgid_plural "%(count)s users"
-msgstr[0] "%(count)s użytkownik"
-msgstr[1] "%(count)s użytkowników"
-msgstr[2] "%(count)s użytkowników"
-
-#: app/templates/admin_users.html
-msgid "Registration open"
-msgstr "Rejestracja otwarta"
-
-#: app/templates/admin_users.html
-msgid "Registration closed"
-msgstr "Rejestracja zamknięta"
-
-#: app/templates/admin_users.html
-#, python-format
-msgid "It sets a new password once, works for %(minutes)s minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked."
-msgstr "Ustawia nowe hasło jeden raz, działa przez %(minutes)s minut i nie zostanie pokazany ponownie. Po jego użyciu sesje tej osoby się kończą, a jej tokeny API zostają unieważnione."
-
-#: app/templates/admin_users.html
-#, python-format
-msgid "Send this link to %(email)s."
-msgstr "Wyślij ten link do %(email)s."
-
-#: app/templates/admin_users.html
-msgid "Password reset link"
-msgstr "Link do resetu hasła"
-
-#: app/templates/admin_users.html app/templates/auth_login.html
-#: app/templates/auth_signup.html
-msgid "Email"
-msgstr "E-mail"
-
-#: app/templates/admin_users.html app/templates/bloodwork.html
-#: app/templates/experiment_new.html app/templates/finance_setup.html
-#: app/templates/freedom.html app/templates/settings.html
-msgid "Name"
-msgstr "Nazwa"
-
-#: app/templates/admin_users.html
-msgid "Role"
-msgstr "Rola"
-
-#: app/templates/admin_users.html app/templates/experiment_edit.html
-#: app/templates/finance_setup.html app/templates/goals.html
-msgid "Status"
-msgstr "Status"
-
-#: app/templates/admin_users.html
-msgid "Server LLM key"
-msgstr "Klucz LLM serwera"
-
-#: app/templates/admin_users.html
-msgid "Last Login"
-msgstr "Ostatnie logowanie"
-
-#: app/templates/admin_users.html app/templates/goals.html
-msgid "Created"
-msgstr "Utworzono"
-
-#: app/templates/admin_users.html app/templates/experiment_detail.html
-msgid "Actions"
-msgstr "Akcje"
-
-#: app/templates/admin_users.html
-msgid "Disabled"
-msgstr "Wyłączone"
-
-#: app/templates/admin_users.html
-msgid "Yes"
-msgstr "Tak"
-
-#: app/templates/admin_users.html
-msgid "No"
-msgstr "Nie"
-
-#: app/templates/admin_users.html
-msgid "Withdraw"
-msgstr "Cofnij"
-
-#: app/templates/admin_users.html
-msgid "Allow"
-msgstr "Zezwól"
-
-#: app/templates/admin_users.html app/templates/settings.html
-msgid "Never"
-msgstr "Nigdy"
-
-#: app/templates/admin_users.html
-msgid "Make user"
-msgstr "Ustaw jako użytkownika"
-
-#: app/templates/admin_users.html
-msgid "Make admin"
-msgstr "Ustaw jako administratora"
-
-#: app/templates/admin_users.html
-msgid "Reset link"
-msgstr "Link do resetu"
-
-#: app/templates/admin_users.html
-msgid "Turn off two-factor for this account and sign it out everywhere?"
-msgstr "Wyłączyć uwierzytelnianie dwuskładnikowe tego konta i wylogować je wszędzie?"
-
-#: app/templates/admin_users.html
-msgid "Reset two-factor"
-msgstr "Resetuj 2FA"
-
-#: app/templates/admin_users.html
-msgid "Disable"
-msgstr "Wyłącz"
-
-#: app/templates/admin_users.html
-msgid "Enable"
-msgstr "Włącz"
-
-#: app/templates/admin_users.html
-#, python-format
-msgid "Delete user %(email)s? This removes all their data and its backups."
-msgstr "Usunąć użytkownika %(email)s? To usuwa wszystkie jego dane i ich kopie zapasowe."
-
-#: app/templates/admin_users.html app/templates/bloodwork.html
-#: app/templates/experiment_detail.html app/templates/experiment_edit.html
-#: app/templates/settings.html
-msgid "Delete"
-msgstr "Usuń"
-
-#: app/templates/admin_users.html
-msgid "Invites"
-msgstr "Zaproszenia"
-
-#: app/templates/admin_users.html
-#, python-format
-msgid "Sent to %(email)s."
-msgstr "Wysłano na adres %(email)s."
-
-#: app/templates/admin_users.html
-msgid "Send this link."
-msgstr "Wyślij ten link."
-
-#: app/templates/admin_users.html
-#, python-format
-msgid "It works once, for %(days)s days, and is not shown again."
-msgstr "Działa jeden raz, przez %(days)s dni, i nie zostanie pokazany ponownie."
-
-#: app/templates/admin_users.html
-msgid "Invite link"
-msgstr "Link z zaproszeniem"
-
-#: app/templates/admin_users.html
-msgid "Registration is open; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys."
-msgstr "Rejestracja jest otwarta; zaproszenie i tak pozwala jednej osobie założyć konto. Każde konto jest osobne: własne dane, logowanie i klucze."
-
-#: app/templates/admin_users.html
-msgid "Registration is closed; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys."
-msgstr "Rejestracja jest zamknięta; zaproszenie pozwala mimo to jednej osobie założyć konto. Każde konto jest osobne: własne dane, logowanie i klucze."
-
-#: app/templates/admin_users.html
-msgid "Create an invite"
-msgstr "Utwórz zaproszenie"
-
-#: app/templates/admin_users.html
-msgid "(optional: only this address can use it)"
-msgstr "(opcjonalnie: tylko ten adres może go użyć)"
-
-#: app/templates/admin_users.html
-msgid "Invite email language"
-msgstr "Język e-maila z zaproszeniem"
-
-#: app/templates/admin_users.html
-msgid "May use this server's LLM key when they have none of their own"
-msgstr "Może korzystać z klucza LLM tego serwera, gdy nie ma własnego"
-
-#: app/templates/admin_users.html
-msgid "Create invite link"
-msgstr "Utwórz link z zaproszeniem"
-
-#: app/templates/admin_users.html
-msgid "For"
-msgstr "Dla"
-
-#: app/templates/admin_users.html
-msgid "Expires (UTC)"
-msgstr "Wygasa (UTC)"
-
-#: app/templates/admin_users.html
-msgid "Created by"
-msgstr "Utworzone przez"
-
-#: app/templates/admin_users.html
-msgid "Any address"
-msgstr "Dowolny adres"
-
-#: app/templates/admin_users.html app/templates/settings.html
-msgid "Revoke"
-msgstr "Unieważnij"
-
-#: app/templates/admin_users.html
-msgid "Security events"
-msgstr "Zdarzenia bezpieczeństwa"
-
-#: app/templates/admin_users.html
-msgid "Sign-ins, sign-outs and account changes from the last 180 days, newest first."
-msgstr "Logowania, wylogowania i zmiany kont z ostatnich 180 dni, od najnowszych."
-
-#: app/templates/admin_users.html
-msgid "Time (UTC)"
-msgstr "Czas (UTC)"
-
-#: app/templates/admin_users.html
-msgid "Event"
-msgstr "Zdarzenie"
-
-#: app/templates/admin_users.html
-msgid "Account"
-msgstr "Konto"
-
-#: app/templates/admin_users.html
-msgid "IP"
-msgstr "IP"
-
-#: app/templates/admin_users.html
-msgid "Detail"
-msgstr "Szczegóły"
-
-#: app/templates/admin_users.html
-msgid "No events yet."
-msgstr "Brak zdarzeń."
-
 #: app/templates/auth_login.html
 msgid "Virgil - Login"
 msgstr "Virgil - Logowanie"
@@ -3369,6 +3308,11 @@ msgid "Confirm Password"
 msgstr "Potwierdź hasło"
 
 #: app/templates/auth_signup.html
+#, python-format
+msgid "I accept the %(terms)sterms%(end)s and the %(privacy)sprivacy policy%(end)s, including the processing of the health data I enter."
+msgstr "Akceptuję %(terms)sregulamin%(end)s i %(privacy)spolitykę prywatności%(end)s, w tym przetwarzanie danych o zdrowiu, które wpiszę."
+
+#: app/templates/auth_signup.html
 msgid "Create Account"
 msgstr "Utwórz konto"
 
@@ -3504,7 +3448,7 @@ msgstr "Zapisz wynik z %(date)s"
 #: app/templates/bloodwork.html app/templates/daily.html
 #: app/templates/dashboard.html app/templates/experiment_detail.html
 #: app/templates/freedom.html app/templates/oura.html
-#: app/templates/settings.html
+#: app/templates/partials/settings_server.html app/templates/settings.html
 msgid "Save"
 msgstr "Zapisz"
 
@@ -3517,6 +3461,12 @@ msgstr "Usunąć wynik %(name)s z %(date)s? Tego nie da się cofnąć."
 #, python-format
 msgid "Delete the result from %(date)s"
 msgstr "Usuń wynik z %(date)s"
+
+#: app/templates/bloodwork.html app/templates/experiment_detail.html
+#: app/templates/experiment_edit.html
+#: app/templates/partials/settings_users.html app/templates/settings.html
+msgid "Delete"
+msgstr "Usuń"
 
 #: app/templates/bloodwork.html
 msgid "Results"
@@ -3567,6 +3517,12 @@ msgstr "L (niski)"
 #: app/templates/bloodwork.html
 msgid "Add marker"
 msgstr "Dodaj wskaźnik"
+
+#: app/templates/bloodwork.html app/templates/experiment_new.html
+#: app/templates/finance_setup.html app/templates/freedom.html
+#: app/templates/partials/settings_users.html app/templates/settings.html
+msgid "Name"
+msgstr "Nazwa"
 
 #: app/templates/bloodwork.html
 msgid "Category"
@@ -4183,6 +4139,11 @@ msgid "Delete the %(name)s entry from %(date)s"
 msgstr "Usuń wpis %(name)s z %(date)s"
 
 #: app/templates/experiment_detail.html
+#: app/templates/partials/settings_users.html
+msgid "Actions"
+msgstr "Akcje"
+
+#: app/templates/experiment_detail.html
 msgid "Mark this experiment as completed? You can reopen it later."
 msgstr "Oznaczyć ten eksperyment jako ukończony? Możesz go później wznowić."
 
@@ -4256,6 +4217,11 @@ msgstr "Liczba tygodni"
 #: app/templates/experiment_edit.html
 msgid "Shrinking removes the trailing weeks' targets/labels."
 msgstr "Skrócenie usuwa cele i etykiety ostatnich tygodni."
+
+#: app/templates/experiment_edit.html app/templates/finance_setup.html
+#: app/templates/goals.html app/templates/partials/settings_users.html
+msgid "Status"
+msgstr "Status"
 
 #: app/templates/experiment_edit.html
 msgid "completed"
@@ -4702,7 +4668,8 @@ msgstr "Zapisz warstwę"
 msgid "Remove the layer %(name)s?"
 msgstr "Usunąć warstwę %(name)s?"
 
-#: app/templates/finance_setup.html app/templates/settings.html
+#: app/templates/finance_setup.html app/templates/partials/settings_server.html
+#: app/templates/settings.html
 msgid "Remove"
 msgstr "Usuń"
 
@@ -4894,12 +4861,16 @@ msgstr[1] "%(count)s czyste dni · ten tydzień %(pct)s%%"
 msgstr[2] "%(count)s czystych dni · ten tydzień %(pct)s%%"
 
 #: app/templates/freedom.html app/templates/partials/freedom_today.html
-msgid "Clean"
-msgstr "Czysto"
-
-#: app/templates/freedom.html app/templates/partials/freedom_today.html
 msgid "Slipped"
 msgstr "Potknięcie"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Not clean"
+msgstr "Nieczysto"
+
+#: app/templates/freedom.html app/templates/partials/freedom_today.html
+msgid "Clean"
+msgstr "Czysto"
 
 #: app/templates/freedom.html app/templates/partials/freedom_today.html
 #, python-format
@@ -4931,8 +4902,8 @@ msgstr "cel %(weekly_target)s%%"
 
 #: app/templates/freedom.html
 #, python-format
-msgid "Target %(weekly_target)s%% a week. A slip lowers the rate; it never resets it to 0."
-msgstr "Cel %(weekly_target)s%% w tygodniu. Potknięcie obniża wynik, ale nigdy nie zeruje go do 0."
+msgid "Target %(weekly_target)s%% a week. A slip or a near miss lowers the rate; it never resets it to 0."
+msgstr "Cel %(weekly_target)s%% w tygodniu. Potknięcie albo sytuacja na włosku obniża wynik, ale nigdy nie zeruje go do 0."
 
 #: app/templates/freedom.html
 msgid "Add details or log a slip for today"
@@ -4962,6 +4933,11 @@ msgstr "Co liczy się jako potknięcie:"
 #: app/templates/freedom.html
 msgid "Clean day"
 msgstr "Czysty dzień"
+
+#: app/templates/freedom.html
+#, python-format
+msgid "%(label)s means this day is not clean."
+msgstr "%(label)s oznacza, że ten dzień nie jest czysty."
 
 #: app/templates/freedom.html
 msgid "Day note"
@@ -5078,6 +5054,10 @@ msgid "slip"
 msgstr "potknięcie"
 
 #: app/templates/freedom.html
+msgid "not clean"
+msgstr "nieczysto"
+
+#: app/templates/freedom.html
 msgid "clean"
 msgstr "czysto"
 
@@ -5116,7 +5096,7 @@ msgstr "Edytuj wpis o resecie z %(date)s"
 msgid "Relapse"
 msgstr "Nawrót"
 
-#: app/templates/freedom.html
+#: app/templates/freedom.html app/templates/partials/settings_server.html
 msgid "Reset"
 msgstr "Reset"
 
@@ -5290,6 +5270,10 @@ msgstr "Dodaj krok"
 #: app/templates/goals.html
 msgid "Changes"
 msgstr "Zmiany"
+
+#: app/templates/goals.html app/templates/partials/settings_users.html
+msgid "Created"
+msgstr "Utworzono"
 
 #: app/templates/goals.html
 msgid "Added to focus"
@@ -5552,10 +5536,6 @@ msgstr "Prowadź protokół przez kilka tygodni i sprawdź, czy coś zmienił."
 #: app/templates/landing.html
 msgid "Start with what you track today."
 msgstr "Zacznij od tego, co śledzisz już dziś."
-
-#: app/templates/landing.html
-msgid "Open source"
-msgstr "Otwarty kod"
 
 #: app/templates/onboarding.html
 msgid "Virgil - Onboarding"
@@ -6146,6 +6126,58 @@ msgstr "Ponów mimo to"
 msgid "Retry"
 msgstr "Ponów"
 
+#: app/templates/partials/llm_provider_fields.html
+msgid "Provider"
+msgstr "Dostawca"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Anthropic"
+msgstr "Anthropic"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "OpenAI"
+msgstr "OpenAI"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Google Gemini"
+msgstr "Google Gemini"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Mistral"
+msgstr "Mistral"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Groq"
+msgstr "Groq"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "xAI (Grok)"
+msgstr "xAI (Grok)"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Ollama (local)"
+msgstr "Ollama (lokalnie)"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Other (LiteLLM)"
+msgstr "Inny (LiteLLM)"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "Model"
+msgstr "Model"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "e.g. together_ai/meta-llama/Llama-3-70b"
+msgstr "np. together_ai/meta-llama/Llama-3-70b"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "API Key"
+msgstr "Klucz API"
+
+#: app/templates/partials/llm_provider_fields.html
+msgid "sk-..."
+msgstr "sk-..."
+
 #: app/templates/partials/oura_freshness.html
 msgid "Last synced"
 msgstr "Ostatnia synchronizacja"
@@ -6157,6 +6189,18 @@ msgstr "Zsynchronizowano"
 #: app/templates/partials/oura_freshness.html
 msgid "Not synced yet"
 msgstr "Jeszcze nie zsynchronizowano"
+
+#: app/templates/partials/public_footer.html
+msgid "Privacy policy"
+msgstr "Polityka prywatności"
+
+#: app/templates/partials/public_footer.html
+msgid "Terms"
+msgstr "Regulamin"
+
+#: app/templates/partials/public_footer.html
+msgid "Open source"
+msgstr "Otwarty kod"
 
 #: app/templates/partials/range_picker.html
 #, python-format
@@ -6197,6 +6241,292 @@ msgstr "Otwórz w Outlooku"
 #: app/templates/partials/request_access.html
 msgid "Open in your mail app"
 msgstr "Otwórz w aplikacji pocztowej"
+
+#: app/templates/partials/settings_server.html
+msgid "These apply to the whole server and take effect at once. A value saved here replaces the one from the environment until you reset it. Every change is listed under Users, Security events, and sent to the alert webhook."
+msgstr "Te ustawienia dotyczą całego serwera i działają od razu. Wartość zapisana tutaj zastępuje tę ze środowiska, dopóki jej nie zresetujesz. Każda zmiana trafia do Użytkownicy, Zdarzenia bezpieczeństwa i na webhook alertów."
+
+#: app/templates/partials/settings_server.html
+msgid "Server AI model"
+msgstr "Model AI serwera"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "Ready to use"
+msgstr "Gotowy"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "Not set up"
+msgstr "Nieustawiony"
+
+#: app/templates/partials/settings_server.html
+msgid "Used by accounts allowed to spend the server's key (Users, Server LLM key) when they have no key of their own."
+msgstr "Używają go konta, którym pozwolono korzystać z klucza serwera (Użytkownicy, Klucz LLM serwera), gdy nie mają własnego klucza."
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "In use"
+msgstr "W użyciu"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "Use this"
+msgstr "Używaj tego"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+#, python-format
+msgid "Remove the %(name)s key?"
+msgstr "Usunąć klucz %(name)s?"
+
+#: app/templates/partials/settings_server.html
+msgid "From the environment"
+msgstr "Ze środowiska"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "Add a key"
+msgstr "Dodaj klucz"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "Add key"
+msgstr "Dodaj klucz"
+
+#: app/templates/partials/settings_server.html
+msgid "A new SMTP host clears the saved password: enter it again after the host."
+msgstr "Nowy serwer SMTP czyści zapisane hasło: po zmianie serwera wpisz je ponownie."
+
+#: app/templates/partials/settings_server.html
+msgid "A new endpoint clears the saved secret access key: enter it again after the endpoint. Copies are encrypted to the recipient key, so keep its private half where you can restore from it."
+msgstr "Nowy endpoint czyści zapisany tajny klucz dostępu: po zmianie endpointu wpisz go ponownie. Kopie są szyfrowane kluczem odbiorcy, więc przechowuj jego część prywatną tam, skąd odtworzysz dane."
+
+#: app/templates/partials/settings_server.html
+msgid "Named as the data controller on the privacy policy and as the provider on the terms."
+msgstr "Podawany jako administrator danych w polityce prywatności i jako usługodawca w regulaminie."
+
+#: app/templates/partials/settings_server.html
+msgid "saved here"
+msgstr "zapisane tutaj"
+
+#: app/templates/partials/settings_server.html
+msgid "from the environment"
+msgstr "ze środowiska"
+
+#: app/templates/partials/settings_server.html
+msgid "not set"
+msgstr "nieustawione"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "On"
+msgstr "Włączone"
+
+#: app/templates/partials/settings_server.html app/templates/settings.html
+msgid "Off"
+msgstr "Wyłączone"
+
+#: app/templates/partials/settings_server.html
+msgid "Enter a new value"
+msgstr "Wpisz nową wartość"
+
+#: app/templates/partials/settings_users.html app/templates/settings.html
+msgid "Users"
+msgstr "Użytkownicy"
+
+#: app/templates/partials/settings_users.html
+#, python-format
+msgid "%(count)s user"
+msgid_plural "%(count)s users"
+msgstr[0] "%(count)s użytkownik"
+msgstr[1] "%(count)s użytkowników"
+msgstr[2] "%(count)s użytkowników"
+
+#: app/templates/partials/settings_users.html
+msgid "Registration open"
+msgstr "Rejestracja otwarta"
+
+#: app/templates/partials/settings_users.html
+msgid "Registration closed"
+msgstr "Rejestracja zamknięta"
+
+#: app/templates/partials/settings_users.html
+#, python-format
+msgid "It sets a new password once, works for %(minutes)s minutes and is not shown again. When it is used, their sessions end and their API tokens are revoked."
+msgstr "Ustawia nowe hasło jeden raz, działa przez %(minutes)s minut i nie zostanie pokazany ponownie. Po jego użyciu sesje tej osoby się kończą, a jej tokeny API zostają unieważnione."
+
+#: app/templates/partials/settings_users.html
+#, python-format
+msgid "Send this link to %(email)s."
+msgstr "Wyślij ten link do %(email)s."
+
+#: app/templates/partials/settings_users.html
+msgid "Password reset link"
+msgstr "Link do resetu hasła"
+
+#: app/templates/partials/settings_users.html
+msgid "Role"
+msgstr "Rola"
+
+#: app/templates/partials/settings_users.html
+msgid "Server LLM key"
+msgstr "Klucz LLM serwera"
+
+#: app/templates/partials/settings_users.html
+msgid "Last Login"
+msgstr "Ostatnie logowanie"
+
+#: app/templates/partials/settings_users.html
+msgid "Disabled"
+msgstr "Wyłączone"
+
+#: app/templates/partials/settings_users.html
+msgid "Yes"
+msgstr "Tak"
+
+#: app/templates/partials/settings_users.html
+msgid "No"
+msgstr "Nie"
+
+#: app/templates/partials/settings_users.html
+msgid "Withdraw"
+msgstr "Cofnij"
+
+#: app/templates/partials/settings_users.html
+msgid "Allow"
+msgstr "Zezwól"
+
+#: app/templates/partials/settings_users.html app/templates/settings.html
+msgid "Never"
+msgstr "Nigdy"
+
+#: app/templates/partials/settings_users.html
+msgid "Make user"
+msgstr "Ustaw jako użytkownika"
+
+#: app/templates/partials/settings_users.html
+msgid "Make admin"
+msgstr "Ustaw jako administratora"
+
+#: app/templates/partials/settings_users.html
+msgid "Reset link"
+msgstr "Link do resetu"
+
+#: app/templates/partials/settings_users.html
+msgid "Turn off two-factor for this account and sign it out everywhere?"
+msgstr "Wyłączyć uwierzytelnianie dwuskładnikowe tego konta i wylogować je wszędzie?"
+
+#: app/templates/partials/settings_users.html
+msgid "Reset two-factor"
+msgstr "Resetuj 2FA"
+
+#: app/templates/partials/settings_users.html
+msgid "Disable"
+msgstr "Wyłącz"
+
+#: app/templates/partials/settings_users.html
+msgid "Enable"
+msgstr "Włącz"
+
+#: app/templates/partials/settings_users.html
+#, python-format
+msgid "Delete user %(email)s? This removes all their data and its backups."
+msgstr "Usunąć użytkownika %(email)s? To usuwa wszystkie jego dane i ich kopie zapasowe."
+
+#: app/templates/partials/settings_users.html
+msgid "Invites"
+msgstr "Zaproszenia"
+
+#: app/templates/partials/settings_users.html
+#, python-format
+msgid "Sent to %(email)s."
+msgstr "Wysłano na adres %(email)s."
+
+#: app/templates/partials/settings_users.html
+msgid "Send this link."
+msgstr "Wyślij ten link."
+
+#: app/templates/partials/settings_users.html
+#, python-format
+msgid "It works once, for %(days)s days, and is not shown again."
+msgstr "Działa jeden raz, przez %(days)s dni, i nie zostanie pokazany ponownie."
+
+#: app/templates/partials/settings_users.html
+msgid "Invite link"
+msgstr "Link z zaproszeniem"
+
+#: app/templates/partials/settings_users.html
+msgid "Registration is open; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys."
+msgstr "Rejestracja jest otwarta; zaproszenie i tak pozwala jednej osobie założyć konto. Każde konto jest osobne: własne dane, logowanie i klucze."
+
+#: app/templates/partials/settings_users.html
+msgid "Registration is closed; an invite lets one person create an account anyway. Each account is separate: its own data, sign-in and keys."
+msgstr "Rejestracja jest zamknięta; zaproszenie pozwala mimo to jednej osobie założyć konto. Każde konto jest osobne: własne dane, logowanie i klucze."
+
+#: app/templates/partials/settings_users.html
+msgid "Create an invite"
+msgstr "Utwórz zaproszenie"
+
+#: app/templates/partials/settings_users.html
+msgid "(optional: only this address can use it)"
+msgstr "(opcjonalnie: tylko ten adres może go użyć)"
+
+#: app/templates/partials/settings_users.html
+msgid "Invite email language"
+msgstr "Język e-maila z zaproszeniem"
+
+#: app/templates/partials/settings_users.html
+msgid "May use this server's LLM key when they have none of their own"
+msgstr "Może korzystać z klucza LLM tego serwera, gdy nie ma własnego"
+
+#: app/templates/partials/settings_users.html
+msgid "Create invite link"
+msgstr "Utwórz link z zaproszeniem"
+
+#: app/templates/partials/settings_users.html
+msgid "For"
+msgstr "Dla"
+
+#: app/templates/partials/settings_users.html
+msgid "Expires (UTC)"
+msgstr "Wygasa (UTC)"
+
+#: app/templates/partials/settings_users.html
+msgid "Created by"
+msgstr "Utworzone przez"
+
+#: app/templates/partials/settings_users.html
+msgid "Any address"
+msgstr "Dowolny adres"
+
+#: app/templates/partials/settings_users.html app/templates/settings.html
+msgid "Revoke"
+msgstr "Unieważnij"
+
+#: app/templates/partials/settings_users.html
+msgid "Security events"
+msgstr "Zdarzenia bezpieczeństwa"
+
+#: app/templates/partials/settings_users.html
+msgid "Sign-ins, sign-outs and account changes from the last 180 days, newest first."
+msgstr "Logowania, wylogowania i zmiany kont z ostatnich 180 dni, od najnowszych."
+
+#: app/templates/partials/settings_users.html
+msgid "Time (UTC)"
+msgstr "Czas (UTC)"
+
+#: app/templates/partials/settings_users.html
+msgid "Event"
+msgstr "Zdarzenie"
+
+#: app/templates/partials/settings_users.html
+msgid "Account"
+msgstr "Konto"
+
+#: app/templates/partials/settings_users.html
+msgid "IP"
+msgstr "IP"
+
+#: app/templates/partials/settings_users.html
+msgid "Detail"
+msgstr "Szczegóły"
+
+#: app/templates/partials/settings_users.html
+msgid "No events yet."
+msgstr "Brak zdarzeń."
 
 #: app/templates/partials/today_block.html
 #, python-format
@@ -6297,6 +6627,10 @@ msgstr "Połączenia"
 msgid "Security"
 msgstr "Bezpieczeństwo"
 
+#: app/templates/settings.html
+msgid "Server"
+msgstr "Serwer"
+
 #: app/templates/settings.html app/templates/settings_import.html
 msgid "Data"
 msgstr "Dane"
@@ -6358,33 +6692,12 @@ msgid "AI model"
 msgstr "Model AI"
 
 #: app/templates/settings.html
-msgid "Ready to use"
-msgstr "Gotowy"
-
-#: app/templates/settings.html
 msgid "Server key"
 msgstr "Klucz serwera"
 
 #: app/templates/settings.html
-msgid "Not set up"
-msgstr "Nieustawiony"
-
-#: app/templates/settings.html
 msgid "Writes the morning briefing and the A.N.D.Y. daily plan, reads your workout notes, sums up experiments and imports lab results."
 msgstr "Pisze poranny briefing i dzienny plan A.N.D.Y., czyta Twoje notatki z treningów, podsumowuje eksperymenty i importuje wyniki badań."
-
-#: app/templates/settings.html
-msgid "In use"
-msgstr "W użyciu"
-
-#: app/templates/settings.html
-msgid "Use this"
-msgstr "Używaj tego"
-
-#: app/templates/settings.html
-#, python-format
-msgid "Remove the %(name)s key?"
-msgstr "Usunąć klucz %(name)s?"
 
 #: app/templates/settings.html
 msgid "Virgil uses this server's key until you add your own."
@@ -6403,72 +6716,8 @@ msgid "How much the model may think before answering. Higher levels cost more an
 msgstr "Ile model może myśleć przed odpowiedzią. Wyższe poziomy kosztują więcej i trwają dłużej."
 
 #: app/templates/settings.html
-msgid "Add a key"
-msgstr "Dodaj klucz"
-
-#: app/templates/settings.html
-msgid "Provider"
-msgstr "Dostawca"
-
-#: app/templates/settings.html
-msgid "Anthropic"
-msgstr "Anthropic"
-
-#: app/templates/settings.html
-msgid "OpenAI"
-msgstr "OpenAI"
-
-#: app/templates/settings.html
-msgid "Google Gemini"
-msgstr "Google Gemini"
-
-#: app/templates/settings.html
-msgid "Mistral"
-msgstr "Mistral"
-
-#: app/templates/settings.html
-msgid "Groq"
-msgstr "Groq"
-
-#: app/templates/settings.html
-msgid "Ollama (local)"
-msgstr "Ollama (lokalnie)"
-
-#: app/templates/settings.html
-msgid "Other (LiteLLM)"
-msgstr "Inny (LiteLLM)"
-
-#: app/templates/settings.html
-msgid "Model"
-msgstr "Model"
-
-#: app/templates/settings.html
-msgid "e.g. together_ai/meta-llama/Llama-3-70b"
-msgstr "np. together_ai/meta-llama/Llama-3-70b"
-
-#: app/templates/settings.html
-msgid "API Key"
-msgstr "Klucz API"
-
-#: app/templates/settings.html
-msgid "sk-..."
-msgstr "sk-..."
-
-#: app/templates/settings.html
 msgid "Stored encrypted. Whoever runs this server can still read it."
 msgstr "Przechowywany w postaci zaszyfrowanej. Administrator tego serwera nadal może go odczytać."
-
-#: app/templates/settings.html
-msgid "Add key"
-msgstr "Dodaj klucz"
-
-#: app/templates/settings.html
-msgid "On"
-msgstr "Włączone"
-
-#: app/templates/settings.html
-msgid "Off"
-msgstr "Wyłączone"
 
 #: app/templates/settings.html
 msgid "A short read on your day, written by the AI model and shown on the dashboard each morning."

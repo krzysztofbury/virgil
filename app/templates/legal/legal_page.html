@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="{{ current_language() }}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{% endblock %} - Virgil</title>
+    {% include "partials/head_assets.html" %}
+    <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+    <meta name="csrf-token" content="{{ request.state.csrf_token }}">
+    {% include "partials/i18n_scripts.html" %}
+    {% include "partials/plausible.html" %}
+</head>
+<body>
+{# The privacy policy and the terms (#179). The operator's name, address and
+   tax ID come from Settings > Server, Operator, so a self-hosted instance
+   names its own operator and this repository names none. #}
+<div class="lp legal">
+    <header class="lp-top">
+        <a class="lp-brand" href="/"><img src="/static/icons/logo.png" alt="" width="34" height="34">Virgil</a>
+        <div class="lp-top-actions">{% include "partials/language_switch.html" %}</div>
+    </header>
+    <article class="card legal-body">
+        {% block legal_body %}{% endblock %}
+    </article>
+    {% include "partials/public_footer.html" %}
+</div>
+<script src="/static/js/app.js?v={{ app_version }}"></script>
+</body>
+</html>

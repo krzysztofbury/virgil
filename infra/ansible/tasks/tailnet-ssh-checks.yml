@@ -1,0 +1,44 @@
+---
+# Preconditions for a loopback-only sshd (#174): the tailnet is up, tailscaled
+# proxies inbound connections in userspace mode, systemd socket activation
+# cannot override ListenAddress, and this very session arrived over the tailnet.
+- name: Read the tailnet state
+  ansible.builtin.command:
+    argv: ["tailscale", "status", "--json", "--self=true", "--peers=false"]
+  register: tailnet_status
+  changed_when: false
+  check_mode: false
+
+- name: Read the tailscaled options
+  ansible.builtin.slurp:
+    src: /etc/default/tailscaled
+  register: tailscaled_defaults
+
+- name: Read SSH socket activation
+  ansible.builtin.command:
+    argv: ["systemctl", "is-enabled", "ssh.socket"]
+  register: ssh_socket_enabled
+  changed_when: false
+  failed_when: false
+  check_mode: false
+
+- name: Require the reviewed tailnet management path
+  vars:
+    tailnet: "{{ tailnet_status.stdout | from_json }}"
+  ansible.builtin.assert:
+    that:
+      - tailnet.BackendState == 'Running'
+      - "'tag:virgil-server' in (tailnet.Self.Tags | default([]))"
+      - tailnet.Self.HostName == 'virgil-production'
+      - >-
+        (tailscaled_defaults.content | b64decode) is
+        search('(?m)^FLAGS="--tun=userspace-networking"$')
+      # The cutover playbook checks before it converts socket activation.
+      - >-
+        not (tailnet_require_ssh_service | default(true)) or
+        ssh_socket_enabled.stdout | trim in ['disabled', 'masked', '']
+      # Userspace mode hands tailnet connections to sshd from loopback.
+      - ansible_facts.env.SSH_CONNECTION.split()[0] in ['127.0.0.1', '::1']
+    fail_msg: >-
+      Refusing a loopback-only sshd without a running, tagged, userspace tailnet
+      path that carries this session (#174).

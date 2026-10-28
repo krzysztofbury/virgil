@@ -45,6 +45,7 @@ def _signup(client, invite: str, email: str):
     return client.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": email,
             "display_name": "Invitee",
             "password": PASSWORD,
@@ -142,6 +143,7 @@ def test_signup_without_an_invite_stays_closed(client):
     response = client.post(
         "/signup",
         data={
+            "accept_terms": "1",
             "email": "walk-in@example.com",
             "password": PASSWORD,
             "password_confirm": PASSWORD,

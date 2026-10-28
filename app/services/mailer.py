@@ -16,8 +16,8 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from email.utils import formatdate, make_msgid, parseaddr
 
-from app import config
 from app.i18n import reset_language, set_language
+from app.server_settings import current
 
 logger = logging.getLogger(__name__)
 
@@ -34,9 +34,9 @@ class Mail:
 
 
 def mail_enabled() -> bool:
-    if config.MAIL_BACKEND == "log":
+    if current.MAIL_BACKEND == "log":
         return True
-    return config.MAIL_BACKEND == "smtp" and bool(config.SMTP_HOST and config.MAIL_FROM)
+    return current.MAIL_BACKEND == "smtp" and bool(current.SMTP_HOST and current.MAIL_FROM)
 
 
 def render_mail(template: str, language: str, *, to: str, **context) -> Mail:
@@ -60,17 +60,17 @@ def render_mail(template: str, language: str, *, to: str, **context) -> Mail:
         subject=first.removeprefix("Subject:").strip(),
         text=body.lstrip("\n"),
         html=html,
-        reply_to=config.MAIL_REPLY_TO,
+        reply_to=current.MAIL_REPLY_TO,
     )
 
 
 def _message(mail: Mail) -> EmailMessage:
     message = EmailMessage()
-    message["From"] = config.MAIL_FROM
+    message["From"] = current.MAIL_FROM
     message["To"] = mail.to
     message["Subject"] = mail.subject
     message["Date"] = formatdate(localtime=True)
-    domain = parseaddr(config.MAIL_FROM)[1].rpartition("@")[2] or None
+    domain = parseaddr(current.MAIL_FROM)[1].rpartition("@")[2] or None
     message["Message-ID"] = make_msgid(domain=domain)
     if mail.reply_to:
         message["Reply-To"] = mail.reply_to
@@ -80,16 +80,16 @@ def _message(mail: Mail) -> EmailMessage:
 
 
 def _send_smtp(message: EmailMessage) -> None:
-    with smtplib.SMTP(config.SMTP_HOST, config.SMTP_PORT, timeout=20) as smtp:
+    with smtplib.SMTP(current.SMTP_HOST, current.SMTP_PORT, timeout=20) as smtp:
         smtp.starttls(context=ssl.create_default_context())
-        if config.SMTP_USERNAME:
-            smtp.login(config.SMTP_USERNAME, config.SMTP_PASSWORD)
+        if current.SMTP_USERNAME:
+            smtp.login(current.SMTP_USERNAME, current.SMTP_PASSWORD)
         smtp.send_message(message)
 
 
 async def send_now(mail: Mail) -> None:
     """Send one message with the configured backend. Raises on failure."""
-    if config.MAIL_BACKEND == "log":
+    if current.MAIL_BACKEND == "log":
         # Development only, chosen by name: the message is logged whole so its
         # link can be followed. app startup warns when production uses this.
         logger.info("Mail to %s: %s\n%s", mail.to, mail.subject, mail.text)

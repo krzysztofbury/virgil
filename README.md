@@ -254,9 +254,26 @@ All configuration via environment variables:
 | `VIRGIL_ALERT_WEBHOOK_URL` | (empty) | URL that receives a JSON `{"text": ...}` post when a start leaves a database unmigrated. Compose fills it from `ALERT_WEBHOOK_URL` |
 | `ALERT_WEBHOOK_URL` | (empty) | Compose only: the webhook for both the startup alert and each autoheal restart. Slack-style: it expects a `text` field |
 | `WATCHTOWER_NOTIFICATION_URL` | (empty) | Compose only: a [shoutrrr](https://containrrr.dev/shoutrrr/v0.8/services/overview/) URL for a message per deploy. For the alert webhook, use `generic://` instead of `https://` and add `template=json&messagekey=text` to its query; Telegram has `telegram://<bot token>@telegram?chats=<chat id>` (see `.env.example`). An invalid URL stops Watchtower, so check its log for `Using notifications` |
+| `VIRGIL_PLAUSIBLE_SCRIPT_URL` | (empty) | Plausible Analytics script for the public pages only (landing, privacy policy, terms). Page views of those paths, without query, fragment or referrer |
+| `VIRGIL_OPERATOR_NAME`, `VIRGIL_OPERATOR_ADDRESS`, `VIRGIL_OPERATOR_TAX_ID` | (empty) | Who runs the instance, named as the data controller on `/privacy` and the provider on `/terms` |
 | `TZ` | `Europe/Warsaw` (compose) | Time zone for every "today": streaks, today's entries and future-date checks. Unset means UTC, and startup logs a warning |
 
 Port is always **8123**.
+
+**Changing settings in the app.** An admin named in `VIRGIL_ADMIN_EMAILS`
+changes most of the settings above under Settings > Server, without a restart
+(admins made in the app manage users only): mail, the alert webhook, off-site
+copies, the contact address, registration, the landing page, Plausible, the
+operator and the server API key's scopes. A value saved there overrides the
+variable until Reset. Secrets are stored encrypted and never shown back. Each
+change is recorded under Settings > Users, Security events, and sent to the
+alert webhook that was set before it. A new SMTP host or off-site endpoint
+clears the credential that went with the old one. The server's AI keys are a
+list like an account's own (provider, model, key; the one in use serves
+accounts allowed the server key, ahead of `VIRGIL_INTERNAL_LLM_*`). The
+encryption key, the base URL, paths, proxies, `VIRGIL_ADMIN_EMAILS` and
+`VIRGIL_REQUIRE_TOTP` stay environment-only. The admin panel itself is now
+Settings > Users; `/admin/users` redirects there.
 
 ## Features
 
@@ -377,22 +394,28 @@ words. Unticking a habit stops tracking it and keeps its history. The old
 `/feniks` address redirects here.
 
 - **Today** - every tracked habit with its streak and this week's clean rate,
-  checked off as *Clean* or *Slipped* in one tap
+  checked off as *Clean*, *Slipped*, or the habit's near miss. Edging is not clean
 - **One habit at a time** below it: its why, the bricks hero (urges survived)
   with a Monday-to-Sunday week strip, the day log, brick capture and the timeline
 - **Each habit defines its own slip** - the button label (*I watched*, *I drank*),
   an optional amount with a unit and threshold, an optional near miss, and a
-  written definition shown above the day question. Porn keeps the old measurement
+  written definition shown above the day question. Porn keeps the measurement
   contract: watched means at least five total minutes of intentional viewing,
-  shorter exposure stays clean and belongs in the note, and the near miss is
-  edging. Everything is editable under the habit's settings
+  and a shorter exposure is not a slip and belongs in the note. Edging is a
+  separate near miss, stored even when the person did not watch, and that day
+  is not clean. Everything is editable under the habit's settings
 - **Bricks** - one distinct decision episode resolved before a slip; each carries
   a required memory hook, craving (0-10) and a short story (Gola's brick method),
-  and can be edited or removed with confirmation
-- **Day log** - marking a slip records that habit's relapse event once; correcting
-  the day back to clean removes only that marker and clears slip-only fields
-- **Weekly clean rate** - a slip lowers the week's rate (target 75%) and never
-  resets it to zero
+  and can be edited or removed with confirmation. A brick does not change the
+  day's slip or near-miss flags
+- **Day log** - marking a slip records that habit's relapse event once. A near
+  miss does not: a relapse marker means the person slipped. Correcting the day
+  to clean (no slip and no near miss) removes only the marker the slip wrote.
+  The amount is kept only for a slip
+- **Weekly clean rate** - a slip or a near miss lowers the week's rate (target
+  75%) and never resets it to zero. The streak is the days since the later of
+  the last relapse and the last near miss. `last_relapse` stays the last relapse
+  marker, so an edging-only day does not show up as watched porn
 - **Timeline** - days and their bricks together, newest first. A day's date opens
   it in the day form, which can also delete a logged day
 - **Relapse records** - what the streak is counted from, listed per habit. A
@@ -488,8 +511,9 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   - `get_habits` → `GET /api/freedom` lists every tracked habit with its slug,
     streak, this week, today's entry, bricks, slip definition and settings
   - `log_freedom_day` → `PUT /api/freedom/{habit}/days/{date}` and `add_brick` →
-    `POST /api/freedom/{habit}/bricks` keep the Freedom form's contract (the
-    relapse marker follows the outcome; for Porn, a slip is at least 5 minutes)
+    `POST /api/freedom/{habit}/bricks` keep the Freedom form's contract (a slip
+    writes the relapse marker and a near miss does not; for Porn, a slip is at
+    least 5 minutes, and edging with no porn is stored and is not a clean day)
   - Every Freedom call requires the `sensitive` scope (`VIRGIL_API_SENSITIVE=true` for the server key)
   - `log_training` → `POST /api/training/sessions` writes a session and all its
     sets in one transaction; an unknown movement refuses the write and lists the

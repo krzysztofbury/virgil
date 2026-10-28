@@ -7,14 +7,14 @@ import app.routers.auth as auth_module
 
 def test_signup_closed_shows_message(auth_client, monkeypatch):
     """With registration closed and a user existing, /signup must say so."""
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
     resp = auth_client.get("/signup")
     assert resp.status_code == 200
     assert "Registration is closed" in resp.text
 
 
 def test_signup_post_blocked_when_closed(auth_client, monkeypatch):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
     from conftest import csrf_token
 
     token = csrf_token(auth_client, "/login")
@@ -55,14 +55,14 @@ def _anonymous_client():
 
 def test_login_hides_signup_link_when_closed(auth_client, monkeypatch):
     # auth_client guarantees a user exists, so bootstrap doesn't reopen signup.
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
     resp = _anonymous_client().get("/login")
     assert resp.status_code == 200
     assert 'href="/signup"' not in resp.text
 
 
 def test_login_shows_signup_link_when_open(monkeypatch):
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", True)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", True)
     resp = _anonymous_client().get("/login")
     assert resp.status_code == 200
     assert 'href="/signup"' in resp.text
@@ -104,7 +104,7 @@ def test_bootstrap_allows_first_user(monkeypatch):
     """registration_allowed() is True on a fresh install even when closed."""
     import asyncio
 
-    monkeypatch.setattr(auth_module, "REGISTRATION_OPEN", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
 
     async def no_users():
         return 0

@@ -167,6 +167,22 @@ def test_a_relapse_cannot_be_moved_onto_a_day_logged_as_clean(auth_client, porn)
     assert _event(imported)[0] == "2025-02-01"
 
 
+def test_a_relapse_cannot_be_moved_onto_an_edging_day_as_if_it_were_clean(auth_client, porn):
+    """Edging is not a porn relapse, and it is not a clean day either."""
+    habit, imported = porn
+    _post(auth_client, "/freedom/porn/daily", date="2025-02-04", slipped="0", near_miss="1", note="edged")
+    assert _rows(
+        "SELECT slipped, near_miss FROM feniks_daily WHERE habit_id = ? AND date = '2025-02-04'", (habit,)
+    ) == [(0, 1)]
+
+    response = _post(auth_client, f"/freedom/porn/relapses/{imported}/edit", date="2025-02-04", event_type="relapse")
+
+    assert "logged+as+clean" not in response.headers["location"]
+    assert "near+miss" in response.headers["location"]
+    assert _event(imported)[0] == "2025-02-01"
+    assert _rows("SELECT COUNT(*) FROM pmo_events WHERE habit_id = ? AND date = '2025-02-04'", (habit,)) == [(0,)]
+
+
 @pytest.mark.parametrize("day", ["2999-01-01", "20250301", "yesterday"])
 def test_a_day_delete_refuses_a_future_or_malformed_date(auth_client, porn, day):
     response = _post(auth_client, f"/freedom/porn/day/{day}/delete")

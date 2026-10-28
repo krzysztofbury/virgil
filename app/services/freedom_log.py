@@ -7,7 +7,12 @@ rate stay consistent with the day log.
 
 Whether a day counts as a slip is the habit's own definition: with an amount
 unit, a slip needs at least `slip_threshold` of it (porn: 5 minutes), and less
-stays a clean day with the detail in the note.
+is not a slip, with the detail in the note. The amount is kept only for a slip.
+
+A near miss (edging, when the habit has a label for it) is a separate question.
+It is stored on a day that is not a slip. That day is not clean: the streak and
+the week count it. It does not write a relapse marker, because a relapse marker
+means the person slipped.
 """
 
 from datetime import date as calendar_date
@@ -61,7 +66,6 @@ async def save_day(db, habit: dict, day: str, *, slipped: bool, amount: int | No
         )
     if not slipped:
         amount = None
-        near_miss = False
     if not habit["near_miss_label"]:
         near_miss = False
     note = (note or "")[:NOTE_MAX]
@@ -204,6 +208,15 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
         ):
             raise FreedomWriteError(N_("There is already a relapse on {event_date}."), event_date=event_date)
         if event_type == "relapse" and await _logged_as(db, habit, event_date, slipped=False):
+            near = await db.execute_fetchall(
+                "SELECT near_miss FROM feniks_daily WHERE habit_id = ? AND date = ?",
+                (habit["id"], event_date),
+            )
+            if near and near[0]["near_miss"]:
+                raise FreedomWriteError(
+                    N_("{event_date} has a near miss, not a slip. Log that day as slipped to record a relapse."),
+                    event_date=event_date,
+                )
             raise FreedomWriteError(
                 N_("{event_date} is logged as clean. Log that day as slipped instead."), event_date=event_date
             )
@@ -339,4 +352,5 @@ async def habit_overview(db, habit: dict) -> dict:
         "week_clean": {"clean_days": clean, "days_elapsed": elapsed, "pct": pct},
         "today": dict(entry[0]) if entry else None,
         "bricks_total": bricks[0]["c"],
+        "near_miss_label": habit["near_miss_label"],
     }

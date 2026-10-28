@@ -30,6 +30,7 @@ from app.services.freedom_log import (
     update_brick,
     update_relapse_event,
 )
+from app.services.streak import break_dates
 from app.user_db import get_user_db_from_request
 from app.validation import OptionalFormInt
 
@@ -74,18 +75,24 @@ async def freedom_page(request: Request):
     overviews = [await habit_overview(db, h) for h in tracked]
     selected = next(o for o in overviews if o["habit"] == habit["slug"])
 
-    # Week strip: Monday..Sunday dots, from relapse markers like the clean rate
+    # Week strip: Monday..Sunday. A relapse is a slip; a near miss is unclean too.
     monday = today - timedelta(days=today.weekday())
-    relapse_rows = await db.execute_fetchall(
-        "SELECT DISTINCT date FROM pmo_events WHERE habit_id = ? AND event_type = 'relapse' AND date BETWEEN ? AND ?",
-        (habit["id"], monday.isoformat(), (monday + timedelta(days=6)).isoformat()),
+    relapse_dates, near_dates = await break_dates(
+        db, habit["id"], monday.isoformat(), (monday + timedelta(days=6)).isoformat()
     )
-    relapse_dates = {r["date"] for r in relapse_rows}
     week_days = []
     for i in range(7):
         d = monday + timedelta(days=i)
-        state = "future" if d > today else "used" if d.isoformat() in relapse_dates else "clean"
-        week_days.append({"date": d.isoformat(), "label": weekday_short(i)[0], "state": state})
+        day = d.isoformat()
+        if d > today:
+            state = "future"
+        elif day in relapse_dates:
+            state = "used"
+        elif day in near_dates:
+            state = "near"
+        else:
+            state = "clean"
+        week_days.append({"date": day, "label": weekday_short(i)[0], "state": state})
 
     bricks = [
         dict(r)
@@ -220,13 +227,14 @@ async def save_daily(
     view: str = Form(""),
     amount: OptionalFormInt = None,
 ):
-    """One habit's day: clean or slipped, with the amount and near miss the habit asks for.
+    """One habit's day: slip and near miss are separate, and the amount the slip asks for.
 
     `view` is the habit on screen when the Today list checks another one off, so a
     quick tap leaves the page where it was.
 
     A slip also records that habit's relapse marker for the date (once);
-    correcting the day back to clean removes only that marker.
+    correcting the day back to clean removes only that marker. A near miss does
+    not write one, and a day with a near miss is not clean.
     """
     habit, refusal = await _habit_or_redirect(request, slug)
     if refusal:
@@ -267,7 +275,7 @@ async def clean_today(request: Request, slug: str):
         return refusal
     today = date.today().isoformat()
     # A page left open can offer the tap after today was logged elsewhere: never
-    # turn a recorded slip (or a note) into a bare clean day.
+    # turn a recorded slip, a near miss, or a note into a bare clean day.
     logged = await db.execute_fetchall(
         "SELECT 1 FROM feniks_daily WHERE habit_id = ? AND date = ?", (habit["id"], today)
     )
