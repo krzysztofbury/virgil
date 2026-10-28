@@ -3419,3 +3419,5 @@ details.library-hidden > summary { border: none; padding: 0.35rem 0.25rem; font-
 @media (max-width: 640px) {
   .legal-body { padding: 1.1rem 1rem; }
 }
+/* A link to one setting lands below the sticky top bar. */
+.server-setting, #server-ai { scroll-margin-top: 5rem; }

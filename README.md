@@ -254,9 +254,25 @@ All configuration via environment variables:
 | `VIRGIL_ALERT_WEBHOOK_URL` | (empty) | URL that receives a JSON `{"text": ...}` post when a start leaves a database unmigrated. Compose fills it from `ALERT_WEBHOOK_URL` |
 | `ALERT_WEBHOOK_URL` | (empty) | Compose only: the webhook for both the startup alert and each autoheal restart. Slack-style: it expects a `text` field |
 | `WATCHTOWER_NOTIFICATION_URL` | (empty) | Compose only: a [shoutrrr](https://containrrr.dev/shoutrrr/v0.8/services/overview/) URL for a message per deploy. For the alert webhook, use `generic://` instead of `https://` and add `template=json&messagekey=text` to its query; Telegram has `telegram://<bot token>@telegram?chats=<chat id>` (see `.env.example`). An invalid URL stops Watchtower, so check its log for `Using notifications` |
+| `VIRGIL_PLAUSIBLE_SCRIPT_URL` | (empty) | Plausible Analytics script for the public pages only (landing, privacy policy, terms). Page views of those paths, without query, fragment or referrer |
+| `VIRGIL_OPERATOR_NAME`, `VIRGIL_OPERATOR_ADDRESS`, `VIRGIL_OPERATOR_TAX_ID` | (empty) | Who runs the instance, named as the data controller on `/privacy` and the provider on `/terms` |
 | `TZ` | `Europe/Warsaw` (compose) | Time zone for every "today": streaks, today's entries and future-date checks. Unset means UTC, and startup logs a warning |
 
 Port is always **8123**.
+
+**Changing settings in the app.** An admin changes most of the settings above
+under Settings > Server, without a restart: mail, the alert webhook, off-site
+copies, the contact address, registration, the landing page, Plausible, the
+operator and the server API key's scopes. A value saved there overrides the
+variable until Reset. Secrets are stored encrypted and never shown back. Each
+change is recorded under Settings > Users, Security events, and sent to the
+alert webhook that was set before it. A new SMTP host or off-site endpoint
+clears the credential that went with the old one. The server's AI keys are a
+list like an account's own (provider, model, key; the one in use serves
+accounts allowed the server key, ahead of `VIRGIL_INTERNAL_LLM_*`). The
+encryption key, the base URL, paths, proxies, `VIRGIL_ADMIN_EMAILS` and
+`VIRGIL_REQUIRE_TOTP` stay environment-only. The admin panel itself is now
+Settings > Users; `/admin/users` redirects there.
 
 ## Features
 

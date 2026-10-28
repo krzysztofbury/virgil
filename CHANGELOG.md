@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Server settings in the app (#179). Settings > Server lets an admin change
+  mail, the alert webhook, off-site copies, the contact address, registration,
+  the landing page, Plausible, the operator and the server API key's scopes
+  without a restart; a saved value overrides the environment until Reset,
+  secrets are encrypted and write-only, and every change is logged and sent to
+  the previous alert webhook. The server's AI keys are managed like an
+  account's own (provider, model, key), with `VIRGIL_INTERNAL_LLM_*` as the
+  fallback. xAI (Grok) is in the provider list.
+- A privacy policy at `/privacy` and terms at `/terms`, in Polish and English,
+  linked from the landing page. The operator's name, address and tax ID come
+  from the settings (`VIRGIL_OPERATOR_*`).
+- Plausible Analytics on the public pages only (`VIRGIL_PLAUSIBLE_SCRIPT_URL`).
+- The hosted instance's host baseline, tailnet SSH and digest-pinned release
+  script for a mikr.us VPS (`infra/ansible/`, `infra/compose/`,
+  `scripts/deploy.py`, #174).
 - Passwordless sign-in (#168). The sign-in page asks for the email first: an
   account with a password gets the password step, any other a one-time sign-in
   link by email (15 minutes, works once, after a confirming click). A password
@@ -44,6 +59,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- The admin panel moved into Settings as the Users and Server tabs, shown to
+  admins only; `/admin/users` redirects to Settings > Users.
 - The UI is no longer English only (reverses #40). A validation error from a
   shared service, such as an out-of-range measurement, reads in the page's
   language; the API keeps its English wording.
