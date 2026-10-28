@@ -14,6 +14,7 @@ protection (the break-glass admin list, required two-factor sign-in) are not
 here and stay environment-only.
 """
 
+import re
 from dataclasses import dataclass
 from email.utils import parseaddr
 from urllib.parse import urlsplit
@@ -67,7 +68,7 @@ SETTINGS = (
     Setting("CONTACT_EMAIL", "instance", "email", N_("Contact address")),
     Setting("REGISTRATION_OPEN", "instance", "bool", N_("Anyone can create an account")),
     Setting("LANDING_PAGE", "instance", "bool", N_("Show the landing page to signed-out visitors")),
-    Setting("PLAUSIBLE_SCRIPT_URL", "instance", "https", N_("Plausible script URL")),
+    Setting("PLAUSIBLE_SCRIPT_URL", "instance", "plausible", N_("Plausible script URL")),
     Setting("API_SENSITIVE", "api", "bool", N_("The server API key may read Freedom data")),
     Setting("API_FINANCE", "api", "bool", N_("The server API key may read finance data")),
     Setting("OPERATOR_NAME", "operator", "text", N_("Name or company")),
@@ -76,6 +77,11 @@ SETTINGS = (
 )
 
 _BY_ATTRIBUTE = {setting.attribute: setting for setting in SETTINGS}
+# A new address clears the credential that went with the old one, so pointing
+# mail or backups elsewhere never sends the stored password there.
+_CREDENTIAL_OF = {"SMTP_HOST": "SMTP_PASSWORD", "OFFSITE_ENDPOINT": "OFFSITE_SECRET_ACCESS_KEY"}
+# The script runs on pages signed-in people open too, so from Plausible only.
+_PLAUSIBLE_SCRIPT = re.compile(r"https://plausible\.io/js/[A-Za-z0-9_.-]+\.js")
 _MAX_LENGTH = 2000
 
 # attribute -> the saved text, decrypted. Absent means the environment applies.
@@ -123,6 +129,9 @@ def _check(item: Setting, raw: str) -> str:
         parts = urlsplit(raw)
         if parts.scheme != "https" or not parts.netloc:
             raise SettingError(N_("Enter an https:// address."))
+    elif item.kind == "plausible":
+        if not _PLAUSIBLE_SCRIPT.fullmatch(raw):
+            raise SettingError(N_("Enter the script address Plausible gives, https://plausible.io/js/....js."))
     elif item.kind == "recipient":
         from app.recovery import parse_recipient
 
@@ -182,15 +191,20 @@ async def save(attribute: str, raw: str, *, by: str = "") -> None:
 
     item = setting(attribute)
     value = _check(item, raw)
+    writes = {attribute: value}
+    credential = _CREDENTIAL_OF.get(attribute)
+    if credential and value != str(getattr(current, attribute) or ""):
+        writes[credential] = ""
     db = await get_central_db()
-    await db.execute(
-        """INSERT INTO server_settings (name, value, updated_by) VALUES (?, ?, ?)
-           ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by,
-           updated_at = datetime('now')""",
-        (attribute, encrypt(value) if item.secret and value else value, by),
-    )
+    for name, text in writes.items():
+        await db.execute(
+            """INSERT INTO server_settings (name, value, updated_by) VALUES (?, ?, ?)
+               ON CONFLICT(name) DO UPDATE SET value = excluded.value, updated_by = excluded.updated_by,
+               updated_at = datetime('now')""",
+            (name, encrypt(text) if _BY_ATTRIBUTE[name].secret and text else text, by),
+        )
     await db.commit()
-    _values[attribute] = value
+    _values.update(writes)
 
 
 async def reset(attribute: str) -> None:

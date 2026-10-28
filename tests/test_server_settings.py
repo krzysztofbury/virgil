@@ -117,3 +117,41 @@ def test_off_site_fields_merge_one_by_one_before_the_half_set_check(settings, mo
     settings(server_settings.save, "OFFSITE_ENDPOINT", "")
     with pytest.raises(offsite.OffsiteConfigError, match="VIRGIL_OFFSITE_ENDPOINT"):
         offsite.offsite_settings()
+
+
+@pytest.mark.parametrize(
+    ("address", "credential"), [("SMTP_HOST", "SMTP_PASSWORD"), ("OFFSITE_ENDPOINT", "OFFSITE_SECRET_ACCESS_KEY")]
+)
+def test_a_new_address_does_not_inherit_the_old_credential(settings, monkeypatch, address, credential):
+    """Otherwise pointing the host elsewhere would hand the stored password to it."""
+    monkeypatch.setattr(config, address, "https://old.example" if address == "OFFSITE_ENDPOINT" else "old.example")
+    monkeypatch.setattr(config, credential, "env-credential")
+    new = "https://new.example" if address == "OFFSITE_ENDPOINT" else "new.example"
+
+    settings(server_settings.save, address, new)
+    assert getattr(current, credential) == ""
+
+    settings(server_settings.save, credential, "entered-again")
+    settings(server_settings.save, address, new)
+    assert getattr(current, credential) == "entered-again", "saving the same address again keeps it"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://evil.example/js/script.js",
+        "https://plausible.io.evil.example/js/x.js",
+        "https://plausible.io/js/x.js; script-src *",
+        "https://user@plausible.io/js/x.js",
+    ],
+)
+def test_the_analytics_script_is_plausibles_own(settings, url):
+    with pytest.raises(SettingError):
+        settings(server_settings.save, "PLAUSIBLE_SCRIPT_URL", url)
+
+
+def test_a_malformed_environment_script_url_never_reaches_the_policy(monkeypatch):
+    from app.security_headers import content_security_policy
+
+    monkeypatch.setattr(config, "PLAUSIBLE_SCRIPT_URL", "https://a.example; script-src *")
+    assert "script-src *" not in content_security_policy("n")
