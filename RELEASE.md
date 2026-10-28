@@ -28,6 +28,10 @@ Only the publishing job receives package-write permission. Main runs share a
 concurrency group so superseded work is cancelled. Watchtower remains best-effort
 auto-update; a successful registry push is not proof of a healthy deployment.
 Confirm the running version and `/healthz` through the authorized deployment path.
+The hosted instance is released with `scripts/deploy.py release <full SHA>`
+([infra/ansible/README.md](infra/ansible/README.md)); record what each release
+proved in [VERIFICATION.md](VERIFICATION.md) with
+[the post-deploy template](docs/post-deploy-evidence.md).
 Load-sensitive changes also need representative load verification.
 
 ## Version aliases and GitHub releases
