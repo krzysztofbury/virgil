@@ -573,7 +573,7 @@ def log_daily(
         payload["energy"] = None
     if not payload:
         raise ToolError("log_daily needs at least one field to change")
-    return _put(f"/api/daily/{date}", payload)
+    return _put(f"/api/daily/{quote(date, safe='')}", payload)
 
 
 @mcp.tool()
@@ -591,7 +591,7 @@ def log_freedom_day(
     slipped=false and near_miss=false removes only the relapse marker that slip wrote.
     Requires the sensitive scope."""
     return _put(
-        f"/api/freedom/{_habit_slug(habit)}/days/{date}",
+        f"/api/freedom/{_habit_slug(habit)}/days/{quote(date, safe='')}",
         {"slipped": slipped, "amount": amount, "near_miss": near_miss, "note": note},
     )
 
@@ -672,13 +672,13 @@ def delete_training(session_id: int) -> dict:
 def get_daily(date: str) -> dict:
     """One day of the daily log (YYYY-MM-DD): energy, routines, the four A.N.D.Y. tasks and
     notes. A day without an entry returns an error, not an empty log."""
-    return _get(f"/api/daily/{date}")
+    return _get(f"/api/daily/{quote(date, safe='')}")
 
 
 @mcp.tool()
 def delete_daily(date: str) -> dict:
     """Delete one day of the daily log (YYYY-MM-DD) permanently."""
-    return _delete(f"/api/daily/{date}")
+    return _delete(f"/api/daily/{quote(date, safe='')}")
 
 
 @mcp.tool()
@@ -686,7 +686,7 @@ def delete_freedom_day(habit: str, date: str) -> dict:
     """Delete one Freedom habit's day entry (`habit` slug from get_habits) and the relapse
     marker it created; relapses recorded another way stay. Requires the sensitive
     scope."""
-    return _delete(f"/api/freedom/{_habit_slug(habit)}/days/{date}")
+    return _delete(f"/api/freedom/{_habit_slug(habit)}/days/{quote(date, safe='')}")
 
 
 @mcp.tool()
@@ -794,13 +794,13 @@ def log_measurements(
     payload = {key: value for key, value in fields.items() if value is not None}
     if not payload:
         raise ToolError("log_measurements needs at least one measurement")
-    return _put(f"/api/measurements/{date}", payload)
+    return _put(f"/api/measurements/{quote(date, safe='')}", payload)
 
 
 @mcp.tool()
 def delete_measurements(date: str) -> dict:
     """Delete the body measurements of one date permanently."""
-    return _delete(f"/api/measurements/{date}")
+    return _delete(f"/api/measurements/{quote(date, safe='')}")
 
 
 @mcp.tool()
@@ -846,13 +846,13 @@ def log_life_scores(
     payload = {key: value for key, value in fields.items() if value is not None}
     if not payload:
         raise ToolError("log_life_scores needs at least one score or note")
-    return _put(f"/api/life-scores/{date}", payload)
+    return _put(f"/api/life-scores/{quote(date, safe='')}", payload)
 
 
 @mcp.tool()
 def delete_life_scores(date: str) -> dict:
     """Delete the life assessment of one date permanently."""
-    return _delete(f"/api/life-scores/{date}")
+    return _delete(f"/api/life-scores/{quote(date, safe='')}")
 
 
 # --- Finance (the finance scope: a token with it, or VIRGIL_API_FINANCE=true for the server key) ---

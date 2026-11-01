@@ -6144,12 +6144,12 @@ msgstr "Oceny życia"
 #: app/templates/partials/life_scores.html
 #, python-format
 msgid "since %(day)s"
-msgstr ""
+msgstr "od %(day)s"
 
 #: app/templates/partials/life_scores.html
 #, python-format
 msgid "Previous assessment: %(day)s"
-msgstr ""
+msgstr "Poprzednia ocena: %(day)s"
 
 #: app/templates/partials/life_scores.html
 #, python-format
@@ -6158,7 +6158,7 @@ msgstr "Oceny życia (na 10) z %(label)s:"
 
 #: app/templates/partials/life_scores.html
 msgid "No assessment yet. Score the eight areas below, or ask your agent to record one."
-msgstr ""
+msgstr "Nie ma jeszcze oceny. Oceń osiem obszarów poniżej albo poproś swojego agenta o jej zapisanie."
 
 #: app/templates/partials/life_scores.html
 msgid "Over time"
@@ -6187,7 +6187,7 @@ msgstr "Nowa ocena"
 
 #: app/templates/partials/life_scores.html
 msgid "Leave a field blank to keep what that date already holds."
-msgstr ""
+msgstr "Zostaw pole puste, aby zachować to, co jest już zapisane dla tej daty."
 
 #: app/templates/partials/life_scores.html
 msgid "Areas (1-10)"

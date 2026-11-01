@@ -117,3 +117,20 @@ def test_an_agent_records_an_assessment_through_mcp(api, client, monkeypatch):
 
     (row,) = api[0].get("/api/life-scores", params={"range": 3650}, headers=HEADERS).json()["assessments"]
     assert (row["health"], row["power_level"], row["priorities"]) == (7, 7.0, "Sleep, then the talk.")
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda date: virgil_mcp.log_life_scores(date, health=5),
+        lambda date: virgil_mcp.delete_life_scores(date),
+        lambda date: virgil_mcp.log_measurements(date, weight=80),
+        lambda date: virgil_mcp.delete_measurements(date),
+    ],
+)
+def test_a_tool_date_cannot_walk_to_another_route(monkeypatch, call):
+    paths = []
+    monkeypatch.setattr(virgil_mcp, "_put", lambda path, payload: paths.append(path))
+    monkeypatch.setattr(virgil_mcp, "_delete", lambda path: paths.append(path))
+    call("../goals/1")
+    assert paths[0].endswith("..%2Fgoals%2F1")
