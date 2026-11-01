@@ -133,12 +133,16 @@ def _row(page: str, attribute: str) -> str:
     return re.search(rf'id="{attribute}".*?</label>', page, re.S).group(0)
 
 
-def test_a_switch_that_is_off_says_where_that_comes_from(admin, monkeypatch):
+def test_each_row_names_the_source_that_applied(admin, monkeypatch):
     client, _sent = admin
     monkeypatch.setattr("app.config.LANDING_PAGE", False)
+    monkeypatch.setattr("app.config.REGISTRATION_OPEN", False)
     monkeypatch.setattr("app.config.OPERATOR_NAME", "")
+    monkeypatch.setenv("VIRGIL_LANDING_PAGE", "false")
+    monkeypatch.delenv("VIRGIL_REGISTRATION_OPEN", raising=False)
     page = client.get("/settings?tab=server").text
-    assert "from the environment" in _row(page, "LANDING_PAGE")
+    assert "from the environment" in _row(page, "LANDING_PAGE"), "an off switch set in the environment"
+    assert "default" in _row(page, "REGISTRATION_OPEN"), "an off switch nobody set"
     assert "not set" in _row(page, "OPERATOR_NAME"), "an empty text value still counts as missing"
 
 
@@ -161,7 +165,8 @@ def test_a_server_key_that_cannot_be_read_is_not_shown_as_working(admin, monkeyp
     page = client.get("/settings?tab=server").text
     card = page[page.index('id="server-ai"') : page.index('id="server-email"')]
     assert "In use" not in card and "Ready to use" not in card
-    assert "Cannot be read" in card
+    assert "Cannot be read" in card and "Not working" in card
+    assert "Remove it and the key from the environment applies." in card, "the working key is one step away"
 
 
 def test_a_key_that_cannot_be_read_is_not_offered_for_use(admin, monkeypatch):
@@ -171,3 +176,24 @@ def test_a_key_that_cannot_be_read_is_not_offered_for_use(admin, monkeypatch):
     page = client.get("/settings?tab=server").text
     card = page[page.index('id="server-ai"') : page.index('id="server-email"')]
     assert "Cannot be read" in card and "/admin/server/llm/activate" not in card
+
+
+def test_a_key_that_cannot_be_read_stays_out_of_use(admin, monkeypatch):
+    from app.services import server_llm
+
+    client, sent = admin
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "env-key-that-keeps-working")
+    monkeypatch.setattr("app.config.INTERNAL_LLM_MODEL", "gemini/from-env")
+    _unreadable_server_key(client, active=False)
+    (provider,) = client.portal.call(server_llm.list_providers)
+    refused = _post(client, "/admin/server/llm/activate", provider_id=provider["id"])
+    assert "err=" in refused.headers["location"] and sent == []
+    assert client.portal.call(server_llm.server_model_and_key) == ("gemini/from-env", "env-key-that-keeps-working")
+
+
+def test_without_an_environment_key_the_dead_key_must_be_replaced(admin, monkeypatch):
+    client, _sent = admin
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "")
+    _unreadable_server_key(client, active=True)
+    page = client.get("/settings?tab=server").text
+    assert "Not working" in page and "Remove it, then add the key again" in page

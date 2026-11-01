@@ -142,6 +142,25 @@ def test_a_reset_ends_the_accounts_open_sign_in_links(auth_client, client, membe
         central.commit()
 
 
+def test_disabling_an_account_ends_its_open_links(auth_client, client, member):
+    from app.central_db import create_sign_in_link
+
+    user_id, central = member
+    reset = _reset_link(auth_client, user_id)
+    sign_in = asyncio.run(create_sign_in_link("member@example.com", user_id=user_id))
+    try:
+        assert _admin_post(auth_client, f"/admin/users/{user_id}/disable").status_code == 303
+        assert _admin_post(auth_client, f"/admin/users/{user_id}/enable").status_code == 303
+
+        client.cookies.clear()
+        assert client.get(f"/login/link?token={sign_in}", follow_redirects=False).status_code == 303
+        assert _query(_submit(client, reset, NEW)) == {"err": UNUSABLE}
+    finally:
+        client.cookies.clear()
+        central.execute("DELETE FROM sign_in_links WHERE email = 'member@example.com'")
+        central.commit()
+
+
 def test_only_the_newest_unexpired_link_works(auth_client, client, member):
     user_id, central = member
     first = _reset_link(auth_client, user_id)

@@ -511,6 +511,10 @@ msgstr "Klucz AI dodany."
 msgid "That AI key no longer exists."
 msgstr "Ten klucz AI już nie istnieje."
 
+#: app/routers/admin.py
+msgid "That AI key cannot be read. Add it again."
+msgstr "Nie można odczytać tego klucza AI. Dodaj go ponownie."
+
 #: app/routers/admin.py app/routers/settings.py
 msgid "AI key in use."
 msgstr "Klucz AI w użyciu."
@@ -6329,8 +6333,16 @@ msgid "Used by accounts allowed to spend the server's key (Users, Server LLM key
 msgstr "Używają go konta, którym pozwolono korzystać z klucza serwera (Użytkownicy, Klucz LLM serwera), gdy nie mają własnego klucza."
 
 #: app/templates/partials/settings_server.html
-msgid "The key in use was saved under another encryption key, so nothing can use it. Remove it, then add the key again or put another one in use."
-msgstr "Używany klucz zapisano innym kluczem szyfrowania, więc nic nie może z niego skorzystać. Usuń go, a potem dodaj ponownie albo włącz inny."
+msgid "The key in use was saved under another encryption key, so nothing can use it."
+msgstr "Używany klucz zapisano innym kluczem szyfrowania, więc nic nie może z niego skorzystać."
+
+#: app/templates/partials/settings_server.html
+msgid "Remove it and the key from the environment applies."
+msgstr "Usuń go, a zacznie obowiązywać klucz ze środowiska."
+
+#: app/templates/partials/settings_server.html
+msgid "Remove it, then add the key again or put another one in use."
+msgstr "Usuń go, a potem dodaj ponownie albo włącz inny."
 
 #: app/templates/partials/settings_server.html
 msgid "Cannot be read"
@@ -6384,6 +6396,11 @@ msgstr "ze środowiska"
 #: app/templates/partials/settings_server.html
 msgid "not set"
 msgstr "nieustawione"
+
+#: app/templates/partials/settings_server.html
+#: app/templates/partials/wod_row.html
+msgid "default"
+msgstr "domyślny"
 
 #: app/templates/partials/settings_server.html app/templates/settings.html
 msgid "On"
@@ -6654,10 +6671,6 @@ msgstr "%(skip_label)s - pomiń"
 #: app/templates/partials/wod_row.html
 msgid "- skip"
 msgstr "- pomiń"
-
-#: app/templates/partials/wod_row.html
-msgid "default"
-msgstr "domyślny"
 
 #: app/templates/partials/wod_row.html
 msgid "search movement or tag"

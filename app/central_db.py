@@ -316,9 +316,15 @@ async def disable_user_if_unsubscribed(user_id: str) -> str:
             if subscriptions:
                 await db.rollback()
                 return "subscribed"
-            # Re-enabling the account later must not revive the sessions it had.
+            # Re-enabling the account later must not revive the sessions it had,
+            # or the sign-in and reset links that a disabled account only hides.
             await db.execute(
                 "UPDATE users SET is_active = 0, session_epoch = session_epoch + 1 WHERE id = ?", (user_id,)
+            )
+            now = _utc_stamp(datetime.now(UTC))
+            await db.execute("UPDATE sign_in_links SET used_at = ? WHERE user_id = ? AND used_at = ''", (now, user_id))
+            await db.execute(
+                "UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at = ''", (now, user_id)
             )
             await db.commit()
             return "disabled"

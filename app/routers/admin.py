@@ -428,8 +428,11 @@ async def activate_server_llm(request: Request, provider_id: int = Form(...)):
 
     admin = _require_operator(request)
     alert_url = current.ALERT_WEBHOOK_URL
-    if not await activate_provider(provider_id):
+    result = await activate_provider(provider_id)
+    if result == "not_found":
         return error_redirect(request, f"{SERVER_TAB}#server-ai", _("That AI key no longer exists."))
+    if result == "unreadable":
+        return error_redirect(request, f"{SERVER_TAB}#server-ai", _("That AI key cannot be read. Add it again."))
     await _server_change(request, admin, "the server AI key in use", alert_url)
     return success_redirect(request, f"{SERVER_TAB}#server-ai", _("AI key in use."))
 

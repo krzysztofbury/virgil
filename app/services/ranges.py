@@ -4,7 +4,8 @@ Each page used to pick its own (10 days of Oura trends, 30 Oura rows, 12 weeks
 of personal bests, the latest two life scores), so the same question had a
 different answer on every page. A page reads `?weeks=` and renders the shared
 picker; the rest of the query string is kept, except what describes one moment
-rather than the view: feedback (`msg`, `err`), `clear_draft` and `job_id`.
+rather than the view: feedback (`msg`, `err`), `clear_draft`, `job_id`, and
+what a page names in `drop`, such as its pagination cursor.
 """
 
 from datetime import date, timedelta

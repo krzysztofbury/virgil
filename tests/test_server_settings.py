@@ -28,6 +28,7 @@ def _stored(attribute: str) -> str | None:
 
 def test_a_saved_value_overrides_the_environment_until_it_is_reset(settings, monkeypatch):
     monkeypatch.setattr(config, "SMTP_HOST", "smtp.from-env.example")
+    monkeypatch.setenv("VIRGIL_SMTP_HOST", "smtp.from-env.example")
     assert current.SMTP_HOST == "smtp.from-env.example"
     assert server_settings.source("SMTP_HOST") == "environment"
 

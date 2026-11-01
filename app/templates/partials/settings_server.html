@@ -18,7 +18,8 @@
     </div>
     <p class="settings-lead">{{ _("Used by accounts allowed to spend the server's key (Users, Server LLM key) when they have no key of their own.") }}</p>
     {% if active_server and not server_llm_ready %}
-    <p class="settings-note">{{ _("The key in use was saved under another encryption key, so nothing can use it. Remove it, then add the key again or put another one in use.") }}</p>
+    <p class="settings-note">{{ _("The key in use was saved under another encryption key, so nothing can use it.") }}
+        {% if env_llm_model %}{{ _("Remove it and the key from the environment applies.") }}{% else %}{{ _("Remove it, then add the key again or put another one in use.") }}{% endif %}</p>
     {% endif %}
     <ul class="settings-list">
         {% for p in server_llm_providers %}
@@ -83,7 +84,7 @@
             <form method="POST" action="/admin/server/settings/{{ s.attribute }}" class="server-setting-form">
                 <label for="server-{{ s.attribute }}">{{ s.label }}
                     <small class="settings-list-meta">{{ s.env_name }} &middot;
-                        {% if s.source == 'app' %}{{ _("saved here") }}{% elif s.source == 'environment' %}{{ _("from the environment") }}{% else %}{{ _("not set") }}{% endif %}
+                        {% if s.source == 'app' %}{{ _("saved here") }}{% elif s.source == 'environment' %}{{ _("from the environment") }}{% elif s.source == 'default' %}{{ _("default") }}{% else %}{{ _("not set") }}{% endif %}
                         {% if s.secret and s.masked %}&middot; <code>{{ s.masked }}</code>{% endif %}
                     </small>
                 </label>
