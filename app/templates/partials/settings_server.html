@@ -8,13 +8,18 @@
     <div class="card-header">
         <h3>{{ _("Server AI model") }}</h3>
         {% set active_server = server_llm_providers | selectattr('is_active') | first %}
-        {% if active_server or env_llm_model %}
+        {% if server_llm_ready %}
         <span class="job-status-badge job-status-badge-succeeded">{{ _("Ready to use") }}</span>
+        {% elif active_server %}
+        <span class="job-status-badge job-status-badge-failed">{{ _("Not working") }}</span>
         {% else %}
         <span class="job-status-badge job-status-badge-cancelled">{{ _("Not set up") }}</span>
         {% endif %}
     </div>
     <p class="settings-lead">{{ _("Used by accounts allowed to spend the server's key (Users, Server LLM key) when they have no key of their own.") }}</p>
+    {% if active_server and not server_llm_ready %}
+    <p class="settings-note">{{ _("The key in use was saved under another encryption key, so nothing can use it. Remove it, then add the key again or put another one in use.") }}</p>
+    {% endif %}
     <ul class="settings-list">
         {% for p in server_llm_providers %}
         <li class="settings-list-row">
@@ -23,7 +28,9 @@
                 <span class="settings-list-meta">{{ p.model }} <code>{{ p.api_key_masked }}</code></span>
             </div>
             <div class="settings-list-actions">
-                {% if p.is_active %}
+                {% if not p.readable %}
+                <span class="job-status-badge job-status-badge-failed">{{ _("Cannot be read") }}</span>
+                {% elif p.is_active %}
                 <span class="job-status-badge job-status-badge-succeeded">{{ _("In use") }}</span>
                 {% else %}
                 <form method="POST" action="/admin/server/llm/activate">

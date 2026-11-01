@@ -626,6 +626,11 @@ async def complete_password_reset(token: str, password: str) -> str | None:
                 "UPDATE api_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at = ''",
                 (_utc_stamp(datetime.now(UTC)), user_id),
             )
+            # And so does a sign-in link sent before it, or it would get around the new password.
+            await db.execute(
+                "UPDATE sign_in_links SET used_at = ? WHERE user_id = ? AND used_at = ''",
+                (_utc_stamp(datetime.now(UTC)), user_id),
+            )
             await db.execute(
                 "UPDATE password_resets SET used_at = ? WHERE id = ?", (_utc_stamp(datetime.now(UTC)), rows[0]["id"])
             )

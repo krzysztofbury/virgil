@@ -8,7 +8,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 import pytest
-from conftest import _TMP, csrf_token
+from conftest import _TMP, TEST_EMAIL, csrf_token
 
 OLD = "member-old-password-1"  # pragma: allowlist secret - synthetic fixture
 NEW = "member-new-password-2"  # pragma: allowlist secret - synthetic fixture
@@ -116,6 +116,30 @@ def test_a_reset_link_sets_the_password_once_and_signs_out_every_session(auth_cl
         assert _query(_submit(client, token, "yet-another-one-4")) == {"err": UNUSABLE}
     finally:
         client.cookies.clear()
+
+
+def test_a_reset_ends_the_accounts_open_sign_in_links(auth_client, client, member):
+    from app.auth import SESSION_COOKIE
+    from app.central_db import create_sign_in_link
+
+    user_id, central = member
+    other_id = central.execute("SELECT id FROM users WHERE email = ?", (TEST_EMAIL,)).fetchone()[0]
+    token = _reset_link(auth_client, user_id)
+    open_link = asyncio.run(create_sign_in_link("member@example.com", user_id=user_id))
+    other_link = asyncio.run(create_sign_in_link(TEST_EMAIL, user_id=other_id))
+    try:
+        assert _query(_submit(client, token, NEW)) == {"msg": "Password set. Sign in with the new one."}
+
+        client.cookies.clear()
+        csrf = csrf_token(client, "/login")
+        client.post("/login/link/confirm", data={"token": open_link, "_csrf_token": csrf}, follow_redirects=False)
+        assert SESSION_COOKIE not in client.cookies, "the link sent before the reset signs nobody in"
+        assert "That link has expired" in client.get(f"/login/link?token={open_link}").text
+        assert "That link has expired" not in client.get(f"/login/link?token={other_link}").text, "only this account's"
+    finally:
+        client.cookies.clear()
+        central.execute("DELETE FROM sign_in_links WHERE email IN ('member@example.com', ?)", (TEST_EMAIL,))
+        central.commit()
 
 
 def test_only_the_newest_unexpired_link_works(auth_client, client, member):

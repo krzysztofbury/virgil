@@ -27,8 +27,10 @@ async def list_providers() -> list[dict]:
         provider = dict(row)
         try:
             provider["api_key_masked"] = _masked(decrypt(provider.pop("api_key_enc")))
+            provider["readable"] = True
         except Exception:
             provider["api_key_masked"] = "(encrypted)"
+            provider["readable"] = False
         providers.append(provider)
     return providers
 

@@ -12,7 +12,7 @@ from conftest import _TMP, TEST_EMAIL, csrf_token
 from fastapi.testclient import TestClient
 
 from app import config
-from app.central_db import create_invite
+from app.central_db import create_invite, create_sign_in_link
 
 FINISH = "Check your email to finish creating your account."
 
@@ -175,6 +175,29 @@ def test_removing_the_password_needs_mail_and_the_current_password(auth_client, 
     assert _hash_of(email).startswith("$2")
     remove(password)
     assert _hash_of(email) == ""
+
+
+def test_removing_the_password_ends_open_sign_in_links(auth_client, browser, sent_mail, cleanup):
+    email = f"voided-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    password = "voided-password-1"  # pragma: allowlist secret - synthetic fixture
+    _signup(browser, _invite(email), email, method="password", password=password)
+    _finish_onboarding(email)
+    central = _central()
+    user_id = central.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
+    central.close()
+    token = asyncio.run(create_sign_in_link(email, user_id=user_id))
+    link_page = f"/login/link?token={token}"
+    assert browser.get(link_page, follow_redirects=False).status_code == 200, "open until the password goes"
+
+    browser.post(
+        "/settings/password/remove",
+        data={"current_password": password, "_csrf_token": csrf_token(browser, "/settings?tab=security")},
+        follow_redirects=False,
+    )
+
+    assert _hash_of(email) == ""
+    assert browser.get(link_page, follow_redirects=False).status_code == 303, "refused, back to the login page"
 
 
 def test_removing_the_password_is_refused_with_mail_off(auth_client, browser, sent_mail, cleanup, monkeypatch):

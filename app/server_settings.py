@@ -167,7 +167,7 @@ def source(attribute: str) -> str:
     setting(attribute)
     if attribute in _values:
         return "app"
-    return "environment" if getattr(config, attribute) not in ("", None, False) else "unset"
+    return "environment" if getattr(config, attribute) not in ("", None) else "unset"
 
 
 def masked(attribute: str) -> str:

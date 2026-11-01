@@ -1,5 +1,6 @@
 """Settings > Users and Settings > Server, the admin's part of Settings (#179)."""
 
+import re
 import sqlite3
 from pathlib import Path
 
@@ -126,3 +127,47 @@ def test_only_the_operators_own_admins_change_server_settings(admin, monkeypatch
     assert refused.status_code == 403
     assert _post(client, "/admin/server/llm/add", provider="x", model="x/y", api_key="k").status_code == 403
     assert server_settings.source("SMTP_HOST") != "app" and sent == []
+
+
+def _row(page: str, attribute: str) -> str:
+    return re.search(rf'id="{attribute}".*?</label>', page, re.S).group(0)
+
+
+def test_a_switch_that_is_off_says_where_that_comes_from(admin, monkeypatch):
+    client, _sent = admin
+    monkeypatch.setattr("app.config.LANDING_PAGE", False)
+    monkeypatch.setattr("app.config.OPERATOR_NAME", "")
+    page = client.get("/settings?tab=server").text
+    assert "from the environment" in _row(page, "LANDING_PAGE")
+    assert "not set" in _row(page, "OPERATOR_NAME"), "an empty text value still counts as missing"
+
+
+def _unreadable_server_key(client, *, active: bool) -> None:
+    from app.services import server_llm
+
+    provider_id = client.portal.call(server_llm.add_provider, "xai", "xai/grok-4.7", "xai-key")
+    if active:
+        client.portal.call(server_llm.activate_provider, provider_id)
+    with sqlite3.connect(Path(_TMP) / "central.db") as central:
+        unreadable = "not-a-fernet-token"  # pragma: allowlist secret - synthetic fixture
+        central.execute("UPDATE server_llm_providers SET api_key_enc = ?", (unreadable,))
+
+
+def test_a_server_key_that_cannot_be_read_is_not_shown_as_working(admin, monkeypatch):
+    client, _sent = admin
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "env-key-that-the-dead-row-hides")
+    monkeypatch.setattr("app.config.INTERNAL_LLM_MODEL", "gemini/from-env")
+    _unreadable_server_key(client, active=True)
+    page = client.get("/settings?tab=server").text
+    card = page[page.index('id="server-ai"') : page.index('id="server-email"')]
+    assert "In use" not in card and "Ready to use" not in card
+    assert "Cannot be read" in card
+
+
+def test_a_key_that_cannot_be_read_is_not_offered_for_use(admin, monkeypatch):
+    client, _sent = admin
+    monkeypatch.setattr("app.config.INTERNAL_LLM_KEY", "")
+    _unreadable_server_key(client, active=False)
+    page = client.get("/settings?tab=server").text
+    card = page[page.index('id="server-ai"') : page.index('id="server-email"')]
+    assert "Cannot be read" in card and "/admin/server/llm/activate" not in card
