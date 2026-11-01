@@ -105,14 +105,20 @@ function createRadarChart(canvasId, labels, datasets) {
         data: { labels: labels, datasets: datasets },
         options: {
             responsive: true,
+            // Monotone curves need x to rise along the line; a radar's closed loop
+            // does not, and the default above would leave it with no path at all.
+            elements: { line: { cubicInterpolationMode: 'default', tension: 0 } },
+            // A missing area is a gap the outline crosses, not a dip to zero.
+            spanGaps: true,
             scales: {
                 r: {
                     beginAtZero: true,
                     max: 10,
+                    // The scale's numbers collide with the points on a phone; the
+                    // list beside the radar and its label give the exact values.
                     ticks: {
                         stepSize: 2,
-                        color: colors.text,
-                        backdropColor: 'transparent'
+                        display: false
                     },
                     grid: { color: colors.grid },
                     angleLines: { color: colors.grid },

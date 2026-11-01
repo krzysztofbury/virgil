@@ -1,4 +1,4 @@
-"""Feedback and job notifications live in one fixed top-right tray."""
+"""Feedback and job notifications live in one fixed tray at the foot of the screen."""
 
 import sqlite3
 from datetime import UTC, datetime
@@ -68,6 +68,24 @@ def test_tray_is_a_fixed_overlay_outside_the_main_flow(auth_client):
     main = response.text.index('<main class="container"')
     assert tray < main, "the tray must not sit inside the scrolling content column"
     assert 'id="job-notifications"' in response.text
+
+
+def test_a_job_card_replaces_the_confirmation_of_the_same_action(auth_client):
+    job_id = _insert_job(user_db_path(), "queued")
+
+    queued = auth_client.get(f"/oura?job_id={job_id}&msg=Oura+sync+queued.")
+    assert f'id="job-status-{job_id}"' in queued.text, "the card reports the work"
+    assert "feedback-success" not in queued.text, "one action, one notification"
+
+    failed = auth_client.get(f"/oura?job_id={job_id}&err=Could+not+sync")
+    assert "feedback-error" in failed.text, "an error is still its own message"
+
+
+def test_the_data_tab_reports_a_backup_once_too(auth_client):
+    """That tab lists jobs itself, so it names no job for the tray: the URL has to decide."""
+    job_id = _insert_job(user_db_path(), "queued", kind="backup")
+    page = auth_client.get(f"/settings?tab=data&job_id={job_id}&msg=Backup+queued.")
+    assert "feedback-success" not in page.text
 
 
 def test_success_feedback_self_dismisses_but_an_error_waits_for_the_user(auth_client):

@@ -9,7 +9,7 @@
 
 Exposes Virgil data (daily habits, Oura, streaks, experiments, training, finance)
 and its writes (goals, daily log and A.N.D.Y., Freedom habits, training,
-finance balances), plus deploy health and the optional modules' switches, to MCP
+life scores, finance balances), plus deploy health and the optional modules' switches, to MCP
 clients (Claude Code, OpenClaw). No local DB access — everything goes
 through the authenticated REST API, so it works from any machine.
 
@@ -86,6 +86,14 @@ def _check(resp: httpx.Response) -> None:
         except Exception:
             detail = None
         raise ToolError(f"{resp.status_code} {resp.reason_phrase}: {detail or resp.text[:200]}")
+
+
+def _day(date: str) -> str:
+    """A date for a request path, refused here so it cannot name another route and a
+    malformed one gets a clear answer instead of the sign-in page."""
+    if not re.fullmatch(r"[0-9]{4}-[0-9]{2}-[0-9]{2}", date):
+        raise ToolError(f"date must be YYYY-MM-DD, got {date!r}")
+    return date
 
 
 def _habit_slug(habit: str) -> str:
@@ -573,7 +581,7 @@ def log_daily(
         payload["energy"] = None
     if not payload:
         raise ToolError("log_daily needs at least one field to change")
-    return _put(f"/api/daily/{date}", payload)
+    return _put(f"/api/daily/{_day(date)}", payload)
 
 
 @mcp.tool()
@@ -591,7 +599,7 @@ def log_freedom_day(
     slipped=false and near_miss=false removes only the relapse marker that slip wrote.
     Requires the sensitive scope."""
     return _put(
-        f"/api/freedom/{_habit_slug(habit)}/days/{date}",
+        f"/api/freedom/{_habit_slug(habit)}/days/{_day(date)}",
         {"slipped": slipped, "amount": amount, "near_miss": near_miss, "note": note},
     )
 
@@ -672,13 +680,13 @@ def delete_training(session_id: int) -> dict:
 def get_daily(date: str) -> dict:
     """One day of the daily log (YYYY-MM-DD): energy, routines, the four A.N.D.Y. tasks and
     notes. A day without an entry returns an error, not an empty log."""
-    return _get(f"/api/daily/{date}")
+    return _get(f"/api/daily/{_day(date)}")
 
 
 @mcp.tool()
 def delete_daily(date: str) -> dict:
     """Delete one day of the daily log (YYYY-MM-DD) permanently."""
-    return _delete(f"/api/daily/{date}")
+    return _delete(f"/api/daily/{_day(date)}")
 
 
 @mcp.tool()
@@ -686,7 +694,7 @@ def delete_freedom_day(habit: str, date: str) -> dict:
     """Delete one Freedom habit's day entry (`habit` slug from get_habits) and the relapse
     marker it created; relapses recorded another way stay. Requires the sensitive
     scope."""
-    return _delete(f"/api/freedom/{_habit_slug(habit)}/days/{date}")
+    return _delete(f"/api/freedom/{_habit_slug(habit)}/days/{_day(date)}")
 
 
 @mcp.tool()
@@ -794,13 +802,68 @@ def log_measurements(
     payload = {key: value for key, value in fields.items() if value is not None}
     if not payload:
         raise ToolError("log_measurements needs at least one measurement")
-    return _put(f"/api/measurements/{date}", payload)
+    return _put(f"/api/measurements/{_day(date)}", payload)
 
 
 @mcp.tool()
 def delete_measurements(date: str) -> dict:
     """Delete the body measurements of one date permanently."""
-    return _delete(f"/api/measurements/{date}")
+    return _delete(f"/api/measurements/{_day(date)}")
+
+
+@mcp.tool()
+def get_life_scores(days: int = 365) -> dict:
+    """List the life score assessments of the last N days (1-3650), newest first: eight areas
+    scored 1-10, the power level the person declared, and the diagnostic and priorities text.
+    log_life_scores records one."""
+    return _get("/api/life-scores", params={"range": days})
+
+
+@mcp.tool()
+def log_life_scores(
+    date: str,
+    planning: int | None = None,
+    spirituality: int | None = None,
+    health: int | None = None,
+    work: int | None = None,
+    social: int | None = None,
+    growth: int | None = None,
+    relaxation: int | None = None,
+    family: int | None = None,
+    power_level: float | None = None,
+    diagnostic: str | None = None,
+    priorities: str | None = None,
+) -> dict:
+    """Record a life assessment for one date (YYYY-MM-DD) and return it. Only the supplied
+    fields change, so build an assessment over several calls on the same date; a score cannot
+    be cleared here, and an empty diagnostic or priorities clears that text. Areas are whole
+    numbers 1-10; power_level (0-10) is the person's own figure, so pass what they declared and
+    never an average of the areas. diagnostic and priorities take up to 2000 characters. Read
+    get_life_scores first to compare with the last assessment."""
+    fields = {
+        "planning": planning,
+        "spirituality": spirituality,
+        "health": health,
+        "work": work,
+        "social": social,
+        "growth": growth,
+        "relaxation": relaxation,
+        "family": family,
+        "power_level": power_level,
+        "diagnostic": diagnostic,
+        "priorities": priorities,
+    }
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("log_life_scores needs at least one score or note")
+    return _put(f"/api/life-scores/{_day(date)}", payload)
+
+
+@mcp.tool()
+def delete_life_scores(date: str) -> dict:
+    """Delete the life assessment of one date (YYYY-MM-DD) permanently: its scores and notes.
+    Metrics older forms stored beside it stay."""
+    return _delete(f"/api/life-scores/{_day(date)}")
 
 
 # --- Finance (the finance scope: a token with it, or VIRGIL_API_FINANCE=true for the server key) ---
@@ -835,7 +898,7 @@ def record_balances(date: str, entries: list[dict]) -> dict:
     for an account held in another currency, and "note". "amount": null removes that
     date's balance. Unknown account names are refused: create them with
     upsert_finance_account first. Returns how many were recorded."""
-    return _put(f"/api/finance/balances/{quote(date, safe='')}", {"entries": entries})
+    return _put(f"/api/finance/balances/{_day(date)}", {"entries": entries})
 
 
 @mcp.tool()

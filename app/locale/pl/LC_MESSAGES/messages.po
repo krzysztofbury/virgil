@@ -808,7 +808,8 @@ msgstr "Zapisano pomiary"
 msgid "Measurements saved."
 msgstr "Pomiary zapisane."
 
-#: app/routers/dashboard.py app/templates/dashboard.html
+#: app/routers/dashboard.py app/services/life_scores.py
+#: app/templates/partials/life_scores.html
 msgid "Power level"
 msgstr "Poziom mocy"
 
@@ -2819,6 +2820,38 @@ msgstr "Pozycja biblioteki jest już: {state}."
 msgid "{new_name!r} is already an alias of another movement"
 msgstr "{new_name!r} jest już aliasem innego ćwiczenia"
 
+#: app/services/life_scores.py app/templates/partials/life_scores.html
+msgid "Diagnostics"
+msgstr "Diagnoza"
+
+#: app/services/life_scores.py app/templates/partials/life_scores.html
+msgid "Priorities"
+msgstr "Priorytety"
+
+#: app/services/life_scores.py
+#, python-brace-format
+msgid "Unknown life score fields: {fields}"
+msgstr "Nieznane pola oceny życia: {fields}"
+
+#: app/services/life_scores.py
+msgid "Enter at least one score or note."
+msgstr "Wpisz przynajmniej jedną ocenę lub notatkę."
+
+#: app/services/life_scores.py
+#, python-brace-format
+msgid "{field} is too long"
+msgstr "{field}: tekst jest za długi"
+
+#: app/services/life_scores.py app/services/measurements.py
+#, python-brace-format
+msgid "{field} must be between {low} and {high}"
+msgstr "{field} musi mieścić się między {low} a {high}."
+
+#: app/services/life_scores.py
+#, python-brace-format
+msgid "{field} must be a whole number from 1 to 10"
+msgstr "{field}: podaj liczbę całkowitą od 1 do 10"
+
 #: app/services/measurements.py
 msgid "Arm"
 msgstr "Ramię"
@@ -2839,11 +2872,6 @@ msgstr "Uda"
 #, python-brace-format
 msgid "Unknown measurement fields: {fields}"
 msgstr "Nieznane pola pomiarów: {fields}"
-
-#: app/services/measurements.py
-#, python-brace-format
-msgid "{field} must be between {low} and {high}"
-msgstr "{field} musi mieścić się między {low} a {high}."
 
 #: app/services/movement_vocab.py
 #, python-brace-format
@@ -3451,9 +3479,9 @@ msgstr "Popraw wyniki %(name)s (%(count)s)"
 msgid "No results for this marker yet."
 msgstr "Brak wyników dla tego wskaźnika."
 
-#: app/templates/bloodwork.html app/templates/dashboard.html
-#: app/templates/experiment_detail.html app/templates/finance.html
-#: app/templates/freedom.html app/templates/oura.html
+#: app/templates/bloodwork.html app/templates/experiment_detail.html
+#: app/templates/finance.html app/templates/freedom.html
+#: app/templates/oura.html app/templates/partials/life_scores.html
 #: app/templates/training.html
 msgid "Date"
 msgstr "Data"
@@ -3492,8 +3520,8 @@ msgid "Save the result from %(date)s"
 msgstr "Zapisz wynik z %(date)s"
 
 #: app/templates/bloodwork.html app/templates/daily.html
-#: app/templates/dashboard.html app/templates/experiment_detail.html
-#: app/templates/freedom.html app/templates/oura.html
+#: app/templates/experiment_detail.html app/templates/freedom.html
+#: app/templates/oura.html app/templates/partials/life_scores.html
 #: app/templates/partials/settings_server.html app/templates/settings.html
 msgid "Save"
 msgstr "Zapisz"
@@ -3849,97 +3877,6 @@ msgstr "Brak pomiarów."
 #, python-format
 msgid "<a href=\"/daily/%(measurement_day)s#measurements\">Add them on Daily</a>, which asks for weight and body measurements on Saturdays."
 msgstr "<a href=\"/daily/%(measurement_day)s#measurements\">Dodaj je w Dzienniku</a>, który w soboty prosi o wagę i obwody ciała."
-
-#: app/templates/dashboard.html app/templates/settings.html
-msgid "Life Scores"
-msgstr "Oceny życia"
-
-#: app/templates/dashboard.html
-msgid "Life score history window"
-msgstr "Zakres historii ocen życia"
-
-#: app/templates/dashboard.html
-#, python-format
-msgid "Life scores out of 10 on %(label)s:"
-msgstr "Oceny życia (na 10) z %(label)s:"
-
-#: app/templates/dashboard.html
-msgid "Over time"
-msgstr "W czasie"
-
-#: app/templates/dashboard.html
-#, python-format
-msgid "Life scores over the last %(range_weeks)s weeks; the History table below lists the same assessments"
-msgstr "Oceny życia z ostatnich tygodni (%(range_weeks)s); tabela Historia poniżej pokazuje te same oceny"
-
-#: app/templates/dashboard.html
-#, python-format
-msgid "%(count)s assessment in the last %(range_weeks)s weeks: a line needs two."
-msgid_plural "%(count)s assessments in the last %(range_weeks)s weeks: a line needs two."
-msgstr[0] "%(count)s ocena w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
-msgstr[1] "%(count)s oceny w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
-msgstr[2] "%(count)s ocen w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
-
-#: app/templates/dashboard.html
-msgid "New assessment"
-msgstr "Nowa ocena"
-
-#: app/templates/dashboard.html
-msgid "Areas (1-10)"
-msgstr "Obszary (1-10)"
-
-#: app/templates/dashboard.html
-msgid "Power Level"
-msgstr "Poziom mocy"
-
-#: app/templates/dashboard.html
-msgid "Energy Avg"
-msgstr "Średnia energia"
-
-#: app/templates/dashboard.html app/templates/experiment_edit.html
-#: app/templates/experiment_new.html
-msgid "Metrics"
-msgstr "Wskaźniki"
-
-#: app/templates/dashboard.html
-msgid "PMO Status"
-msgstr "Status PMO"
-
-#: app/templates/dashboard.html
-msgid "LinkedIn"
-msgstr "LinkedIn"
-
-#: app/templates/dashboard.html
-msgid "YouTube Views"
-msgstr "Wyświetlenia YouTube"
-
-#: app/templates/dashboard.html
-msgid "Revenue (PLN)"
-msgstr "Przychód (PLN)"
-
-#: app/templates/dashboard.html
-msgid "Diagnostics"
-msgstr "Diagnoza"
-
-#: app/templates/dashboard.html
-msgid "Priorities"
-msgstr "Priorytety"
-
-#: app/templates/dashboard.html
-#, python-format
-msgid "(last %(count)s week)"
-msgid_plural "(last %(count)s weeks)"
-msgstr[0] "(ostatni %(count)s tydzień)"
-msgstr[1] "(ostatnie %(count)s tygodnie)"
-msgstr[2] "(ostatnich %(count)s tygodni)"
-
-#: app/templates/dashboard.html app/templates/oura.html
-msgid "History"
-msgstr "Historia"
-
-#: app/templates/dashboard.html
-msgid "Power"
-msgstr "Moc"
 
 #: app/templates/dashboard.html
 #, python-format
@@ -4300,6 +4237,10 @@ msgstr "ukończony"
 #: app/templates/experiment_edit.html
 msgid "abandoned"
 msgstr "porzucony"
+
+#: app/templates/experiment_edit.html app/templates/experiment_new.html
+msgid "Metrics"
+msgstr "Wskaźniki"
 
 #: app/templates/experiment_edit.html
 msgid "Type is fixed after creation — logged values keep their meaning. Targets apply to Count and Yes/No metrics."
@@ -6037,6 +5978,10 @@ msgstr[0] "(wiersze dzienne: ostatni %(count)s tydzień)"
 msgstr[1] "(wiersze dzienne: ostatnie %(count)s tygodnie)"
 msgstr[2] "(wiersze dzienne: ostatnich %(count)s tygodni)"
 
+#: app/templates/oura.html app/templates/partials/life_scores.html
+msgid "History"
+msgstr "Historia"
+
 #: app/templates/oura.html
 msgid "History view"
 msgstr "Widok historii"
@@ -6191,6 +6136,83 @@ msgstr "Ponów mimo to"
 #: app/templates/partials/job_status.html
 msgid "Retry"
 msgstr "Ponów"
+
+#: app/templates/partials/life_scores.html app/templates/settings.html
+msgid "Life Scores"
+msgstr "Oceny życia"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "No change since %(day)s"
+msgstr "Bez zmian od %(day)s"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "since %(day)s"
+msgstr "od %(day)s"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "Previous assessment: %(day)s"
+msgstr "Poprzednia ocena: %(day)s"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "Life scores out of 10 on %(label)s:"
+msgstr "Oceny życia (na 10) z %(label)s:"
+
+#: app/templates/partials/life_scores.html
+msgid "No assessment yet. Score the eight areas below, or ask your agent to record one."
+msgstr "Nie ma jeszcze oceny. Oceń osiem obszarów poniżej albo poproś swojego agenta o jej zapisanie."
+
+#: app/templates/partials/life_scores.html
+msgid "Over time"
+msgstr "W czasie"
+
+#: app/templates/partials/life_scores.html
+msgid "Life score history window"
+msgstr "Zakres historii ocen życia"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "Life scores over the last %(range_weeks)s weeks; the History table below lists the same assessments"
+msgstr "Oceny życia z ostatnich tygodni (%(range_weeks)s); tabela Historia poniżej pokazuje te same oceny"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "%(count)s assessment in the last %(range_weeks)s weeks: a line needs two."
+msgid_plural "%(count)s assessments in the last %(range_weeks)s weeks: a line needs two."
+msgstr[0] "%(count)s ocena w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
+msgstr[1] "%(count)s oceny w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
+msgstr[2] "%(count)s ocen w ostatnich tygodniach (%(range_weeks)s): linia potrzebuje dwóch."
+
+#: app/templates/partials/life_scores.html
+msgid "New assessment"
+msgstr "Nowa ocena"
+
+#: app/templates/partials/life_scores.html
+msgid "Leave a field blank to keep what that date already holds."
+msgstr "Zostaw pole puste, aby zachować to, co jest już zapisane dla tej daty."
+
+#: app/templates/partials/life_scores.html
+msgid "Areas (1-10)"
+msgstr "Obszary (1-10)"
+
+#: app/templates/partials/life_scores.html
+msgid "Power Level"
+msgstr "Poziom mocy"
+
+#: app/templates/partials/life_scores.html
+#, python-format
+msgid "(last %(count)s week)"
+msgid_plural "(last %(count)s weeks)"
+msgstr[0] "(ostatni %(count)s tydzień)"
+msgstr[1] "(ostatnie %(count)s tygodnie)"
+msgstr[2] "(ostatnich %(count)s tygodni)"
+
+#: app/templates/partials/life_scores.html
+msgid "Power"
+msgstr "Moc"
 
 #: app/templates/partials/llm_provider_fields.html
 msgid "Provider"

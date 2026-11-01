@@ -12,6 +12,7 @@ from app.i18n import _, month_short, weekday_short
 from app.main import templates
 from app.services.daily_log import day_progress
 from app.services.experiment_card import experiment_card
+from app.services.life_scores import ASSESSED, SCORED
 from app.services.oura_api import oura_sync_freshness
 from app.services.ranges import range_context, range_start
 from app.user_db import get_user_db_from_request
@@ -34,6 +35,19 @@ LIFE_HISTORY_COLORS = (
     "rgb(239, 68, 68)",
 )
 AREA_LABELS = LIFE_AREA_LABELS
+# The latest assessment is the filled shape; the one before it is an outline to compare with.
+RADAR_STYLES = (
+    {"backgroundColor": "rgba(168, 85, 247, 0.28)", "borderColor": "rgb(168, 85, 247)", "borderWidth": 2},
+    {"backgroundColor": "transparent", "borderColor": "rgb(83, 155, 245)", "borderWidth": 2, "borderDash": [5, 4]},
+)
+
+
+def _change(now, before):
+    """How far a score moved, or None when either side has no value."""
+    # Restored data can hold anything in these columns.
+    if not (isinstance(now, int | float) and isinstance(before, int | float)):
+        return None
+    return round(now - before, 1)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -128,36 +142,48 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     oura = await db.execute_fetchall("SELECT * FROM oura_monthly ORDER BY month DESC LIMIT 1")
     latest_oura = dict(oura[0]) if oura else None
 
-    # Life scores (latest 2 for radar chart comparison). Only complete
-    # assessments qualify — a missing area would render as a measured 0 and
-    # visually crater the radar.
-    complete_filter = " AND ".join(f"{a} IS NOT NULL" for a in AREAS)
+    # The two latest assessments with scores: the section leads with the first, and
+    # the second is what its changes and the radar's dashed outline compare against.
+    # A note on its own date stays in History rather than blanking this card.
     score_rows = await db.execute_fetchall(
-        f"SELECT * FROM life_scores WHERE {complete_filter} ORDER BY date DESC LIMIT 2"  # noqa: S608
+        f"SELECT * FROM life_scores WHERE {SCORED} ORDER BY date DESC LIMIT 2"  # noqa: S608
     )
     scores = [dict(r) for r in score_rows]
+    latest_score = scores[0] if scores else None
+    previous_score = scores[1] if len(scores) > 1 else None
 
-    chart_datasets = []
-    colors = ["rgba(168, 85, 247, 0.5)", "rgba(59, 130, 246, 0.3)"]
-    border_colors = ["rgb(168, 85, 247)", "rgb(59, 130, 246)"]
-    for i, s in enumerate(scores[:2]):
-        chart_datasets.append(
+    chart_datasets = [
+        {
+            "label": s["date"],
+            # A missing area stays null, a gap the outline skips, never a measured 0.
+            "data": [s.get(a) for a in AREAS],
+            **style,
+        }
+        for s, style in zip(scores, RADAR_STYLES, strict=False)
+        if any(s.get(a) is not None for a in AREAS)
+    ]
+    life_areas = (
+        [
             {
-                "label": s["date"],
-                "data": [s.get(a) or 0 for a in AREAS],
-                "backgroundColor": colors[i] if i < len(colors) else "rgba(100,100,100,0.3)",
-                "borderColor": border_colors[i] if i < len(border_colors) else "rgb(100,100,100)",
+                "label": _(label),
+                "score": latest_score[area],
+                "change": _change(latest_score[area], previous_score[area] if previous_score else None),
             }
-        )
+            for area, label in zip(AREAS, AREA_LABELS, strict=True)
+        ]
+        if latest_score
+        else []
+    )
+    power_change = (
+        _change(latest_score["power_level"], previous_score["power_level"]) if latest_score and previous_score else None
+    )
 
     # Life score history over the chosen window, oldest first for the chart.
     # Every assessment counts here, complete or not: a missing area is a gap in
     # its line and a dash in the table, never a 0.
     life_range = range_context(request, "life-scores")
-    # A row saved with only weight or waist is a measurement, not an assessment.
-    scored = " OR ".join(f"{column} IS NOT NULL" for column in ("power_level", *AREAS))
     history_rows = await db.execute_fetchall(
-        f"SELECT * FROM life_scores WHERE date >= ? AND ({scored}) ORDER BY date",  # noqa: S608
+        f"SELECT * FROM life_scores WHERE date >= ? AND ({ASSESSED}) ORDER BY date",  # noqa: S608
         (range_start(life_range["range_weeks"], today).isoformat(),),
     )
     life_history = [dict(r) for r in history_rows]
@@ -309,7 +335,10 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             "yesterday_fallback": yesterday_fallback,
             "latest_oura": latest_oura,
             "oura_freshness": await oura_sync_freshness(db),
-            "scores": scores,
+            "latest_score": latest_score,
+            "previous_score": previous_score,
+            "life_areas": life_areas,
+            "power_change": power_change,
             "areas": AREAS,
             "area_labels": [_(label) for label in AREA_LABELS],
             "chart_datasets": chart_datasets,

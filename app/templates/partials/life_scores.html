@@ -1,0 +1,149 @@
+{# Life scores: the latest assessment first, what changed since the one before,
+   then the trend, the form and the history. Assessments arrive from this form or
+   from an agent over MCP, so a row may hold only some of its fields. #}
+{% macro change_text(value, places) -%}
+{{ ('%+.' ~ places ~ 'f') | format(value) }}
+{%- endmacro %}
+<div class="section" id="life-scores">
+    <div class="section-title">{{ _("Life Scores") }}</div>
+
+    {% if latest_score %}
+    <div class="card life-latest">
+        <div class="life-latest-head">
+            <div>
+                <div class="life-power">{{ latest_score.power_level if latest_score.power_level is not none else '-' }}</div>
+                <div class="stat-label">{{ _("Power level") }}</div>
+            </div>
+            <p class="life-latest-when">
+                <strong>{{ latest_score.date }}</strong>
+                {% if power_change == 0 %}
+                {% trans day=previous_score.date %}No change since {{ day }}{% endtrans %}
+                {% elif power_change is not none %}
+                <span class="life-change {{ 'is-up' if power_change > 0 else 'is-down' }}">{{ change_text(power_change, 1) }}</span>
+                {% trans day=previous_score.date %}since {{ day }}{% endtrans %}
+                {% elif previous_score %}
+                {% trans day=previous_score.date %}Previous assessment: {{ day }}{% endtrans %}
+                {% endif %}
+            </p>
+        </div>
+
+        <div class="life-latest-body">
+            {% if chart_datasets %}
+            <div class="chart-container life-radar">
+                <canvas id="radarChart" role="img" aria-label="
+                    {%- for dataset in chart_datasets -%}
+                    {% trans label=dataset.label %}Life scores out of 10 on {{ label }}:{% endtrans %}
+                    {%- for label in area_labels %} {{ label }} {{ dataset.data[loop.index0] if dataset.data[loop.index0] is not none else '-' }}{{ ',' if not loop.last else '.' }}{% endfor %}
+                    {%- if not loop.last %} {% endif %}
+                    {%- endfor -%}"></canvas>
+            </div>
+            {% endif %}
+            <ul class="life-area-list">
+                {% for area in life_areas %}
+                <li class="life-area">
+                    <span>{{ area.label }}</span>
+                    <strong>{{ area.score if area.score is not none else '-' }}</strong>
+                    {% if area.change is not none %}
+                    <span class="life-change {{ 'is-up' if area.change > 0 else 'is-down' if area.change < 0 else 'is-flat' }}">{{ change_text(area.change, 0) if area.change else '=' }}</span>
+                    {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        {% if latest_score.diagnostic or latest_score.priorities %}
+        <div class="life-notes">
+            {% if latest_score.diagnostic %}
+            <div>
+                <h4>{{ _("Diagnostics") }}</h4>
+                <p>{{ latest_score.diagnostic }}</p>
+            </div>
+            {% endif %}
+            {% if latest_score.priorities %}
+            <div>
+                <h4>{{ _("Priorities") }}</h4>
+                <p>{{ latest_score.priorities }}</p>
+            </div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+    {% else %}
+    <p class="text-muted empty-next">{{ _("No assessment yet. Score the eight areas below, or ask your agent to record one.") }}</p>
+    {% endif %}
+
+    <div class="card">
+        <div class="card-header life-trend-header">
+            <h3>{{ _("Over time") }}</h3>
+            {% with range_label = _("Life score history window") %}{% include "partials/range_picker.html" %}{% endwith %}
+        </div>
+        {# Power level by default, each area one legend tap away. The table under
+           History is the same data as text. #}
+        {% if life_history | length >= 2 %}
+        <div class="chart-container">
+            <canvas id="lifeHistoryChart" height="200" role="img"
+                    aria-label="{% trans %}Life scores over the last {{ range_weeks }} weeks; the History table below lists the same assessments{% endtrans %}"></canvas>
+        </div>
+        {% else %}
+        <p class="text-muted">{% trans count=life_history | length %}{{ count }} assessment in the last {{ range_weeks }} weeks: a line needs two.{% pluralize %}{{ count }} assessments in the last {{ range_weeks }} weeks: a line needs two.{% endtrans %}</p>
+        {% endif %}
+    </div>
+
+    <details class="life-details"{% if not latest_score %} open{% endif %}>
+        <summary>{{ _("New assessment") }}</summary>
+        <form method="POST" action="/life-scores/save" class="life-form">
+            <label class="life-form-date">{{ _("Date") }} <input type="date" name="date" value="{{ today }}" required></label>
+            <p class="settings-note">{{ _("Leave a field blank to keep what that date already holds.") }}</p>
+
+            <h4>{{ _("Areas (1-10)") }}</h4>
+            <div class="life-form-areas">
+                {% for i in range(areas|length) %}
+                <label>{{ area_labels[i] }}
+                    <input type="number" name="{{ areas[i] }}" min="1" max="10" inputmode="numeric">
+                </label>
+                {% endfor %}
+            </div>
+
+            <label class="life-form-date">{{ _("Power Level") }} <input type="number" name="power_level" step="0.1" min="0" max="10" inputmode="decimal"></label>
+            <label>{{ _("Diagnostics") }} <textarea name="diagnostic" rows="3" maxlength="2000"></textarea></label>
+            <label>{{ _("Priorities") }} <textarea name="priorities" rows="3" maxlength="2000"></textarea></label>
+
+            <div><button type="submit" class="btn btn-primary">{{ _("Save") }}</button></div>
+        </form>
+    </details>
+
+    {% if life_history %}
+    <details class="life-details">
+        <summary>{{ _("History") }} <small class="text-muted">{% trans count=range_weeks %}(last {{ count }} week){% pluralize %}(last {{ count }} weeks){% endtrans %}</small></summary>
+        <div class="card">
+            <div class="overflow-x">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>{{ _("Date") }}</th>
+                            {% for label in area_labels %}<th>{{ label }}</th>{% endfor %}
+                            <th>{{ _("Power") }}</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for s in life_history | reverse %}
+                        <tr>
+                            <td>{{ s.date }}</td>
+                            {% for area in areas %}
+                            <td>{{ s[area] if s[area] else '-' }}</td>
+                            {% endfor %}
+                            <td><strong>{{ s.power_level if s.power_level is not none else '-' }}</strong></td>
+                        </tr>
+                        {% if s.diagnostic or s.priorities %}
+                        <tr class="life-history-note">
+                            <td colspan="{{ areas | length + 2 }}">{{ s.diagnostic or '' }}{% if s.diagnostic and s.priorities %} {% endif %}{{ s.priorities or '' }}</td>
+                        </tr>
+                        {% endif %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </details>
+    {% endif %}
+</div>

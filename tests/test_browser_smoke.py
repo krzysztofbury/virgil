@@ -172,6 +172,29 @@ def test_main_pages_load_cleanly(site, width):
         context.close()
 
 
+def test_the_life_radar_draws_filled_shapes(site):
+    """Points alone can pass for a chart: the shapes are what a broken curve setting loses."""
+    context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        page.goto(f"{base}/")
+        page.wait_for_load_state("networkidle")
+        painted = page.evaluate(
+            """() => {
+                const canvas = document.getElementById('radarChart');
+                const chart = Chart.getChart(canvas);
+                chart.stop();
+                chart.update('none');
+                const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+                let count = 0;
+                for (let i = 3; i < data.length; i += 4) if (data[i] > 40) count += 1;
+                return count / (canvas.width * canvas.height);
+            }"""
+        )
+        assert painted > 0.1, f"only {painted:.1%} of the radar is painted"
+    finally:
+        context.close()
+
+
 def test_a_daily_change_saves_over_htmx_and_a_lost_one_is_reported(site):
     context, page, problems, base = _signed_in(site, WIDTHS["desktop"])
     try:
@@ -204,32 +227,54 @@ def test_a_daily_change_saves_over_htmx_and_a_lost_one_is_reported(site):
 
 
 @pytest.mark.parametrize("width", WIDTHS.values(), ids=WIDTHS.keys())
-def test_the_tray_sits_in_the_top_right_and_success_clears_itself(site, width):
+def test_the_tray_stays_clear_of_the_page_and_success_clears_itself(site, width):
     context, page, problems, base = _signed_in(site, width)
     try:
         # Not the load event: the toast's 4 s run from DOMContentLoaded, and a
         # slow stylesheet or script can outlast them.
-        page.goto(f"{base}/daily?msg=Saved+by+the+smoke+test", wait_until="domcontentloaded")
+        page.goto(f"{base}/settings?tab=data&msg=Saved+by+the+smoke+test", wait_until="domcontentloaded")
         tray = page.locator("#notification-tray")
         toast = tray.locator(".feedback-message", has_text="Saved by the smoke test")
         toast.wait_for()
+        assert tray.evaluate("el => getComputedStyle(el).position") == "fixed"
+
         # Measured after the slide-in, which moves it by a few pixels.
         toast.evaluate("el => Promise.all(el.getAnimations().map(a => a.finished))")
         box = toast.bounding_box()
-        assert box["x"] + box["width"] <= width and width - (box["x"] + box["width"]) < 40, "not at the right edge"
-        assert box["y"] < 200, "not at the top"
-        assert tray.evaluate("el => getComputedStyle(el).position") == "fixed"
+        viewport = page.viewport_size
+        assert box["y"] > viewport["height"] / 2, "it sits low, away from the heading and the tabs"
+        assert box["height"] <= 64, "one line, not a banner"
+        tabs = page.locator("main .tabs").first.bounding_box()
+        assert box["y"] > tabs["y"] + tabs["height"], "the heading and tabs stay readable"
+        bar = page.locator(".bottom-bar")
+        if bar.is_visible():
+            assert box["y"] + box["height"] <= bar.bounding_box()["y"], "and the bottom bar stays tappable"
 
         # Scrolling must not carry it away, and the page under an empty tray stays clickable.
         page.mouse.wheel(0, 600)
         assert abs(toast.bounding_box()["y"] - box["y"]) < 2
         toast.wait_for(state="detached", timeout=8000)
-        corner = page.evaluate(
-            "([x, y]) => document.elementFromPoint(x, y).closest('#notification-tray') === null",
-            [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
-        )
-        assert corner, "an empty tray swallows clicks in the corner"
+        assert tray.evaluate("el => getComputedStyle(el).pointerEvents") == "none", "the gaps must not swallow clicks"
         assert problems == []
+    finally:
+        context.close()
+
+
+def test_the_phone_menu_opens_over_a_waiting_notification(site):
+    context, page, _problems, base = _signed_in(site, WIDTHS["phone"])
+    try:
+        page.goto(f"{base}/settings?tab=data&err=Stays+until+dismissed")
+        page.locator(".feedback-error").wait_for()
+        page.locator(".tab-item-wrap > button").first.click()
+        menu = page.locator(".tab-dropdown.show")
+        menu.wait_for()
+        last = menu.locator("a, button").last
+        last.evaluate("el => Promise.all(document.getAnimations().map(a => a.finished))")
+        box = last.bounding_box()
+        assert page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y).closest('.tab-dropdown') !== null",
+            [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+        ), "the tray sits over the menu"
     finally:
         context.close()
 

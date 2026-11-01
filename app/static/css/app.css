@@ -732,17 +732,18 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .flex-between { display: flex; justify-content: space-between; align-items: center; }
 
 /* ── Notification Tray ── */
-/* Fixed top-right, out of the document flow: feedback must never reflow the
-   page it reports on. Empty live regions collapse so the tray adds no gap. */
+/* Fixed at the foot of the screen, out of the document flow: feedback must never
+   reflow the page it reports on, or sit on its heading and tabs. Empty live
+   regions collapse so the tray adds no gap. */
 .notification-tray {
   position: fixed;
-  top: calc(var(--nav-height) + 0.75rem);
+  bottom: 1rem;
   right: 1rem;
   z-index: 2000;
   display: grid;
   gap: 0.5rem;
   width: min(24rem, calc(100vw - 2rem));
-  max-height: calc(100vh - var(--nav-height) - 2rem);
+  max-height: 45vh;
   overflow-y: auto;
   overscroll-behavior: contain;
   /* An empty tray covers the page corner; only real notifications take clicks. */
@@ -755,12 +756,17 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .notification-tray > section > div:empty { display: none; }
 .notification-tray .feedback-message,
 .notification-tray .job-status-card { pointer-events: auto; }
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .notification-tray {
     left: 0.75rem;
     right: 0.75rem;
     width: auto;
-    top: calc(var(--nav-height) + 0.5rem);
+    bottom: 0.75rem;
+    /* The bottom bar's menu opens where the tray sits, and must stay on top of it. */
+    z-index: 900;
+  }
+  body:has(.bottom-bar) .notification-tray {
+    bottom: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
 }
 
@@ -844,24 +850,26 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .offline-banner:empty { display: none; }
 .offline-banner svg { width: 16px; height: 16px; flex: 0 0 auto; }
 body.is-offline main.container { padding-top: calc(var(--nav-height) + var(--offline-banner-height) + 2rem); }
-body.is-offline .notification-tray { top: calc(var(--nav-height) + var(--offline-banner-height) + 0.75rem); }
 body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Mutation Feedback ── */
 .mutation-feedback { display: grid; gap: 0.5rem; }
+/* A confirmation and a job card are one kind of thing: an opaque ground over live
+   page content, and a coloured edge for what happened. */
 .feedback-message {
-  padding: 0.75rem 1rem;
-  border: 1px solid transparent;
+  padding: 0.6rem 0.85rem;
+  border: 1px solid var(--border-light);
+  border-left: 3px solid var(--job-info);
   border-radius: var(--radius-sm);
-  color: #fff;
-  box-shadow: 0 10px 25px rgba(0,0,0,0.28);
-  backdrop-filter: blur(8px);
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  box-shadow: 0 6px 18px rgba(0,0,0,0.24);
   font-size: 0.875rem;
-  font-weight: 600;
+  font-weight: 500;
 }
 .feedback-message[hidden] { display: none; }
 @keyframes notification-enter {
-  from { opacity: 0; transform: translateY(-0.5rem); }
+  from { opacity: 0; transform: translateY(0.5rem); }
   to { opacity: 1; transform: none; }
 }
 .notification-tray .feedback-message,
@@ -870,7 +878,7 @@ body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
 }
 .notification-tray .is-leaving {
   opacity: 0;
-  transform: translateY(-0.35rem);
+  transform: translateY(0.35rem);
   transition: opacity 200ms ease, transform 200ms ease;
 }
 @media (prefers-reduced-motion: reduce) {
@@ -878,15 +886,14 @@ body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
   .notification-tray > #job-notifications > article { animation: none; }
   .notification-tray .is-leaving { transition: none; }
 }
-.feedback-success { background: rgba(16, 120, 87, 0.96); border-color: rgba(52, 211, 153, 0.5); }
-.feedback-pending { background: rgba(30, 64, 175, 0.96); border-color: rgba(96, 165, 250, 0.5); }
+.feedback-success { border-left-color: var(--job-success); }
+.feedback-pending { border-left-color: var(--job-info); }
 .feedback-error {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  background: rgba(153, 27, 27, 0.98);
-  border-color: rgba(248, 113, 113, 0.65);
+  border-left-color: var(--red);
 }
 .feedback-dismiss {
   flex: 0 0 auto;
@@ -895,12 +902,12 @@ body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
   padding: 0;
   border: 0;
   border-radius: 50%;
-  /* Toasts are always solid colour, in both themes. */
-  background: rgba(255, 255, 255, 0.16);
-  color: #fff;
+  background: transparent;
+  color: var(--text-secondary);
   font-size: 1.25rem;
   line-height: 1;
 }
+.feedback-dismiss:hover { background: var(--bg-surface); color: var(--text-primary); }
 form[aria-busy="true"] { cursor: progress; }
 [aria-disabled="true"] { opacity: 0.65; cursor: wait; }
 
@@ -917,11 +924,66 @@ form[aria-busy="true"] { cursor: progress; }
 
 /* ── Section Spacing ── */
 .section { margin-bottom: 2rem; }
-.life-scores-layout { display: grid; gap: 1rem; margin-bottom: 1rem; }
-.life-scores-layout > .card, .life-scores-layout > .stat-grid { margin-bottom: 0; }
+/* ── Life scores: the latest assessment, then the trend, the form and the history ── */
+.life-latest { margin-bottom: 1rem; }
+.life-latest-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid var(--border);
+}
+.life-power {
+  font-family: var(--font-mono);
+  font-size: 2.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  color: var(--text-primary);
+}
+.life-latest-when { margin: 0; text-align: right; color: var(--text-secondary); font-size: 0.85rem; }
+.life-latest-when strong { display: block; color: var(--text-primary); }
+.life-latest-body { display: grid; gap: 1rem; margin-top: 1rem; }
+.life-radar { width: 100%; max-width: 460px; margin: 0 auto; }
+.life-area-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.life-area {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 2rem 2.5rem;
+  gap: 0.5rem;
+  align-items: baseline;
+  padding: 0.45rem 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-secondary);
+}
+.life-area:last-child { border-bottom: 0; }
+.life-area strong { font-family: var(--font-mono); text-align: right; color: var(--text-primary); }
+.life-change { font-family: var(--font-mono); font-size: 0.85rem; font-weight: 700; text-align: right; }
+.life-change.is-up { color: var(--job-success); }
+.life-change.is-down { color: var(--red); }
+.life-change.is-flat { color: var(--text-tertiary); }
+.life-notes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+}
+.life-notes h4 { margin: 0 0 0.25rem; font-size: 0.8rem; color: var(--text-secondary); }
+.life-notes p { margin: 0; white-space: pre-line; overflow-wrap: anywhere; color: var(--text-primary); }
+.life-trend-header { flex-wrap: wrap; gap: 0.5rem; }
+.life-details { margin-bottom: 1rem; }
+.life-form { display: grid; gap: 0.75rem; margin-top: 0.75rem; }
+.life-form h4 { margin: 0; color: var(--text-secondary); }
+.life-form-date { max-width: 14rem; }
+.life-form-areas { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; }
+.life-history-note td { padding-top: 0; border-top: 0; color: var(--text-secondary); font-size: 0.8rem; white-space: pre-line; }
+@media (min-width: 700px) {
+  .life-form-areas { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
 @media (min-width: 900px) {
-  .life-scores-layout { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
-  .life-scores-power { grid-template-columns: 1fr; }
+  .life-latest-body { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: center; }
 }
 /* Names a group of sections, one level above .section-title. */
 /* A button in a section title is still a button, not a label. */
@@ -1673,6 +1735,14 @@ details > :not(summary) { margin-top: 1rem; }
   box-shadow: 0 10px 25px rgba(0,0,0,0.28);
 }
 .notification-tray .job-status-meta { display: none; }
+/* One line while all is well: the name and the state. A failure keeps its words. */
+.notification-tray .job-status-card { padding: 0.5rem 0.5rem 0.5rem 0.85rem; }
+.notification-tray .job-status-heading { flex-direction: row; align-items: center; gap: 0.5rem; }
+.notification-tray .job-status-badge { align-self: center; }
+.notification-tray .job-status-heading h4 { font-size: 0.875rem; }
+.notification-tray .job-status-queued .job-status-heading p,
+.notification-tray .job-status-running .job-status-heading p,
+.notification-tray .job-status-succeeded .job-status-heading p { display: none; }
 /* flex:0 0 auto, or the badge's nowrap plus the fixed-width dismiss button
    overflow the card instead of squeezing the title beside them. */
 .job-status-heading-end { flex: 0 0 auto; display: flex; align-items: center; gap: 0.25rem; }
@@ -3434,4 +3504,4 @@ details.library-hidden > summary { border: none; padding: 0.35rem 0.25rem; font-
   .legal-body { padding: 1.1rem 1rem; }
 }
 /* A link to one setting lands below the sticky top bar. */
-.server-setting, #server-ai { scroll-margin-top: 5rem; }
+.server-setting, #server-ai, #life-scores { scroll-margin-top: 5rem; }

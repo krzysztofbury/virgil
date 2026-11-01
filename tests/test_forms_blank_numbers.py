@@ -13,7 +13,7 @@ def test_life_scores_accepts_blank_numbers(auth_client):
             "linkedin_followers": "",
             "youtube_views": "",
             "revenue": "",
-            "weight": "99,5",  # polski przecinek dziesiętny też ma przejść
+            "power_level": "7,5",  # polski przecinek dziesiętny też ma przejść
             "_csrf_token": token,
         },
         follow_redirects=False,

@@ -9,7 +9,7 @@ disabled while neither exists. `/mcp` uses this same resolution. Writes cover ca
 exercise-library CRUD,
 the daily log (habits and A.N.D.Y.), Freedom (/api/freedom: habits, their days, bricks and
 settings; the /api/feniks paths are deprecated aliases), training
-sessions, body measurements and the optional modules' flags (/api/features).
+sessions, body measurements, life scores and the optional modules' flags (/api/features).
 """
 
 import hmac
@@ -21,7 +21,7 @@ from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
@@ -52,6 +52,7 @@ from app.services.goal_data import (
 )
 from app.services.habits import HabitError, list_habits, resolve_habit, update_habit
 from app.services.library import write_library
+from app.services.life_scores import LifeScoreError, delete_life_scores, list_life_scores, upsert_life_scores
 from app.services.measurements import MeasurementError, delete_measurements, list_measurements, upsert_measurements
 from app.services.movement_vocab import EQUIPMENT, aliases_by_library_id
 from app.services.streak import get_streak, get_week_clean
@@ -1426,6 +1427,45 @@ async def api_put_measurements(day: str, payload: ApiMeasurements, db: ApiDb):
 async def api_delete_measurements(day: str, db: ApiDb):
     if not await delete_measurements(db, _iso_day(day)):
         raise HTTPException(status_code=404, detail="No measurements for that date")
+    return {"deleted": True, "date": _iso_day(day)}
+
+
+class ApiLifeScores(BaseModel):
+    """Areas 1-10, power level 0-10 as the person declares it. Only the fields sent change; null clears one."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    planning: StrictInt | None = None
+    spirituality: StrictInt | None = None
+    health: StrictInt | None = None
+    work: StrictInt | None = None
+    social: StrictInt | None = None
+    growth: StrictInt | None = None
+    relaxation: StrictInt | None = None
+    family: StrictInt | None = None
+    power_level: StrictFloat | StrictInt | None = None
+    diagnostic: str | None = None
+    priorities: str | None = None
+
+
+@router.get("/life-scores")
+async def api_life_scores(db: ApiDb, days: int = Query(365, ge=1, le=3650, alias="range")):
+    since = (date.today() - timedelta(days=days - 1)).isoformat()
+    return {"range_days": days, "since": since, "assessments": await list_life_scores(db, since)}
+
+
+@router.put("/life-scores/{day}")
+async def api_put_life_scores(day: str, payload: ApiLifeScores, db: ApiDb):
+    try:
+        return await upsert_life_scores(db, _iso_day(day), payload.model_dump(exclude_unset=True))
+    except LifeScoreError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@router.delete("/life-scores/{day}")
+async def api_delete_life_scores(day: str, db: ApiDb):
+    if not await delete_life_scores(db, _iso_day(day)):
+        raise HTTPException(status_code=404, detail="No assessment for that date")
     return {"deleted": True, "date": _iso_day(day)}
 
 
