@@ -106,7 +106,13 @@ def test_the_form_adds_to_a_date_and_leaves_older_metrics_alone(auth_client, sco
     scores.commit()
     response = auth_client.post(
         "/life-scores/save",
-        data={"date": LATEST, "family": "4", "health": "", "diagnostic": "", "_csrf_token": csrf_token(auth_client, "/")},
+        data={
+            "date": LATEST,
+            "family": "4",
+            "health": "",
+            "diagnostic": "",
+            "_csrf_token": csrf_token(auth_client, "/"),
+        },
         follow_redirects=False,
     )
     assert response.status_code == 303 and "#life-scores" in response.headers["location"]

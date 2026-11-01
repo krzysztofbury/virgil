@@ -158,14 +158,18 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         for s, style in zip(scores, RADAR_STYLES, strict=False)
         if any(s.get(a) is not None for a in AREAS)
     ]
-    life_areas = [
-        {
-            "label": _(label),
-            "score": latest_score[area],
-            "change": _change(latest_score[area], previous_score[area] if previous_score else None),
-        }
-        for area, label in zip(AREAS, AREA_LABELS, strict=True)
-    ] if latest_score else []
+    life_areas = (
+        [
+            {
+                "label": _(label),
+                "score": latest_score[area],
+                "change": _change(latest_score[area], previous_score[area] if previous_score else None),
+            }
+            for area, label in zip(AREAS, AREA_LABELS, strict=True)
+        ]
+        if latest_score
+        else []
+    )
     power_change = (
         _change(latest_score["power_level"], previous_score["power_level"]) if latest_score and previous_score else None
     )

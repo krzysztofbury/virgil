@@ -87,7 +87,10 @@ async def delete_life_scores(db, day: str) -> bool:
     """Remove the assessment of a date. A row that older forms also filled with
     metrics keeps them, since the dashboard and exports still read those."""
     cleared = ", ".join(
-        (*(f"{column} = NULL" for column in ("power_level", *LIFE_AREAS)), *(f"{column} = ''" for column in TEXT_FIELDS))
+        (
+            *(f"{column} = NULL" for column in ("power_level", *LIFE_AREAS)),
+            *(f"{column} = ''" for column in TEXT_FIELDS),
+        )
     )
     cursor = await db.execute(
         f"UPDATE life_scores SET {cleared} WHERE date = ? AND ({ASSESSED})",  # noqa: S608
