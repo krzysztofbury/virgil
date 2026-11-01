@@ -109,6 +109,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path shown on the General tab.
 
 ### Fixed
+- Settings > Server shows what actually applies (#190). A switch that is off
+  says "from the environment" or "default" instead of "not set". A server AI
+  key that can no longer be decrypted shows "Cannot be read" instead of "In
+  use" and cannot be put in use, and the card shows "Not working" instead of
+  "Ready to use", with the step that fixes it.
+- API tokens are documented under Settings > AI, where they have been since the
+  settings regroup (#191).
 - Freedom edging (`near_miss`) is stored when the day was not a porn slip. A day
   with edging is not clean: it breaks the streak and lowers the week's clean
   rate, and it does not write a relapse marker (that marker means the person
@@ -147,6 +154,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skipped and carried over.
 
 ### Security
+- The dependency audit ignores ten more local filelock advisories until litellm
+  allows filelock 4 (#154). Each needs a second local user or Windows, except
+  one limited to `huggingface_hub`'s download cache.
+- A password reset or removing a password now ends the account's open sign-in
+  links (#189). Before, a link sent earlier could still sign in for up to 15
+  minutes after the reset that was meant to cut access off. Disabling an
+  account ends its open sign-in and reset links too, so enabling it again does
+  not bring them back.
 - Import paths are resolved and checked to stay inside the import directory,
   beside the token and account checks (code scanning alert 22, #182).
 - An account without a password needs a sign-in from the last 15 minutes, or

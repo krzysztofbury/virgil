@@ -27,8 +27,10 @@ async def list_providers() -> list[dict]:
         provider = dict(row)
         try:
             provider["api_key_masked"] = _masked(decrypt(provider.pop("api_key_enc")))
+            provider["readable"] = True
         except Exception:
             provider["api_key_masked"] = "(encrypted)"
+            provider["readable"] = False
         providers.append(provider)
     return providers
 
@@ -43,13 +45,19 @@ async def add_provider(provider: str, model: str, api_key: str) -> int:
     return cursor.lastrowid
 
 
-async def activate_provider(provider_id: int) -> bool:
+async def activate_provider(provider_id: int) -> str:
+    """Put a key in use: "active", "not_found", or "unreadable", which leaves the key in use as it was."""
     db = await get_central_db()
-    if not await db.execute_fetchall("SELECT 1 FROM server_llm_providers WHERE id = ?", (provider_id,)):
-        return False
+    rows = await db.execute_fetchall("SELECT api_key_enc FROM server_llm_providers WHERE id = ?", (provider_id,))
+    if not rows:
+        return "not_found"
+    try:
+        decrypt(rows[0]["api_key_enc"])
+    except Exception:
+        return "unreadable"
     await db.execute("UPDATE server_llm_providers SET is_active = (id = ?)", (provider_id,))
     await db.commit()
-    return True
+    return "active"
 
 
 async def delete_provider(provider_id: int) -> bool:

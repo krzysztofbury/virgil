@@ -15,6 +15,7 @@ here and stay environment-only.
 """
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from email.utils import parseaddr
@@ -163,11 +164,13 @@ current = _Current()
 
 
 def source(attribute: str) -> str:
-    """Where the value in use comes from: app, environment, or unset."""
-    setting(attribute)
+    """Where the value in use comes from: app, environment, default, or unset."""
+    item = setting(attribute)
     if attribute in _values:
         return "app"
-    return "environment" if getattr(config, attribute) not in ("", None, False) else "unset"
+    if getattr(config, attribute) in ("", None):
+        return "unset"
+    return "environment" if os.environ.get(item.env_name, "").strip() else "default"
 
 
 def masked(attribute: str) -> str:

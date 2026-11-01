@@ -184,7 +184,7 @@ key and are not whole-instance recovery artifacts.
 
 The REST API and MCP take a credential in `X-API-Key` or
 `Authorization: Bearer`. Each account creates its own **API tokens** under
-Settings > Security: a token acts only for that account, with the scopes it was
+Settings > AI: a token acts only for that account, with the scopes it was
 given (`read`, `write`, `sensitive` for Freedom, `finance`), and can expire or
 be revoked at once. The server's `VIRGIL_API_KEY` still works for the one
 account named by `VIRGIL_API_USER_EMAIL`. To move off it, create a token with

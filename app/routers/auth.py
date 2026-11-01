@@ -841,6 +841,7 @@ async def remove_password(request: Request, current_password: str = Form("")):
     ):
         return error_redirect(request, SECURITY, _("Current password is incorrect."))
     await update_user(user["id"], password_hash="")
+    await void_sign_in_links(user["id"])
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_remove", user["id"])
     return _resign(request, user["id"], epoch, _("Password removed. You sign in with emailed links now."), SECURITY)

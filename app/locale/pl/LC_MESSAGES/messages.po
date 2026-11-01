@@ -511,6 +511,10 @@ msgstr "Klucz AI dodany."
 msgid "That AI key no longer exists."
 msgstr "Ten klucz AI już nie istnieje."
 
+#: app/routers/admin.py
+msgid "That AI key cannot be read. Add it again."
+msgstr "Nie można odczytać tego klucza AI. Dodaj go ponownie."
+
 #: app/routers/admin.py app/routers/settings.py
 msgid "AI key in use."
 msgstr "Klucz AI w użyciu."
@@ -6316,6 +6320,10 @@ msgstr "Model AI serwera"
 msgid "Ready to use"
 msgstr "Gotowy"
 
+#: app/templates/partials/settings_server.html
+msgid "Not working"
+msgstr "Nie działa"
+
 #: app/templates/partials/settings_server.html app/templates/settings.html
 msgid "Not set up"
 msgstr "Nieustawiony"
@@ -6323,6 +6331,22 @@ msgstr "Nieustawiony"
 #: app/templates/partials/settings_server.html
 msgid "Used by accounts allowed to spend the server's key (Users, Server LLM key) when they have no key of their own."
 msgstr "Używają go konta, którym pozwolono korzystać z klucza serwera (Użytkownicy, Klucz LLM serwera), gdy nie mają własnego klucza."
+
+#: app/templates/partials/settings_server.html
+msgid "The key in use was saved under another encryption key, so nothing can use it."
+msgstr "Używany klucz zapisano innym kluczem szyfrowania, więc nic nie może z niego skorzystać."
+
+#: app/templates/partials/settings_server.html
+msgid "Remove it and the key from the environment applies."
+msgstr "Usuń go, a zacznie obowiązywać klucz ze środowiska."
+
+#: app/templates/partials/settings_server.html
+msgid "Remove it, then add the key again or put another one in use."
+msgstr "Usuń go, a potem dodaj ponownie albo włącz inny."
+
+#: app/templates/partials/settings_server.html
+msgid "Cannot be read"
+msgstr "Nie można odczytać"
 
 #: app/templates/partials/settings_server.html app/templates/settings.html
 msgid "In use"
@@ -6368,6 +6392,10 @@ msgstr "zapisane tutaj"
 #: app/templates/partials/settings_server.html
 msgid "from the environment"
 msgstr "ze środowiska"
+
+#: app/templates/partials/settings_server.html
+msgid "default value"
+msgstr "wartość domyślna"
 
 #: app/templates/partials/settings_server.html
 msgid "not set"

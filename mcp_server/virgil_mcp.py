@@ -15,7 +15,7 @@ through the authenticated REST API, so it works from any machine.
 
 Config (env):
     VIRGIL_API_URL          - base URL, e.g. https://virgil.example.com (required)
-    VIRGIL_API_KEY          - a personal API token from Settings > Security, or the server's VIRGIL_API_KEY (required)
+    VIRGIL_API_KEY          - a personal API token from Settings > AI, or the server's VIRGIL_API_KEY (required)
     CF_ACCESS_CLIENT_ID     - Cloudflare Access service token id (if host sits behind CF Access)
     CF_ACCESS_CLIENT_SECRET - Cloudflare Access service token secret
 

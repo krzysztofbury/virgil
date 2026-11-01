@@ -334,7 +334,7 @@ async def server_context() -> dict:
     """What the Server tab of Settings shows. Secrets only as their last characters."""
     from app import config, server_settings
     from app.i18n import _ as translate
-    from app.services.server_llm import list_providers
+    from app.services.server_llm import list_providers, server_model_and_key
 
     groups = []
     for group, title in server_settings.GROUPS.items():
@@ -362,6 +362,7 @@ async def server_context() -> dict:
     return {
         "server_groups": groups,
         "server_llm_providers": await list_providers(),
+        "server_llm_ready": await server_model_and_key() is not None,
         "env_llm_model": config.INTERNAL_LLM_MODEL if env_key else "",
         "env_llm_key": f"...{env_key[-4:]}" if len(env_key) > 8 else ("****" if env_key else ""),
     }
@@ -427,8 +428,11 @@ async def activate_server_llm(request: Request, provider_id: int = Form(...)):
 
     admin = _require_operator(request)
     alert_url = current.ALERT_WEBHOOK_URL
-    if not await activate_provider(provider_id):
+    result = await activate_provider(provider_id)
+    if result == "not_found":
         return error_redirect(request, f"{SERVER_TAB}#server-ai", _("That AI key no longer exists."))
+    if result == "unreadable":
+        return error_redirect(request, f"{SERVER_TAB}#server-ai", _("That AI key cannot be read. Add it again."))
     await _server_change(request, admin, "the server AI key in use", alert_url)
     return success_redirect(request, f"{SERVER_TAB}#server-ai", _("AI key in use."))
 
