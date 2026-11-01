@@ -83,6 +83,14 @@ def test_a_link_for_a_disabled_account_does_not_open(account):
     assert asyncio.run(use_sign_in_link(token)) is None
 
 
+def test_no_link_is_made_for_a_disabled_account(account):
+    user_id, email, central = account
+    central.execute("UPDATE users SET is_active = 0 WHERE id = ?", (user_id,))
+    central.commit()
+    assert asyncio.run(create_sign_in_link(email, user_id=user_id, token="asked-before-the-disable")) is None
+    assert central.execute("SELECT COUNT(*) FROM sign_in_links WHERE email = ?", (email,)).fetchone()[0] == 0
+
+
 def test_a_signup_link_needs_no_account(client):
     email = f"new-{uuid.uuid4().hex[:8]}@example.com"
     token = asyncio.run(create_sign_in_link(email, user_id=None, purpose="signup", display_name="Ala", language="pl"))

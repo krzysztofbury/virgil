@@ -154,6 +154,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skipped and carried over.
 
 ### Security
+- No sign-in link is made for an account disabled since it was requested
+  (#193). `SECURITY.md` states that disabling an account is a temporary
+  suspension and how to recover a compromised one. A password change keeps an
+  open reset link, so whoever holds the old password cannot cancel the recovery.
 - The dependency audit ignores ten more local filelock advisories until litellm
   allows filelock 4 (#154). Each needs a second local user or Windows, except
   one limited to `huggingface_hub`'s download cache.

@@ -12,7 +12,7 @@ from conftest import _TMP, TEST_EMAIL, csrf_token
 from fastapi.testclient import TestClient
 
 from app import config
-from app.central_db import create_invite, create_sign_in_link
+from app.central_db import create_invite, create_password_reset, create_sign_in_link, get_open_reset
 
 FINISH = "Check your email to finish creating your account."
 
@@ -155,6 +155,27 @@ def test_adding_a_password_to_a_link_only_account(auth_client, browser, sent_mai
     )
     assert response.status_code == 303
     assert _hash_of(email).startswith("$2")
+
+
+def test_a_password_change_cannot_cancel_an_open_reset_link(auth_client, browser, sent_mail, cleanup):
+    """Recovery outranks a session: whoever holds the old password must not be able to end the link."""
+    email = f"held-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    old = "held-current-password-1"  # pragma: allowlist secret - synthetic fixture
+    new = "held-new-password-2"  # pragma: allowlist secret - synthetic fixture
+    _signup(browser, _invite(email), email, method="password", password=old)
+    _finish_onboarding(email)
+    central = _central()
+    user_id = central.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
+    central.close()
+    token = asyncio.run(create_password_reset(user_id, _admin_id()))
+
+    data = {"current_password": old, "new_password": new, "new_password_confirm": new}
+    data["_csrf_token"] = csrf_token(browser, "/settings?tab=security")
+    done = browser.post("/settings/password", data=data, follow_redirects=False)
+
+    assert done.status_code == 303 and "err=" not in done.headers["location"]
+    assert asyncio.run(get_open_reset(token)), "the reset still replaces whatever password was set"
 
 
 def test_removing_the_password_needs_mail_and_the_current_password(auth_client, browser, sent_mail, cleanup):

@@ -427,8 +427,8 @@ async def _send_sign_in_link(request: Request, user: dict, token: str) -> None:
 
     All of it, the link, the mail and the audit event, runs after the response:
     on the request path an address with a link-only account and an unknown one
-    then take the same time. Past the per-address limit nothing is sent; the
-    page reads the same either way.
+    then take the same time. Past the per-address limit, or if the account was
+    disabled meanwhile, nothing is sent; the page reads the same either way.
     """
     ip = client_ip(request)
 
