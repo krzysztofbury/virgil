@@ -9,7 +9,7 @@
 
 Exposes Virgil data (daily habits, Oura, streaks, experiments, training, finance)
 and its writes (goals, daily log and A.N.D.Y., Freedom habits, training,
-finance balances), plus deploy health and the optional modules' switches, to MCP
+life scores, finance balances), plus deploy health and the optional modules' switches, to MCP
 clients (Claude Code, OpenClaw). No local DB access — everything goes
 through the authenticated REST API, so it works from any machine.
 
@@ -801,6 +801,58 @@ def log_measurements(
 def delete_measurements(date: str) -> dict:
     """Delete the body measurements of one date permanently."""
     return _delete(f"/api/measurements/{date}")
+
+
+@mcp.tool()
+def get_life_scores(days: int = 365) -> dict:
+    """Life score assessments of the last N days (1-3650), newest first: eight areas scored
+    1-10, the power level the person declared, and the diagnostic and priorities text."""
+    return _get("/api/life-scores", params={"range": days})
+
+
+@mcp.tool()
+def log_life_scores(
+    date: str,
+    planning: int | None = None,
+    spirituality: int | None = None,
+    health: int | None = None,
+    work: int | None = None,
+    social: int | None = None,
+    growth: int | None = None,
+    relaxation: int | None = None,
+    family: int | None = None,
+    power_level: float | None = None,
+    diagnostic: str | None = None,
+    priorities: str | None = None,
+) -> dict:
+    """Record a life assessment for one date (YYYY-MM-DD). Only the supplied fields change, so
+    an assessment can be built over several calls. Areas are whole numbers 1-10; power_level
+    (0-10) is the person's own figure, so pass what they declared and never an average of the
+    areas. diagnostic and priorities take up to 2000 characters. Read get_life_scores first to
+    compare with the last assessment."""
+    fields = {
+        "planning": planning,
+        "spirituality": spirituality,
+        "health": health,
+        "work": work,
+        "social": social,
+        "growth": growth,
+        "relaxation": relaxation,
+        "family": family,
+        "power_level": power_level,
+        "diagnostic": diagnostic,
+        "priorities": priorities,
+    }
+    payload = {key: value for key, value in fields.items() if value is not None}
+    if not payload:
+        raise ToolError("log_life_scores needs at least one score or note")
+    return _put(f"/api/life-scores/{date}", payload)
+
+
+@mcp.tool()
+def delete_life_scores(date: str) -> dict:
+    """Delete the life assessment of one date permanently."""
+    return _delete(f"/api/life-scores/{date}")
 
 
 # --- Finance (the finance scope: a token with it, or VIRGIL_API_FINANCE=true for the server key) ---

@@ -550,6 +550,10 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
   - `get_measurements`, `log_measurements`, `delete_measurements` →
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
     same bounds the daily form now applies
+  - `get_life_scores`, `log_life_scores`, `delete_life_scores` →
+    `GET /api/life-scores`, `PUT/DELETE /api/life-scores/{date}`: only the
+    supplied fields change, as in the dashboard form, and the power level stays
+    the person's own figure
 
 ### Finance (`/finance`)
 A household's financial resilience, without a bank integration. The user

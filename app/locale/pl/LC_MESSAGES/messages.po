@@ -808,7 +808,8 @@ msgstr "Zapisano pomiary"
 msgid "Measurements saved."
 msgstr "Pomiary zapisane."
 
-#: app/routers/dashboard.py app/templates/dashboard.html
+#: app/routers/dashboard.py app/services/life_scores.py
+#: app/templates/dashboard.html
 msgid "Power level"
 msgstr "Poziom mocy"
 
@@ -2819,6 +2820,38 @@ msgstr "Pozycja biblioteki jest już: {state}."
 msgid "{new_name!r} is already an alias of another movement"
 msgstr "{new_name!r} jest już aliasem innego ćwiczenia"
 
+#: app/services/life_scores.py app/templates/dashboard.html
+msgid "Diagnostics"
+msgstr "Diagnoza"
+
+#: app/services/life_scores.py app/templates/dashboard.html
+msgid "Priorities"
+msgstr "Priorytety"
+
+#: app/services/life_scores.py
+#, python-brace-format
+msgid "Unknown life score fields: {fields}"
+msgstr "Nieznane pola oceny życia: {fields}"
+
+#: app/services/life_scores.py
+msgid "Enter at least one score or note."
+msgstr "Wpisz przynajmniej jedną ocenę lub notatkę."
+
+#: app/services/life_scores.py
+#, python-brace-format
+msgid "{field} is too long"
+msgstr "{field}: tekst jest za długi"
+
+#: app/services/life_scores.py app/services/measurements.py
+#, python-brace-format
+msgid "{field} must be between {low} and {high}"
+msgstr "{field} musi mieścić się między {low} a {high}."
+
+#: app/services/life_scores.py
+#, python-brace-format
+msgid "{field} must be a whole number from 1 to 10"
+msgstr "{field}: podaj liczbę całkowitą od 1 do 10"
+
 #: app/services/measurements.py
 msgid "Arm"
 msgstr "Ramię"
@@ -2839,11 +2872,6 @@ msgstr "Uda"
 #, python-brace-format
 msgid "Unknown measurement fields: {fields}"
 msgstr "Nieznane pola pomiarów: {fields}"
-
-#: app/services/measurements.py
-#, python-brace-format
-msgid "{field} must be between {low} and {high}"
-msgstr "{field} musi mieścić się między {low} a {high}."
 
 #: app/services/movement_vocab.py
 #, python-brace-format
@@ -3916,14 +3944,6 @@ msgstr "Wyświetlenia YouTube"
 #: app/templates/dashboard.html
 msgid "Revenue (PLN)"
 msgstr "Przychód (PLN)"
-
-#: app/templates/dashboard.html
-msgid "Diagnostics"
-msgstr "Diagnoza"
-
-#: app/templates/dashboard.html
-msgid "Priorities"
-msgstr "Priorytety"
 
 #: app/templates/dashboard.html
 #, python-format
