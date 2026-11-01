@@ -157,34 +157,25 @@ def test_adding_a_password_to_a_link_only_account(auth_client, browser, sent_mai
     assert _hash_of(email).startswith("$2")
 
 
-@pytest.mark.parametrize("step", ["add", "change", "remove"])
-def test_a_password_step_ends_an_open_reset_link(auth_client, browser, sent_mail, cleanup, step):
-    email = f"reset-{step}-{uuid.uuid4().hex[:8]}@example.com"
+def test_a_password_change_cannot_cancel_an_open_reset_link(auth_client, browser, sent_mail, cleanup):
+    """Recovery outranks a session: whoever holds the old password must not be able to end the link."""
+    email = f"held-{uuid.uuid4().hex[:8]}@example.com"
     cleanup.append(email)
-    current = "reset-current-password-1"  # pragma: allowlist secret - synthetic fixture
-    method = "link" if step == "add" else "password"
-    _signup(browser, _invite(email), email, method=method, password=None if step == "add" else current)
+    old = "held-current-password-1"  # pragma: allowlist secret - synthetic fixture
+    new = "held-new-password-2"  # pragma: allowlist secret - synthetic fixture
+    _signup(browser, _invite(email), email, method="password", password=old)
     _finish_onboarding(email)
     central = _central()
     user_id = central.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
     central.close()
     token = asyncio.run(create_password_reset(user_id, _admin_id()))
-    assert asyncio.run(get_open_reset(token)), "open until the password changes"
 
-    new = "reset-new-password-2"  # pragma: allowlist secret - synthetic fixture
-    path, data = {
-        "add": ("/settings/password/add", {"new_password": new, "new_password_confirm": new}),
-        "change": (
-            "/settings/password",
-            {"current_password": current, "new_password": new, "new_password_confirm": new},
-        ),
-        "remove": ("/settings/password/remove", {"current_password": current}),
-    }[step]
+    data = {"current_password": old, "new_password": new, "new_password_confirm": new}
     data["_csrf_token"] = csrf_token(browser, "/settings?tab=security")
-    done = browser.post(path, data=data, follow_redirects=False)
+    done = browser.post("/settings/password", data=data, follow_redirects=False)
 
     assert done.status_code == 303 and "err=" not in done.headers["location"]
-    assert asyncio.run(get_open_reset(token)) is None
+    assert asyncio.run(get_open_reset(token)), "the reset still replaces whatever password was set"
 
 
 def test_removing_the_password_needs_mail_and_the_current_password(auth_client, browser, sent_mail, cleanup):

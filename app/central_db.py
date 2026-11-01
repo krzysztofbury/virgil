@@ -582,7 +582,8 @@ async def create_password_reset(user_id: str, created_by: str, minutes: int = RE
     """Store a single-use reset link for an account and return its secret.
 
     Any earlier unused link for the account stops working: only the newest one
-    an admin handed over should open the form."""
+    an admin handed over should open the form. A password change leaves it open:
+    it is the way back from someone who holds the password, so they cannot end it."""
     token = secrets.token_urlsafe(32)
     db = await get_central_db()
     await db.execute("DELETE FROM password_resets WHERE user_id = ? AND used_at = ''", (user_id,))
@@ -756,18 +757,6 @@ async def void_sign_in_links(user_id: str) -> None:
     db = await get_central_db()
     await db.execute(
         "UPDATE sign_in_links SET used_at = ? WHERE user_id = ? AND used_at = ''",
-        (_utc_stamp(datetime.now(UTC)), user_id),
-    )
-    await db.commit()
-
-
-async def void_password_resets(user_id: str) -> None:
-    """Use up an account's open reset link once its owner changes the password:
-    a link an admin handed over must not undo that. A second-factor reset leaves
-    it open, since an admin may hand over both for an account that lost both."""
-    db = await get_central_db()
-    await db.execute(
-        "UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at = ''",
         (_utc_stamp(datetime.now(UTC)), user_id),
     )
     await db.commit()
