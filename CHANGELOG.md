@@ -154,6 +154,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   skipped and carried over.
 
 ### Security
+- The dependency audit ignores ten more local filelock advisories until litellm
+  allows filelock 4 (#154). Each needs a second local user or Windows, except
+  one limited to `huggingface_hub`'s download cache.
 - A password reset or removing a password now ends the account's open sign-in
   links (#189). Before, a link sent earlier could still sign in for up to 15
   minutes after the reset that was meant to cut access off. Disabling an
