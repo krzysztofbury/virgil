@@ -1,8 +1,9 @@
 {% set feedback_error = request.query_params.get('err', '')[:240] %}
-{% set feedback_message = request.query_params.get('msg', '')[:240] if not feedback_error else '' %}
 {% set tray_job = current_job if current_job is defined else none %}
-{# Fixed overlay, never in the document flow: feedback must not reflow the page
-   it reports on. Sections stay empty rather than absent so the live regions
+{# The job's card already reports the action, so a confirmation would say it twice. #}
+{% set feedback_message = request.query_params.get('msg', '')[:240] if not (feedback_error or tray_job) else '' %}
+{# Fixed overlay at the foot of the screen, never in the document flow: feedback
+   must not reflow the page it reports on, or cover its heading and tabs. Sections stay empty rather than absent so the live regions
    exist before the first announcement; :empty hides them. #}
 <div id="notification-tray" class="notification-tray">
     <section id="mutation-feedback" class="mutation-feedback" aria-label="{{ _("Action feedback") }}">
