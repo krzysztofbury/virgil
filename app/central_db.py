@@ -670,7 +670,9 @@ async def create_sign_in_link(
     terms_version: str | None = None,
 ) -> str | None:
     """Store a one-time sign-in (or signup) link and return its secret, or None
-    when the address already had SIGN_IN_LINKS_PER_WINDOW links in the window.
+    when the address already had SIGN_IN_LINKS_PER_WINDOW links in the window or
+    its account is disabled: the link is made after the response, so the account
+    may have been disabled since the request, and enabling it must not revive this.
     The caller may pass the secret, when the browser must remember it first."""
     if purpose not in ("sign_in", "signup"):
         raise ValueError(f"Unknown link purpose: {purpose}")
@@ -685,6 +687,11 @@ async def create_sign_in_link(
                 (email, _utc_stamp(now - timedelta(minutes=SIGN_IN_LINK_TTL_MINUTES))),
             )
             if rows[0]["n"] >= SIGN_IN_LINKS_PER_WINDOW:
+                await db.rollback()
+                return None
+            if user_id and not await db.execute_fetchall(
+                "SELECT 1 FROM users WHERE id = ? AND is_active = 1", (user_id,)
+            ):
                 await db.rollback()
                 return None
             await db.execute(
@@ -749,6 +756,18 @@ async def void_sign_in_links(user_id: str) -> None:
     db = await get_central_db()
     await db.execute(
         "UPDATE sign_in_links SET used_at = ? WHERE user_id = ? AND used_at = ''",
+        (_utc_stamp(datetime.now(UTC)), user_id),
+    )
+    await db.commit()
+
+
+async def void_password_resets(user_id: str) -> None:
+    """Use up an account's open reset link once its owner changes the password:
+    a link an admin handed over must not undo that. A second-factor reset leaves
+    it open, since an admin may hand over both for an account that lost both."""
+    db = await get_central_db()
+    await db.execute(
+        "UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at = ''",
         (_utc_stamp(datetime.now(UTC)), user_id),
     )
     await db.commit()

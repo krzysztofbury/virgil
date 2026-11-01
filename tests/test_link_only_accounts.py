@@ -12,7 +12,7 @@ from conftest import _TMP, TEST_EMAIL, csrf_token
 from fastapi.testclient import TestClient
 
 from app import config
-from app.central_db import create_invite, create_sign_in_link
+from app.central_db import create_invite, create_password_reset, create_sign_in_link, get_open_reset
 
 FINISH = "Check your email to finish creating your account."
 
@@ -155,6 +155,36 @@ def test_adding_a_password_to_a_link_only_account(auth_client, browser, sent_mai
     )
     assert response.status_code == 303
     assert _hash_of(email).startswith("$2")
+
+
+@pytest.mark.parametrize("step", ["add", "change", "remove"])
+def test_a_password_step_ends_an_open_reset_link(auth_client, browser, sent_mail, cleanup, step):
+    email = f"reset-{step}-{uuid.uuid4().hex[:8]}@example.com"
+    cleanup.append(email)
+    current = "reset-current-password-1"  # pragma: allowlist secret - synthetic fixture
+    method = "link" if step == "add" else "password"
+    _signup(browser, _invite(email), email, method=method, password=None if step == "add" else current)
+    _finish_onboarding(email)
+    central = _central()
+    user_id = central.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()["id"]
+    central.close()
+    token = asyncio.run(create_password_reset(user_id, _admin_id()))
+    assert asyncio.run(get_open_reset(token)), "open until the password changes"
+
+    new = "reset-new-password-2"  # pragma: allowlist secret - synthetic fixture
+    path, data = {
+        "add": ("/settings/password/add", {"new_password": new, "new_password_confirm": new}),
+        "change": (
+            "/settings/password",
+            {"current_password": current, "new_password": new, "new_password_confirm": new},
+        ),
+        "remove": ("/settings/password/remove", {"current_password": current}),
+    }[step]
+    data["_csrf_token"] = csrf_token(browser, "/settings?tab=security")
+    done = browser.post(path, data=data, follow_redirects=False)
+
+    assert done.status_code == 303 and "err=" not in done.headers["location"]
+    assert asyncio.run(get_open_reset(token)) is None
 
 
 def test_removing_the_password_needs_mail_and_the_current_password(auth_client, browser, sent_mail, cleanup):

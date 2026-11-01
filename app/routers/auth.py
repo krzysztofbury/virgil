@@ -51,6 +51,7 @@ from app.central_db import (
     update_user,
     use_recovery_code,
     use_sign_in_link,
+    void_password_resets,
     void_sign_in_links,
 )
 from app.config import ADMIN_EMAILS
@@ -788,6 +789,7 @@ async def change_password(
 
     await update_user(user["id"], password_hash=await hash_password_async(new_password))
     await void_sign_in_links(user["id"])
+    await void_password_resets(user["id"])
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_change", user["id"])
     return _resign(request, user["id"], epoch, _("Password changed. Other devices are signed out."), SECURITY)
@@ -820,6 +822,7 @@ async def add_password(
         return error_redirect(request, SECURITY, _("New passwords do not match."))
     await update_user(user["id"], password_hash=await hash_password_async(new_password))
     await void_sign_in_links(user["id"])
+    await void_password_resets(user["id"])
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_add", user["id"])
     return _resign(request, user["id"], epoch, _("Password set. Other devices are signed out."), SECURITY)
@@ -842,6 +845,7 @@ async def remove_password(request: Request, current_password: str = Form("")):
         return error_redirect(request, SECURITY, _("Current password is incorrect."))
     await update_user(user["id"], password_hash="")
     await void_sign_in_links(user["id"])
+    await void_password_resets(user["id"])
     epoch = await bump_session_epoch(user["id"])
     await _event(request, "password_remove", user["id"])
     return _resign(request, user["id"], epoch, _("Password removed. You sign in with emailed links now."), SECURITY)
