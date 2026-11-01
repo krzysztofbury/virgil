@@ -148,6 +148,7 @@ def test_disabling_an_account_ends_its_open_links(auth_client, client, member):
     user_id, central = member
     reset = _reset_link(auth_client, user_id)
     sign_in = asyncio.run(create_sign_in_link("member@example.com", user_id=user_id))
+    assert sign_in, "under the hourly limit, so the link below exists"
     try:
         assert _admin_post(auth_client, f"/admin/users/{user_id}/disable").status_code == 303
         assert _admin_post(auth_client, f"/admin/users/{user_id}/enable").status_code == 303

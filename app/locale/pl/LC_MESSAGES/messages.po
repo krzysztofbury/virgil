@@ -6394,13 +6394,12 @@ msgid "from the environment"
 msgstr "ze środowiska"
 
 #: app/templates/partials/settings_server.html
-msgid "not set"
-msgstr "nieustawione"
+msgid "default value"
+msgstr "wartość domyślna"
 
 #: app/templates/partials/settings_server.html
-#: app/templates/partials/wod_row.html
-msgid "default"
-msgstr "domyślny"
+msgid "not set"
+msgstr "nieustawione"
 
 #: app/templates/partials/settings_server.html app/templates/settings.html
 msgid "On"
@@ -6671,6 +6670,10 @@ msgstr "%(skip_label)s - pomiń"
 #: app/templates/partials/wod_row.html
 msgid "- skip"
 msgstr "- pomiń"
+
+#: app/templates/partials/wod_row.html
+msgid "default"
+msgstr "domyślny"
 
 #: app/templates/partials/wod_row.html
 msgid "search movement or tag"

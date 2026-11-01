@@ -140,9 +140,12 @@ def test_each_row_names_the_source_that_applied(admin, monkeypatch):
     monkeypatch.setattr("app.config.OPERATOR_NAME", "")
     monkeypatch.setenv("VIRGIL_LANDING_PAGE", "false")
     monkeypatch.delenv("VIRGIL_REGISTRATION_OPEN", raising=False)
+    monkeypatch.setenv("VIRGIL_SMTP_PORT", "")
+    monkeypatch.setattr("app.config.SMTP_PORT", 587)
     page = client.get("/settings?tab=server").text
     assert "from the environment" in _row(page, "LANDING_PAGE"), "an off switch set in the environment"
     assert "default" in _row(page, "REGISTRATION_OPEN"), "an off switch nobody set"
+    assert "default" in _row(page, "SMTP_PORT"), "a blank variable sets nothing"
     assert "not set" in _row(page, "OPERATOR_NAME"), "an empty text value still counts as missing"
 
 

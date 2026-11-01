@@ -170,7 +170,7 @@ def source(attribute: str) -> str:
         return "app"
     if getattr(config, attribute) in ("", None):
         return "unset"
-    return "environment" if item.env_name in os.environ else "default"
+    return "environment" if os.environ.get(item.env_name, "").strip() else "default"
 
 
 def masked(attribute: str) -> str:
