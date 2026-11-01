@@ -105,6 +105,9 @@ function createRadarChart(canvasId, labels, datasets) {
         data: { labels: labels, datasets: datasets },
         options: {
             responsive: true,
+            // Monotone curves need x to rise along the line; a radar's closed loop
+            // does not, and the default above would leave it with no path at all.
+            elements: { line: { cubicInterpolationMode: 'default', tension: 0 } },
             scales: {
                 r: {
                     beginAtZero: true,

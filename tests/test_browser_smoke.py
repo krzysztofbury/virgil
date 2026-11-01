@@ -172,6 +172,29 @@ def test_main_pages_load_cleanly(site, width):
         context.close()
 
 
+def test_the_life_radar_draws_filled_shapes(site):
+    """Points alone can pass for a chart: the shapes are what a broken curve setting loses."""
+    context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        page.goto(f"{base}/")
+        page.wait_for_load_state("networkidle")
+        painted = page.evaluate(
+            """() => {
+                const canvas = document.getElementById('radarChart');
+                const chart = Chart.getChart(canvas);
+                chart.stop();
+                chart.update('none');
+                const { data } = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height);
+                let count = 0;
+                for (let i = 3; i < data.length; i += 4) if (data[i] > 40) count += 1;
+                return count / (canvas.width * canvas.height);
+            }"""
+        )
+        assert painted > 0.1, f"only {painted:.1%} of the radar is painted"
+    finally:
+        context.close()
+
+
 def test_a_daily_change_saves_over_htmx_and_a_lost_one_is_reported(site):
     context, page, problems, base = _signed_in(site, WIDTHS["desktop"])
     try:
