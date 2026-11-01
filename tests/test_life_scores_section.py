@@ -71,6 +71,13 @@ def test_a_first_assessment_shows_no_change(auth_client, scores):
     assert "since" not in section[section.index("life-latest") : section.index("life-area-list")]
 
 
+def test_an_unchanged_power_level_says_so(auth_client, scores):
+    _assess(scores, PREVIOUS, power=7.0)
+    _assess(scores, LATEST, power=7.0)
+    head = _section(auth_client)
+    assert f"No change since {PREVIOUS}" in head and "+0.0" not in head
+
+
 def test_a_missing_area_is_a_gap_not_a_zero(auth_client, scores):
     _assess(scores, LATEST, power=7.0, health=8)
     html = auth_client.get("/").text

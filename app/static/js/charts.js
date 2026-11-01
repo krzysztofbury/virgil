@@ -114,10 +114,11 @@ function createRadarChart(canvasId, labels, datasets) {
                 r: {
                     beginAtZero: true,
                     max: 10,
+                    // The scale's numbers collide with the points on a phone; the
+                    // list beside the radar and its label give the exact values.
                     ticks: {
                         stepSize: 2,
-                        color: colors.text,
-                        backdropColor: 'transparent'
+                        display: false
                     },
                     grid: { color: colors.grid },
                     angleLines: { color: colors.grid },

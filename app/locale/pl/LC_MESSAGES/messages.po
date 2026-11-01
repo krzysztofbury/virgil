@@ -6143,6 +6143,11 @@ msgstr "Oceny życia"
 
 #: app/templates/partials/life_scores.html
 #, python-format
+msgid "No change since %(day)s"
+msgstr "Bez zmian od %(day)s"
+
+#: app/templates/partials/life_scores.html
+#, python-format
 msgid "since %(day)s"
 msgstr "od %(day)s"
 

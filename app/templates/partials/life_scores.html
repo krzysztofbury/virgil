@@ -16,8 +16,10 @@
             </div>
             <p class="life-latest-when">
                 <strong>{{ latest_score.date }}</strong>
-                {% if power_change is not none %}
-                <span class="life-change {{ 'is-up' if power_change > 0 else 'is-down' if power_change < 0 else 'is-flat' }}">{{ change_text(power_change, 1) }}</span>
+                {% if power_change == 0 %}
+                {% trans day=previous_score.date %}No change since {{ day }}{% endtrans %}
+                {% elif power_change is not none %}
+                <span class="life-change {{ 'is-up' if power_change > 0 else 'is-down' }}">{{ change_text(power_change, 1) }}</span>
                 {% trans day=previous_score.date %}since {{ day }}{% endtrans %}
                 {% elif previous_score %}
                 {% trans day=previous_score.date %}Previous assessment: {{ day }}{% endtrans %}
