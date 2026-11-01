@@ -108,6 +108,8 @@ function createRadarChart(canvasId, labels, datasets) {
             // Monotone curves need x to rise along the line; a radar's closed loop
             // does not, and the default above would leave it with no path at all.
             elements: { line: { cubicInterpolationMode: 'default', tension: 0 } },
+            // A missing area is a gap the outline crosses, not a dip to zero.
+            spanGaps: true,
             scales: {
                 r: {
                     beginAtZero: true,

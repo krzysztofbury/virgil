@@ -466,7 +466,7 @@ A wide screen gets the matrix directly. One Jinja macro renders both, so the two
 views cannot drift apart.
 
 ### Life Scores (`/life-scores`)
-Periodic self-assessment across 8 life areas with power level composite score and radar chart visualization. On the dashboard, `Over time` charts the power level across the shared 4, 12 or 26-week window (each area one legend tap away), and `History` lists every assessment in it, complete or not.
+Periodic self-assessment across 8 life areas. An assessment is the areas (1-10), a power level the person declares, a diagnostic and priorities. The dashboard section leads with the latest one: its power level, a radar against the assessment before it (filled shape and dashed outline), the change per area, and the diagnostic and priorities. `Over time` charts the power level across the shared 4, 12 or 26-week window, with each area one legend tap away, and `History` lists the same assessments as text. The form merges into a date, so a blank field keeps what is stored, and an agent can record an assessment over MCP with `log_life_scores`. Weight, waist and the other metrics older forms stored in this table stay readable in exports, but nothing writes them any more.
 
 ### Goals (`/goals`)
 Canonical goals and one-off execution reps across 8 life areas with 1yr/3yr/10yr horizons.
