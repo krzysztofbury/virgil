@@ -6,9 +6,12 @@ import sqlite3
 import pytest
 from conftest import user_db_path
 from fastapi.testclient import TestClient
+from mcp.server.mcpserver.exceptions import ToolError
 
 from app.db import LIFE_AREAS
 from app.main import app
+from app.services.life_scores import LifeScoreError, upsert_life_scores
+from app.user_db import close_user_db, open_user_db
 from mcp_server import virgil_mcp
 
 DAY = "2026-05-10"
@@ -49,7 +52,16 @@ def test_null_clears_a_field(api):
 
 @pytest.mark.parametrize(
     "payload",
-    [{"health": 0}, {"health": 11}, {"health": 5.5}, {"health": True}, {"power_level": 10.5}, {"power_level": -1}],
+    [
+        {"health": 0},
+        {"health": 11},
+        {"health": 5.5},
+        {"health": True},
+        {"power_level": 10.5},
+        {"power_level": -1},
+        {"power_level": True},
+        {"power_level": "7.5"},
+    ],
 )
 def test_values_outside_the_scale_are_refused(api, payload):
     client, conn = api
@@ -64,6 +76,53 @@ def test_an_empty_write_and_an_unknown_field_are_refused(api):
     assert client.put("/api/life-scores/2026-13-40", json={"health": 5}, headers=HEADERS).status_code == 422
 
 
+def test_the_service_refuses_a_column_it_does_not_own(api):
+    """The column names go into the SQL, so this is the check that protects it."""
+    client, _conn = api
+
+    async def write(db):
+        await upsert_life_scores(db, DAY, {"health": 5, "weight = 1; --": 2})
+
+    async def attempt():
+        db = await open_user_db(user_db_path().name)
+        try:
+            await write(db)
+        finally:
+            await close_user_db(db)
+
+    with pytest.raises(LifeScoreError):
+        client.portal.call(attempt)
+
+
+@pytest.mark.parametrize(
+    ("first", "second"),
+    [({"health": 5}, {"health": None}), ({"diagnostic": "x"}, {"diagnostic": ""}), ({"health": None}, None)],
+    ids=["last score cleared", "last note cleared", "nothing written"],
+)
+def test_a_write_that_leaves_nothing_leaves_no_row(api, first, second):
+    client, conn = api
+    last = client.put(f"/api/life-scores/{DAY}", json=first, headers=HEADERS)
+    if second is not None:
+        last = client.put(f"/api/life-scores/{DAY}", json=second, headers=HEADERS)
+    assert last.status_code == 200 and last.json()["health"] is None
+    assert conn.execute("SELECT COUNT(*) FROM life_scores WHERE date = ?", (DAY,)).fetchone()[0] == 0
+
+
+def test_clearing_keeps_a_row_with_older_metrics(api):
+    client, conn = api
+    conn.execute("INSERT INTO life_scores (date, health, weight) VALUES (?, 6, 80.5)", (DAY,))
+    conn.commit()
+    client.put(f"/api/life-scores/{DAY}", json={"health": None}, headers=HEADERS)
+    assert conn.execute("SELECT weight FROM life_scores WHERE date = ?", (DAY,)).fetchone() == (80.5,)
+
+
+def test_a_form_line_break_counts_once_toward_the_limit(api):
+    client, _conn = api
+    text = ("x" * 99 + "\r\n") * 20  # 2020 characters as a browser submits it, 2000 as stored
+    row = client.put(f"/api/life-scores/{DAY}", json={"diagnostic": text}, headers=HEADERS)
+    assert row.status_code == 200 and "\r" not in row.json()["diagnostic"]
+
+
 def test_reading_lists_assessments_newest_first_and_skips_bare_metrics(api):
     client, conn = api
     conn.execute("INSERT INTO life_scores (date, weight) VALUES ('2026-05-01', 80.5)")
@@ -73,6 +132,14 @@ def test_reading_lists_assessments_newest_first_and_skips_bare_metrics(api):
     body = client.get("/api/life-scores", params={"range": 3650}, headers=HEADERS).json()
     assert [row["date"] for row in body["assessments"]] == ["2026-05-03", "2026-05-02"]
     assert set(body["assessments"][0]) == {"date", *LIFE_AREAS, "power_level", "diagnostic", "priorities"}
+
+
+def test_a_restored_row_with_null_text_is_handled_like_an_empty_one(api):
+    client, conn = api
+    conn.execute("INSERT INTO life_scores (date, diagnostic, priorities) VALUES (?, NULL, NULL)", (DAY,))
+    conn.commit()
+    assert client.delete(f"/api/life-scores/{DAY}", headers=HEADERS).status_code == 404
+    assert conn.execute("SELECT COUNT(*) FROM life_scores WHERE date = ?", (DAY,)).fetchone()[0] == 0
 
 
 def test_deleting_keeps_metrics_older_forms_stored_on_the_row(api):
@@ -122,15 +189,24 @@ def test_an_agent_records_an_assessment_through_mcp(api, client, monkeypatch):
 @pytest.mark.parametrize(
     "call",
     [
-        lambda date: virgil_mcp.log_life_scores(date, health=5),
-        lambda date: virgil_mcp.delete_life_scores(date),
-        lambda date: virgil_mcp.log_measurements(date, weight=80),
-        lambda date: virgil_mcp.delete_measurements(date),
+        lambda day: virgil_mcp.log_life_scores(day, health=5),
+        lambda day: virgil_mcp.delete_life_scores(day),
+        lambda day: virgil_mcp.log_measurements(day, weight=80),
+        lambda day: virgil_mcp.delete_measurements(day),
+        lambda day: virgil_mcp.log_daily(day, energy=3),
+        lambda day: virgil_mcp.get_daily(day),
+        lambda day: virgil_mcp.delete_daily(day),
+        lambda day: virgil_mcp.log_freedom_day("porn", day, slipped=False),
+        lambda day: virgil_mcp.delete_freedom_day("porn", day),
+        lambda day: virgil_mcp.record_balances(day, [{"account": "Cash", "amount": 1}]),
     ],
 )
-def test_a_tool_date_cannot_walk_to_another_route(monkeypatch, call):
-    paths = []
-    monkeypatch.setattr(virgil_mcp, "_put", lambda path, payload: paths.append(path))
-    monkeypatch.setattr(virgil_mcp, "_delete", lambda path: paths.append(path))
-    call("../goals/1")
-    assert paths[0].endswith("..%2Fgoals%2F1")
+@pytest.mark.parametrize("day", ["../goals/1", "2026-5-10", "May 10", "2026/05/10"])
+def test_a_tool_refuses_what_is_not_a_date_before_any_request(monkeypatch, call, day):
+    def no_request(*_args, **_kwargs):
+        raise AssertionError("a request was made")
+
+    for helper in ("_get", "_put", "_post", "_delete"):
+        monkeypatch.setattr(virgil_mcp, helper, no_request, raising=False)
+    with pytest.raises(ToolError, match="YYYY-MM-DD"):
+        call(day)

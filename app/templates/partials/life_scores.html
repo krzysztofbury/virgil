@@ -136,7 +136,7 @@
                         </tr>
                         {% if s.diagnostic or s.priorities %}
                         <tr class="life-history-note">
-                            <td colspan="{{ areas | length + 2 }}">{{ s.diagnostic }}{% if s.diagnostic and s.priorities %} {% endif %}{{ s.priorities }}</td>
+                            <td colspan="{{ areas | length + 2 }}">{{ s.diagnostic or '' }}{% if s.diagnostic and s.priorities %} {% endif %}{{ s.priorities or '' }}</td>
                         </tr>
                         {% endif %}
                         {% endfor %}

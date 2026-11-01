@@ -244,8 +244,8 @@ def test_the_tray_stays_clear_of_the_page_and_success_clears_itself(site, width)
         viewport = page.viewport_size
         assert box["y"] > viewport["height"] / 2, "it sits low, away from the heading and the tabs"
         assert box["height"] <= 64, "one line, not a banner"
-        heading = page.locator("main h1, main .tabs").first.bounding_box()
-        assert box["y"] > heading["y"] + heading["height"], "the heading and tabs stay readable"
+        tabs = page.locator("main .tabs").first.bounding_box()
+        assert box["y"] > tabs["y"] + tabs["height"], "the heading and tabs stay readable"
         bar = page.locator(".bottom-bar")
         if bar.is_visible():
             assert box["y"] + box["height"] <= bar.bounding_box()["y"], "and the bottom bar stays tappable"
@@ -254,11 +254,27 @@ def test_the_tray_stays_clear_of_the_page_and_success_clears_itself(site, width)
         page.mouse.wheel(0, 600)
         assert abs(toast.bounding_box()["y"] - box["y"]) < 2
         toast.wait_for(state="detached", timeout=8000)
-        assert page.evaluate(
-            "([x, y]) => document.elementFromPoint(x, y).closest('#notification-tray') === null",
-            [box["x"] + 10, box["y"] + 10],
-        ), "an empty tray swallows clicks"
+        assert tray.evaluate("el => getComputedStyle(el).pointerEvents") == "none", "the gaps must not swallow clicks"
         assert problems == []
+    finally:
+        context.close()
+
+
+def test_the_phone_menu_opens_over_a_waiting_notification(site):
+    context, page, _problems, base = _signed_in(site, WIDTHS["phone"])
+    try:
+        page.goto(f"{base}/settings?tab=data&err=Stays+until+dismissed")
+        page.locator(".feedback-error").wait_for()
+        page.locator(".tab-item-wrap > button").first.click()
+        menu = page.locator(".tab-dropdown.show")
+        menu.wait_for()
+        last = menu.locator("a, button").last
+        last.evaluate("el => Promise.all(document.getAnimations().map(a => a.finished))")
+        box = last.bounding_box()
+        assert page.evaluate(
+            "([x, y]) => document.elementFromPoint(x, y).closest('.tab-dropdown') !== null",
+            [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2],
+        ), "the tray sits over the menu"
     finally:
         context.close()
 

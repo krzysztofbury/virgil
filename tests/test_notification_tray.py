@@ -81,6 +81,13 @@ def test_a_job_card_replaces_the_confirmation_of_the_same_action(auth_client):
     assert "feedback-error" in failed.text, "an error is still its own message"
 
 
+def test_the_data_tab_reports_a_backup_once_too(auth_client):
+    """That tab lists jobs itself, so it names no job for the tray: the URL has to decide."""
+    job_id = _insert_job(user_db_path(), "queued", kind="backup")
+    page = auth_client.get(f"/settings?tab=data&job_id={job_id}&msg=Backup+queued.")
+    assert "feedback-success" not in page.text
+
+
 def test_success_feedback_self_dismisses_but_an_error_waits_for_the_user(auth_client):
     success = auth_client.get("/oura?msg=Signed+in")
     failure = auth_client.get("/oura?err=Nope")

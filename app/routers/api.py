@@ -21,7 +21,7 @@ from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StrictInt
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StrictFloat, StrictInt
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
@@ -1443,7 +1443,7 @@ class ApiLifeScores(BaseModel):
     growth: StrictInt | None = None
     relaxation: StrictInt | None = None
     family: StrictInt | None = None
-    power_level: float | None = None
+    power_level: StrictFloat | StrictInt | None = None
     diagnostic: str | None = None
     priorities: str | None = None
 

@@ -94,7 +94,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Notifications sit at the foot of the screen, above the bottom bar on a phone,
   so they no longer cover the heading and tabs (#196). A confirmation and a job
   card share one quiet style, a healthy job is one line, and an action reports
-  once rather than as a toast and a card.
+  once rather than as a toast and a card. On a phone the bottom menu opens over
+  a notification that is waiting.
 - Off-site copy errors name Settings > Server when the missing value was
   cleared there (#182).
 - The admin panel moved into Settings as the Users and Server tabs, shown to
@@ -125,6 +126,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - The life radar draws its shapes again (#196). A global curve setting for line
   charts had left it with points and no lines since 2026-10-21.
+- MCP date tools refuse a malformed date with a clear message before making a
+  request, rather than failing with an opaque error.
 - Settings > Server shows what actually applies (#190). A switch that is off
   says "from the environment" or "default" instead of "not set". A server AI
   key that can no longer be decrypted shows "Cannot be read" instead of "In

@@ -756,12 +756,16 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .notification-tray > section > div:empty { display: none; }
 .notification-tray .feedback-message,
 .notification-tray .job-status-card { pointer-events: auto; }
-/* Above the bottom bar, which appears at this same width. */
 @media (max-width: 768px) {
   .notification-tray {
     left: 0.75rem;
     right: 0.75rem;
     width: auto;
+    bottom: 0.75rem;
+    /* The bottom bar's menu opens where the tray sits, and must stay on top of it. */
+    z-index: 900;
+  }
+  body:has(.bottom-bar) .notification-tray {
     bottom: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom, 0px) + 0.5rem);
   }
 }
@@ -3500,4 +3504,4 @@ details.library-hidden > summary { border: none; padding: 0.35rem 0.25rem; font-
   .legal-body { padding: 1.1rem 1rem; }
 }
 /* A link to one setting lands below the sticky top bar. */
-.server-setting, #server-ai { scroll-margin-top: 5rem; }
+.server-setting, #server-ai, #life-scores { scroll-margin-top: 5rem; }

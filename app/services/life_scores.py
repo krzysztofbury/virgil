@@ -14,12 +14,14 @@ from app.i18n import N_, LocalizedError
 TEXT_FIELDS = ("diagnostic", "priorities")
 FIELDS = (*LIFE_AREAS, "power_level", *TEXT_FIELDS)
 TEXT_MAX_LENGTH = 2000
+SCORED = " OR ".join(f"{column} IS NOT NULL" for column in ("power_level", *LIFE_AREAS))
 # A row holding only metrics from an older form is a measurement, not an assessment.
-ASSESSED = " OR ".join(
-    (
-        *(f"{column} IS NOT NULL" for column in ("power_level", *LIFE_AREAS)),
-        *(f"{column} != ''" for column in TEXT_FIELDS),
-    )
+# COALESCE because a restored row can hold NULL text, which the app never writes.
+ASSESSED = " OR ".join((SCORED, *(f"COALESCE({column}, '') != ''" for column in TEXT_FIELDS)))
+_DROP_EMPTY = (
+    "DELETE FROM life_scores WHERE date = ? AND weight IS NULL AND waist IS NULL AND energy_avg IS NULL "
+    "AND linkedin_followers IS NULL AND youtube_views IS NULL AND revenue IS NULL "
+    f"AND COALESCE(pmo_status, '') = '' AND NOT ({ASSESSED})"  # noqa: S608
 )
 
 
@@ -41,7 +43,8 @@ def _validate(changes: dict) -> dict:
     clean = {}
     for field, value in changes.items():
         if field in TEXT_FIELDS:
-            clean[field] = (value or "").strip()
+            # A browser submits a line break as two characters but counts it as one.
+            clean[field] = (value or "").replace("\r\n", "\n").strip()
             if len(clean[field]) > TEXT_MAX_LENGTH:
                 raise LifeScoreError(N_("{field} is too long"), field=field)
         elif value is None:
@@ -70,9 +73,12 @@ async def upsert_life_scores(db, day: str, changes: dict) -> dict:
         f"ON CONFLICT(date) DO UPDATE SET {', '.join(f'{column} = excluded.{column}' for column in clean)}",
         (day, *clean.values()),
     )
+    await db.execute(_DROP_EMPTY, (day,))
     await db.commit()
     rows = await db.execute_fetchall("SELECT * FROM life_scores WHERE date = ?", (day,))
-    return _assessment(rows[0])
+    if rows:
+        return _assessment(rows[0])
+    return {"date": day, **dict.fromkeys(FIELDS), **dict.fromkeys(TEXT_FIELDS, "")}
 
 
 async def list_life_scores(db, since: str) -> list[dict]:
@@ -97,12 +103,6 @@ async def delete_life_scores(db, day: str) -> bool:
         (day,),
     )
     found = cursor.rowcount > 0
-    await db.execute(
-        "DELETE FROM life_scores WHERE date = ? AND weight IS NULL AND waist IS NULL AND energy_avg IS NULL "
-        "AND linkedin_followers IS NULL AND youtube_views IS NULL AND revenue IS NULL "
-        "AND COALESCE(pmo_status, '') = ''"
-        f" AND NOT ({ASSESSED})",  # noqa: S608
-        (day,),
-    )
+    await db.execute(_DROP_EMPTY, (day,))
     await db.commit()
     return found

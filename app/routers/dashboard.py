@@ -12,7 +12,7 @@ from app.i18n import _, month_short, weekday_short
 from app.main import templates
 from app.services.daily_log import day_progress
 from app.services.experiment_card import experiment_card
-from app.services.life_scores import ASSESSED
+from app.services.life_scores import ASSESSED, SCORED
 from app.services.oura_api import oura_sync_freshness
 from app.services.ranges import range_context, range_start
 from app.user_db import get_user_db_from_request
@@ -44,7 +44,10 @@ RADAR_STYLES = (
 
 def _change(now, before):
     """How far a score moved, or None when either side has no value."""
-    return None if now is None or before is None else round(now - before, 1)
+    # Restored data can hold anything in these columns.
+    if not (isinstance(now, int | float) and isinstance(before, int | float)):
+        return None
+    return round(now - before, 1)
 
 
 @router.get("/", response_class=HTMLResponse)
@@ -139,10 +142,11 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     oura = await db.execute_fetchall("SELECT * FROM oura_monthly ORDER BY month DESC LIMIT 1")
     latest_oura = dict(oura[0]) if oura else None
 
-    # The two latest assessments: the section leads with the first, and the second
-    # is what its changes and the radar's dashed outline compare against.
+    # The two latest assessments with scores: the section leads with the first, and
+    # the second is what its changes and the radar's dashed outline compare against.
+    # A note on its own date stays in History rather than blanking this card.
     score_rows = await db.execute_fetchall(
-        f"SELECT * FROM life_scores WHERE {ASSESSED} ORDER BY date DESC LIMIT 2"  # noqa: S608
+        f"SELECT * FROM life_scores WHERE {SCORED} ORDER BY date DESC LIMIT 2"  # noqa: S608
     )
     scores = [dict(r) for r in score_rows]
     latest_score = scores[0] if scores else None

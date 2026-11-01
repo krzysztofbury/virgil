@@ -86,6 +86,28 @@ def test_a_missing_area_is_a_gap_not_a_zero(auth_client, scores):
     assert datasets[0]["data"][LIFE_AREAS.index("family")] is None
 
 
+def test_a_note_on_a_new_date_does_not_displace_the_scores(auth_client, scores):
+    _assess(scores, PREVIOUS, power=8.0, **dict.fromkeys(LIFE_AREAS, 6))
+    _assess(scores, LATEST, priorities="Only a note.")
+    section = _section(auth_client)
+    card = section[section.index("life-latest") : section.index("life-trend-header")]
+    assert PREVIOUS in card and "8.0" in card, "the card keeps the newest row that has scores"
+    assert "Only a note." in section, "the note still shows in History"
+
+
+def test_a_note_alone_with_null_text_beside_it_shows_cleanly(auth_client, scores):
+    _assess(scores, LATEST, power=5.0)
+    scores.execute("UPDATE life_scores SET diagnostic = NULL, priorities = 'A plan' WHERE date = ?", (LATEST,))
+    scores.commit()
+    assert "None" not in _section(auth_client).split("<summary>History")[1].split("</details>")[0].replace("&#", "")
+
+
+def test_text_in_a_score_column_does_not_take_the_dashboard_down(auth_client, scores):
+    _assess(scores, PREVIOUS, health=6)
+    _assess(scores, LATEST, health="high")
+    assert auth_client.get("/").status_code == 200
+
+
 def test_a_power_level_of_zero_is_shown(auth_client, scores):
     _assess(scores, LATEST, power=0.0)
     section = _section(auth_client)
