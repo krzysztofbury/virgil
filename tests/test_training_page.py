@@ -11,6 +11,8 @@ renders empty, which is the failure it is supposed to catch.
 """
 
 import sqlite3
+import pytest
+
 from datetime import date
 from pathlib import Path
 
@@ -407,3 +409,55 @@ def test_a_bodyweight_movement_shows_its_added_load(auth_client):
                 conn.execute(f"DELETE FROM {table} WHERE id = ?", (row_id,))  # noqa: S608 - fixed names
         conn.commit()
         conn.close()
+
+
+@pytest.fixture
+def pull_movement():
+    """A bodyweight library movement logged under a spelling that is only an alias."""
+    conn = sqlite3.connect(user_db_path())
+    library_id = conn.execute(
+        "INSERT INTO exercise_library (section, name, metric, default_equipment) "
+        "VALUES ('Core', 'ZZ Ring Row', 'reps', 'bodyweight')"
+    ).lastrowid
+    conn.execute("INSERT INTO exercise_aliases (alias, library_id) VALUES ('ZZ Ring Rows', ?)", (library_id,))
+    exercise_id = conn.execute(
+        "INSERT INTO training_exercises (name, section, metric, ad_hoc) VALUES ('ZZ Ring Rows', 'Core', 'reps', 1)"
+    ).lastrowid
+    session_id = conn.execute("INSERT INTO training_sessions (date) VALUES (?)", (date.today().isoformat(),)).lastrowid
+    conn.commit()
+
+    def log(*sets):
+        conn.executemany(
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, ?, ?, ?)",
+            [(session_id, exercise_id, i, reps, weight) for i, (reps, weight) in enumerate(sets, 1)],
+        )
+        conn.commit()
+
+    yield log
+    conn.execute("DELETE FROM training_entries WHERE session_id = ?", (session_id,))
+    conn.execute("DELETE FROM training_sessions WHERE id = ?", (session_id,))
+    conn.execute("DELETE FROM training_exercises WHERE id = ?", (exercise_id,))
+    conn.execute("DELETE FROM exercise_aliases WHERE library_id = ?", (library_id,))
+    conn.execute("DELETE FROM exercise_library WHERE id = ?", (library_id,))
+    conn.commit()
+    conn.close()
+
+
+def test_an_alias_spelling_still_counts_as_a_bodyweight_movement(auth_client, pull_movement):
+    """"Pull-ups" in training never met "Pull-up" in the library (#200)."""
+    pull_movement((6, 8.0))
+    assert ">+8.0 <small>kg</small>" in _pb_card(_page(auth_client), "ZZ Ring Rows")
+
+
+def test_an_unweighted_bodyweight_set_is_a_reps_record(auth_client, pull_movement):
+    pull_movement((5, None), (12, 0), (8, None))
+    card = _pb_card(_page(auth_client), "ZZ Ring Rows")
+    assert "12 reps" in card and "kg" not in card
+    assert "8 reps" not in card, "the headline is the best set, and lesser ones are not records"
+
+
+def test_a_weighted_record_leads_and_the_best_bare_set_stays(auth_client, pull_movement):
+    pull_movement((6, 8.0), (12, None))
+    card = _pb_card(_page(auth_client), "ZZ Ring Rows")
+    assert ">+8.0 <small>kg</small>" in card
+    assert "Bodyweight" in card and "12 reps" in card

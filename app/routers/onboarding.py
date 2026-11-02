@@ -116,6 +116,8 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
             "request": request,
             "step": step,
             "profile": profile,
+            # The progress bar shows the step was saved; a toast would sit on Next.
+            "quiet_confirmations": True,
             "goals": goals,
             "end_goals": end_goals,
             "end_goal_areas": end_goal_areas,

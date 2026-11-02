@@ -59,7 +59,7 @@
     </div>
 </div>
 
-{# Hidden only for an account with no loaded Core sets at all: an empty window
+{# Hidden only for an account with no record-worthy Core sets at all: an empty window
    keeps the card, because its picker is the way to the others. #}
 {% if has_loaded_sets %}
 <div class="card" id="personal-bests" style="margin-bottom: 1rem;">
@@ -68,7 +68,7 @@
         {% with range_label = _("Personal Bests window") %}{% include "partials/range_picker.html" %}{% endwith %}
     </div>
     {% if not personal_bests %}
-    <p class="text-muted">{% trans count=range_weeks %}No loaded Core sets in the last {{ count }} week.{% pluralize %}No loaded Core sets in the last {{ count }} weeks.{% endtrans %}</p>
+    <p class="text-muted">{% trans count=range_weeks %}No personal bests in the last {{ count }} week.{% pluralize %}No personal bests in the last {{ count }} weeks.{% endtrans %}</p>
     {% endif %}
     <div class="pb-grid">
         {% for pb in personal_bests %}
@@ -76,18 +76,20 @@
             {# The best record is the headline; the list holds the others, so
                no card says the same weight twice. #}
             {% set best = (pb.records | selectattr('max_weight', 'equalto', pb.max_weight) | list | first) if pb.records else none %}
+            {% set effort_text %}{% if best and best.effort %}{% if pb.metric == 'time' %}{{ best.effort | duration }}{% else %}{% trans count=best.effort %}{{ count }} rep{% pluralize %}{{ count }} reps{% endtrans %}{% endif %}{% endif %}{% endset %}
             {% set others = pb.records | reject('equalto', best) | list %}
             <div class="pb-movement-head">
                 <h4>{{ pb.name }}</h4>
-                <div class="pb-best-load"{% if best %} data-pb-effort="{{ best.effort or '' }}" data-pb-weight="{{ best.max_weight }}"{% endif %}>{{ "+" if pb.added_load }}{{ pb.max_weight }} <small>kg</small>
-                    {% if best and best.effort %}<span class="pb-best-effort">&times; {% if pb.metric == 'time' %}{{ best.effort | duration }}{% else %}{% trans count=best.effort %}{{ count }} rep{% pluralize %}{{ count }} reps{% endtrans %}{% endif %}</span>{% endif %}
+                <div class="pb-best-load"{% if best %} data-pb-effort="{{ best.effort or '' }}" data-pb-weight="{{ best.max_weight }}"{% endif %}>{% if pb.max_weight %}{{ "+" if pb.added_load }}{{ pb.max_weight }} <small>kg</small>
+                    {% if effort_text %}<span class="pb-best-effort">&times; {{ effort_text }}</span>{% endif %}
+                    {% else %}{{ effort_text }}{% endif %}
                 </div>
             </div>
             {% if others %}
             <div class="pb-records" aria-label="{% trans name=pb.name %}Other records for {{ name }}{% endtrans %}">
                 {% for record in others %}
                 <div class="pb-record" data-pb-effort="{{ record.effort or '' }}" data-pb-weight="{{ record.max_weight }}">
-                    <strong>{{ "+" if pb.added_load }}{{ record.max_weight }} kg</strong>
+                    <strong>{% if record.max_weight %}{{ "+" if pb.added_load }}{{ record.max_weight }} kg{% else %}{{ _("Bodyweight") }}{% endif %}</strong>
                     <span>
                     {% if pb.metric == 'time' %}
                         {% if record.effort %}{{ record.effort | duration }}{% else %}{{ _("timed") }}{% endif %}

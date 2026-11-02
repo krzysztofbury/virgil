@@ -82,3 +82,30 @@ def test_the_summary_lists_every_section_even_when_one_is_empty(auth_client):
     for step, title in [(1, "About You"), (2, "Your Ideal Day"), (3, "End Goals"), (4, "Habits & Training")]:
         assert title in summary, title
         assert f'href="/onboarding?step={step}"' in summary, step
+
+
+def test_a_step_moves_on_without_a_confirmation_over_next(auth_client):
+    """The progress bar shows the step was saved; a toast sat on the Next button (#200)."""
+    token = csrf_token(auth_client, "/onboarding?step=1")
+    moved = auth_client.post("/onboarding/step/1", data={"_csrf_token": token})
+    assert "feedback-success" not in moved.text and "Your Ideal Day" in moved.text
+    assert "feedback-error" in auth_client.get("/onboarding?step=2&err=Could+not+save").text
+
+
+def test_the_summary_lists_the_habits_it_was_told(auth_client):
+    token = csrf_token(auth_client, "/onboarding?step=4")
+    auth_client.post(
+        "/onboarding/step/4",
+        data={"habits_build": "Morning walk", "habits_break": "Late-night screens", "_csrf_token": token},
+    )
+    page = auth_client.get("/onboarding?step=6").text
+    assert "Habits you want to build" in page and "Morning walk" in page
+    assert "Habits you want to break" in page and "Late-night screens" in page
+    auth_client.post(
+        "/onboarding/step/4",
+        data={"habits_build": "", "habits_break": "", "training_routine": "Three runs a week", "_csrf_token": token},
+    )
+    page = auth_client.get("/onboarding?step=6").text
+    assert "Three runs a week" in page
+    section = page[page.index("Habits you want to build") :]
+    assert section[: section.index("Three runs a week")].count("Not filled in yet.") == 2

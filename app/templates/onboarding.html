@@ -302,7 +302,13 @@
         {% endfor %}
     {% endcall %}
 
-    {% call summary_section(_("Habits & Training"), 4, profile.training_routine or profile.equipment, last=true) %}
+    {% call summary_section(_("Habits & Training"), 4, profile.habits_build or profile.habits_break or profile.training_routine or profile.equipment, last=true) %}
+        {% for label, habits in [(_("Habits you want to build"), profile.habits_build), (_("Habits you want to break"), profile.habits_break)] %}
+        <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:0.5rem;">
+            <div style="font-size:0.8rem;color:var(--text-tertiary);">{{ label }}</div>
+            {% if habits %}<div style="white-space:pre-line;">{{ habits }}</div>{% else %}<div>{{ _("Not filled in yet.") }}</div>{% endif %}
+        </div>
+        {% endfor %}
         {% if profile.training_routine %}
         <div style="font-size:0.85rem;color:var(--text-secondary);white-space:pre-line;margin-bottom:0.5rem;">{{ profile.training_routine }}</div>
         {% endif %}

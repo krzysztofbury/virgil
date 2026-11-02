@@ -29,18 +29,6 @@ ANDY_JOB_KIND = "andy_generation"
 
 HEATMAP_WEEKS = 12
 
-# Three routines and four A.N.D.Y. tasks. The page stated neither a count nor a
-# total, so "how much of today is left" had to be read off the icons.
-DONE_FIELDS = (
-    "morning_routine",
-    "evening_routine",
-    "water",
-    "andy_body_status",
-    "andy_spirit_status",
-    "andy_account_status",
-    "andy_relations_status",
-)
-
 
 @router.get("/daily", response_class=HTMLResponse)
 @router.get("/daily/{day}", response_class=HTMLResponse)
@@ -141,8 +129,7 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
             "heatmap_data": heatmap_data,
             "heatmap_weeks": weeks,
             "habit_total": len(STATUS_FIELDS),
-            "done_count": sum(1 for field in DONE_FIELDS if log and log[field] == "done"),
-            "done_total": len(DONE_FIELDS),
+            "progress": day_progress(log),
         },
     )
 

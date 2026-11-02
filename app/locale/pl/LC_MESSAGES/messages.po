@@ -20,8 +20,8 @@ msgid "CSRF validation failed. Reload the page and try again."
 msgstr "Weryfikacja formularza nie powiodła się. Odśwież stronę i spróbuj ponownie."
 
 #: app/db.py
-msgid "Planning"
-msgstr "Planowanie"
+msgid "Life Planning"
+msgstr "Planowanie życia"
 
 #: app/db.py
 msgid "Spirituality"
@@ -36,8 +36,8 @@ msgid "Work"
 msgstr "Praca"
 
 #: app/db.py
-msgid "Social"
-msgstr "Relacje społeczne"
+msgid "Social Life"
+msgstr "Życie towarzyskie"
 
 #: app/db.py
 msgid "Growth"
@@ -3627,8 +3627,8 @@ msgid "Routines & Energy"
 msgstr "Rutyny i energia"
 
 #: app/templates/daily.html
-msgid "complete today"
-msgstr "ukończone dzisiaj"
+msgid "routines"
+msgstr "rutyn"
 
 #: app/templates/daily.html
 msgid "Energy, 1 to 10"
@@ -7686,11 +7686,11 @@ msgstr "Zakres rekordów"
 
 #: app/templates/training.html
 #, python-format
-msgid "No loaded Core sets in the last %(count)s week."
-msgid_plural "No loaded Core sets in the last %(count)s weeks."
-msgstr[0] "Brak serii Core z obciążeniem w ostatnim %(count)s tygodniu."
-msgstr[1] "Brak serii Core z obciążeniem w ostatnich %(count)s tygodniach."
-msgstr[2] "Brak serii Core z obciążeniem w ostatnich %(count)s tygodniach."
+msgid "No personal bests in the last %(count)s week."
+msgid_plural "No personal bests in the last %(count)s weeks."
+msgstr[0] "Brak rekordów w ostatnim %(count)s tygodniu."
+msgstr[1] "Brak rekordów w ostatnich %(count)s tygodniach."
+msgstr[2] "Brak rekordów w ostatnich %(count)s tygodniach."
 
 #: app/templates/training.html
 #, python-format
@@ -7704,6 +7704,10 @@ msgstr[2] "%(count)s powtórzeń"
 #, python-format
 msgid "Other records for %(name)s"
 msgstr "Inne rekordy: %(name)s"
+
+#: app/templates/training.html
+msgid "Bodyweight"
+msgstr "Masa ciała"
 
 #: app/templates/training.html
 msgid "weighted"
