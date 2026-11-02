@@ -102,7 +102,12 @@ function createRadarChart(canvasId, labels, datasets) {
     var colors = getChartColors();
     var chart = new Chart(ctx, {
         type: 'radar',
-        data: { labels: labels, datasets: datasets },
+        // A two-word area on two lines: on one, the labels took the plot's space at
+        // phone width. (Chart.js reads an array as lines.)
+        data: {
+            labels: labels.map(function(label) { return label.indexOf(' ') > 0 ? label.split(' ') : label; }),
+            datasets: datasets
+        },
         options: {
             responsive: true,
             // Monotone curves need x to rise along the line; a radar's closed loop
@@ -110,6 +115,7 @@ function createRadarChart(canvasId, labels, datasets) {
             elements: { line: { cubicInterpolationMode: 'default', tension: 0 } },
             // A missing area is a gap the outline crosses, not a dip to zero.
             spanGaps: true,
+            layout: { padding: { left: 12, right: 12 } },
             scales: {
                 r: {
                     beginAtZero: true,

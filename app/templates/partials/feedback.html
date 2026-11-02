@@ -1,8 +1,8 @@
 {% set feedback_error = request.query_params.get('err', '')[:240] %}
 {% set tray_job = current_job if current_job is defined else none %}
 {# A job's card reports the action, here or in the Data tab's own list, so a
-   confirmation would say it twice. #}
-{% set feedback_message = request.query_params.get('msg', '')[:240] if not (feedback_error or request.query_params.get('job_id')) else '' %}
+   confirmation would say it twice. A page can also show the outcome itself. #}
+{% set feedback_message = request.query_params.get('msg', '')[:240] if not (feedback_error or request.query_params.get('job_id') or quiet_confirmations) else '' %}
 {# Fixed overlay at the foot of the screen, never in the document flow: feedback
    must not reflow the page it reports on, or cover its heading and tabs. Sections stay empty rather than absent so the live regions
    exist before the first announcement; :empty hides them. #}

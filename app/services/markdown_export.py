@@ -287,11 +287,11 @@ async def _section_life_scores(db, start: str, end: str) -> list[str]:
 
     lines = ["## Life Scores", ""]
     area_map = [
-        ("planning", "Planning"),
+        ("planning", "Life Planning"),
         ("spirituality", "Spirituality"),
         ("health", "Health"),
         ("work", "Work"),
-        ("social", "Social"),
+        ("social", "Social Life"),
         ("growth", "Growth"),
         ("relaxation", "Relaxation"),
         ("family", "Family"),

@@ -54,7 +54,7 @@ def test_the_radar_reads_out_each_assessment(auth_client):
 
     label = re.search(r'<canvas id="radarChart" role="img" aria-label="([^"]*)"', html).group(1)
     assert label.startswith(
-        "Life scores out of 10 on 2999-01-01: Planning 1, Spirituality 2, Health 3, Work 4, Social 5, Growth 6, Relaxation 7, Family 8."
+        "Life scores out of 10 on 2999-01-01: Life Planning 1, Spirituality 2, Health 3, Work 4, Social Life 5, Growth 6, Relaxation 7, Family 8."
     )
 
 

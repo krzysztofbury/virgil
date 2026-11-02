@@ -85,6 +85,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- Controls feel native on a phone: buttons answer on press, the tap flash and the
+  double-tap delay are gone, a long press does not select a label, fields are at
+  least 16px so iOS does not zoom into them, full-height layouts follow the visible
+  viewport, and the status bar follows the chosen theme.
 - The life scores section leads with the latest assessment (#196): its power
   level and the change since the one before, a radar with the earlier assessment
   as an outline, the change per area, and the diagnostic and priorities, which
@@ -124,6 +128,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   path shown on the General tab.
 
 ### Fixed
+- Design re-check (#200). Onboarding no longer shows a "saved" toast over Next, a
+  success toast never takes a click anywhere, and the Summary lists the habits to
+  build and break. Personal Bests match a movement through its aliases, so
+  "Pull-ups" counts as bodyweight (`+8.0 kg`), and a bare bodyweight set is a reps
+  record. Daily's card counts its own routines (`1/3 routines`). The life areas
+  read "Life Planning" and "Social Life", as Goals does.
+- A job card no longer replays its entrance on every poll of the tray.
+- At 320 px a Personal Best's name no longer stacks letter by letter, Settings tabs
+  no longer split a word, and the life score date no longer breaks at a hyphen.
+  The radar sets two-word areas on two lines, so the plot keeps its size.
 - The life radar draws its shapes again (#196). A global curve setting for line
   charts had left it with points and no lines since 2026-10-21.
 - MCP date tools refuse a malformed date with a clear message before making a

@@ -122,7 +122,7 @@ def test_personal_bests_follow_the_window(auth_client, user_rows, logged, shown_
     for weeks in empty_in:
         assert 'data-pb-exercise="ZZ window PB"' not in pages[weeks]
         # The card stays, so its picker can reach a window that has the record.
-        assert f"No loaded Core sets in the last {weeks} weeks." in pages[weeks]
+        assert f"No personal bests in the last {weeks} weeks." in pages[weeks]
 
 
 def test_oura_history_follows_the_window_but_the_baseline_does_not(auth_client, user_rows):

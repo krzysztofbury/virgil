@@ -178,8 +178,8 @@ function clearNamedJob(node) {
     return true;
 }
 
-// Hover and focus hold the timer open, so a notification cannot vanish out from
-// under a pointer or a keyboard user reading it.
+// Hover and focus hold the timer open on a job card, so it cannot vanish out from
+// under a pointer or a keyboard user reading it. A confirmation takes no pointer.
 function armAutoDismiss(node, delay) {
     if (!node || node.dataset.autodismissArmed === 'true') return;
     node.dataset.autodismissArmed = 'true';
@@ -198,6 +198,28 @@ function armAutoDismiss(node, delay) {
     node.addEventListener('mouseleave', start);
     node.addEventListener('focusout', start);
     start();
+}
+
+// A poll replaces the tray's contents every few seconds, so without this the same
+// card would replay its entrance each time. Only a card not seen before enters.
+function watchJobEntrances() {
+    var tray = document.getElementById('job-notifications');
+    if (!tray) return;
+    var seen = new Set();
+    var mark = function () {
+        var present = new Set();
+        tray.querySelectorAll(':scope > article').forEach(function (card) {
+            present.add(card.id);
+            if (!seen.has(card.id)) card.classList.add('is-entering');
+        });
+        seen = present;
+    };
+    mark();
+    new MutationObserver(mark).observe(tray, { childList: true });
+    // htmx carries a same-id element's classes onto its replacement until it settles.
+    tray.addEventListener('htmx:beforeSwap', function () {
+        tray.querySelectorAll('.is-entering').forEach(function (card) { card.classList.remove('is-entering'); });
+    });
 }
 
 function scanNotifications() {
@@ -567,6 +589,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     restoreNetworkDrafts();
     scanNotifications();
+    watchJobEntrances();
 });
 
 // Three-state toggle cycle: pending -> done -> skipped -> pending
@@ -592,7 +615,7 @@ function cycleStatus(btn) {
     var counter = document.getElementById('done-count');
     if (counter) {
         var done = 0;
-        document.querySelectorAll('.toggle-group input[type="hidden"]').forEach(function (el) {
+        document.querySelectorAll('[data-routines] .toggle-group input[type="hidden"]').forEach(function (el) {
             if (el.value === 'done') done += 1;
         });
         counter.textContent = done + counter.textContent.slice(counter.textContent.indexOf('/'));
@@ -628,10 +651,8 @@ function toggleTheme() {
     var next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('virgil-theme', next);
+    window.applyThemeColor(next);
 
-    // Update meta theme-color
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = next === 'dark' ? '#06080d' : '#f5f7fa';
 
     updateThemeIcon();
 

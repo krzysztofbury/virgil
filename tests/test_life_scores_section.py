@@ -65,6 +65,12 @@ def test_the_section_leads_with_the_latest_assessment_and_what_changed(auth_clie
     assert "One talk,\nthen rest." in section
 
 
+def test_the_areas_use_the_names_goals_uses(auth_client, scores):
+    _assess(scores, LATEST, **dict.fromkeys(LIFE_AREAS, 6))
+    section = _section(auth_client)
+    assert "<span>Life Planning</span>" in section and "<span>Social Life</span>" in section
+
+
 def test_a_first_assessment_shows_no_change(auth_client, scores):
     _assess(scores, LATEST, power=7.0, **dict.fromkeys(LIFE_AREAS, 6))
     section = _section(auth_client)

@@ -11,6 +11,7 @@ VIRGIL_TEST_BROWSER=/path/to/chromium. Without one the module is skipped
 locally; CI installs one and sets VIRGIL_REQUIRE_BROWSER so it cannot skip.
 """
 
+import itertools
 import os
 import re
 import shutil
@@ -87,6 +88,10 @@ def site(tmp_path_factory):
         "VIRGIL_CONTACT_EMAIL": "contact@example.com",
         # Mail is logged, so a test can open the link it carries.
         "VIRGIL_MAIL_BACKEND": "log",
+        # Each browser context arrives as its own client (_new_context): the suite as
+        # a whole makes more requests in a minute than one reader's rate limit allows.
+        "VIRGIL_TRUST_CLOUDFLARE_HEADERS": "true",
+        "VIRGIL_TRUSTED_PROXY_IPS": "127.0.0.1",
     }
     subprocess.run(  # noqa: S603
         [sys.executable, "scripts/seed_demo.py"], cwd=ROOT, env=env, check=True, stdout=subprocess.DEVNULL
@@ -118,11 +123,19 @@ def site(tmp_path_factory):
         log.close()
 
 
+_clients = itertools.count(1)
+
+
+def _new_context(browser, **options):
+    client = {"CF-Connecting-IP": f"198.51.100.{next(_clients) % 250 + 1}"}
+    return browser.new_context(extra_http_headers=client, **options)
+
+
 def _signed_in(site, width):
     browser, base, session, _log = site
     phone = width < 600
-    context = browser.new_context(
-        viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone, storage_state=session
+    context = _new_context(
+        browser, viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone, storage_state=session
     )
     page = context.new_page()
     problems: list[str] = []
@@ -132,8 +145,8 @@ def _signed_in(site, width):
 
 
 def _sign_in(browser, base):
-    """One sign-in for the module: each one counts against the login rate limit."""
-    context = browser.new_context()
+    """One sign-in for the module, saved and reused by every context."""
+    context = _new_context(browser)
     try:
         page = context.new_page()
         page.goto(f"{base}/login")
@@ -256,6 +269,126 @@ def test_the_tray_stays_clear_of_the_page_and_success_clears_itself(site, width)
         toast.wait_for(state="detached", timeout=8000)
         assert tray.evaluate("el => getComputedStyle(el).pointerEvents") == "none", "the gaps must not swallow clicks"
         assert problems == []
+    finally:
+        context.close()
+
+
+def test_controls_answer_on_press_and_a_confirmation_never_takes_a_click(site):
+    context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        page.goto(f"{base}/settings?tab=general&msg=Saved", wait_until="domcontentloaded")
+        toast = page.locator(".feedback-success")
+        toast.wait_for()
+        assert toast.evaluate("el => getComputedStyle(el).pointerEvents") == "none"
+
+        button = page.locator("main .btn").first
+        button.hover()
+        page.mouse.down()
+        page.wait_for_timeout(200)
+        transform = button.evaluate("el => getComputedStyle(el).transform")
+        page.mouse.up()
+        assert transform.startswith("matrix(0.97"), transform
+
+        color = "document.querySelector('meta[name=theme-color]').content"
+        assert page.evaluate(color) == "#06080d"
+        page.click("#theme-toggle")
+        assert page.evaluate(color) == "#ffffff", "the status bar follows the chosen theme"
+        page.click("#theme-toggle")
+    finally:
+        context.close()
+
+
+def test_the_daily_count_follows_only_the_routines_it_lists(site):
+    context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
+    try:
+        page.goto(f"{base}/daily")
+        counter = page.locator("#done-count")
+        assert counter.inner_text().endswith("/3")
+        routine = page.locator("[data-routines] .toggle-group").first
+        state = routine.locator(".toggle-state")
+        # Whatever a run left behind: bring it to Pending, so the next tap is Done.
+        for _ in range(2):
+            if state.inner_text() != "Pending":
+                with page.expect_response(lambda r: r.url.endswith("/daily/save")):
+                    routine.locator(".toggle-btn").click()
+        before = int(counter.inner_text().split("/")[0])
+        with page.expect_response(lambda r: r.url.endswith("/daily/save")):
+            routine.locator(".toggle-btn").click()
+        after = int(counter.inner_text().split("/")[0])
+        assert after == before + 1
+        with page.expect_response(lambda r: r.url.endswith("/daily/save")):
+            page.locator(".andy-item--task .toggle-btn").first.click()
+        assert int(counter.inner_text().split("/")[0]) == after, "an A.N.D.Y. task is not a routine"
+    finally:
+        context.close()
+
+
+def test_a_narrow_phone_keeps_names_and_labels_whole(site):
+    context, page, _problems, base = _signed_in(site, 320)
+    try:
+        page.goto(f"{base}/training")
+        names = page.locator(".pb-movement-head h4")
+        assert names.count() > 0
+        for index in range(min(names.count(), 3)):
+            box = names.nth(index).bounding_box()
+            assert box["width"] > 60, "a name squeezed beside its load stacks letter by letter"
+        page.goto(f"{base}/settings?tab=general")
+        split = page.evaluate(
+            """() => [...document.querySelectorAll('.settings-tabs a')]
+                .filter(a => a.scrollWidth > a.clientWidth || getComputedStyle(a).overflowWrap !== 'normal')
+                .map(a => a.textContent.trim())"""
+        )
+        assert split == [], "a tab label must fit whole, not break mid-word"
+    finally:
+        context.close()
+
+
+def test_a_phone_gets_native_touch_behaviour(site):
+    browser, base, session, _log = site
+    context = _new_context(
+        browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
+    )
+    page = context.new_page()
+    try:
+        page.goto(f"{base}/goals")
+        highlight = page.evaluate("getComputedStyle(document.documentElement).webkitTapHighlightColor")
+        assert highlight in ("rgba(0, 0, 0, 0)", "transparent")
+        button = page.locator(".bottom-bar .tab-item").first
+        assert button.evaluate("el => getComputedStyle(el).touchAction") == "manipulation"
+        assert button.evaluate("el => getComputedStyle(el).userSelect") == "none"
+        # iOS zooms the page into any field under 16px and does not zoom back out.
+        small = """() => [...document.querySelectorAll('input:not([type=hidden]), select, textarea')]
+            .filter(el => parseFloat(getComputedStyle(el).fontSize) < 16)
+            .map(el => el.name || el.className)"""
+        assert page.evaluate(small) == []
+        # Past the phone breakpoint on touch: a tablet, or a phone held sideways.
+        page.set_viewport_size({"width": 820, "height": 600})
+        page.goto(f"{base}/daily")
+        assert page.evaluate(small) == []
+    finally:
+        context.close()
+
+
+def test_a_job_card_does_not_replay_its_entrance_on_every_poll(site):
+    context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
+    card = (
+        '<article id="job-status-9"><div id="job-status-body-9" class="job-status-card job-status-queued"></div>'
+        "</article>"
+        '<div class="tray-poller" hx-get="/api/jobs/active" hx-trigger="every 500ms" '
+        'hx-target="#job-notifications" hx-swap="innerHTML" hx-sync="#job-notifications:replace"></div>'
+    )
+    try:
+        page.route("**/api/jobs/active*", lambda route: route.fulfill(content_type="text/html", body=card))
+        page.add_init_script(
+            """window.__entrances = 0;
+            document.addEventListener('animationstart', event => {
+                if (event.animationName === 'notification-enter') window.__entrances += 1;
+            }, true);"""
+        )
+        page.goto(f"{base}/settings?tab=general")
+        page.locator("#job-status-9").wait_for()
+        page.wait_for_timeout(2500)
+        assert page.evaluate("window.__entrances") == 1, "one card, one entrance, however many polls"
     finally:
         context.close()
 
@@ -387,7 +520,7 @@ def _swipe(page, from_x, to_x):
 
 def test_a_swipe_on_daily_follows_the_pages_own_day_links(site):
     browser, base, session, _log = site
-    context = browser.new_context(viewport={"width": 390, "height": 844}, has_touch=True, storage_state=session)
+    context = _new_context(browser, viewport={"width": 390, "height": 844}, has_touch=True, storage_state=session)
     try:
         page = context.new_page()
         page.goto(f"{base}/daily/2026-01-10")
@@ -407,7 +540,7 @@ def test_the_landing_page_renders_and_opens_the_request_panel(site, width):
     nothing wider than the screen, and Request access opens its panel."""
     browser, base, _session, _log = site
     phone = width < 600
-    context = browser.new_context(viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone)
+    context = _new_context(browser, viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone)
     page = context.new_page()
     problems: list[str] = []
     page.on("console", lambda message: message.type == "error" and problems.append(message.text))
@@ -436,7 +569,7 @@ def test_a_sign_in_link_opened_in_the_same_browser_signs_in_without_a_click(site
     """Asked for here, the emailed link signs in by itself (#168): the confirm
     page sends its own form, and the browser lands past /login."""
     browser, base, _session, log_path = site
-    context = browser.new_context()
+    context = _new_context(browser)
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(str(error)))
@@ -466,7 +599,7 @@ def test_signed_out_pages_run_their_scripts(site, path):
     """These pages stand alone, outside base.html: app.js there once stopped at
     its first translated string, so nothing after it ran."""
     browser, base, _session, _log = site
-    context = browser.new_context()
+    context = _new_context(browser)
     page = context.new_page()
     problems: list[str] = []
     page.on("pageerror", lambda error: problems.append(str(error)))

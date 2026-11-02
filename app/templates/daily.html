@@ -20,11 +20,11 @@
     <input type="hidden" name="date" value="{{ date }}">
 
     <!-- Routines & Energy -->
-    <div class="card" style="margin-bottom: 1rem;">
+    <div class="card" style="margin-bottom: 1rem;" data-routines>
         <div class="card-header">
             <h3>{{ _("Routines & Energy") }}</h3>
-            {# Stated, not counted off the icons. #}
-            <small class="text-muted"><span id="done-count">{{ done_count }}/{{ done_total }}</span> {{ _("complete today") }}</small>
+            {# Stated, not counted off the icons, and only what this card lists. #}
+            <small class="text-muted"><span id="done-count">{{ progress.routines_done }}/{{ progress.routines_total }}</span> {{ _("routines") }}</small>
         </div>
 
         {# The slider needs a position, but an untouched day has no rating.

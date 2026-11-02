@@ -44,7 +44,8 @@ def test_completion_count_is_stated(auth_client):
     )
     html = auth_client.get(f"/daily/{PROBE_DATE}").text
     assert 'id="done-count"' in html
-    assert "3/7" in html, "three of seven states are done"
+    assert '<span id="done-count">2/3</span> routines' in html, "the card counts what it lists"
+    assert "/7" not in html
 
 
 def test_a_finished_task_reads_as_content(auth_client):
