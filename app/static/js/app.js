@@ -200,6 +200,24 @@ function armAutoDismiss(node, delay) {
     start();
 }
 
+// A poll replaces the tray's contents every few seconds, so without this the same
+// card would replay its entrance each time. Only a card not seen before enters.
+function watchJobEntrances() {
+    var tray = document.getElementById('job-notifications');
+    if (!tray) return;
+    var seen = new Set();
+    var mark = function () {
+        var present = new Set();
+        tray.querySelectorAll(':scope > article').forEach(function (card) {
+            present.add(card.id);
+            if (!seen.has(card.id)) card.classList.add('is-entering');
+        });
+        seen = present;
+    };
+    mark();
+    new MutationObserver(mark).observe(tray, { childList: true });
+}
+
 function scanNotifications() {
     document.querySelectorAll('#mutation-feedback [data-feedback-autodismiss]').forEach(function(node) {
         armAutoDismiss(node, TOAST_DISMISS_MS);
@@ -567,6 +585,7 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     restoreNetworkDrafts();
     scanNotifications();
+    watchJobEntrances();
 });
 
 // Three-state toggle cycle: pending -> done -> skipped -> pending
@@ -592,7 +611,7 @@ function cycleStatus(btn) {
     var counter = document.getElementById('done-count');
     if (counter) {
         var done = 0;
-        document.querySelectorAll('.toggle-group input[type="hidden"]').forEach(function (el) {
+        document.querySelectorAll('[data-routines] .toggle-group input[type="hidden"]').forEach(function (el) {
             if (el.value === 'done') done += 1;
         });
         counter.textContent = done + counter.textContent.slice(counter.textContent.indexOf('/'));
@@ -628,10 +647,8 @@ function toggleTheme() {
     var next = current === 'dark' ? 'light' : 'dark';
     document.documentElement.setAttribute('data-theme', next);
     localStorage.setItem('virgil-theme', next);
+    window.applyThemeColor(next);
 
-    // Update meta theme-color
-    var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = next === 'dark' ? '#06080d' : '#f5f7fa';
 
     updateThemeIcon();
 
