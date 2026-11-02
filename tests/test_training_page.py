@@ -478,4 +478,3 @@ def test_a_bare_set_beside_a_load_on_the_same_reps_is_kept(auth_client, pull_mov
     pull_movement((12, 8.0), (12, None), (10, None))
     card = _pb_card(_page(auth_client), "ZZ Ring Rows")
     assert "Bodyweight" in card and "12 reps" in card and "10 reps" not in card
-
