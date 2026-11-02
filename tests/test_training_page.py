@@ -11,11 +11,10 @@ renders empty, which is the failure it is supposed to catch.
 """
 
 import sqlite3
-import pytest
-
 from datetime import date
 from pathlib import Path
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -444,7 +443,7 @@ def pull_movement():
 
 
 def test_an_alias_spelling_still_counts_as_a_bodyweight_movement(auth_client, pull_movement):
-    """"Pull-ups" in training never met "Pull-up" in the library (#200)."""
+    """ "Pull-ups" in training never met "Pull-up" in the library (#200)."""
     pull_movement((6, 8.0))
     assert ">+8.0 <small>kg</small>" in _pb_card(_page(auth_client), "ZZ Ring Rows")
 

@@ -135,8 +135,7 @@ def _signed_in(site, width):
     browser, base, session, _log = site
     phone = width < 600
     context = _new_context(
-        browser,
-        viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone, storage_state=session
+        browser, viewport={"width": width, "height": 844 if phone else 900}, is_mobile=phone, storage_state=session
     )
     page = context.new_page()
     problems: list[str] = []
@@ -346,8 +345,7 @@ def test_a_narrow_phone_keeps_names_and_labels_whole(site):
 def test_a_phone_gets_native_touch_behaviour(site):
     browser, base, session, _log = site
     context = _new_context(
-        browser,
-        viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
+        browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
     )
     page = context.new_page()
     try:
