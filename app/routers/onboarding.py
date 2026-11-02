@@ -69,6 +69,7 @@ async def _current_job(db, job_id: int | None) -> dict | None:
 
 @router.get("/onboarding", response_class=HTMLResponse)
 async def onboarding_page(request: Request, step: int = 0, job_id: int | None = Query(None, ge=1)):
+    requested_step = step
     step = max(0, min(6, step))
     db = get_user_db_from_request(request)
     profile = await ensure_profile(db)
@@ -116,8 +117,9 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
             "request": request,
             "step": step,
             "profile": profile,
-            # The progress bar shows the step was saved; a toast would sit on Next.
-            "quiet_confirmations": True,
+            # Saving a step lands on the next one, where the progress bar says so and a
+            # toast would sit on Next. A factory reset or a new account lands before that.
+            "quiet_confirmations": requested_step > 1,
             "goals": goals,
             "end_goals": end_goals,
             "end_goal_areas": end_goal_areas,

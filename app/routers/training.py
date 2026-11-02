@@ -87,12 +87,14 @@ MAX_PB_RECORDS_PER_MOVEMENT = 12
 # Training keeps its own names, so a movement meets the library by exact name, then
 # by alias: "Pull-ups" here is "Pull-up" there.
 _PB_LIBRARY_JOIN = """LEFT JOIN exercise_library lib ON lib.id = COALESCE(
-               (SELECT id FROM exercise_library WHERE lower(name) = lower(tex.name)),
+               (SELECT id FROM exercise_library WHERE name = tex.name COLLATE NOCASE),
                (SELECT library_id FROM exercise_aliases WHERE alias = tex.name)
            )"""
-# A loaded Core set, or a bare one on a movement done with the body alone.
+# A loaded Core set, or a bare one on a movement done with the body alone, which
+# needs the effort the movement is measured in: reps, or time.
 _PB_COUNTED = """tex.section = 'Core'
-             AND (te.weight > 0 OR (lib.default_equipment = 'bodyweight' AND (te.reps > 0 OR te.duration > 0)))"""
+             AND (te.weight > 0 OR (lib.default_equipment = 'bodyweight'
+                  AND CASE WHEN tex.metric = 'time' THEN te.duration > 0 ELSE te.reps > 0 END))"""
 
 
 # The picker puts recently logged movements on top. A flat library listing makes
@@ -538,12 +540,15 @@ async def training_page(
                 "display_order": row["display_order"],
                 "max_weight": 0,
                 "records_by_effort": {},
+                "best_bare_effort": 0,
             },
         )
-        weight = row["weight"] or 0
-        pb["max_weight"] = max(pb["max_weight"], weight)
+        if not row["weight"]:
+            pb["best_bare_effort"] = max(pb["best_bare_effort"], row["effort"])
+            continue
+        pb["max_weight"] = max(pb["max_weight"], row["weight"])
         previous = pb["records_by_effort"].get(row["effort"], 0)
-        pb["records_by_effort"][row["effort"]] = max(previous, weight)
+        pb["records_by_effort"][row["effort"]] = max(previous, row["weight"])
     ordered_pbs = sorted(personal_bests_by_id.values(), key=lambda pb: (pb["display_order"], pb["name"]))
     if len(ordered_pbs) > MAX_PB_MOVEMENTS:
         personal_bests_overflow = True
@@ -555,9 +560,9 @@ async def training_page(
                 pb.pop("records_by_effort").items(), key=lambda item: (item[0] is None, item[0] or 0)
             )
         ]
-        # An unloaded set beats nothing but another one: only the best of them is a record.
-        unloaded = [record for record in records if not record["max_weight"]]
-        records = [record for record in records if record["max_weight"]] + unloaded[-1:]
+        # A bare set beats nothing but another one: only the best of them is a record.
+        if best_bare := pb.pop("best_bare_effort"):
+            records.append({"effort": best_bare, "max_weight": 0})
         if len(records) > MAX_PB_RECORDS_PER_MOVEMENT:
             personal_bests_overflow = True
         pb["records"] = records[:MAX_PB_RECORDS_PER_MOVEMENT]

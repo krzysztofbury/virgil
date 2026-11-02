@@ -178,8 +178,8 @@ function clearNamedJob(node) {
     return true;
 }
 
-// Hover and focus hold the timer open, so a notification cannot vanish out from
-// under a pointer or a keyboard user reading it.
+// Hover and focus hold the timer open on a job card, so it cannot vanish out from
+// under a pointer or a keyboard user reading it. A confirmation takes no pointer.
 function armAutoDismiss(node, delay) {
     if (!node || node.dataset.autodismissArmed === 'true') return;
     node.dataset.autodismissArmed = 'true';
@@ -216,6 +216,10 @@ function watchJobEntrances() {
     };
     mark();
     new MutationObserver(mark).observe(tray, { childList: true });
+    // htmx carries a same-id element's classes onto its replacement until it settles.
+    tray.addEventListener('htmx:beforeSwap', function () {
+        tray.querySelectorAll('.is-entering').forEach(function (card) { card.classList.remove('is-entering'); });
+    });
 }
 
 function scanNotifications() {

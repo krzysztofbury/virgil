@@ -145,7 +145,7 @@ def _signed_in(site, width):
 
 
 def _sign_in(browser, base):
-    """One sign-in for the module: each one counts against the login rate limit."""
+    """One sign-in for the module, saved and reused by every context."""
     context = _new_context(browser)
     try:
         page = context.new_page()
@@ -328,6 +328,7 @@ def test_a_narrow_phone_keeps_names_and_labels_whole(site):
     try:
         page.goto(f"{base}/training")
         names = page.locator(".pb-movement-head h4")
+        assert names.count() > 0
         for index in range(min(names.count(), 3)):
             box = names.nth(index).bounding_box()
             assert box["width"] > 60, "a name squeezed beside its load stacks letter by letter"
@@ -356,37 +357,38 @@ def test_a_phone_gets_native_touch_behaviour(site):
         assert button.evaluate("el => getComputedStyle(el).touchAction") == "manipulation"
         assert button.evaluate("el => getComputedStyle(el).userSelect") == "none"
         # iOS zooms the page into any field under 16px and does not zoom back out.
-        small = page.evaluate(
-            """() => [...document.querySelectorAll('input:not([type=hidden]), select, textarea')]
-                .filter(el => parseFloat(getComputedStyle(el).fontSize) < 16)
-                .map(el => el.name || el.className)"""
-        )
-        assert small == []
+        small = """() => [...document.querySelectorAll('input:not([type=hidden]), select, textarea')]
+            .filter(el => parseFloat(getComputedStyle(el).fontSize) < 16)
+            .map(el => el.name || el.className)"""
+        assert page.evaluate(small) == []
+        # Past the phone breakpoint on touch: a tablet, or a phone held sideways.
+        page.set_viewport_size({"width": 820, "height": 600})
+        page.goto(f"{base}/daily")
+        assert page.evaluate(small) == []
     finally:
         context.close()
 
 
 def test_a_job_card_does_not_replay_its_entrance_on_every_poll(site):
     context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
+    card = (
+        '<article id="job-status-9"><div id="job-status-body-9" class="job-status-card job-status-queued"></div>'
+        "</article>"
+        '<div class="tray-poller" hx-get="/api/jobs/active" hx-trigger="every 500ms" '
+        'hx-target="#job-notifications" hx-swap="innerHTML" hx-sync="#job-notifications:replace"></div>'
+    )
     try:
-        page.goto(f"{base}/settings?tab=data")
-        page.wait_for_load_state("networkidle")
-        page.evaluate(
-            """() => {
-                window.__entrances = 0;
-                document.addEventListener('animationstart', () => { window.__entrances += 1; }, true);
-                document.addEventListener('transitionstart', () => { window.__entrances += 1; }, true);
-                const tray = document.getElementById('job-notifications');
-                const card = () => '<article id="job-status-9"><div id="job-status-body-9" class="job-status-card job-status-queued"></div></article>';
-                tray.innerHTML = card();
-                window.__swap = () => htmx.swap(tray, card(), {swapStyle: 'innerHTML'});
-            }"""
+        page.route("**/api/jobs/active*", lambda route: route.fulfill(content_type="text/html", body=card))
+        page.add_init_script(
+            """window.__entrances = 0;
+            document.addEventListener('animationstart', event => {
+                if (event.animationName === 'notification-enter') window.__entrances += 1;
+            }, true);"""
         )
-        page.wait_for_timeout(300)
-        first = page.evaluate("window.__entrances")
-        page.evaluate("window.__swap()")
-        page.wait_for_timeout(300)
-        assert page.evaluate("window.__entrances") == first, "the same card came back and animated again"
+        page.goto(f"{base}/settings?tab=general")
+        page.locator("#job-status-9").wait_for()
+        page.wait_for_timeout(2500)
+        assert page.evaluate("window.__entrances") == 1, "one card, one entrance, however many polls"
     finally:
         context.close()
 

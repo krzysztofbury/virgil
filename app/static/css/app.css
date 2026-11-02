@@ -1085,7 +1085,7 @@ form[aria-busy="true"] { cursor: progress; }
   align-items: center;
   justify-content: center;
   font-size: 0.875rem;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s, color 0.2s, transform 120ms var(--ease-out);
   color: var(--text-tertiary);
   padding: 0;
   cursor: pointer;
@@ -3533,9 +3533,7 @@ details.library-hidden > summary { border: none; padding: 0.35rem 0.25rem; font-
 /* A link to one setting lands below the sticky top bar. */
 .server-setting, #server-ai, #life-scores { scroll-margin-top: 5rem; }
 
-/* iOS zooms the page into a field under 16px and does not zoom back out. */
+/* Touch past the phone breakpoint: a tablet, or a phone held sideways. */
 @media (pointer: coarse) {
-  input, select, textarea,
-  .goal-input,
-  .invite-link input { font-size: 16px; }
+  input, select, textarea { font-size: 16px !important; }
 }

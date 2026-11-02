@@ -427,8 +427,9 @@ def pull_movement():
 
     def log(*sets):
         conn.executemany(
-            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight) VALUES (?, ?, ?, ?, ?)",
-            [(session_id, exercise_id, i, reps, weight) for i, (reps, weight) in enumerate(sets, 1)],
+            "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            [(session_id, exercise_id, i, *row, *(None,) * (3 - len(row))) for i, row in enumerate(sets, 1)],
         )
         conn.commit()
 
@@ -460,3 +461,21 @@ def test_a_weighted_record_leads_and_the_best_bare_set_stays(auth_client, pull_m
     card = _pb_card(_page(auth_client), "ZZ Ring Rows")
     assert ">+8.0 <small>kg</small>" in card
     assert "Bodyweight" in card and "12 reps" in card
+
+
+def test_a_timed_set_on_a_rep_movement_is_no_record(auth_client, pull_movement):
+    pull_movement((12, None), (None, None, 120))
+    card = _pb_card(_page(auth_client), "ZZ Ring Rows")
+    assert "12 reps" in card and 'data-pb-effort="12"' in card
+
+
+def test_a_timed_set_alone_makes_no_empty_card(auth_client, pull_movement):
+    pull_movement((None, None, 120))
+    assert 'data-pb-exercise="ZZ Ring Rows"' not in _page(auth_client)
+
+
+def test_a_bare_set_beside_a_load_on_the_same_reps_is_kept(auth_client, pull_movement):
+    pull_movement((12, 8.0), (12, None), (10, None))
+    card = _pb_card(_page(auth_client), "ZZ Ring Rows")
+    assert "Bodyweight" in card and "12 reps" in card and "10 reps" not in card
+

@@ -2,6 +2,7 @@
 
 import sqlite3
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -90,6 +91,13 @@ def test_a_step_moves_on_without_a_confirmation_over_next(auth_client):
     moved = auth_client.post("/onboarding/step/1", data={"_csrf_token": token})
     assert "feedback-success" not in moved.text and "Your Ideal Day" in moved.text
     assert "feedback-error" in auth_client.get("/onboarding?step=2&err=Could+not+save").text
+
+
+@pytest.mark.parametrize("url", ["/onboarding", "/onboarding?step=1"])
+def test_a_message_from_elsewhere_still_arrives_on_the_first_step(auth_client, url):
+    """A factory reset and a new account land here: only a saved step is confirmed by the bar."""
+    page = auth_client.get(f"{url}{'&' if '?' in url else '?'}msg=Factory+reset+completed.").text
+    assert "feedback-success" in page and "Factory reset completed." in page
 
 
 def test_the_summary_lists_the_habits_it_was_told(auth_client):
