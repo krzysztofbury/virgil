@@ -27,6 +27,12 @@ updates:
     cooldown:
       default-days: 7
     open-pull-requests-limit: 5
+    # A Python minor version moves the Dockerfile and CI's PYTHON_VERSION
+    # together, once every compiled dependency has wheels for it (#203).
+    # 3.14 patch and digest updates still arrive.
+    ignore:
+      - dependency-name: python
+        versions: [">= 3.15"]
     groups:
       docker:
         patterns: ["*"]
