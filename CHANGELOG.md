@@ -85,6 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- Dependabot no longer proposes Python 3.15 for the image: `fastuuid`, which
+  litellm needs, has no 3.15 wheel yet, and CI tests on 3.14. The move is #203.
 - Controls feel native on a phone: buttons answer on press, the tap flash and the
   double-tap delay are gone, a long press does not select a label, fields are at
   least 16px so iOS does not zoom into them, full-height layouts follow the visible
