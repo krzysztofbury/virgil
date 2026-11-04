@@ -5,11 +5,11 @@ checks to run, and where production evidence is recorded.
 
 ## Setup
 
-Use Python 3.14.7 and uv 0.12.7, matching the production image and CI.
+Use Python 3.14.9 and uv 0.13.5, matching the production image and CI.
 
 ```bash
-uv python install 3.14.7
-uv sync --locked --extra dev --python 3.14.7
+uv python install 3.14.9
+uv sync --locked --extra dev --python 3.14.9
 uv run --locked --extra dev pre-commit install
 git switch -c your-change
 ```

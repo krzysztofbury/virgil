@@ -18,8 +18,8 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  UV_VERSION: '0.12.7'
-  PYTHON_VERSION: '3.14.7'
+  UV_VERSION: '0.13.5'
+  PYTHON_VERSION: '3.14.9'
   LITELLM_LOCAL_MODEL_COST_MAP: 'true'
 
 jobs:

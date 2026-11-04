@@ -90,7 +90,7 @@ app/
 ### Setup
 
 ```bash
-uv sync --locked --extra dev --python 3.14.7
+uv sync --locked --extra dev --python 3.14.9
 cp .env.example .env  # Fill in optional API keys
 ```
 

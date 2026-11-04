@@ -85,6 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- The image, CI and the documented setup move to Python 3.14.9 and uv 0.13.5
+  together; uv 0.12.7 cannot install 3.14.9. The lock is unchanged.
 - Dependabot no longer proposes Python 3.15 for the image: `fastuuid`, which
   litellm needs, has no 3.15 wheel yet, and CI tests on 3.14. The move is #203.
 - Controls feel native on a phone: buttons answer on press, the tap flash and the
