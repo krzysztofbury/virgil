@@ -42,9 +42,6 @@ coverage.xml
 dmypy.json
 .pyre/
 
-# pyenv
-.python-version
-
 # Linter / formatter cache
 .ruff_cache/
 
