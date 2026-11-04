@@ -85,6 +85,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- The hosted instance's tunnel runs cloudflared 2026.10.5, and Dependabot now
+  watches `infra/compose` as well as the self-hosting Compose file (#208).
 - The image, CI and the documented setup move to Python 3.14.9 and uv 0.13.5
   together; uv 0.12.7 cannot install 3.14.9. The lock is unchanged. A committed
   `.python-version` keeps `uv run` on 3.14 where no Python is installed (uv 0.13
