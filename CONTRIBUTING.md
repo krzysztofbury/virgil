@@ -5,7 +5,8 @@ checks to run, and where production evidence is recorded.
 
 ## Setup
 
-Use Python 3.14.9 and uv 0.13.5, matching the production image and CI.
+Use Python 3.14.9 (pinned in `.python-version`) and uv 0.13.5, matching the
+production image and CI; `tests/test_toolchain_pins.py` keeps the three in step.
 
 ```bash
 uv python install 3.14.9
