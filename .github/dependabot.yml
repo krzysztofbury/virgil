@@ -37,7 +37,9 @@ updates:
       docker:
         patterns: ["*"]
   - package-ecosystem: docker-compose
-    directory: /
+    # The root file is for self-hosting; infra/compose is the hosted instance,
+    # whose pins reach the host only with `scripts/deploy.py release`.
+    directories: ["/", "/infra/compose"]
     schedule:
       interval: weekly
       day: monday
