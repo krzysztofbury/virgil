@@ -258,9 +258,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (#193). `SECURITY.md` states that disabling an account is a temporary
   suspension and how to recover a compromised one. A password change keeps an
   open reset link, so whoever holds the old password cannot cancel the recovery.
-- The dependency audit ignores ten more local filelock advisories until litellm
-  allows filelock 4 (#154). Each needs a second local user or Windows, except
-  one limited to `huggingface_hub`'s download cache.
+- filelock moves to 4.2.4, which fixes 13 local filelock advisories, and the
+  dependency audit no longer ignores any of them (#154). litellm moves to
+  1.108.3, the first release that allows filelock 4, and boto3 and botocore to
+  1.43.117, which it requires. All three are admitted past the
+  `exclude-newer` cutoff.
 - A password reset or removing a password now ends the account's open sign-in
   links (#189). Before, a link sent earlier could still sign in for up to 15
   minutes after the reset that was meant to cut access off. Disabling an
@@ -276,9 +278,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   eMudhra (emSign) intermediate certificates with weak private keys, which
   anyone holding those keys could use to impersonate a server. 2026.10.4 also
   limits the metrics server's debug endpoints to an allowlist.
-- The dependency audit ignores three filelock advisories until litellm allows
-  filelock 4 (#154): two are Windows only, and the third needs a second local
-  user, which the single-user container does not have.
 - Signup and the admin invite form check an email address in linear time. The
   old pattern backtracked quadratically on a run of dots, so one signup
   request could hold a worker for minutes.
