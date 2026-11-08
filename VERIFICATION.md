@@ -13,6 +13,32 @@ Coverage, a test count or green CI alone is not an entry
 [the recovery guide](docs/recovery.md#restore-drill-record) and load checks to
 [docs/load-check.md](docs/load-check.md).
 
+## Release of 8977d9f: 0.10.0 plus #223, #224, #225 (2026-11-08)
+
+- **Revision:** [`8977d9f`](https://github.com/krzysztofbury/virgil/commit/8977d9f065d28bf5123efa9e4425e6a609dea64f),
+  the merge of [#225](https://github.com/krzysztofbury/virgil/pull/225) on top of
+  v0.10.0 ([#222](https://github.com/krzysztofbury/virgil/pull/222)),
+  [#223](https://github.com/krzysztofbury/virgil/pull/223) (the No Porn reads
+  removed) and [#224](https://github.com/krzysztofbury/virgil/pull/224). Main
+  [CI run](https://github.com/krzysztofbury/virgil/actions/runs/42522160815)
+  succeeded.
+- **Command:** with the owner's approval,
+  `python scripts/deploy.py release 8977d9f065d28bf5123efa9e4425e6a609dea64f`.
+- **Outcome:**
+  - The release pinned
+    `sha256:57c8ac52d0e76d57f40531846f9dcbce92055808b3c879f8ad74829b8275a513`,
+    replacing the pin of `1249e69`, and its public check passed.
+  - `/livez` 200, `/healthz` 200 `{"status":"ok"}`. The startup log reported
+    `Virgil version=8977d9f0…` with no failed migration. Memory was 282 MiB of
+    640 MiB.
+  - From outside, with a fake key: `/api/noporn` now redirects to `/login`,
+    because it is no longer a route. `/api/freedom/porn/history` and
+    `/api/summary` answer 401.
+- **Full record:** [#218 comment](https://github.com/krzysztofbury/virgil/issues/218#issuecomment-6727035388).
+- **Not proved by this record:** an authenticated read without the `feniks`
+  key or `get_noporn`, the hover change on a phone, and a WOD parse on
+  production. Each is covered by its PR's tests only.
+
 ## Release of ef95495 (#181, 2026-10-28)
 
 - **Revision:** [`ef95495`](https://github.com/krzysztofbury/virgil/commit/ef954959cc7ddc409c83f47036e64cdca454b00e),
