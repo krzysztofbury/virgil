@@ -373,16 +373,16 @@ def test_custom_habits_with_non_latin_names_stay_apart(auth_client):
         _execute("DELETE FROM habits WHERE slug IN ('habit', 'habit-2', 'slodycze')")
 
 
-def test_api_noporn_reads_the_porn_habit(auth_client, monkeypatch):
+def test_the_api_history_reads_the_porn_habit(auth_client, monkeypatch):
     _enable(auth_client)
     _brick(auth_client, "porn", date=date.today().isoformat(), hook="api-test-brick")
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
 
-    resp = auth_client.get("/api/noporn", headers={"X-API-Key": "test-key-123"})
+    resp = auth_client.get("/api/freedom/porn/history", headers={"X-API-Key": "test-key-123"})
 
     assert resp.status_code == 200
     body = resp.json()
-    assert isinstance(body["daily"], list)
+    assert isinstance(body["days"], list)
     assert body["bricks_total"] >= 1
     brick = next(b for b in body["bricks"] if b["hook"] == "api-test-brick")
     assert "story" in brick and "craving" in brick

@@ -95,6 +95,7 @@ def test_freedom_tools_write_through_the_freedom_paths_and_the_no_porn_names_are
     tools = {tool["name"] for tool in _rpc(client, "tools/list").json()["result"]["tools"]}
     assert "log_freedom_day" in tools
     assert not tools & {"log_feniks_day", "delete_feniks_day", "update_feniks_config"}, "removed in #215"
+    assert "get_noporn" not in tools and "get_freedom_history" in tools, "removed after 0.10.0 (#218)"
     try:
         for name, arguments in calls:
             call = _rpc(client, "tools/call", {"name": name, "arguments": arguments})

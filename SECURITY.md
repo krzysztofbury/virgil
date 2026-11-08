@@ -43,7 +43,7 @@ Virgil is a **multi-user, self-hosted** application. The threat model assumes:
 - **CSRF protection**: Double-submit cookie on all POST forms (urlencoded and multipart). A write without the CSRF cookie is refused before its body is read, and the rate limit and auth both run before the body is buffered
 - **Rate limiting**: Per-IP sliding window (120/min general, 10/min auth). Behind a proxy, `VIRGIL_TRUSTED_PROXY_IPS` takes addresses or CIDR ranges
 - **Encryption at rest**: Fernet encryption for OAuth tokens, LLM API keys, and webhook secrets
-- **Sensitive API scope**: Freedom data, including `/api/noporn` (intimate journal content), needs the `sensitive` scope: a token created with it, or `VIRGIL_API_SENSITIVE=true` for the server key
+- **Sensitive API scope**: Freedom data, including each habit's history (`/api/freedom/{habit}/history`, with intimate journal content), needs the `sensitive` scope: a token created with it, or `VIRGIL_API_SENSITIVE=true` for the server key
 - **Finance API scope**: `/api/finance` (balances and the cushion) needs the `finance` scope, separate from the sensitive one: a token created with it, or `VIRGIL_API_FINANCE=true` for the server key
 - **Security headers**: CSP (scripts from this origin or with a per-response nonce, never inline handlers or eval; every third-party asset is served locally), X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, on every response including errors, rate-limit refusals and login redirects
 - **Privacy-safe PWA**: the service worker never caches authenticated HTML — only static assets and the public offline page
