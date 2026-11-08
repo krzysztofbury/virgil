@@ -200,8 +200,7 @@ SensitiveDb = Annotated[aiosqlite.Connection, Depends(sensitive_db)]
 async def api_summary(request: Request, db: ApiDb):
     """Today's snapshot: daily habits, the first Freedom habit's streak (key "freedom"; null
     unless the sensitive scope is on, since the habit can be any addiction), latest Oura,
-    training this week, latest measurements. "feniks" is a deprecated copy of "freedom",
-    kept for one release (#218)."""
+    training this week, latest measurements."""
 
     today = date.today()
     today_iso = today.isoformat()
@@ -239,7 +238,6 @@ async def api_summary(request: Request, db: ApiDb):
         "date": today_iso,
         "daily": daily,
         "freedom": freedom,
-        "feniks": freedom,
         "oura_latest": dict(oura_rows[0]) if oura_rows else None,
         "training_week": {"sessions": sess[0]["n"], "last_date": sess[0]["last_date"]},
         "measurements_latest": dict(meas_rows[0]) if meas_rows else None,
@@ -817,70 +815,6 @@ async def api_training_detail(
         sess["exercises"] = [exercises[i] for i in order]
         result.append(sess)
     return {"range_days": days, "since": since, "sessions": result}
-
-
-@router.get("/noporn", deprecated=True)
-async def api_noporn(
-    db: SensitiveDb,
-    days: int = Query(30, ge=1, le=365, alias="range"),
-):
-    """Deprecated for one release (#218): GET /api/freedom/porn/history, with the Freedom
-    field names. Freedom's Porn habit in detail with the No Porn names: config, streak,
-    current-week clean rate (Gola), plus the relapse/reset events, journal entries
-    (emotions/triggers/thoughts/coping) and logged pleasures from the last N days (?range=30).
-
-    Needs the sensitive scope: this is intimate journal content, and a leaked
-    API key must not expose it by default."""
-    today = date.today()
-    since = (today - timedelta(days=days - 1)).isoformat()
-
-    porn = await db.execute_fetchall("SELECT id, start_date, target_days, big_why FROM habits WHERE slug = 'porn'")
-    habit_id = porn[0]["id"] if porn else -1
-    conf = [{key: porn[0][key] for key in ("start_date", "target_days", "big_why")}] if porn else []
-    streak_days, last_relapse = await get_streak(db, habit_id)
-    clean, elapsed, pct = await get_week_clean(db, habit_id)
-
-    events = await db.execute_fetchall(
-        "SELECT date, event_type, notes FROM pmo_events WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
-        (habit_id, since),
-    )
-    journal = await db.execute_fetchall(
-        "SELECT date, emotions, triggers, thoughts, desired_feelings, coping_strategies "
-        "FROM feniks_journal WHERE date >= ? ORDER BY date DESC",
-        (since,),
-    )
-    pleasures = await db.execute_fetchall(
-        "SELECT date, pleasure_1, pleasure_2 FROM feniks_pleasures WHERE date >= ? ORDER BY date DESC",
-        (since,),
-    )
-    # The legacy field names: this endpoint's readers predate Freedom.
-    daily = await db.execute_fetchall(
-        "SELECT date, slipped AS used, amount AS minutes, near_miss AS edging, note FROM feniks_daily "
-        "WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
-        (habit_id, since),
-    )
-    bricks = await db.execute_fetchall(
-        "SELECT id, date, hook, craving, story FROM feniks_bricks "
-        "WHERE habit_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, id DESC",
-        (habit_id, since, today.isoformat()),
-    )
-    bricks_total = (
-        await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks WHERE habit_id = ?", (habit_id,))
-    )[0]["c"]
-    return {
-        "range_days": days,
-        "since": since,
-        "config": dict(conf[0]) if conf else None,
-        "streak_days": streak_days,
-        "last_relapse": last_relapse.isoformat() if last_relapse else None,
-        "week_clean": {"clean_days": clean, "days_elapsed": elapsed, "pct": pct},
-        "events": [dict(r) for r in events],
-        "journal": [dict(r) for r in journal],
-        "pleasures": [dict(r) for r in pleasures],
-        "daily": [dict(r) for r in daily],
-        "bricks": [dict(r) for r in bricks],
-        "bricks_total": bricks_total,
-    }
 
 
 # --- Exercise library: dictionary CRUD ---

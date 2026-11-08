@@ -348,7 +348,7 @@ def test_wod_entries_surface_in_training_reads(auth_client):
         # Leave the shared session-scoped DB empty for other test files —
         # tests/test_api.py's test_training_empty/test_training_detail_empty
         # assume zero sessions, and file execution order isn't guaranteed
-        # (mirrors the cleanup in test_api.py's test_noporn_and_training_detail_with_data).
+        # (mirrors the cleanup in test_api.py's test_freedom_history_and_training_detail_with_data).
         conn.execute("DELETE FROM training_entries WHERE session_id = ?", (sess_id,))
         conn.execute("DELETE FROM training_sessions WHERE id = ?", (sess_id,))
         conn.execute("DELETE FROM training_exercises WHERE id = ?", (ex_id,))

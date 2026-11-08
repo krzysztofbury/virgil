@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
+  /api/noporn`, the MCP tool `get_noporn` (on the stdio server and the hosted
+  `/mcp` alike) and the `feniks` key of `/api/summary`. Use
+  `GET /api/freedom/porn/history` or `get_freedom_history` with the Freedom
+  names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
+
 ### Fixed
 - A tapped control no longer keeps its hover style on a phone (#201). Hover
   styles apply only where a pointer can hover, and a touch tablet shows the
