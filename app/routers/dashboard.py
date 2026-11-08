@@ -155,7 +155,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     chart_datasets = [
         {
             "label": s["date"],
-            # A missing area stays null, a gap the outline skips, never a measured 0.
+            # A missing area stays null: the outline crosses it, never dips to a measured 0.
             "data": [s.get(a) for a in AREAS],
             **style,
         }

@@ -75,8 +75,8 @@
             borderColor: 'rgb(34, 197, 94)',
             backgroundColor: 'rgba(34, 197, 94, 0.1)',
             fill: true,
-            pointRadius: 3,
-            spanGaps: true
+            // A date without an essential cost has no months: a break, not a line.
+            pointRadius: 3
         }], {
             yScale: { beginAtZero: true, title: { display: true, text: {{ _("Months")|tojson }} } },
             chartOptions: { maintainAspectRatio: false }

@@ -151,6 +151,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`owns_remote`), which leaves other accounts' callbacks alone.
 
 ### Fixed
+- The life-score history chart no longer draws a line through an area that an
+  assessment left blank (#212): the line breaks there, as the table's dash
+  does. The cushion chart breaks the same way at a date without an essential
+  cost; today such dates can only come before the first cost, so nothing
+  visible changes there. The radar still crosses a missing area.
 - Design re-check (#200). Onboarding no longer shows a "saved" toast over Next, a
   success toast never takes a click anywhere, and the Summary lists the habits to
   build and break. Personal Bests match a movement through its aliases, so
