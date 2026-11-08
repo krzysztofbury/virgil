@@ -371,16 +371,13 @@ async def edit_relapse(
     slug: str,
     event_id: int,
     date: str = Form(...),
-    event_type: str = Form("relapse"),
     notes: str = Form(""),
 ):
     habit, refusal = await _habit_or_redirect(request, slug)
     if refusal:
         return refusal
     try:
-        await update_relapse_event(
-            get_user_db_from_request(request), habit, event_id, day=date, event_type=event_type, notes=notes
-        )
+        await update_relapse_event(get_user_db_from_request(request), habit, event_id, day=date, notes=notes)
     except (FreedomWriteError, LookupError) as exc:
         return error_redirect(request, _records(slug), localized(exc))
     return success_redirect(request, _records(slug), _("Record corrected."))

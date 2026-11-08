@@ -2565,10 +2565,6 @@ msgid "This record follows its slipped day: correct or delete the day instead."
 msgstr "Ten wpis wynika z dnia z potknięciem: popraw albo usuń ten dzień."
 
 #: app/services/freedom_log.py
-msgid "Choose relapse or reset."
-msgstr "Wybierz nawrót albo reset."
-
-#: app/services/freedom_log.py
 msgid "That note is reserved for records a day log writes."
 msgstr "Ta notatka jest zarezerwowana dla wpisów tworzonych z dziennika."
 
@@ -4342,7 +4338,7 @@ msgstr "Co śledzi ten eksperyment: minuty aktywności, liczbę zdarzeń, codzie
 msgid "Zone 2 / Meditation / Urge logged"
 msgstr "Strefa 2 / Medytacja / Zapisana pokusa"
 
-#: app/templates/experiment_new.html app/templates/freedom.html
+#: app/templates/experiment_new.html
 msgid "Type"
 msgstr "Typ"
 
@@ -5090,6 +5086,10 @@ msgid "Correct the day"
 msgstr "Popraw dzień"
 
 #: app/templates/freedom.html
+msgid "not counted in the streak"
+msgstr "nie liczy się do serii"
+
+#: app/templates/freedom.html
 #, python-format
 msgid "Edit the relapse record from %(date)s"
 msgstr "Edytuj wpis o nawrocie z %(date)s"
@@ -5098,14 +5098,6 @@ msgstr "Edytuj wpis o nawrocie z %(date)s"
 #, python-format
 msgid "Edit the reset record from %(date)s"
 msgstr "Edytuj wpis o resecie z %(date)s"
-
-#: app/templates/freedom.html
-msgid "Relapse"
-msgstr "Nawrót"
-
-#: app/templates/freedom.html app/templates/partials/settings_server.html
-msgid "Reset"
-msgstr "Reset"
 
 #: app/templates/freedom.html app/templates/partials/wod_row.html
 #: app/templates/training.html app/templates/wod_confirm.html
@@ -5119,8 +5111,8 @@ msgstr "Usunąć wpis o nawrocie z %(date)s? Seria zostanie policzona od nowa be
 
 #: app/templates/freedom.html
 #, python-format
-msgid "Delete the reset record from %(date)s? The streak is counted again without it."
-msgstr "Usunąć wpis o resecie z %(date)s? Seria zostanie policzona od nowa bez niego."
+msgid "Delete the reset record from %(date)s? It is not counted in the streak."
+msgstr "Usunąć wpis o resecie z %(date)s? Nie liczy się do serii."
 
 #: app/templates/freedom.html
 #, python-format
@@ -6434,6 +6426,10 @@ msgstr "Wyłączone"
 #: app/templates/partials/settings_server.html
 msgid "Enter a new value"
 msgstr "Wpisz nową wartość"
+
+#: app/templates/partials/settings_server.html
+msgid "Reset"
+msgstr "Reset"
 
 #: app/templates/partials/settings_users.html app/templates/settings.html
 msgid "Users"

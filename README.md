@@ -433,9 +433,12 @@ words. Unticking a habit stops tracking it and keeps its history. The old
   marker, so an edging-only day does not show up as watched porn
 - **Timeline** - days and their bricks together, newest first. A day's date opens
   it in the day form, which can also delete a logged day
-- **Relapse records** - what the streak is counted from, listed per habit. A
-  record a slipped day wrote is corrected through that day; any other (older or
-  imported) edits its date, type and note, or is deleted after a confirmation
+- **Relapse records** - listed per habit. A relapse breaks the streak; a reset
+  (the app never writes one; an import can bring one in) is listed and never
+  counted.
+  A record a slipped day wrote is corrected through that day; any other (older
+  or imported) edits its date and note, or is deleted after a confirmation. Its
+  type stays: a relapse cannot be turned into a reset
 
 Migration 034 moves No Porn history - days, bricks, relapse events, start date,
 target and why - onto a Porn habit.
