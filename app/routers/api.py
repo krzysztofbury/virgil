@@ -1030,7 +1030,7 @@ async def api_library_delete(db: ApiDb, entry_id: int):
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
 
-# --- Daily log, Feniks and training writes -------------------------------------
+# --- Daily log, Freedom and training writes ------------------------------------
 # A morning check-in agent records yesterday's day without opening the forms.
 
 

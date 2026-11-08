@@ -789,7 +789,7 @@ Central registry migrations:
 | 007 | `api_tokens` | Personal API tokens for the REST API and `/mcp` |
 | 008 | `user_language` | Each account's interface language |
 | 009 | `sign_in_links_and_recovery_codes` | Emailed sign-in links and MFA recovery codes, stored as SHA-256 hashes |
-| 010 | `server_settings` | Server settings and AI keys an admin changes in the app |
+| 010 | `server_settings` | Server settings and AI keys an admin changes in the app, and when each account accepted the terms |
 | 011 | `terms_version` | Which version of the terms and the privacy policy an account accepted |
 
 ## Data Model
