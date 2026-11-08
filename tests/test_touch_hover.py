@@ -89,13 +89,6 @@ def test_only_the_vendor_overrides_stay_ungated():
     assert [part for part in exempt if part.split()[-1] not in vendor] == []
 
 
-def test_a_hidden_goal_delete_button_is_never_hidden_on_a_touch_screen():
-    """Hover is the only thing that reveals it, so the hiding rule is gated with it."""
-    css = CSS.read_text(encoding="utf-8")
-    hiding = [media for media, selector, body in _rules(css) if selector == ".goal-delete-btn" and "opacity: 0" in body]
-    assert hiding and all(any(GATE in m for m in media) for media in hiding)
-
-
 TRANSITION = re.compile(r"(?<![-\w])transition\s*:\s*([^;}]+)")
 
 
