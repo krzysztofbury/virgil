@@ -3,7 +3,7 @@
 import asyncio
 import re
 import sqlite3
-from datetime import date
+from datetime import date, timedelta
 from urllib.parse import parse_qs, urlsplit
 
 import aiosqlite
@@ -14,7 +14,7 @@ from app.services.job_handlers import handle_morning_briefing
 from app.services.job_worker import AmbiguousJobError, JobContext
 from app.services.llm import LLMCallAmbiguousError
 from app.services.llm_jobs import enqueue_paid_llm_job, llm_result_published, paid_llm_job_key
-from tests.conftest import csrf_token, record_provider_calls, user_db_path
+from tests.conftest import csrf_token, record_provider_calls, track_porn, user_db_path
 
 _KIND = "morning_briefing"
 _TODAY = date.today().isoformat()
@@ -274,3 +274,65 @@ def test_a_stored_payload_is_validated_before_a_provider_is_touched(monkeypatch,
             await db.close()
 
     asyncio.run(scenario())
+
+
+def test_a_briefing_run_after_its_day_describes_that_day(monkeypatch):
+    """A job queued for one day and run later (a manual run just before midnight,
+    or a worker that was down) is filed under its day and must describe that day,
+    not the day the worker happens to run (#213)."""
+    day, before, after = "2026-02-20", "2026-02-15", "2026-02-25"
+    yesterday_of_run = (date.today() - timedelta(days=1)).isoformat()
+    habit = track_porn()
+    db = sqlite3.connect(user_db_path())
+    try:
+        db.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_freedom', '1')")
+        db.execute("INSERT INTO daily_logs (date, energy, notes) VALUES ('2026-02-19', 7, 'ZZ day before')")
+        db.execute("INSERT INTO oura_daily (date, sleep_score, readiness_score) VALUES (?, 81, 77)", (day,))
+        # A relapse five days before the day, and one after it: as of the day, the streak is 5.
+        db.executemany(
+            "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'relapse', 'ZZ briefing')",
+            [(habit, before), (habit, after)],
+        )
+        db.commit()
+    finally:
+        db.close()
+    prompts = []
+
+    async def fake_llm(db, system_prompt, user_prompt, **kwargs):
+        prompts.append(user_prompt)
+        return "Morning."
+
+    monkeypatch.setattr(briefing_module, "call_llm", fake_llm)
+
+    async def scenario():
+        db = await _db()
+        try:
+            payload = {"day": day, "trigger": "manual", "key_part": "b" * 32}
+            key = paid_llm_job_key(_KIND, "manual", "b" * 32)
+            queued = await enqueue_paid_llm_job(db, _KIND, payload, idempotency_key=key)
+            context = JobContext(db=db, user_id="user", job_id=queued.job_id, attempt=1)
+            return await handle_morning_briefing(context, payload)
+        finally:
+            await db.close()
+
+    try:
+        result = asyncio.run(scenario())
+    finally:
+        db = sqlite3.connect(user_db_path())
+        try:
+            db.execute("DELETE FROM pmo_events WHERE notes = 'ZZ briefing'")
+            db.execute("DELETE FROM daily_logs WHERE date = '2026-02-19'")
+            db.execute("DELETE FROM oura_daily WHERE date = ?", (day,))
+            db.execute("DELETE FROM app_settings WHERE key = 'feature_freedom'")
+            db.commit()
+        finally:
+            db.close()
+
+    assert result["published"] is True
+    [prompt] = prompts
+    assert prompt.startswith(f"Today is {day}.")
+    assert "Yesterday (2026-02-19): energy 7/10" in prompt and "ZZ day before" in prompt
+    assert "Today's Oura: sleep=81, readiness=77" in prompt
+    assert "5 clean days in a row" in prompt, "the streak is counted to the briefing's day"
+    assert yesterday_of_run not in prompt, "nothing from the day the worker ran"
+    assert _rows("SELECT content FROM daily_briefings WHERE date = ?", (day,)) == [("Morning.",)]

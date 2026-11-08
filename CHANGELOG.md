@@ -151,6 +151,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (`owns_remote`), which leaves other accounts' callbacks alone.
 
 ### Fixed
+- A morning briefing describes the day it is filed under (#213). The text used
+  the logs, Oura row, streak and experiment weeks of the day the worker ran, so a
+  briefing queued just before midnight and run after it put the next day's data
+  on the earlier day. The day log, Oura, streak and experiment weeks are now read
+  as of the job's day; which habits and experiments are active is still read
+  when it runs.
 - The life-score history chart no longer draws a line through an area that an
   assessment left blank (#212): the line breaks there, as the table's dash
   does. The cushion chart breaks the same way at a date without an essential

@@ -43,7 +43,7 @@ async def get_week_clean(db, habit_id: int) -> tuple[int, int, int]:
     return clean, elapsed, pct
 
 
-async def get_streak(db, habit_id: int) -> tuple[int, date | None]:
+async def get_streak(db, habit_id: int, today: date | None = None) -> tuple[int, date | None]:
     """Return (streak_days, last_relapse_date) for one habit.
 
     streak_days is the days since the later of the last relapse and the last
@@ -52,8 +52,10 @@ async def get_streak(db, habit_id: int) -> tuple[int, date | None]:
     has not slipped. Do not recompute the streak from last_relapse_date: an
     edging day after the last slip makes them disagree on purpose.
     Without either, the streak is the days since the habit's start date.
+    `today` is the day it is counted to (default: the current date); records
+    after it are ignored.
     """
-    today = date.today()
+    today = today or date.today()
     today_iso = today.isoformat()
 
     rows = await db.execute_fetchall(

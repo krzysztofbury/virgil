@@ -10,9 +10,13 @@ from app.services.streak import get_streak
 logger = logging.getLogger(__name__)
 
 
-async def _gather_context(db) -> str:
-    """Gather today's data for the briefing prompt."""
-    today = date.today()
+async def _gather_context(db, today: date) -> str:
+    """Gather the data for the briefing of `today`, the day the briefing is stored on.
+
+    A job can run after the day it was queued for (a manual run just before
+    midnight, or a worker that was down): the text must describe the day it is
+    filed under, not the day the worker happens to run.
+    """
     yesterday = (today - timedelta(days=1)).isoformat()
     today_iso = today.isoformat()
     parts = []
@@ -20,7 +24,7 @@ async def _gather_context(db) -> str:
     # Freedom streaks, one per tracked habit (only if the module is on)
     if await get_setting(db, "feature_freedom", "0") == "1":
         for habit in await list_habits(db):
-            streak_days, _ = await get_streak(db, habit["id"])
+            streak_days, _ = await get_streak(db, habit["id"], today)
             # Clean days: a near miss breaks the streak as a slip does.
             parts.append(f"{habit['name']}: {streak_days} clean days in a row")
 
@@ -74,8 +78,8 @@ BRIEFING_MAX_CHARS = 8000
 
 
 async def generate_briefing_text(db, day_iso: str) -> str:
-    """Buy one briefing from the provider. No writes, so nothing to roll back."""
-    context = await _gather_context(db)
+    """Buy one briefing from the provider for `day_iso`. No writes, so nothing to roll back."""
+    context = await _gather_context(db, date.fromisoformat(day_iso))
 
     system_prompt = (
         "You are Virgil, a personal development assistant. "
