@@ -16,6 +16,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2026-10-28 evaluation's recorded responses, 27 of 180 case runs become exact
   and none stop being exact; the dataset is the one the controls were tuned on.
 
+### Removed
+- The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
+  /api/noporn`, the MCP tool `get_noporn` (on the stdio server and the hosted
+  `/mcp` alike) and the `feniks` key of `/api/summary`. Use
+  `GET /api/freedom/porn/history` or `get_freedom_history` with the Freedom
+  names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
+
+### Fixed
+- A tapped control no longer keeps its hover style on a phone (#201). Hover
+  styles apply only where a pointer can hover, and a touch tablet shows the
+  goal delete button that only hover used to reveal. The datepicker keeps its
+  hover overrides, since the vendored flatpickr stylesheet hovers on touch too.
+- Transitions name the properties they animate instead of `all`, so a layout
+  change no longer animates; the phone menu still fades out.
+
 ## [0.10.0] - 2026-11-08
 
 ### Added
