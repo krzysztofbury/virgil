@@ -139,7 +139,8 @@ def _delete(path: str) -> dict:
 @mcp.tool()
 def get_today_summary() -> dict:
     """Today's snapshot: daily habits + energy, the first Freedom habit's streak (key
-    "feniks"), latest Oura vitals, training sessions this week, latest body measurements."""
+    "freedom"; "feniks" is a deprecated copy for one release), latest Oura vitals, training
+    sessions this week, latest body measurements."""
     return _get("/api/summary")
 
 
@@ -156,7 +157,7 @@ def get_streaks() -> dict:
     slip and the last near miss (edging), and last_relapse is the last slip's date, so a
     near miss after it can make the streak shorter than that date suggests. get_habits
     covers every habit being tracked. Requires the sensitive scope."""
-    status = _get("/api/summary")["feniks"]
+    status = _get("/api/summary")["freedom"]
     if status is None:
         raise ToolError("Freedom data needs the sensitive scope (a token with it, or VIRGIL_API_SENSITIVE=true)")
     return status
@@ -401,8 +402,22 @@ def get_training_detail(days: int = 7) -> dict:
 
 
 @mcp.tool()
+def get_freedom_history(habit: str = "", days: int = 30) -> dict:
+    """One Freedom habit (`habit` slug from get_habits; empty means the first tracked habit)
+    over the last N days (1-365): settings, streak, this week's clean rate, relapse/reset
+    records, the day log (slipped/amount/near_miss/note; a near miss is not a clean day and
+    the streak counts it, without a relapse marker) and bricks (urges survived:
+    hook/craving/story). The Porn habit also carries the No Porn program's journal
+    (emotions/triggers/thoughts/coping) and pleasures.
+    Use this to see WHY slips happened; get_habits only gives where each habit stands.
+    Requires the sensitive scope."""
+    return _get(f"/api/freedom/{_habit_slug(habit)}/history", params={"range": days})
+
+
+@mcp.tool()
 def get_noporn(days: int = 30) -> dict:
-    """Freedom's Porn habit (formerly the No Porn module) for the last N days (1-365): config,
+    """Deprecated for one release: use get_freedom_history (habit "porn"), which uses the
+    Freedom names. Freedom's Porn habit (formerly the No Porn module) for the last N days (1-365): config,
     streak, current-week clean rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
     pleasures, the daily log (used/minutes/edging/note; edging is a near miss, so that day
     is not clean and the streak counts it, without a relapse marker) and bricks (urges
@@ -695,7 +710,7 @@ def update_brick(
     craving: int | None = None,
     story: str | None = None,
 ) -> dict:
-    """Edit a Freedom brick (ids from get_habits or get_noporn). Only the supplied fields
+    """Edit a Freedom brick (ids from get_habits or get_freedom_history). Only the supplied fields
     change; the hook cannot become blank. Requires the sensitive scope."""
     fields = {"date": date, "hook": hook, "craving": craving, "story": story}
     payload = {key: value for key, value in fields.items() if value is not None}

@@ -261,7 +261,7 @@ All configuration via environment variables:
 | `VIRGIL_INTERNAL_LLM_KEY` | (empty) | API key for internal LLM |
 | `VIRGIL_API_KEY` | (empty) | Server API key for one account, beside each account's own API tokens: reads plus goal, rep, experiment-entry, exercise-library, daily-log, training, and measurement writes (the API is off while neither exists) |
 | `VIRGIL_API_USER_EMAIL` | (empty) | The only account `VIRGIL_API_KEY` may read or write. Required when the key is set. Empty, missing, or deactivated returns 503 for `/api` and `/mcp` and does not fall back to another admin. The web UI keeps working |
-| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/noporn` (intimate journal content), `/api/freedom`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the server API key. Tokens carry their own `sensitive` scope |
+| `VIRGIL_API_SENSITIVE` | `false` | Expose `/api/freedom` and each habit's history (`/api/freedom/{habit}/history`, with the Porn habit's intimate journal content), the deprecated `/api/noporn`, the Freedom status in `/api/summary`, and the Freedom day-log, brick and habit-settings writes over the server API key. Tokens carry their own `sensitive` scope |
 | `VIRGIL_API_FINANCE` | `false` | Expose `/api/finance` (account balances, the cushion, the score and their settings) and the Finance MCP tools over the server API key. Tokens carry their own `finance` scope |
 | `CLOUDFLARE_TUNNEL_TOKEN` | (none) | Cloudflare Tunnel token (docker-compose only) |
 | `VIRGIL_BACKUP_DIR` | `<data>/backups` (`/backups` in compose) | Where backups and pre-migration snapshots are written. Startup moves any left in `<data>/backups` here and logs an error when it is not writable |
@@ -528,6 +528,14 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
     routines, and the four A.N.D.Y. statuses and descriptions
   - `get_habits` → `GET /api/freedom` lists every tracked habit with its slug,
     streak, this week, today's entry, bricks, slip definition and settings
+  - `get_freedom_history` → `GET /api/freedom/{habit}/history?range=N` gives one
+    habit's last N days: settings, streak, this week, relapse and reset records,
+    the day log (`slipped`, `amount`, `near_miss`, `note`) and bricks; the Porn
+    habit also carries the No Porn program's journal and pleasures. `/api/summary`
+    reports the first habit's streak under `freedom`
+  - **Deprecated, kept for one release (#218):** `GET /api/noporn` and
+    `get_noporn` (the Porn habit with the No Porn names `used`, `minutes`,
+    `edging`) and the `feniks` key of `/api/summary`, a copy of `freedom`
   - `log_freedom_day` → `PUT /api/freedom/{habit}/days/{date}` and `add_brick` →
     `POST /api/freedom/{habit}/bricks` keep the Freedom form's contract (a slip
     writes the relapse marker and a near miss does not; for Porn, a slip is at
@@ -812,7 +820,7 @@ Central registry migrations:
 - `habits` - Freedom habits: slip label and definition, amount unit and threshold, near-miss label, start date, target, why, tracked flag
 - `feniks_daily`, `feniks_bricks` - Freedom day logs and bricks, keyed by habit
 - `pmo_events` - relapse/reset events, keyed by habit
-- `feniks_journal`, `feniks_pleasures` - the No Porn program's journal and pleasures, read by `/api/noporn` and the markdown download
+- `feniks_journal`, `feniks_pleasures` - the No Porn program's journal and pleasures, read by the Porn habit's `/api/freedom/porn/history` (and the deprecated `/api/noporn`) and the markdown download
 - `oura_daily` — Oura Ring per-day data (from API or webhook)
 - `oura_monthly` — Oura Ring monthly averages (computed from daily or manual)
 - `oura_workouts` — Oura workout data

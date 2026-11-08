@@ -42,6 +42,7 @@ def test_every_route_answers_401_without_the_key(client, method, path):
 SENSITIVE = {
     ("GET", "/api/noporn"),
     ("GET", "/api/freedom"),
+    ("GET", "/api/freedom/{habit}/history"),
     ("PUT", "/api/freedom/{habit}/days/{day}"),
     ("DELETE", "/api/freedom/{habit}/days/{day}"),
     ("POST", "/api/freedom/{habit}/bricks"),

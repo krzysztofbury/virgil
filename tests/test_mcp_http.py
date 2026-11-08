@@ -101,9 +101,12 @@ def test_freedom_tools_write_through_the_freedom_paths_and_the_no_porn_names_are
             assert call.status_code == 200, call.text
             assert call.json()["result"]["isError"] is False, call.text
 
-        days = {row["date"]: row for row in auth_client.get("/api/noporn?range=90", headers=KEY).json()["daily"]}
-        assert (days[old_day]["used"], days[old_day]["minutes"]) == (1, 9)
-        assert (days[new_day]["used"], days[new_day]["note"]) == (0, "ZZ clean")
+        history = _rpc(client, "tools/call", {"name": "get_freedom_history", "arguments": {"days": 90}})
+        assert history.json()["result"]["isError"] is False, history.text
+        rows = json.loads(history.json()["result"]["content"][0]["text"])["days"]
+        days = {row["date"]: row for row in rows}
+        assert (days[old_day]["slipped"], days[old_day]["amount"]) == (1, 9)
+        assert (days[new_day]["slipped"], days[new_day]["note"]) == (0, "ZZ clean")
     finally:
         for day in (old_day, new_day):
             auth_client.delete(f"/api/freedom/porn/days/{day}", headers=KEY)

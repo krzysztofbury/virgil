@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- One Freedom habit's history under its own name (#218):
+  `GET /api/freedom/{habit}/history?range=N` and the MCP tool
+  `get_freedom_history` return any habit's settings, streak, this week,
+  relapse and reset records, day log (`slipped`, `amount`, `near_miss`, `note`)
+  and bricks. The Porn habit also carries the No Porn program's journal and
+  pleasures. Needs the `sensitive` scope. `/api/summary` reports the first
+  habit's streak under `freedom`, and `get_streaks` reads that key.
 - Life scores over REST and MCP (#196): `GET /api/life-scores`,
   `PUT/DELETE /api/life-scores/{date}` and the tools `get_life_scores`,
   `log_life_scores` and `delete_life_scores`. Only the supplied fields change,
@@ -140,6 +147,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The exercise library shows one line per exercise, with editing behind
   Edit, sections collapsed and hidden exercises in their own group.
 
+### Deprecated
+- The last No Porn read names, kept for one release (#218): `GET /api/noporn`
+  and the MCP tool `get_noporn` (the Porn habit with `used`, `minutes` and
+  `edging`; use `/api/freedom/porn/history` and `get_freedom_history`), and the
+  `feniks` key of `/api/summary`, now a copy of `freedom`.
+
 ### Removed
 - The No Porn API names, deprecated in 0.8.0 for one release (#215): the
   `/api/feniks/daily/{date}`, `/api/feniks/bricks[/{id}]` and
@@ -150,7 +163,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `PATCH /api/freedom/{habit}` and the tools `log_freedom_day`,
   `delete_freedom_day` and `update_habit`. An old path is no longer an API-key
   path, so a caller with only a key is redirected to sign in instead of
-  writing. `/api/noporn` and the `feniks` key of `/api/summary` stay.
+  writing. `/api/noporn` and the `feniks` key of `/api/summary` were deprecated
+  separately (#218).
 - The Sync Log card in Settings, which nothing wrote to, and the database
   path shown on the General tab.
 - Helpers nothing called (#214): `clamp`, `clamp_float` and `clamp_int` in
