@@ -283,9 +283,15 @@ def test_a_briefing_run_after_its_day_describes_that_day(monkeypatch):
     day, before, after = "2026-02-20", "2026-02-15", "2026-02-25"
     yesterday_of_run = (date.today() - timedelta(days=1)).isoformat()
     habit = track_porn()
+    habit_name = _rows("SELECT name FROM habits WHERE id = ?", (habit,))[0][0]
+    flag = _rows("SELECT value FROM app_settings WHERE key = 'feature_freedom'")
     db = sqlite3.connect(user_db_path())
     try:
         db.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES('feature_freedom', '1')")
+        db.execute(
+            "INSERT INTO experiments (title, start_date, num_weeks, status) "
+            "VALUES ('ZZ briefing experiment', '2026-02-02', 8, 'active')"
+        )
         db.execute("INSERT INTO daily_logs (date, energy, notes) VALUES ('2026-02-19', 7, 'ZZ day before')")
         db.execute("INSERT INTO oura_daily (date, sleep_score, readiness_score) VALUES (?, 81, 77)", (day,))
         # A relapse five days before the day, and one after it: as of the day, the streak is 5.
@@ -303,6 +309,14 @@ def test_a_briefing_run_after_its_day_describes_that_day(monkeypatch):
         return "Morning."
 
     monkeypatch.setattr(briefing_module, "call_llm", fake_llm)
+    week_references = []
+    real_week_number = briefing_module.experiment_week_number
+
+    def spy_week_number(start, num_weeks, reference):
+        week_references.append(reference)
+        return real_week_number(start, num_weeks, reference)
+
+    monkeypatch.setattr(briefing_module, "experiment_week_number", spy_week_number)
 
     async def scenario():
         db = await _db()
@@ -323,7 +337,11 @@ def test_a_briefing_run_after_its_day_describes_that_day(monkeypatch):
             db.execute("DELETE FROM pmo_events WHERE notes = 'ZZ briefing'")
             db.execute("DELETE FROM daily_logs WHERE date = '2026-02-19'")
             db.execute("DELETE FROM oura_daily WHERE date = ?", (day,))
-            db.execute("DELETE FROM app_settings WHERE key = 'feature_freedom'")
+            db.execute("DELETE FROM experiments WHERE title = 'ZZ briefing experiment'")
+            if flag:
+                db.execute("UPDATE app_settings SET value = ? WHERE key = 'feature_freedom'", (flag[0][0],))
+            else:
+                db.execute("DELETE FROM app_settings WHERE key = 'feature_freedom'")
             db.commit()
         finally:
             db.close()
@@ -333,6 +351,7 @@ def test_a_briefing_run_after_its_day_describes_that_day(monkeypatch):
     assert prompt.startswith(f"Today is {day}.")
     assert "Yesterday (2026-02-19): energy 7/10" in prompt and "ZZ day before" in prompt
     assert "Today's Oura: sleep=81, readiness=77" in prompt
-    assert "5 clean days in a row" in prompt, "the streak is counted to the briefing's day"
+    assert f"{habit_name}: 5 clean days in a row" in prompt, "the streak is counted to the briefing's day"
+    assert week_references and set(week_references) == {date(2026, 2, 20)}, "experiment weeks too"
     assert yesterday_of_run not in prompt, "nothing from the day the worker ran"
     assert _rows("SELECT content FROM daily_briefings WHERE date = ?", (day,)) == [("Morning.",)]
