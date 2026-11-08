@@ -108,7 +108,7 @@ def test_malformed_entry_is_skipped_not_crashing(monkeypatch):
             "unmatched": [],
         },
     )
-    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "..."))
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "back squat 5x5 70, pull-ups 10"))
     assert [e.movement for e in result.entries] == ["Pull-up"]
 
 
@@ -485,7 +485,7 @@ def test_truncated_response_still_yields_the_movements_that_arrived(monkeypatch)
         return truncated
 
     monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
-    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "..."))
+    result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "row 3 min, cindy: 5 pull-ups"))
 
     assert [e.movement for e in result.entries] == ["Row", "Pull-up", "Pull-up"]
     assert result.entries[0].duration == 180.0
@@ -592,3 +592,159 @@ def test_alias_reaches_the_prompt_and_maps_to_the_library_name(tmp_path, monkeyp
         ("Back Squat", "dumbbell"),
     ], "an alias maps to its library name; equipment outside the list is dropped, not stored"
     assert result.unmatched == []
+
+
+# ── Parser controls from the first live evaluation (#187) ──────────────────────
+
+
+def _entry(movement, equipment=None, set_number=1):
+    return {"movement": movement, "set_number": set_number, "reps": 5, "equipment": equipment, "note": ""}
+
+
+def _parse(monkeypatch, note, entries, library=_LIBRARY, unmatched=()):
+    _stub_llm(monkeypatch, {"entries": entries, "unmatched": list(unmatched)})
+    return asyncio.run(wod_parser.parse_wod(_FakeDB(library), note))
+
+
+def _parse_with_aliases(tmp_path, monkeypatch, note, entries, library):
+    """library: {name: [aliases]} in a real exercise_library table."""
+    _stub_llm(monkeypatch, {"entries": entries, "unmatched": []})
+
+    async def scenario():
+        db = await _real_library_db(tmp_path)
+        try:
+            for name, aliases in library.items():
+                cursor = await db.execute("INSERT INTO exercise_library (section, name) VALUES ('Core', ?)", (name,))
+                for alias in aliases:
+                    await db.execute(
+                        "INSERT INTO exercise_aliases (alias, library_id) VALUES (?, ?)", (alias, cursor.lastrowid)
+                    )
+            await db.commit()
+            return await wod_parser.parse_wod(db, note)
+        finally:
+            await db.close()
+
+    return asyncio.run(scenario())
+
+
+def test_equipment_the_note_does_not_state_is_dropped(monkeypatch):
+    """Failure mode 1: smaller models fill equipment in from the movement."""
+    result = _parse(monkeypatch, "back squat 5x5 100kg", [_entry("Back Squat", "barbell")])
+    assert [e.equipment for e in result.entries] == [None]
+
+
+def test_an_equipment_word_in_the_note_keeps_only_its_own_equipment(monkeypatch):
+    result = _parse(
+        monkeypatch,
+        "back squat 5x3 sama sztanga, thruster 21",
+        [_entry("Back Squat", "barbell"), _entry("Thruster", "dumbbell")],
+    )
+    assert [(e.movement, e.equipment) for e in result.entries] == [("Back Squat", "barbell"), ("Thruster", None)]
+
+
+def test_equipment_written_in_the_movement_comes_from_it(tmp_path, monkeypatch):
+    """The opposite error: the word is part of the movement as written. It sets
+    that movement's equipment and is not free for another entry."""
+    result = _parse_with_aliases(
+        tmp_path,
+        monkeypatch,
+        "3 rounds: 10 T2B, 15 wall balls 9kg, 21 KB swings",
+        [_entry("Toes-to-bar", "ball"), _entry("Wall Ball"), _entry("KB Swing", "dumbbell")],
+        {"Toes-to-bar": ["T2B"], "Wall Ball": [], "KB Swing": []},
+    )
+    assert [(e.movement, e.equipment) for e in result.entries] == [
+        ("Toes-to-bar", None),
+        ("Wall Ball", "ball"),
+        ("KB Swing", "kettlebell"),
+    ]
+
+
+def test_an_entry_the_note_never_writes_is_refused_and_reported_as_written(monkeypatch):
+    """Failure mode 2: a misspelt or unlisted name mapped onto a listed movement.
+    Every set of it is refused, and the part of the note it came from is
+    reported once, so the confirm screen shows what the user wrote."""
+    result = _parse(
+        monkeypatch,
+        "pul ups 3x8, back squat 5x5",
+        [_entry("Pull-up", set_number=n) for n in (1, 2, 3)] + [_entry("Back Squat")],
+    )
+    assert [e.movement for e in result.entries] == ["Back Squat"]
+    assert result.unmatched == ["pul ups 3x8"]
+
+
+def test_a_refused_entry_takes_no_part_the_model_reported_itself(monkeypatch):
+    result = _parse(
+        monkeypatch,
+        "sled push 4x20m, back squat 5x5",
+        [_entry("Back Squat"), _entry("Thruster")],
+        unmatched=["sled push"],
+    )
+    assert [e.movement for e in result.entries] == ["Back Squat"]
+    assert result.unmatched == ["sled push", "Thruster"], "no part left to name it by, so it keeps its own name"
+
+
+@pytest.mark.parametrize(
+    "note",
+    ["pull-ups 3x8", "Pull ups 3x8", "pullups 3x8", "PULL-UP 3x8", "3x8 pull-upy"],
+)
+def test_the_same_name_written_another_way_still_matches(monkeypatch, note):
+    result = _parse(monkeypatch, note, [_entry("Pull-up")])
+    assert [e.movement for e in result.entries] == ["Pull-up"]
+    assert result.unmatched == []
+
+
+def test_a_short_alias_matches_only_a_whole_word(tmp_path, monkeypatch):
+    """A prefix match let "DU" (Double-under) claim "dumbbell", and "Row" take
+    "rundy". Words under four letters take only an English ending."""
+    result = _parse_with_aliases(
+        tmp_path,
+        monkeypatch,
+        "dumbbell hang snatch 4x10, 4 rundy, 50 DUs, rowing 500m",
+        [_entry("Double-under"), _entry("Hang Snatch", "dumbbell"), _entry("Row"), _entry("Run")],
+        {"Double-under": ["DU"], "Hang Snatch": [], "Row": [], "Run": []},
+    )
+    assert [(e.movement, e.equipment) for e in result.entries] == [
+        ("Double-under", None),
+        ("Hang Snatch", "dumbbell"),
+        ("Row", None),
+    ]
+    assert result.unmatched == ["4 rundy"]
+
+
+def test_every_expected_answer_in_the_eval_cases_passes_the_controls(tmp_path, monkeypatch):
+    """The controls must never refuse a correct answer: each case's expected
+    output, sent back as the model's reply, comes through unchanged against the
+    library every account starts with."""
+    from app.migrations.runner import run_migrations
+    from evals.wod.run import load_cases
+
+    cases = load_cases()
+    reply = {}
+
+    async def fake_call_llm(db, system_prompt, user_prompt, **kwargs):
+        return reply["text"]
+
+    monkeypatch.setattr(wod_parser, "call_llm", fake_call_llm)
+
+    async def scenario():
+        db = await aiosqlite.connect(tmp_path / "eval.db")
+        db.row_factory = aiosqlite.Row
+        try:
+            await run_migrations(db)
+            changed = []
+            for case in cases:
+                expected = case["expected"]
+                reply["text"] = json.dumps({"entries": expected["entries"], "unmatched": expected["unmatched"]})
+                parsed = await wod_parser.parse_wod(db, case["note"])
+                got = [
+                    {k: getattr(e, k) for k in ("movement", "set_number", "reps", "weight", "duration", "equipment")}
+                    for e in parsed.entries
+                ]
+                if got != expected["entries"] or parsed.unmatched != expected["unmatched"]:
+                    changed.append(case["id"])
+            return changed
+        finally:
+            await db.close()
+
+    assert len(cases) >= 30
+    assert asyncio.run(scenario()) == []

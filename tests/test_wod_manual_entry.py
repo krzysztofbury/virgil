@@ -278,7 +278,7 @@ def test_parsed_rows_also_get_the_add_exercise_control(auth_client, monkeypatch)
         )
 
     monkeypatch.setattr(wp, "call_llm", fake_call_llm)
-    resp = _capture(auth_client)
+    resp = _capture(auth_client, "row 3 min, then something the parser missed")
     assert 'value="Row" selected' in resp.text
     assert "+ add exercise" in resp.text
     assert f"wodConfirmForm(1, {MAX_CONFIRM_ENTRIES})" in resp.text

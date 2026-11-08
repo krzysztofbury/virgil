@@ -7,10 +7,14 @@ exercise_library — every non-archived row, not just the ones labelled
 'Thruster 43kg' as three movements and the catalogue rots within a month.
 
 Anything the model returns outside that vocabulary is reported as unmatched
-rather than created, so the user resolves it on the confirmation screen.
+rather than created, so the user resolves it on the confirmation screen. So is
+an entry for a listed movement the note never writes by its name or an alias,
+and equipment survives only where the note states it (#187): the first live
+evaluation found smaller models doing both, against the prompt.
 """
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from app.services.llm import call_llm, parse_andy_response
@@ -67,6 +71,90 @@ with reps 21, 15, 9 and the scheme copied into "note".
 
 Allowed movements:
 """
+
+
+# The words a note uses for each equipment value: the prompt's own (DB, KB) and
+# their Polish forms. A model's equipment survives only when its word is in the
+# note (#187): the smaller models fill it in from the movement ("back squat" ->
+# barbell) although the prompt says not to. "other" has no word, so it never
+# survives.
+EQUIPMENT_WORDS = (
+    (re.compile(r"\b(?:barbells?|sztang\w*)\b", re.IGNORECASE), "barbell"),
+    (re.compile(r"\b(?:dumbbells?|db|hantl\w*)\b", re.IGNORECASE), "dumbbell"),
+    (re.compile(r"\b(?:kettlebells?|kb|odważnik\w*)\b", re.IGNORECASE), "kettlebell"),
+    (re.compile(r"\b(?:plates?|talerz\w*)\b", re.IGNORECASE), "plate"),
+    (re.compile(r"\b(?:bodyweight|body weight)\b", re.IGNORECASE), "bodyweight"),
+    (re.compile(r"\b(?:balls?|piłk\w*)\b", re.IGNORECASE), "ball"),
+    (re.compile(r"\b(?:bands?|gum\w*)\b", re.IGNORECASE), "band"),
+    (re.compile(r"\b(?:machines?|maszyn\w*)\b", re.IGNORECASE), "machine"),
+)
+
+# A word, with an apostrophe inside it kept ("farmer's").
+_WORD = re.compile(r"\w+(?:['’]\w+)*")
+
+
+def _words(text: str) -> list[tuple[str, int, int]]:
+    return [(m.group().lower().replace("'", "").replace("’", ""), m.start(), m.end()) for m in _WORD.finditer(text)]
+
+
+# English endings and the Polish ones a gym word takes ("pull-upy", "OHS-ów").
+_SHORT_ENDINGS = ("", "s", "es", "ing", "ed", "y", "i", "a", "e", "u", "ów", "om", "em", "ach", "ami")
+
+
+def _same_word(written: str, listed: str) -> bool:
+    """A written word for a listed one, whatever its ending.
+
+    A listed word of four letters or more may take any ending (a plural, a
+    Polish case ending). A shorter one takes only a listed ending, so "DU" does
+    not match "dumbbell" and "Run" does not match "rundy".
+    """
+    if len(listed) >= 4:
+        return written.startswith(listed)
+    return any(written == listed + ending for ending in _SHORT_ENDINGS)
+
+
+def _occurrences(term: str, note_words: list[tuple[str, int, int]]) -> list[tuple[int, int]]:
+    """Where the note writes `term`, as character spans.
+
+    The term's words must appear in order, each as the same word (_same_word),
+    or run together ("pullups" for Pull-up). A misspelling ("pul ups") or another
+    word ("bieg" for Run) does not match.
+    """
+    parts = [word for word, _, _ in _words(term)]
+    if not parts:
+        return []
+    joined = "".join(parts)
+    spans = []
+    for i, (word, start, end) in enumerate(note_words):
+        if len(parts) > 1 and _same_word(word, joined):
+            spans.append((start, end))
+        window = note_words[i : i + len(parts)]
+        if len(window) == len(parts) and all(_same_word(w, p) for (w, _, _), p in zip(window, parts, strict=True)):
+            spans.append((start, window[-1][2]))
+    return spans
+
+
+# A note lists its parts on lines or between commas and semicolons.
+_PART = re.compile(r"[^,;\n]+")
+
+
+def _unwritten_parts(text: str, written: list[tuple[int, int]], reported: list[str]) -> list[str]:
+    """The parts of the note that write no listed movement and that the model
+    did not report itself: where a refused entry's movement was written."""
+    reported_lower = [name.lower() for name in reported]
+    parts = []
+    for m in _PART.finditer(text):
+        part = m.group().strip(" \t:.-")
+        if not _WORD.search(part) or any(m.start() < end and start < m.end() for start, end in written):
+            continue
+        if any(name in part.lower() or part.lower() in name for name in reported_lower):
+            continue
+        parts.append(part)
+    return parts
+
+
+def _equipment_in(text: str, offset: int = 0) -> list[tuple[int, str]]:
+    return sorted((m.start() + offset, value) for pattern, value in EQUIPMENT_WORDS for m in pattern.finditer(text))
 
 
 @dataclass(frozen=True)
@@ -156,6 +244,20 @@ async def canonical_movements(db) -> list[dict]:
     return movements
 
 
+def _entry_equipment(model_value, spans: list[tuple[int, int]], text: str, free: set[str]) -> str | None:
+    """The equipment the note states for this entry.
+
+    The word in the movement as written wins ("KB swings" is kettlebell whatever
+    the model said, and "Barbell Row" is barbell when the model forgot it). Else
+    the model's value stands only when a free equipment word in the note says it.
+    """
+    for start, end in spans:
+        named = _equipment_in(text[start:end], start)
+        if named:
+            return named[0][1]
+    return model_value if model_value in EQUIPMENT and model_value in free else None
+
+
 def _coerce(value, caster):
     if value is None:
         return None
@@ -212,7 +314,32 @@ async def parse_wod(db, text: str) -> ParsedWod:
     entries: list[ParsedEntry] = []
     unmatched: list[str] = [str(u) for u in raw_unmatched] if isinstance(raw_unmatched, list) else []
 
-    for item in raw_entries if isinstance(raw_entries, list) else []:
+    # Where the note writes each movement, by its name or any alias. An entry
+    # for a movement the note never writes is refused (#187): the smaller models
+    # map an unlisted name ("bieg", "pul ups") onto a listed movement, which
+    # would hide exactly the gap `unmatched` exists to show.
+    note_words = _words(text)
+    written: dict[str, list[tuple[int, int]]] = {}
+    for m in movements:
+        spans = [span for term in [m["name"], *m["aliases"]] for span in _occurrences(term, note_words)]
+        if spans:
+            written[m["name"]] = spans
+    items = raw_entries if isinstance(raw_entries, list) else []
+    returned = {
+        by_lower.get(str(item.get("movement") or "").strip().lower()) for item in items if isinstance(item, dict)
+    }
+    # An equipment word inside a returned movement as written ("KB swings",
+    # "wall balls") belongs to that movement; the note's other ones are free.
+    claimed = [span for name in returned if name in written for span in written[name]]
+    free_equipment = {
+        value for at, value in _equipment_in(text) if not any(start <= at < end for start, end in claimed)
+    }
+    # A refused entry is reported by what the note wrote for it, in order, while
+    # an unclaimed part of the note is left; after that, by the movement's name.
+    unwritten = _unwritten_parts(text, [span for spans in written.values() for span in spans], unmatched)
+
+    refused: set[str] = set()
+    for item in items:
         if not isinstance(item, dict):
             # Nothing identifiable to surface — no movement name to put in
             # `unmatched`. Logged so it is at least visible in the container logs.
@@ -223,6 +350,14 @@ async def parse_wod(db, text: str) -> ParsedWod:
         if not canonical:
             if name and name not in unmatched:
                 unmatched.append(name)
+            continue
+        if canonical not in written:
+            if canonical not in refused:
+                refused.add(canonical)
+                logger.warning("WOD parser refused %r: the note writes no listed name or alias for it", canonical)
+                label = unwritten.pop(0) if unwritten else canonical
+                if label not in unmatched:
+                    unmatched.append(label)
             continue
         try:
             # Sets are 1-indexed. A missing value means a single set; a parsed
@@ -242,7 +377,7 @@ async def parse_wod(db, text: str) -> ParsedWod:
                 weight=_coerce(item.get("weight"), float),
                 duration=_coerce(item.get("duration"), float),
                 note=str(item.get("note") or "")[:200],
-                equipment=item.get("equipment") if item.get("equipment") in EQUIPMENT else None,
+                equipment=_entry_equipment(item.get("equipment"), written[canonical], text, free_equipment),
             )
         except TypeError, ValueError:
             # One malformed row must not lose the rest of the workout — but it

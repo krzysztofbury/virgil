@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- The WOD parser refuses an entry for a movement the note never writes by its
+  name or an alias, and lists it as not recognised with the words the note used
+  ("pul ups 3x8"), instead of logging the model's guess (#187). Equipment is kept
+  only where the note states it; a word inside the movement as written ("KB
+  swings", "wall balls") sets that movement's equipment. Replaying the
+  2026-10-28 evaluation's recorded responses, 27 of 180 case runs become exact
+  and none stop being exact; the dataset is the one the controls were tuned on.
+
 ### Removed
 - The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
   /api/noporn`, the MCP tool `get_noporn` (on the stdio server and the hosted

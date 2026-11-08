@@ -78,6 +78,10 @@ def test_a_truncated_answer_is_repaired_and_still_scored(client, tmp_path):
 
 
 def test_a_mapped_unknown_movement_shows_as_hallucinated(client, tmp_path):
+    """The parser refuses a movement the note never writes (#187), but a mapped
+    name still gets through when the note writes the movement inside another
+    one: "hang snatch" writes Snatch. The harness must count that."""
+
     def map_sled(case, text):
         if case["id"] != "en-sled-oov":
             return text
@@ -85,7 +89,7 @@ def test_a_mapped_unknown_movement_shows_as_hallucinated(client, tmp_path):
         payload["unmatched"] = []
         payload["entries"].append(
             {
-                "movement": "Push Press",
+                "movement": "Snatch",
                 "set_number": 1,
                 "reps": None,
                 "weight": None,
