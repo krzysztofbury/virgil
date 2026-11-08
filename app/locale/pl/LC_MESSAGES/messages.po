@@ -5087,7 +5087,7 @@ msgstr "Popraw dzień"
 
 #: app/templates/freedom.html
 msgid "not counted in the streak"
-msgstr "nie liczy się do serii"
+msgstr "nie wlicza się do serii"
 
 #: app/templates/freedom.html
 #, python-format
@@ -5112,7 +5112,7 @@ msgstr "Usunąć wpis o nawrocie z %(date)s? Seria zostanie policzona od nowa be
 #: app/templates/freedom.html
 #, python-format
 msgid "Delete the reset record from %(date)s? It is not counted in the streak."
-msgstr "Usunąć wpis o resecie z %(date)s? Nie liczy się do serii."
+msgstr "Usunąć wpis o resecie z %(date)s? Nie wlicza się do serii."
 
 #: app/templates/freedom.html
 #, python-format

@@ -272,8 +272,8 @@
 </div>
 {% endif %}
 
-<!-- Relapse records: a relapse breaks the streak, a reset (the app never writes
-     one; an import can bring one in) is listed and never counted. A slipped day
+<!-- Relapse records: a relapse breaks the streak, a reset (an import, or an
+     older correction, made it) is listed and never counted. A slipped day
      writes its own relapse, which follows the day; any other record (older or
      imported) gets its date and note corrected here. -->
 {% if relapse_records %}

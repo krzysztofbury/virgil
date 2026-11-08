@@ -168,6 +168,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   promised a recount that never came. A reset now shows "not counted in the
   streak", its delete says so, and a correction changes only a record's date
   and note, as the README now says (it said date, type and note, from #52).
+  A relapse that an earlier correction turned into a reset stays a reset; to
+  count that day again, delete the reset and log the day as slipped.
 - A morning briefing describes the day it is filed under (#213). The text used
   the logs, Oura row, streak and experiment weeks of the day the worker ran, so a
   briefing queued just before midnight and run after it put the next day's data

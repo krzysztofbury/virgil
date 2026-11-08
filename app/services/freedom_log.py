@@ -138,8 +138,8 @@ RELAPSE_LIST_MAX = 200
 async def list_relapse_events(db, habit: dict) -> list[dict]:
     """This habit's relapse and reset records, newest first.
 
-    A relapse breaks the streak. A reset (the app never writes one; an
-    import can bring one in) is listed and never counted.
+    A relapse breaks the streak. A reset (an import, or a correction made
+    before the type was fixed, can have made one) is listed and never counted.
 
     `from_day` marks the ones a slipped day wrote: they follow that day, so the
     page sends them to the day form instead of editing them on their own.
