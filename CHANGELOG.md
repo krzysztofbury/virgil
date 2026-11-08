@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- A tapped control no longer keeps its hover style on a phone (#201). Hover
+  styles apply only where a pointer can hover, and a touch tablet shows the
+  goal delete button that only hover used to reveal. The datepicker keeps its
+  hover overrides, since the vendored flatpickr stylesheet hovers on touch too.
+- Transitions name the properties they animate instead of `all`, so a layout
+  change no longer animates; the phone menu still fades out.
+
 ## [0.10.0] - 2026-11-08
 
 ### Added
