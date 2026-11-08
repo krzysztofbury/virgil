@@ -38,7 +38,7 @@ services:
       VIRGIL_API_KEY: ${VIRGIL_API_KEY:-}
       # Required when the key is set. Empty no longer means "first active admin".
       VIRGIL_API_USER_EMAIL: ${VIRGIL_API_USER_EMAIL:-}
-      # Opt-in: expose /api/noporn (intimate journal content) over the API key.
+      # Opt-in: expose Freedom (intimate journal content) over the API key.
       VIRGIL_API_SENSITIVE: ${VIRGIL_API_SENSITIVE:-false}
       # Opt-in: expose /api/finance (balances and the cushion) over the API key.
       VIRGIL_API_FINANCE: ${VIRGIL_API_FINANCE:-false}

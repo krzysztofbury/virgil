@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+- The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
+  /api/noporn`, the MCP tool `get_noporn` (on the stdio server and the hosted
+  `/mcp` alike) and the `feniks` key of `/api/summary`. Use
+  `GET /api/freedom/porn/history` or `get_freedom_history` with the Freedom
+  names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
+
 ## [0.10.0] - 2026-11-08
 
 ### Added

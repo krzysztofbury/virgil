@@ -123,7 +123,7 @@ TRUSTED_PROXY_IPS = parse_trusted_proxies(os.environ.get("VIRGIL_TRUSTED_PROXY_I
 # Machine-to-machine REST API. Empty key = API disabled.
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
 API_USER_EMAIL = os.environ.get("VIRGIL_API_USER_EMAIL", "").strip().lower()
-# /api/noporn returns intimate journal/relapse content — a leaked API key should
+# /api/freedom returns intimate journal/relapse content — a leaked API key should
 # not expose it by default. Opt in explicitly.
 API_SENSITIVE = os.environ.get("VIRGIL_API_SENSITIVE", "false").lower() == "true"
 # /api/finance returns balances and the safety cushion. Opt in separately, so

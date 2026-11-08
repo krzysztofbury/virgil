@@ -139,8 +139,7 @@ def _delete(path: str) -> dict:
 @mcp.tool()
 def get_today_summary() -> dict:
     """Today's snapshot: daily habits + energy, the first Freedom habit's streak (key
-    "freedom"; "feniks" is a deprecated copy for one release), latest Oura vitals, training
-    sessions this week, latest body measurements."""
+    "freedom"), latest Oura vitals, training sessions this week, latest body measurements."""
     return _get("/api/summary")
 
 
@@ -412,18 +411,6 @@ def get_freedom_history(habit: str = "", days: int = 30) -> dict:
     Use this to see WHY slips happened; get_habits only gives where each habit stands.
     Requires the sensitive scope."""
     return _get(f"/api/freedom/{_habit_slug(habit)}/history", params={"range": days})
-
-
-@mcp.tool()
-def get_noporn(days: int = 30) -> dict:
-    """Deprecated for one release: use get_freedom_history (habit "porn"), which uses the
-    Freedom names. Freedom's Porn habit (formerly the No Porn module) for the last N days (1-365): config,
-    streak, current-week clean rate, relapse/reset events, journal entries (emotions/triggers/thoughts/coping), logged
-    pleasures, the daily log (used/minutes/edging/note; edging is a near miss, so that day
-    is not clean and the streak counts it, without a relapse marker) and bricks (urges
-    survived: hook/craving/story, the progress unit).
-    Use this to see WHY relapses happened — get_streaks only gives the count."""
-    return _get("/api/noporn", params={"range": days})
 
 
 @mcp.tool()

@@ -143,8 +143,9 @@ def test_summary_shape(auth_client):
     resp = auth_client.get("/api/summary", headers=KEY)
     assert resp.status_code == 200
     body = resp.json()
-    for key in ("date", "daily", "freedom", "feniks", "oura_latest", "training_week", "measurements_latest"):
+    for key in ("date", "daily", "freedom", "oura_latest", "training_week", "measurements_latest"):
         assert key in body
+    assert "feniks" not in body, "the deprecated copy of freedom was removed after 0.10.0 (#218)"
 
 
 def test_summary_shows_freedom_status_only_in_the_sensitive_scope(auth_client, monkeypatch):
@@ -153,11 +154,10 @@ def test_summary_shows_freedom_status_only_in_the_sensitive_scope(auth_client, m
 
     track_porn()
     hidden = auth_client.get("/api/summary", headers=KEY).json()
-    assert hidden["freedom"] is None and hidden["feniks"] is None
+    assert hidden["freedom"] is None
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
     shown = auth_client.get("/api/summary", headers=KEY).json()
     assert "streak_days" in shown["freedom"]
-    assert shown["feniks"] == shown["freedom"], "the deprecated key is a copy for one release (#218)"
 
 
 def test_habits_range(auth_client):
@@ -221,34 +221,15 @@ def test_training_detail_range_out_of_bounds_422(auth_client):
     assert auth_client.get("/api/training/detail?range=999", headers=KEY).status_code == 422
 
 
-def test_noporn_shape(auth_client, monkeypatch):
+def test_the_no_porn_read_is_gone(auth_client, monkeypatch):
+    """Deprecated in 0.10.0 for one release, removed after it (#218): the route no
+    longer exists. GET /api/freedom/porn/history serves the same data."""
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
-    resp = auth_client.get("/api/noporn", headers=KEY)
-    assert resp.status_code == 200
-    body = resp.json()
-    for key in (
-        "range_days",
-        "since",
-        "config",
-        "streak_days",
-        "last_relapse",
-        "week_clean",
-        "events",
-        "journal",
-        "pleasures",
-    ):
-        assert key in body
-    assert isinstance(body["events"], list)
-    assert isinstance(body["journal"], list)
-    assert {"clean_days", "days_elapsed", "pct"} <= body["week_clean"].keys()
+    resp = auth_client.get("/api/noporn", headers=KEY, follow_redirects=False)
+    assert resp.status_code == 404
 
 
-def test_noporn_range_out_of_bounds_422(auth_client, monkeypatch):
-    monkeypatch.setattr("app.config.API_SENSITIVE", True)
-    assert auth_client.get("/api/noporn?range=999", headers=KEY).status_code == 422
-
-
-def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
+def test_freedom_history_and_training_detail_with_data(auth_client, monkeypatch):
     porn = track_porn()
     """Seed a relapse + journal + a session with a reps and a timed exercise; assert the
     endpoints surface them (grouped, with duration on the timed lift). Cleans up after
@@ -304,13 +285,13 @@ def test_noporn_and_training_detail_with_data(auth_client, monkeypatch):
         assert carry["sets"][0]["duration"] == 40.0
         assert carry["sets"][0]["reps"] is None
 
-        noporn = auth_client.get("/api/noporn?range=90", headers=KEY).json()
-        dates = {e["date"] for e in noporn["events"]}
+        history = auth_client.get("/api/freedom/porn/history?range=90", headers=KEY).json()
+        dates = {e["date"] for e in history["events"]}
         assert "2026-07-05" in dates
-        relapse = next(e for e in noporn["events"] if e["date"] == "2026-07-05")
+        relapse = next(e for e in history["events"] if e["date"] == "2026-07-05")
         assert relapse["event_type"] == "relapse"
         assert relapse["notes"] == "tired, bored"
-        assert any(j["triggers"] == "evening downtime" for j in noporn["journal"])
+        assert any(j["triggers"] == "evening downtime" for j in history["journal"])
     finally:
         cur = conn.cursor()
         cur.execute(
