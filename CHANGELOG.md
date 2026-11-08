@@ -141,6 +141,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Edit, sections collapsed and hidden exercises in their own group.
 
 ### Removed
+- The No Porn API names, deprecated in 0.8.0 for one release (#215): the
+  `/api/feniks/daily/{date}`, `/api/feniks/bricks[/{id}]` and
+  `/api/feniks/config` paths and the MCP tools `log_feniks_day`,
+  `delete_feniks_day` and `update_feniks_config`, on the stdio server and the
+  hosted `/mcp` alike. Use `/api/freedom/{habit}/days/{date}`,
+  `/api/freedom/{habit}/bricks`, `/api/freedom/bricks/{id}`,
+  `PATCH /api/freedom/{habit}` and the tools `log_freedom_day`,
+  `delete_freedom_day` and `update_habit`. An old path is no longer an API-key
+  path, so a caller with only a key is redirected to sign in instead of
+  writing. `/api/noporn` and the `feniks` key of `/api/summary` stay.
 - The Sync Log card in Settings, which nothing wrote to, and the database
   path shown on the General tab.
 - Helpers nothing called (#214): `clamp`, `clamp_float` and `clamp_int` in

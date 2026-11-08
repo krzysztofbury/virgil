@@ -86,9 +86,6 @@ def test_habit_settings_are_validated_and_persisted(auth_client, monkeypatch):
         assert _fetchall(f"SELECT {fields} FROM habits WHERE id = ?", (porn,)) == [  # noqa: S608 - fixed columns
             (original[0], 30, original[2], "I looked", 10)
         ]
-        # The deprecated config path still changes the first tracked habit.
-        assert auth_client.patch("/api/feniks/config", json={"target_days": 45}, headers=KEY).status_code == 200
-        assert _fetchall("SELECT target_days FROM habits WHERE id = ?", (porn,)) == [(45,)]
     finally:
         _execute(
             f"UPDATE habits SET {', '.join(f'{f} = ?' for f in fields.split(', '))} WHERE id = ?",  # noqa: S608

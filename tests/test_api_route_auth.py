@@ -48,12 +48,6 @@ SENSITIVE = {
     ("PATCH", "/api/freedom/bricks/{brick_id}"),
     ("DELETE", "/api/freedom/bricks/{brick_id}"),
     ("PATCH", "/api/freedom/{habit}"),
-    ("PUT", "/api/feniks/daily/{day}"),
-    ("DELETE", "/api/feniks/daily/{day}"),
-    ("POST", "/api/feniks/bricks"),
-    ("PATCH", "/api/feniks/bricks/{brick_id}"),
-    ("DELETE", "/api/feniks/bricks/{brick_id}"),
-    ("PATCH", "/api/feniks/config"),
     # Switching the Freedom module reveals it is in use; the body below is not a
     # valid flag body, so a 403 also shows the scope is checked first.
     ("PUT", "/api/features/{feature}"),
@@ -66,7 +60,7 @@ _SETTINGS_BODY = {"target_days": 30}
 @pytest.mark.parametrize(("method", "path"), sorted(SENSITIVE), ids=[f"{m} {p}" for m, p in sorted(SENSITIVE)])
 def test_freedom_routes_refuse_the_key_without_the_sensitive_scope(auth_client, method, path):
     assert (method, path) in ROUTES, "the table names a route the router no longer has"
-    body = _SETTINGS_BODY if path in ("/api/freedom/{habit}", "/api/feniks/config") else _BODIES.get(method)
+    body = _SETTINGS_BODY if path == "/api/freedom/{habit}" else _BODIES.get(method)
     response = auth_client.request(method, _url(path), json=body, headers=KEY)
     assert response.status_code == 403
     assert "Sensitive scope" in response.json()["detail"]
@@ -181,7 +175,7 @@ def test_a_read_token_cannot_write(auth_client, token_for, method, path):
 
 @pytest.mark.parametrize(("method", "path"), sorted(SENSITIVE), ids=[f"{m} {p}" for m, p in sorted(SENSITIVE)])
 def test_freedom_routes_refuse_a_token_without_the_sensitive_scope(auth_client, token_for, method, path):
-    body = _SETTINGS_BODY if path in ("/api/freedom/{habit}", "/api/feniks/config") else _BODIES.get(method)
+    body = _SETTINGS_BODY if path == "/api/freedom/{habit}" else _BODIES.get(method)
     response = auth_client.request(method, _url(path), json=body, headers=token_for("read", "write", "finance"))
     assert response.status_code == 403
     assert response.json()["detail"] == "This token lacks the sensitive scope"

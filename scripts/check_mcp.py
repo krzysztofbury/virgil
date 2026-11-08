@@ -20,7 +20,7 @@ async def check() -> None:
                 raise RuntimeError("Unexpected MCP server identity")
             catalog = await session.list_tools()
             names = {tool.name for tool in catalog.tools}
-            required = {"get_today_summary", "get_goals", "add_goal", "log_daily", "log_feniks_day", "log_training"}
+            required = {"get_today_summary", "get_goals", "add_goal", "log_daily", "log_freedom_day", "log_training"}
             if not required <= names:
                 raise RuntimeError("MCP catalog is missing required capabilities")
             result = await session.call_tool("get_today_summary", {})

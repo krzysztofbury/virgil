@@ -543,12 +543,6 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
     `update_brick` / `delete_brick` → `PATCH/DELETE /api/freedom/bricks/{id}`,
     and `update_habit` → `PATCH /api/freedom/{habit}` (name, slip definition,
     start date, target days, why)
-  - **Deprecated, kept for one release:** the No Porn names still work.
-    `/api/feniks/daily/{date}`, `/api/feniks/bricks[/{id}]` and
-    `/api/feniks/config` take an optional `?habit=` (default: the first tracked
-    habit) and the old fields `used`, `minutes`, `edging`; the MCP tools
-    `log_feniks_day`, `delete_feniks_day` and `update_feniks_config` call the
-    Freedom ones
   - `get_training_session` → `GET /api/training/sessions/{id}`
   - `get_measurements`, `log_measurements`, `delete_measurements` →
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the

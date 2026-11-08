@@ -117,28 +117,24 @@ def test_brick_requires_a_hook_and_stores_its_own_date(auth_client, monkeypatch)
         _execute("DELETE FROM feniks_bricks WHERE date = ?", (day,))
 
 
-def test_deprecated_feniks_paths_keep_the_no_porn_names(auth_client, monkeypatch):
-    """Agents written for the No Porn module still record the first tracked habit's day."""
+def test_the_no_porn_api_paths_are_gone_and_freedom_takes_only_its_own_names(auth_client, client, monkeypatch):
+    """The /api/feniks aliases lived one release past 0.8.0 (#215). They are no API-key
+    path any more, so an old caller is sent to sign in instead of writing a day."""
+    from app.api_paths import is_api_key_path
+    from app.main import app
+
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
-    porn = track_porn()
+    track_porn()
     day = (date.today() - timedelta(days=45)).isoformat()
-    try:
-        old = auth_client.put(
-            f"/api/feniks/daily/{day}", json={"used": True, "minutes": 12, "edging": True}, headers=KEY
-        )
-        assert old.status_code == 200, old.text
-        assert _fetchall("SELECT habit_id, slipped, amount, near_miss FROM feniks_daily WHERE date = ?", (day,)) == [
-            (porn, 1, 12, 1)
-        ]
-        brick = auth_client.post("/api/feniks/bricks", json={"date": day, "hook": "ZZ old path"}, headers=KEY)
-        assert brick.status_code == 201
-        assert _fetchall("SELECT habit_id FROM feniks_bricks WHERE date = ?", (day,)) == [(porn,)]
-        # The Freedom path takes only the Freedom names.
-        strict = auth_client.put(f"/api/freedom/porn/days/{day}", json={"used": False}, headers=KEY)
-        assert strict.status_code == 422
-    finally:
-        for table in ("feniks_daily", "feniks_bricks", "pmo_events"):
-            _execute(f"DELETE FROM {table} WHERE date = ?", (day,))  # noqa: S608 - fixed table names
+
+    assert not [path for path in app.openapi()["paths"] if path.startswith("/api/feniks")]
+    assert not is_api_key_path(f"/api/feniks/daily/{day}")
+    # A key-only caller, as an agent is: no session, so no CSRF check comes first.
+    old = client.put(f"/api/feniks/daily/{day}", json={"used": True}, headers=KEY, follow_redirects=False)
+    assert old.status_code == 303 and old.headers["location"].startswith("/login")
+    strict = auth_client.put(f"/api/freedom/porn/days/{day}", json={"used": False}, headers=KEY)
+    assert strict.status_code == 422
+    assert _fetchall("SELECT COUNT(*) FROM feniks_daily WHERE date = ?", (day,)) == [(0,)]
 
 
 def _library_names(count: int) -> list[str]:
