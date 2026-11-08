@@ -221,7 +221,7 @@ main.container {
   display: flex;
   align-items: center;
   padding: 0 1.5rem;
-  transition: all 0.3s ease;
+  transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 .top-nav.scrolled {
   background: var(--bg-nav-scrolled);
@@ -261,14 +261,16 @@ main.container {
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, box-shadow 0.2s;
   position: relative;
   flex-shrink: 0;            /* links keep size, container scrolls */
   white-space: nowrap;
 }
-.nav-links a:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+@media (hover: hover) and (pointer: fine) {
+  .nav-links a:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
 }
 .nav-links a.active {
   color: #fff;
@@ -294,12 +296,14 @@ main.container {
   color: var(--text-secondary);
   padding: 0.5rem;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s;
   display: flex;
 }
-.nav-end a:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+@media (hover: hover) and (pointer: fine) {
+  .nav-end a:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
 }
 .nav-logout {
   background: none;
@@ -307,13 +311,15 @@ main.container {
   color: var(--text-secondary);
   padding: 0.5rem;
   border-radius: 50%;
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s;
   display: flex;
   cursor: pointer;
 }
-.nav-logout:hover {
-  color: var(--flag-h);
-  background: var(--bg-surface);
+@media (hover: hover) and (pointer: fine) {
+  .nav-logout:hover {
+    color: var(--flag-h);
+    background: var(--bg-surface);
+  }
 }
 
 /* ── Mobile Bottom Bar ── */
@@ -373,7 +379,7 @@ main.container {
     /* Hidden, not just transparent: a closed menu's links must not take focus. */
     visibility: hidden;
     pointer-events: none;
-    transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: opacity 0.2s cubic-bezier(0.16, 1, 0.3, 1), transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.2s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: var(--shadow-dropdown);
   }
   .tab-dropdown.show {
@@ -393,9 +399,11 @@ main.container {
   .tab-dropdown-form { margin: 0; border-top: 1px solid var(--border); padding-top: 0.25rem; }
   .tab-dropdown-form button { width: 100%; background: none; border: none; font: inherit; cursor: pointer; text-align: left; }
   .tab-dropdown a svg, .tab-dropdown-form button svg { width: 20px; height: 20px; flex-shrink: 0; }
-  .tab-dropdown a:hover, .tab-dropdown-form button:hover {
-    background: var(--bg-surface);
-    color: var(--text-primary);
+  @media (hover: hover) and (pointer: fine) {
+    .tab-dropdown a:hover, .tab-dropdown-form button:hover {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+    }
   }
 }
 
@@ -424,10 +432,12 @@ main.container {
 }
 
 /* Only lift cards that are explicitly interactive (links, clickable) */
-a.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
-  border-color: var(--border-light);
+@media (hover: hover) and (pointer: fine) {
+  a.card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.1);
+    border-color: var(--border-light);
+  }
 }
 
 .card-header {
@@ -456,7 +466,7 @@ a.card:hover {
      past the card, and .card hides overflow - the value is cut, not wrapped. */
   min-width: 0;
   text-align: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -464,9 +474,11 @@ a.card:hover {
      otherwise lift its value above the values of its neighbours. */
   justify-content: flex-start;
 }
-.stat-card:hover {
-  background: var(--overlay-2);
-  border-color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .stat-card:hover {
+    background: var(--overlay-2);
+    border-color: var(--accent);
+  }
 }
 .stat-value {
   font-size: 1.75rem;
@@ -504,19 +516,23 @@ a.card:hover {
   color: #fff;
   box-shadow: 0 4px 14px 0 var(--accent-glow);
 }
-.btn-primary:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px var(--accent-glow);
+@media (hover: hover) and (pointer: fine) {
+  .btn-primary:hover {
+    background: var(--accent-hover);
+    transform: translateY(-1px);
+    box-shadow: 0 6px 20px var(--accent-glow);
+  }
 }
 .btn-secondary {
   background: var(--overlay-4);
   color: var(--text-primary);
   border: 1px solid transparent;
 }
-.btn-secondary:hover {
-  background: var(--overlay-5);
-  color: var(--text-primary);
+@media (hover: hover) and (pointer: fine) {
+  .btn-secondary:hover {
+    background: var(--overlay-5);
+    color: var(--text-primary);
+  }
 }
 .btn-sm {
   padding: 0.4rem 0.8rem;
@@ -531,7 +547,7 @@ input, select, textarea {
   border-radius: var(--radius-sm);
   padding: 0.75rem 1rem;
   color: var(--text-primary);
-  transition: all 0.2s;
+  transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
 select {
   color-scheme: dark;
@@ -600,11 +616,13 @@ small.text-muted, .form-hint, .onboarding-skip { font-size: 0.8125rem; }
   background: var(--overlay-1);
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
 }
-.andy-item:hover {
-  background: var(--overlay-2);
-  border-color: var(--border);
+@media (hover: hover) and (pointer: fine) {
+  .andy-item:hover {
+    background: var(--overlay-2);
+    border-color: var(--border);
+  }
 }
 [data-theme="light"] .andy-icon { filter: brightness(0); opacity: 0.85; }
 .andy-icon {
@@ -662,13 +680,15 @@ a.day-cell, .day-cell {
   border-radius: var(--radius-sm);
   padding: 0.75rem 0.25rem;
   text-align: center;
-  transition: all 0.2s;
+  transition: background-color 0.2s, border-color 0.2s;
   cursor: pointer;
   display: block;
 }
-a.day-cell:hover {
-  background: var(--overlay-3);
-  border-color: var(--border-light);
+@media (hover: hover) and (pointer: fine) {
+  a.day-cell:hover {
+    background: var(--overlay-3);
+    border-color: var(--border-light);
+  }
 }
 .day-cell.today {
   border-color: var(--accent);
@@ -691,7 +711,7 @@ tbody tr {
   background: var(--overlay-1);
   transition: background 0.2s;
 }
-tbody tr:hover { background: var(--overlay-3); }
+@media (hover: hover) and (pointer: fine) { tbody tr:hover { background: var(--overlay-3); } }
 td {
   padding: 1rem;
   border-top: 1px solid var(--border);
@@ -929,7 +949,7 @@ body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
   font-size: 1.25rem;
   line-height: 1;
 }
-.feedback-dismiss:hover { background: var(--bg-surface); color: var(--text-primary); }
+@media (hover: hover) and (pointer: fine) { .feedback-dismiss:hover { background: var(--bg-surface); color: var(--text-primary); } }
 form[aria-busy="true"] { cursor: progress; }
 [aria-disabled="true"] { opacity: 0.65; cursor: wait; }
 
@@ -1053,11 +1073,13 @@ form[aria-busy="true"] { cursor: progress; }
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--text-secondary);
-  transition: all 0.2s;
+  transition: color 0.2s, background-color 0.2s, box-shadow 0.2s;
 }
-.tabs a:hover {
-  color: var(--text-primary);
-  background: var(--bg-surface);
+@media (hover: hover) and (pointer: fine) {
+  .tabs a:hover {
+    color: var(--text-primary);
+    background: var(--bg-surface);
+  }
 }
 .tabs a.active {
   color: #fff;
@@ -1090,7 +1112,7 @@ form[aria-busy="true"] { cursor: progress; }
   padding: 0;
   cursor: pointer;
 }
-.toggle-btn:hover { border-color: var(--text-secondary); }
+@media (hover: hover) and (pointer: fine) { .toggle-btn:hover { border-color: var(--text-secondary); } }
 .toggle-btn.active-done {
   background: var(--green);
   border-color: var(--green);
@@ -1125,9 +1147,11 @@ form[aria-busy="true"] { cursor: progress; }
   border: 1px solid var(--border);
   color: var(--text-secondary);
 }
-.date-nav .btn-icon:hover {
-  border-color: var(--accent);
-  color: var(--accent);
+@media (hover: hover) and (pointer: fine) {
+  .date-nav .btn-icon:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
 }
 
 /* ── Extra Button Variants ── */
@@ -1136,17 +1160,19 @@ form[aria-busy="true"] { cursor: progress; }
   color: var(--text-secondary);
   border: 1px solid var(--border);
 }
-.btn-outline:hover {
-  color: var(--text-primary);
-  border-color: var(--border-light);
-  background: var(--bg-surface);
+@media (hover: hover) and (pointer: fine) {
+  .btn-outline:hover {
+    color: var(--text-primary);
+    border-color: var(--border-light);
+    background: var(--bg-surface);
+  }
 }
 .btn-danger {
   background: transparent;
   color: var(--red);
   border: 1px solid var(--red);
 }
-.btn-danger:hover { background: rgba(239,68,68,0.1); }
+@media (hover: hover) and (pointer: fine) { .btn-danger:hover { background: rgba(239,68,68,0.1); } }
 .btn-icon {
   width: 36px;
   height: 36px;
@@ -1178,7 +1204,7 @@ form[aria-busy="true"] { cursor: progress; }
   cursor: pointer;
   transition: border-color 0.15s ease;
 }
-.metric-select:hover { border-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .metric-select:hover { border-color: var(--accent); } }
 .metric-select:focus { border-color: var(--accent); outline: none; box-shadow: 0 0 0 2px rgba(44, 182, 125, 0.2); }
 
 /* ── Energy Slider ── */
@@ -1210,9 +1236,11 @@ input[type="range"]#energy-slider::-webkit-slider-thumb {
   cursor: pointer;
   transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-input[type="range"]#energy-slider::-webkit-slider-thumb:hover {
-  transform: scale(1.15);
-  box-shadow: 0 2px 12px rgba(0,0,0,0.35), 0 0 8px rgba(44, 182, 125, 0.25);
+@media (hover: hover) and (pointer: fine) {
+  input[type="range"]#energy-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.15);
+    box-shadow: 0 2px 12px rgba(0,0,0,0.35), 0 0 8px rgba(44, 182, 125, 0.25);
+  }
 }
 input[type="range"]#energy-slider:active::-webkit-slider-thumb {
   transform: scale(1.05);
@@ -1309,7 +1337,7 @@ input[type="range"]#energy-slider::-moz-range-thumb {
 .day-card-details[open] > summary { margin-bottom: 0.75rem; }
 .freedom-today-name { display: flex; flex-direction: column; min-width: 0; }
 .freedom-today-name small { color: var(--text-secondary); font-size: 0.8125rem; }
-.freedom-today-name:hover strong { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .freedom-today-name:hover strong { color: var(--accent); } }
 .freedom-today-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
 .freedom-today-actions form { margin: 0; }
 .freedom-today-actions svg, .freedom-status svg, .habit-chip svg { width: 16px; height: 16px; display: inline-block; vertical-align: -3px; }
@@ -1350,7 +1378,7 @@ input[type="range"]#energy-slider::-moz-range-thumb {
   font-weight: 500;
   transition: border-color 0.15s, background 0.15s;
 }
-.habit-chip:hover { border-color: var(--accent); background: var(--overlay-3); }
+@media (hover: hover) and (pointer: fine) { .habit-chip:hover { border-color: var(--accent); background: var(--overlay-3); } }
 .habit-custom { display: flex; gap: 0.5rem; max-width: 28rem; }
 .habit-custom input { flex: 1; min-width: 0; }
 .freedom-settings > summary, .freedom-add > summary { font-weight: 600; }
@@ -1391,7 +1419,7 @@ details summary {
   font-weight: 500;
   color: var(--text-secondary);
   background: transparent;
-  transition: all 0.2s;
+  transition: color 0.2s, border-color 0.2s, background-color 0.2s;
   list-style: none;
 }
 details summary::-webkit-details-marker { display: none; }
@@ -1404,10 +1432,12 @@ details summary::before {
   transition: transform 0.2s;
 }
 details[open] summary::before { transform: rotate(90deg); }
-details summary:hover {
-  color: var(--text-primary);
-  border-color: var(--border-light);
-  background: var(--bg-surface);
+@media (hover: hover) and (pointer: fine) {
+  details summary:hover {
+    color: var(--text-primary);
+    border-color: var(--border-light);
+    background: var(--bg-surface);
+  }
 }
 details > :not(summary) { margin-top: 1rem; }
 
@@ -1444,11 +1474,11 @@ details > :not(summary) { margin-top: 1rem; }
   letter-spacing: normal;
   font-size: 0.8125rem;
 }
-.section-link:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .section-link:hover { text-decoration: underline; } }
 .today-card .andy-item-header .toggle-btn { margin-left: auto; }
 .today-task { display: block; color: var(--text-secondary); font-size: 0.8125rem; line-height: 1.45; }
 .today-task--empty { color: var(--accent); font-weight: 500; }
-.today-task--empty:hover { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .today-task--empty:hover { text-decoration: underline; } }
 .today-routines {
   display: flex;
   align-items: center;
@@ -1576,7 +1606,7 @@ details > :not(summary) { margin-top: 1rem; }
 .goal-create > summary { min-height: 2.5rem; color: #fff; background: var(--accent); border-color: var(--accent); box-shadow: 0 5px 16px var(--accent-glow); }
 .goal-create > summary::before { display: none; }
 .goal-create > summary svg { width: 1rem; height: 1rem; }
-.goal-create > summary:hover { color: #fff; background: var(--accent-hover); border-color: var(--accent-hover); }
+@media (hover: hover) and (pointer: fine) { .goal-create > summary:hover { color: #fff; background: var(--accent-hover); border-color: var(--accent-hover); } }
 .goal-create-form { display: flex; flex-direction: column; gap: 1rem; margin-top: 0.75rem; padding: 1.25rem; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg-card); }
 .goal-create-form > .btn { align-self: flex-end; }
 .goal-form-grid { display: grid; gap: 0.75rem; }
@@ -1585,26 +1615,31 @@ details > :not(summary) { margin-top: 1rem; }
 .goal-form-grid-create { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .goal-field { display: flex; flex-direction: column; gap: 0.35rem; margin: 0; }
 .goal-field-content input { font-size: 1rem; }
-.goal-item { min-width: 0; padding: 0.75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--overlay-1); transition: 0.15s ease; }
-.goal-item:hover { border-color: var(--border-light); background: var(--bg-surface); }
+.goal-item { min-width: 0; padding: 0.75rem; border: 1px solid var(--border); border-radius: 12px; background: var(--overlay-1); transition: border-color 0.15s ease, background-color 0.15s ease; }
+@media (hover: hover) and (pointer: fine) { .goal-item:hover { border-color: var(--border-light); background: var(--bg-surface); } }
 .goal-item-focused { border-color: rgba(44, 182, 125, 0.2); }
 .goal-item.htmx-request { border-color: var(--green); }
 .goal-focus-card .goal-item { margin-top: 0.35rem; padding: 0; border: 0; background: transparent; }
 .goal-main { display: grid; grid-template-columns: 2rem minmax(0, 1fr) 2rem; gap: 0.4rem; align-items: center; }
 .goal-icon-form { margin: 0; }
 .goal-input { min-width: 0; margin: 0; padding: 0.42rem 0.5rem; height: auto; min-height: 0; border: 1px solid transparent; border-radius: 6px; background: transparent; font-size: 0.9rem; font-weight: 500; line-height: 1.4; resize: none; overflow: hidden; field-sizing: content; }
-.goal-input:hover { background: var(--bg-surface); }
+@media (hover: hover) and (pointer: fine) { .goal-input:hover { background: var(--bg-surface); } }
 /* A 1px border alone is too faint a focus ring for keyboard use: double it. */
 .goal-input:focus { border-color: var(--accent); background: var(--overlay-3); outline: none; box-shadow: 0 0 0 1px var(--accent); }
-.goal-focus-btn, .goal-delete-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--text-tertiary); transition: 0.15s ease; }
+.goal-focus-btn, .goal-delete-btn { display: inline-flex; align-items: center; justify-content: center; width: 2rem; height: 2rem; padding: 0; border: 1px solid transparent; border-radius: 8px; color: var(--text-tertiary); transition: color 0.15s ease, background-color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease; }
 .goal-focus-btn svg, .goal-delete-btn svg { width: 1rem; height: 1rem; }
-.goal-focus-btn:hover { color: var(--accent); background: rgba(44, 182, 125, 0.1); }
+@media (hover: hover) and (pointer: fine) { .goal-focus-btn:hover { color: var(--accent); background: rgba(44, 182, 125, 0.1); } }
 .goal-focus-btn.is-active { color: var(--accent); }
 .goal-focus-btn.is-active svg { fill: currentColor; }
 .goal-focus-btn:disabled { cursor: not-allowed; opacity: 0.35; }
-.goal-delete-btn { opacity: 0; }
-.goal-item:hover .goal-delete-btn, .goal-delete-btn:focus-visible { opacity: 1; }
-.goal-delete-btn:hover { opacity: 1; color: var(--red); border-color: rgba(229, 83, 75, 0.3); background: rgba(229, 83, 75, 0.08); }
+/* Hidden until the row is hovered only where hovering exists: on a touch screen
+   wider than a phone (the phone layout drops this form) the button stays shown. */
+@media (hover: hover) and (pointer: fine) {
+  .goal-delete-btn { opacity: 0; }
+  .goal-item:hover .goal-delete-btn { opacity: 1; }
+}
+.goal-delete-btn:focus-visible { opacity: 1; }
+@media (hover: hover) and (pointer: fine) { .goal-delete-btn:hover { opacity: 1; color: var(--red); border-color: rgba(229, 83, 75, 0.3); background: rgba(229, 83, 75, 0.08); } }
 .goal-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem 0.65rem; min-height: 1.4rem; margin: 0.15rem 2.4rem 0; }
 .goal-status { display: inline-flex; padding: 0.15rem 0.45rem; border-radius: var(--radius-full); background: var(--bg-surface); color: var(--text-secondary); font-size: 0.75rem; font-weight: 700; letter-spacing: 0.04em; line-height: 1.2; text-transform: uppercase; }
 .goal-status-active, .goal-status-completed { background: rgba(44, 182, 125, 0.12); color: var(--green); }
@@ -1614,7 +1649,7 @@ details > :not(summary) { margin-top: 1rem; }
 .goal-date svg { width: 0.8rem; height: 0.8rem; }
 .goal-details { margin: 0.35rem 0 0 2.4rem; }
 .goal-details > summary { padding: 0.25rem 0; border: 0; font-size: 0.75rem; }
-.goal-details > summary:hover { color: var(--accent); background: transparent; }
+@media (hover: hover) and (pointer: fine) { .goal-details > summary:hover { color: var(--accent); background: transparent; } }
 .goal-details-panel { display: grid; gap: 0.9rem; margin-top: 0.4rem; padding-top: 0.9rem; border-top: 1px solid var(--border); }
 .goal-detail-form, .goal-rep-form { display: flex; flex-direction: column; gap: 0.75rem; }
 .goal-detail-form > .btn { align-self: flex-start; }
@@ -1808,7 +1843,7 @@ details > :not(summary) { margin-top: 1rem; }
   font-size: 0.82rem;
   transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
 }
-.level-chip:hover { border-color: var(--border-light); color: var(--text-primary); }
+@media (hover: hover) and (pointer: fine) { .level-chip:hover { border-color: var(--border-light); color: var(--text-primary); } }
 .level-chip.selected {
   border-color: var(--accent);
   background: rgba(44,182,125,0.16);
@@ -1828,7 +1863,7 @@ details > :not(summary) { margin-top: 1rem; }
   font-size: 1.1rem;
   line-height: 1;
 }
-.job-status-dismiss:hover { background: var(--bg-surface); color: var(--text-primary); }
+@media (hover: hover) and (pointer: fine) { .job-status-dismiss:hover { background: var(--bg-surface); color: var(--text-primary); } }
 /* The Settings history list is not dismissible - it is the record. */
 .job-status-list .job-status-dismiss { display: none; }
 
@@ -1859,7 +1894,7 @@ details > :not(summary) { margin-top: 1rem; }
   display: block;
   margin-bottom: 1rem;
 }
-.exp-card-link:hover { color: inherit; }
+@media (hover: hover) and (pointer: fine) { .exp-card-link:hover { color: inherit; } }
 .exp-card {
   padding: 1.5rem;
   border-radius: var(--radius-md);
@@ -1870,10 +1905,12 @@ details > :not(summary) { margin-top: 1rem; }
   transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
   margin: 0;
 }
-.exp-card:hover {
-  border-color: var(--accent);
-  box-shadow: 0 0 20px rgba(44,182,125,0.1);
-  transform: translateY(-2px);
+@media (hover: hover) and (pointer: fine) {
+  .exp-card:hover {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(44,182,125,0.1);
+    transform: translateY(-2px);
+  }
 }
 .exp-card-top { margin-bottom: 1rem; }
 .exp-card-title-row {
@@ -1922,7 +1959,7 @@ details > :not(summary) { margin-top: 1rem; }
 .exp-header h1 { margin-bottom: 0.25rem; }
 .exp-subtitle { color: var(--text-secondary); margin: 0; font-size: 0.875rem; }
 .exp-subtitle a { color: var(--accent); }
-.exp-subtitle a:hover { color: var(--accent-hover); }
+@media (hover: hover) and (pointer: fine) { .exp-subtitle a:hover { color: var(--accent-hover); } }
 
 .exp-stats-bar {
   display: flex;
@@ -2130,7 +2167,7 @@ details > :not(summary) { margin-top: 1rem; }
   align-items: center;
   justify-content: center;
 }
-.exp-delete-btn:hover { border-color: var(--red); color: var(--red); }
+@media (hover: hover) and (pointer: fine) { .exp-delete-btn:hover { border-color: var(--red); color: var(--red); } }
 
 .exp-actions {
   display: flex;
@@ -2244,7 +2281,7 @@ details > :not(summary) { margin-top: 1rem; }
   border-radius: var(--radius-full);
   color: var(--text-secondary);
 }
-.training-year-nav a:hover { color: var(--text-primary); border-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .training-year-nav a:hover { color: var(--text-primary); border-color: var(--accent); } }
 .training-cal-dot {
   display: block;
   padding: 0;
@@ -2353,7 +2390,7 @@ details > :not(summary) { margin-top: 1rem; }
   border-radius: 50%;
   font-size: 1.35rem;
 }
-.training-dialog-close:hover { color: var(--text-primary); border-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .training-dialog-close:hover { color: var(--text-primary); border-color: var(--accent); } }
 .training-dialog-body { max-height: calc(85vh - 5rem); overflow-y: auto; padding: 1rem 1.25rem 1.25rem; }
 .training-session { padding: 1rem 0; }
 .training-session + .training-session { border-top: 1px solid var(--border); }
@@ -2435,8 +2472,8 @@ details > :not(summary) { margin-top: 1rem; }
   color: var(--text-secondary);
 }
 /* None of the data-table look: no padding, borders, banding or row hover. */
-.heatmap-weeks tr,
-.heatmap-weeks tbody tr:hover { background: none; }
+.heatmap-weeks tr { background: none; }
+@media (hover: hover) and (pointer: fine) { .heatmap-weeks tbody tr:hover { background: none; } }
 .heatmap-weeks th,
 .heatmap-weeks td {
   padding: 0;
@@ -2458,6 +2495,9 @@ details > :not(summary) { margin-top: 1rem; }
 .heatmap-weeks td.heatmap-day--future { background: transparent; outline: 1px dashed rgba(127, 127, 127, 0.25); outline-offset: -1px; }
 
 /* ── Flatpickr Dark Theme ── */
+/* The vendored flatpickr stylesheet styles :hover without a media query, so
+   these .virgil-datepicker :hover overrides stay ungated too: gated, a tap on a
+   phone would show flatpickr's light-theme hover instead of this theme's. */
 .flatpickr-calendar.virgil-datepicker {
   background: var(--bg-datepicker);
   backdrop-filter: blur(20px);
@@ -2505,7 +2545,7 @@ details > :not(summary) { margin-top: 1rem; }
   fill: var(--text-secondary);
   padding: 8px;
   border-radius: 50%;
-  transition: all 0.15s;
+  transition: color 0.15s, fill 0.15s, background-color 0.15s;
 }
 .virgil-datepicker .flatpickr-months .flatpickr-prev-month:hover,
 .virgil-datepicker .flatpickr-months .flatpickr-next-month:hover {
@@ -2544,7 +2584,7 @@ details > :not(summary) { margin-top: 1rem; }
   height: 34px;
   line-height: 34px;
   margin: 1px;
-  transition: all 0.15s;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 .virgil-datepicker .flatpickr-day:hover {
   background: var(--overlay-4);
@@ -2585,8 +2625,10 @@ input.flatpickr-input[readonly] {
   padding: 0.75rem 1rem;
   color: var(--text-primary);
 }
-input.flatpickr-input:hover {
-  border-color: var(--border-light);
+@media (hover: hover) and (pointer: fine) {
+  input.flatpickr-input:hover {
+    border-color: var(--border-light);
+  }
 }
 
 /* ── Extra Utilities ── */
@@ -2923,7 +2965,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   background: var(--border-light);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); }
+@media (hover: hover) and (pointer: fine) { ::-webkit-scrollbar-thumb:hover { background: var(--text-tertiary); } }
 
 /* Firefox */
 * { scrollbar-width: thin; scrollbar-color: var(--border-light) transparent; }
@@ -3221,7 +3263,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
   padding-top: 0.55rem;
   white-space: nowrap;
 }
-.timeline-date:hover { color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .timeline-date:hover { color: var(--accent); } }
 .timeline-body { display: flex; flex-direction: column; gap: 0.5rem; }
 .timeline-entry {
   display: flex;
@@ -3312,7 +3354,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     font: inherit;
     cursor: pointer;
 }
-.file-input::file-selector-button:hover { border-color: var(--accent); }
+@media (hover: hover) and (pointer: fine) { .file-input::file-selector-button:hover { border-color: var(--accent); } }
 .oura-setup { padding-left: 1.25rem; display: grid; gap: 0.4rem; list-style: decimal; }
 .oura-setup li { display: list-item; }
 .oura-setup a { color: var(--accent); }
@@ -3481,7 +3523,7 @@ details.settings-subsection { margin-top: 1.25rem; }
 .library-section { margin: 0; border-top: 1px solid var(--border); }
 .library-section:last-of-type { border-bottom: 1px solid var(--border); }
 details.library-section > summary { display: flex; width: 100%; border: none; border-radius: 0; padding: 0.75rem 0.25rem; font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
-details.library-section > summary:hover { background: var(--bg-surface); }
+@media (hover: hover) and (pointer: fine) { details.library-section > summary:hover { background: var(--bg-surface); } }
 .library-section > summary small { font-weight: 400; }
 details.library-section > .library-list, details.library-section > .library-hidden { margin-top: 0; }
 .library-list { list-style: none; margin: 0 0 0.75rem; padding: 0; }

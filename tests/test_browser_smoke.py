@@ -369,6 +369,53 @@ def test_a_phone_gets_native_touch_behaviour(site):
         context.close()
 
 
+HOVER_GATE = "(hover: hover) and (pointer: fine)"
+_BACKGROUND = "el => getComputedStyle(el).backgroundColor"
+
+
+def test_a_tap_keeps_no_hover_style_and_a_mouse_still_gets_one(site):
+    """A touch browser applies :hover on tap and keeps it, so hover styles wait
+    for a hovering pointer (#201). The goal delete button, which only hover
+    reveals, stays shown on a touch screen wide enough to have it."""
+    browser, base, session, _log = site
+    mouse = _new_context(browser, viewport={"width": 1280, "height": 900}, storage_state=session)
+    touch = _new_context(
+        browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
+    )
+    try:
+        page = mouse.new_page()
+        page.goto(f"{base}/goals")
+        assert page.evaluate(f"matchMedia('{HOVER_GATE}').matches")
+        link = page.locator(".nav-links a:not(.active)").first
+        page.mouse.move(0, page.viewport_size["height"] - 1)
+        resting = link.evaluate(_BACKGROUND)
+        link.hover()
+        link.evaluate("el => Promise.all(el.getAnimations().map(a => a.finished))")
+        assert link.evaluate(_BACKGROUND) != resting, "a mouse no longer gets the hover style"
+        delete = page.locator(".goal-item .goal-delete-btn").first
+        assert delete.evaluate("el => getComputedStyle(el).opacity") == "0"
+        delete.locator("xpath=ancestor::article[contains(@class, 'goal-item')]").hover()
+        delete.evaluate("el => Promise.all(el.getAnimations().map(a => a.finished))")
+        assert delete.evaluate("el => getComputedStyle(el).opacity") == "1"
+
+        page = touch.new_page()
+        page.goto(f"{base}/goals")
+        assert not page.evaluate(f"matchMedia('{HOVER_GATE}').matches")
+        summary = page.locator("details summary").first
+        resting = summary.evaluate(_BACKGROUND)
+        summary.tap()
+        summary.evaluate("el => Promise.all(el.getAnimations().map(a => a.finished))")
+        assert summary.evaluate(_BACKGROUND) == resting, "the tapped control kept its hover style"
+        # Past the phone breakpoint on touch, a tablet: nothing can hover the row.
+        page.set_viewport_size({"width": 820, "height": 600})
+        delete = page.locator(".goal-item .goal-delete-btn").first
+        assert delete.is_visible()
+        assert delete.evaluate("el => getComputedStyle(el).opacity") == "1"
+    finally:
+        mouse.close()
+        touch.close()
+
+
 def test_a_job_card_does_not_replay_its_entrance_on_every_poll(site):
     context, page, _problems, base = _signed_in(site, WIDTHS["desktop"])
     card = (
