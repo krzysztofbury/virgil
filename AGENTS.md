@@ -62,6 +62,14 @@ release, a host or Settings > Server change, external evidence), write
   `tests/test_schema_snapshot.py`. Visible changes need a real browser check
   ([CONTRIBUTING.md](CONTRIBUTING.md#browser-verification));
   `tests/test_browser_smoke.py` is the automated smoke.
+- Check that `uv --version` matches the uv pin in
+  [CONTRIBUTING.md](CONTRIBUTING.md#setup) before `uv lock` or `uv run`. A
+  lockfile diff you did not intend comes from a stale tool, not a dependency
+  change: revert it.
+- `main` accepts only signed commits. Check that
+  `git log -1 --format=%G?` prints `G` before the first push, and resolve a
+  conflicting PR by merging `main` into its branch, not by rebasing and
+  force-pushing.
 - One reviewable purpose per commit, short imperative subjects. Update docs and
   `CHANGELOG.md` in the same PR as the change; never a documentation-only
   follow-up. Open work lives in GitHub issues, not in a TODO file.
