@@ -198,9 +198,10 @@ SensitiveDb = Annotated[aiosqlite.Connection, Depends(sensitive_db)]
 
 @router.get("/summary")
 async def api_summary(request: Request, db: ApiDb):
-    """Today's snapshot: daily habits, the first Freedom habit's streak (key "feniks", kept for
-    older readers; null unless the sensitive scope is on, since the habit can be any
-    addiction), latest Oura, training this week, latest measurements."""
+    """Today's snapshot: daily habits, the first Freedom habit's streak (key "freedom"; null
+    unless the sensitive scope is on, since the habit can be any addiction), latest Oura,
+    training this week, latest measurements. "feniks" is a deprecated copy of "freedom",
+    kept for one release (#218)."""
 
     today = date.today()
     today_iso = today.isoformat()
@@ -237,6 +238,7 @@ async def api_summary(request: Request, db: ApiDb):
     return {
         "date": today_iso,
         "daily": daily,
+        "freedom": freedom,
         "feniks": freedom,
         "oura_latest": dict(oura_rows[0]) if oura_rows else None,
         "training_week": {"sessions": sess[0]["n"], "last_date": sess[0]["last_date"]},
@@ -817,14 +819,15 @@ async def api_training_detail(
     return {"range_days": days, "since": since, "sessions": result}
 
 
-@router.get("/noporn")
+@router.get("/noporn", deprecated=True)
 async def api_noporn(
     db: SensitiveDb,
     days: int = Query(30, ge=1, le=365, alias="range"),
 ):
-    """Freedom's Porn habit in detail: config, streak, current-week clean rate (Gola), plus the
-    relapse/reset events, journal entries (emotions/triggers/thoughts/coping) and logged
-    pleasures from the last N days (?range=30). This is the WHY behind the streak.
+    """Deprecated for one release (#218): GET /api/freedom/porn/history, with the Freedom
+    field names. Freedom's Porn habit in detail with the No Porn names: config, streak,
+    current-week clean rate (Gola), plus the relapse/reset events, journal entries
+    (emotions/triggers/thoughts/coping) and logged pleasures from the last N days (?range=30).
 
     Needs the sensitive scope: this is intimate journal content, and a leaked
     API key must not expose it by default."""
@@ -1062,6 +1065,63 @@ async def api_freedom(db: SensitiveDb):
         settings = {key: habit[key] for key in ("start_date", "target_days", "big_why")}
         habits.append({**await habit_overview(db, habit), "definition": definition, "settings": settings})
     return {"habits": habits}
+
+
+@router.get("/freedom/{habit}/history")
+async def api_freedom_history(habit: str, db: SensitiveDb, days: int = Query(30, ge=1, le=365, alias="range")):
+    """One habit over the last N days (?range=30): its settings, streak, this week's clean
+    rate, relapse and reset records, day log (slipped, amount, near_miss, note) and bricks.
+    The Porn habit also carries the No Porn program's journal (emotions, triggers, thoughts,
+    coping) and pleasures, which belong to no other habit. This is the WHY behind a streak."""
+    target = await _habit(db, habit)
+    habit_id = target["id"]
+    today = date.today()
+    since = (today - timedelta(days=days - 1)).isoformat()
+    streak_days, last_relapse = await get_streak(db, habit_id)
+    clean, elapsed, pct = await get_week_clean(db, habit_id)
+    events = await db.execute_fetchall(
+        "SELECT date, event_type, notes FROM pmo_events WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
+        (habit_id, since),
+    )
+    days_logged = await db.execute_fetchall(
+        "SELECT date, slipped, amount, near_miss, note FROM feniks_daily "
+        "WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
+        (habit_id, since),
+    )
+    bricks = await db.execute_fetchall(
+        "SELECT id, date, hook, craving, story FROM feniks_bricks "
+        "WHERE habit_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC, id DESC",
+        (habit_id, since, today.isoformat()),
+    )
+    bricks_total = (
+        await db.execute_fetchall("SELECT COUNT(*) AS c FROM feniks_bricks WHERE habit_id = ?", (habit_id,))
+    )[0]["c"]
+    result = {
+        "habit": target["slug"],
+        "range_days": days,
+        "since": since,
+        "settings": {key: target[key] for key in ("start_date", "target_days", "big_why")},
+        "streak_days": streak_days,
+        "last_relapse": last_relapse.isoformat() if last_relapse else None,
+        "week_clean": {"clean_days": clean, "days_elapsed": elapsed, "pct": pct},
+        "events": [dict(r) for r in events],
+        "days": [dict(r) for r in days_logged],
+        "bricks": [dict(r) for r in bricks],
+        "bricks_total": bricks_total,
+    }
+    if target["slug"] == "porn":
+        journal = await db.execute_fetchall(
+            "SELECT date, emotions, triggers, thoughts, desired_feelings, coping_strategies "
+            "FROM feniks_journal WHERE date >= ? ORDER BY date DESC",
+            (since,),
+        )
+        pleasures = await db.execute_fetchall(
+            "SELECT date, pleasure_1, pleasure_2 FROM feniks_pleasures WHERE date >= ? ORDER BY date DESC",
+            (since,),
+        )
+        result["journal"] = [dict(r) for r in journal]
+        result["pleasures"] = [dict(r) for r in pleasures]
+    return result
 
 
 class ApiDailyPatch(BaseModel):

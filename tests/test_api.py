@@ -3,7 +3,7 @@
 import sqlite3
 from datetime import date
 
-from conftest import track_porn, user_db_path
+from conftest import csrf_token, track_porn, user_db_path
 
 KEY = {"X-API-Key": "test-key-123"}
 
@@ -143,7 +143,7 @@ def test_summary_shape(auth_client):
     resp = auth_client.get("/api/summary", headers=KEY)
     assert resp.status_code == 200
     body = resp.json()
-    for key in ("date", "daily", "feniks", "oura_latest", "training_week", "measurements_latest"):
+    for key in ("date", "daily", "freedom", "feniks", "oura_latest", "training_week", "measurements_latest"):
         assert key in body
 
 
@@ -152,9 +152,12 @@ def test_summary_shows_freedom_status_only_in_the_sensitive_scope(auth_client, m
     from conftest import track_porn
 
     track_porn()
-    assert auth_client.get("/api/summary", headers=KEY).json()["feniks"] is None
+    hidden = auth_client.get("/api/summary", headers=KEY).json()
+    assert hidden["freedom"] is None and hidden["feniks"] is None
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
-    assert "streak_days" in auth_client.get("/api/summary", headers=KEY).json()["feniks"]
+    shown = auth_client.get("/api/summary", headers=KEY).json()
+    assert "streak_days" in shown["freedom"]
+    assert shown["feniks"] == shown["freedom"], "the deprecated key is a copy for one release (#218)"
 
 
 def test_habits_range(auth_client):
@@ -553,3 +556,65 @@ def test_training_detail_carries_set_notes(auth_client):
         for one_set in exercise["sets"]
     ]
     assert any(one_set.get("notes") == "21-15-9 8:42" for one_set in sets), sets
+
+
+def _flag(key):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        row = conn.execute("SELECT value FROM app_settings WHERE key = ?", (key,)).fetchone()
+        return row[0] if row else None
+    finally:
+        conn.close()
+
+
+def _set_flag(key, value):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        if value is None:
+            conn.execute("DELETE FROM app_settings WHERE key = ?", (key,))
+        else:
+            conn.execute("INSERT OR REPLACE INTO app_settings(key, value) VALUES(?, ?)", (key, value))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def test_freedom_history_serves_any_habit_with_the_freedom_names(auth_client, monkeypatch):
+    """/api/noporn knew only the Porn habit and the No Porn names (#218)."""
+    from datetime import timedelta
+
+    monkeypatch.setattr("app.config.API_SENSITIVE", True)
+    track_porn()
+    flag = _flag("feature_freedom")
+    _set_flag("feature_freedom", "1")
+    token = csrf_token(auth_client, "/freedom")
+    auth_client.post("/freedom/habits", data={"slug": "alcohol", "_csrf_token": token}, follow_redirects=False)
+    day = (date.today() - timedelta(days=5)).isoformat()
+    try:
+        written = auth_client.put(f"/api/freedom/alcohol/days/{day}", json={"slipped": True, "amount": 3}, headers=KEY)
+        assert written.status_code == 200, written.text
+
+        alcohol = auth_client.get("/api/freedom/alcohol/history?range=30", headers=KEY).json()
+        porn = auth_client.get("/api/freedom/porn/history", headers=KEY).json()
+        missing = auth_client.get("/api/freedom/no-such-habit/history", headers=KEY)
+        too_long = auth_client.get("/api/freedom/alcohol/history?range=999", headers=KEY)
+    finally:
+        auth_client.delete(f"/api/freedom/alcohol/days/{day}", headers=KEY)
+        auth_client.post(
+            "/freedom/alcohol/untrack",
+            data={"_csrf_token": csrf_token(auth_client, "/freedom")},
+            follow_redirects=False,
+        )
+        _set_flag("feature_freedom", flag)
+
+    assert alcohol["habit"] == "alcohol" and alcohol["range_days"] == 30
+    [logged] = [entry for entry in alcohol["days"] if entry["date"] == day]
+    assert (logged["slipped"], logged["amount"]) == (1, 3)
+    assert not {"used", "minutes", "edging"} & logged.keys(), "the Freedom names only"
+    assert any(event["date"] == day and event["event_type"] == "relapse" for event in alcohol["events"])
+    assert {"start_date", "target_days", "big_why"} == alcohol["settings"].keys()
+    assert alcohol["streak_days"] == 5 and alcohol["last_relapse"] == day
+    assert "journal" not in alcohol and "pleasures" not in alcohol, "the No Porn program belongs to the Porn habit"
+    assert isinstance(porn["journal"], list) and isinstance(porn["pleasures"], list)
+    assert missing.status_code == 404
+    assert too_long.status_code == 422

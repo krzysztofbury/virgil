@@ -149,8 +149,8 @@ def test_without_the_server_key_the_api_is_off_until_a_token_exists(auth_client,
 def test_the_summary_hides_freedom_from_a_token_without_the_sensitive_scope(auth_client):
     plain = _token(TEST_EMAIL, ["read"])
     sensitive = _token(TEST_EMAIL, ["read", "sensitive"])
-    assert auth_client.get("/api/summary", headers=_bearer(plain)).json()["feniks"] is None
-    assert auth_client.get("/api/summary", headers=_bearer(sensitive)).json()["feniks"] is not None
+    assert auth_client.get("/api/summary", headers=_bearer(plain)).json()["freedom"] is None
+    assert auth_client.get("/api/summary", headers=_bearer(sensitive)).json()["freedom"] is not None
 
 
 def _rpc(client: TestClient, secret: str, method: str, params: dict | None = None):
