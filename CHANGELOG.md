@@ -135,6 +135,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 - The Sync Log card in Settings, which nothing wrote to, and the database
   path shown on the General tab.
+- Helpers nothing called (#214): `clamp`, `clamp_float` and `clamp_int` in
+  `app/validation.py`, and `has_subscription_registrations` and
+  `get_all_webhook_ids` in `app/central_db.py`. The latter's comment described
+  a list of every account's webhook ids that subscription reconcile must keep;
+  reconcile has not used it since it decides ownership per account
+  (`owns_remote`), which leaves other accounts' callbacks alone.
 
 ### Fixed
 - Design re-check (#200). Onboarding no longer shows a "saved" toast over Next, a
