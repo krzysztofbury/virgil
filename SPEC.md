@@ -19,51 +19,32 @@ This document describes the architecture, conventions, and design decisions for 
 ```
 app/
   __main__.py           - Entry point: uvicorn launcher
-  main.py               - FastAPI app, Jinja2 setup, middleware stack, routes
+  main.py               - FastAPI app, Jinja2 setup, middleware stack, routers
   config.py             - Environment variable configuration
-  db.py                 - Life-area constants and app_settings helpers (the schema lives in app/migrations/)
-  auth.py               - Authentication middleware (cookie sessions)
-  csrf.py               - CSRF double-submit cookie middleware
-  rate_limit.py         - Per-IP sliding window limiter with an explicit trusted-proxy boundary
-  security_headers.py   - Security response headers (CSP, etc.)
+  server_settings.py    - Settings an admin changes in Settings > Server; the environment is the fallback
+  user_db.py            - Opens, creates and deletes each account's own SQLite database
+  central_db.py         - The central registry: users, sessions, tokens, invites, webhook routes, subscriptions
+  central_schema.py     - The frozen schema that central migration 001 creates
+  db.py                 - Life-area constants, app_settings helpers and the per-account feature flags
+  auth.py, csrf.py, rate_limit.py, security_headers.py - Middleware
   validation.py         - Shared input validation helpers
+  mcp_endpoint.py       - Hosted MCP at /mcp (the tools of mcp_server/virgil_mcp.py)
 
-  migrations/           - Numbered database schema migrations
-    runner.py           - Migration discovery + execution engine
-    001_*.py ... 034_*.py
-
+  migrations/           - Numbered per-account schema migrations (runner.py + NNN_name.py)
+  central_migrations/   - Numbered central registry migrations, tracked separately
   models/               - Query helpers that predate the services layer
-    user_profile.py     - user_profiles reads and writes (onboarding)
+  routers/              - Request handlers, one module per page or surface (api.py is the REST API)
+  services/             - Business logic, no HTTP concerns; one module per feature
+                          (finance.py, freedom_log.py, streak.py, briefing.py, jobs.py, ...)
+  templates/            - Jinja2 pages; partials/ holds HTMX partials and shared macros
+  static/               - css/app.css, js/app.js, js/charts.js, the service worker and the PWA manifest
+  locale/               - The Polish catalog (scripts/i18n.py keeps it in step)
 
-  routers/              - FastAPI route handlers (one per feature)
-    auth.py, dashboard.py, daily.py, training.py, freedom.py,
-    oura.py, oura_webhook.py, bloodwork.py, life_scores.py,
-    goals.py, experiments.py, settings.py
-
-  services/             - Business logic (no HTTP concerns)
-    encryption.py       - Fernet encrypt/decrypt for secrets
-    oura_api.py         - Oura OAuth2 + API v2 client + sync
-    llm.py              - LLM API client (Claude/OpenAI/Gemini)
-    briefing.py         - AI morning briefing generation
-    markdown_export.py  - Scoped markdown download
-    scheduler.py        - Background task loop (backup + sync + export)
-    backup.py           - SQLite backup with rolling retention
-    experiment_summary.py - AI weekly summaries
-    habits.py           - Freedom habit catalog, tracking and settings
-    freedom_log.py      - Freedom day logs, bricks and per-habit overview
-    streak.py           - Freedom streak and weekly clean rate per habit
-
-  templates/            - Jinja2 HTML templates (24 files)
-    base.html           - Layout, nav, theme toggle, SW registration
-    partials/           - HTMX partial responses and shared macros
-                          (wod_row.html holds the WOD confirm row and its picker)
-
-  static/               - Frontend assets
-    css/app.css         - Design system, dark/light theme via CSS vars
-    js/app.js           - Theme, keyboard shortcuts, swipe, toggles, toasts
-    js/charts.js        - Theme-aware Chart.js wrappers
-    service-worker.js   - PWA service worker
-    manifest.json       - PWA manifest
+mcp_server/virgil_mcp.py - MCP stdio server with its own lock file; calls the REST API
+scripts/                - Release (deploy.py), recovery, demo seed, i18n, screenshots and checks
+infra/                  - The hosted instance: Ansible host setup and Compose/env templates
+docs/                   - Runbooks: recovery, load check, post-deploy evidence
+tests/                  - pytest suite; snapshots/ holds the schema snapshots
 ```
 
 ### Key Design Decisions

@@ -85,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- The project map lives in one place (#216). SPEC.md's Architecture lists the
+  stable entry points (`user_db.py`, `central_db.py`, `server_settings.py`,
+  `routers/`, `services/`, both migration folders, `mcp_server/`, `scripts/`,
+  `infra/`) instead of a file list that stopped at migration 034, and the README
+  points to it instead of keeping its own tree, which stopped at migration 006
+  and described `app/db.py` as the schema. The README's migration tables list
+  038-040 and central 003-011. The package no longer claims Python 3.13; it
+  requires 3.14.
 - The hosted instance's tunnel runs cloudflared 2026.10.5, and Dependabot now
   watches `infra/compose` as well as the self-hosting Compose file (#208).
 - The image, CI and the documented setup move to Python 3.14.9 and uv 0.13.5
