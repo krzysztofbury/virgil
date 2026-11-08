@@ -77,11 +77,10 @@ def test_a_truncated_answer_is_repaired_and_still_scored(client, tmp_path):
     assert result["summary"]["json_repaired"] == 1
 
 
-def test_a_mapped_unknown_movement_is_refused_and_reported_as_written(client, tmp_path):
-    """The parser refuses an entry for a movement the note never writes (#187),
-    so the case the model got wrong still scores exact: "sled push" is reported
-    as unmatched, with the numbers the user wrote. test_wod_eval_scoring.py
-    covers how the scorer counts a mapped name that does get through."""
+def test_a_mapped_unknown_movement_shows_as_hallucinated(client, tmp_path):
+    """The parser refuses a movement the note never writes (#187), but a mapped
+    name still gets through when the note writes the movement inside another
+    one: "hang snatch" writes Snatch. The harness must count that."""
 
     def map_sled(case, text):
         if case["id"] != "en-sled-oov":
@@ -90,7 +89,7 @@ def test_a_mapped_unknown_movement_is_refused_and_reported_as_written(client, tm
         payload["unmatched"] = []
         payload["entries"].append(
             {
-                "movement": "Push Press",
+                "movement": "Snatch",
                 "set_number": 1,
                 "reps": None,
                 "weight": None,
@@ -102,10 +101,8 @@ def test_a_mapped_unknown_movement_is_refused_and_reported_as_written(client, tm
         return json.dumps(payload)
 
     (result,), _cut, _spent = _run(tmp_path, _provider(map_sled))
-    assert result["summary"]["oov_hallucinated"] == 0
-    assert result["summary"]["case_exact"] == 1.0
-    sled = next(case for case in result["cases"] if case["case_id"] == "en-sled-oov")
-    assert sled["returned_entries"] == 3 and sled["oov_rejected"] == 1
+    assert result["summary"]["oov_hallucinated"] == 1
+    assert result["summary"]["case_exact"] == pytest.approx(2 / 3, abs=1e-4)
 
 
 def test_the_budget_stops_the_run_before_the_next_call(client, tmp_path):
