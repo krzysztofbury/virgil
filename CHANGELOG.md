@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-08
+
 ### Added
 - One Freedom habit's history under its own name (#218):
   `GET /api/freedom/{habit}/history?range=N` and the MCP tool
