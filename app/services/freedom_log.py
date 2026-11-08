@@ -133,11 +133,13 @@ async def delete_day(db, habit: dict, day: str) -> None:
 # Relapse records shown for correction. A habit relapsing daily for years would
 # still fit; the page says when there are more.
 RELAPSE_LIST_MAX = 200
-EVENT_TYPES = ("relapse", "reset")
 
 
 async def list_relapse_events(db, habit: dict) -> list[dict]:
     """This habit's relapse and reset records, newest first.
+
+    A relapse breaks the streak. A reset (an import, or a correction made
+    before the type was fixed, can have made one) is listed and never counted.
 
     `from_day` marks the ones a slipped day wrote: they follow that day, so the
     page sends them to the day form instead of editing them on their own.
@@ -188,13 +190,15 @@ async def _keep_slip_counted(db, habit: dict, day: str) -> None:
         )
 
 
-async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, event_type: str, notes: str) -> dict:
-    """Correct a relapse or reset record that no day log owns (an older or imported one)."""
+async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, notes: str) -> dict:
+    """Correct the date or note of a record that no day log owns (an older or imported one).
+
+    The type stays: turning a relapse into a reset would take it out of the
+    streak without a trace, and a reset is not a slip to promote.
+    """
     event_date = past_or_today(day)
     if event_date is None:
         raise FreedomWriteError(N_("Choose a date of today or earlier."))
-    if event_type not in EVENT_TYPES:
-        raise FreedomWriteError(N_("Choose relapse or reset."))
     notes = (notes or "").strip()[:NOTE_MAX]
     if notes == DAILY_MARKER:
         raise FreedomWriteError(N_("That note is reserved for records a day log writes."))
@@ -202,6 +206,7 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
     await db.execute("BEGIN IMMEDIATE")
     try:
         event = await _own_event(db, habit, event_id)
+        event_type = event["event_type"]
         if event_type == "relapse" and await db.execute_fetchall(
             "SELECT 1 FROM pmo_events WHERE habit_id = ? AND date = ? AND event_type = 'relapse' AND id != ?",
             (habit["id"], event_date, event_id),
@@ -221,10 +226,10 @@ async def update_relapse_event(db, habit: dict, event_id: int, *, day: str, even
                 N_("{event_date} is logged as clean. Log that day as slipped instead."), event_date=event_date
             )
         await db.execute(
-            "UPDATE pmo_events SET date = ?, event_type = ?, notes = ? WHERE id = ?",
-            (event_date, event_type, notes, event_id),
+            "UPDATE pmo_events SET date = ?, notes = ? WHERE id = ?",
+            (event_date, notes, event_id),
         )
-        if event["event_type"] == "relapse":
+        if event_type == "relapse":
             await _keep_slip_counted(db, habit, event["date"])
         await db.commit()
     except BaseException:

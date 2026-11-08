@@ -5,6 +5,7 @@ through the day. Any other record (older, or imported) is edited on its own.
 """
 
 import sqlite3
+from datetime import date
 
 import pytest
 
@@ -54,14 +55,15 @@ def _event(event_id):
     return rows[0] if rows else None
 
 
-def test_an_imported_record_is_corrected(auth_client, porn):
+def test_an_imported_record_is_corrected_and_keeps_its_type(auth_client, porn):
+    """A posted type is ignored: a relapse turned into a reset would leave the streak without a trace (#211)."""
     _, imported = porn
 
     response = _post(
         auth_client, f"/freedom/porn/relapses/{imported}/edit", date="2025-02-03", event_type="reset", notes=" moved "
     )
 
-    assert _event(imported) == ("2025-02-03", "reset", "moved")
+    assert _event(imported) == ("2025-02-03", "relapse", "moved")
     assert response.headers["location"].startswith("/freedom?habit=porn&records=open&msg=Record+corrected")
 
 
@@ -69,7 +71,6 @@ def test_an_imported_record_is_corrected(auth_client, porn):
     ("fields", "error"),
     [
         ({"date": "2999-01-01", "event_type": "relapse"}, "today+or+earlier"),
-        ({"date": "2025-02-01", "event_type": "binge"}, "relapse+or+reset"),
         ({"date": "2025-02-01", "event_type": "relapse", "notes": "via daily log"}, "reserved"),
     ],
 )
@@ -142,6 +143,71 @@ def test_the_page_lists_records_and_offers_each_kind_its_own_correction(auth_cli
     assert 'id="relapse-records" open' in html
     assert f'action="/freedom/porn/relapses/{imported}/edit"' in block
     assert 'data-confirm="Delete the relapse record from 2025-02-01? The streak is counted again without it."' in block
+
+
+def _insert_reset(habit, day):
+    conn = sqlite3.connect(user_db_path())
+    try:
+        event_id = conn.execute(
+            "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'reset', 'imported reset')",
+            (habit, day),
+        ).lastrowid
+        conn.commit()
+        return event_id
+    finally:
+        conn.close()
+
+
+def _streak(habit):
+    import asyncio
+
+    import aiosqlite
+
+    from app.services.streak import get_streak
+
+    async def read():
+        async with aiosqlite.connect(user_db_path()) as db:
+            db.row_factory = aiosqlite.Row
+            return await get_streak(db, habit, date(2025, 2, 20))
+
+    return asyncio.run(read())
+
+
+def test_a_reset_is_listed_as_not_counted_and_never_breaks_the_streak(auth_client, porn):
+    """A reset is not a break (#211): the page says so, and its delete promises no recount."""
+    habit, imported = porn
+    reset = _insert_reset(habit, "2025-02-10")
+
+    html = auth_client.get("/freedom?habit=porn&records=open").text
+    block = html[html.index('id="relapse-records"') :]
+
+    assert _streak(habit) == (19, date(2025, 2, 1)), "the relapse on 02-01 counts, the later reset does not"
+    assert "not counted in the streak" in block
+    assert 'data-confirm="Delete the reset record from 2025-02-10? It is not counted in the streak."' in block
+    assert 'name="event_type"' not in block, "the type of a record is not edited"
+
+    _post(auth_client, f"/freedom/porn/relapses/{reset}/delete")
+
+    assert _event(reset) is None
+    assert _streak(habit) == (19, date(2025, 2, 1))
+    assert _event(imported) == ("2025-02-01", "relapse", "imported")
+
+
+def test_a_reset_keeps_its_type_and_may_move_onto_any_past_day(auth_client, porn):
+    """The relapse checks follow the stored type: a reset may sit on a clean day or beside a relapse."""
+    habit, _ = porn
+    reset = _insert_reset(habit, "2025-02-10")
+    _post(auth_client, "/freedom/porn/daily", date="2025-02-02", slipped="0")
+
+    clean_day = _post(
+        auth_client, f"/freedom/porn/relapses/{reset}/edit", date="2025-02-02", event_type="relapse", notes="x"
+    )
+    beside_relapse = _post(auth_client, f"/freedom/porn/relapses/{reset}/edit", date="2025-02-01")
+
+    assert "Record+corrected" in clean_day.headers["location"]
+    assert "Record+corrected" in beside_relapse.headers["location"]
+    assert _event(reset) == ("2025-02-01", "reset", "")
+    assert _streak(habit) == (19, date(2025, 2, 1))
 
 
 def test_a_slipped_day_keeps_a_relapse_when_its_only_record_is_removed(auth_client, porn):

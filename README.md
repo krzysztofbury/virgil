@@ -433,9 +433,12 @@ words. Unticking a habit stops tracking it and keeps its history. The old
   marker, so an edging-only day does not show up as watched porn
 - **Timeline** - days and their bricks together, newest first. A day's date opens
   it in the day form, which can also delete a logged day
-- **Relapse records** - what the streak is counted from, listed per habit. A
-  record a slipped day wrote is corrected through that day; any other (older or
-  imported) edits its date, type and note, or is deleted after a confirmation
+- **Relapse records** - listed per habit. A relapse breaks the streak; a reset
+  (an import, or a correction made with an earlier version, can have made one;
+  the app no longer does) is listed and never counted. A record a slipped day wrote is
+  corrected through that day; any other (older or imported) edits its date and
+  note, or is deleted after a confirmation. Its type stays: a relapse cannot be
+  turned into a reset
 
 Migration 034 moves No Porn history - days, bricks, relapse events, start date,
 target and why - onto a Porn habit.
@@ -540,12 +543,6 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
     `update_brick` / `delete_brick` → `PATCH/DELETE /api/freedom/bricks/{id}`,
     and `update_habit` → `PATCH /api/freedom/{habit}` (name, slip definition,
     start date, target days, why)
-  - **Deprecated, kept for one release:** the No Porn names still work.
-    `/api/feniks/daily/{date}`, `/api/feniks/bricks[/{id}]` and
-    `/api/feniks/config` take an optional `?habit=` (default: the first tracked
-    habit) and the old fields `used`, `minutes`, `edging`; the MCP tools
-    `log_feniks_day`, `delete_feniks_day` and `update_feniks_config` call the
-    Freedom ones
   - `get_training_session` → `GET /api/training/sessions/{id}`
   - `get_measurements`, `log_measurements`, `delete_measurements` →
     `GET /api/measurements`, `PUT/DELETE /api/measurements/{date}`, with the
@@ -776,12 +773,24 @@ Current migrations:
 | 035 | `drop_no_porn_leftovers` | Drops `feniks_config` (moved onto the Porn habit) and `feniks_milestones`; keeps the journal and pleasures |
 | 036 | `english_labels` | Renames the seeded goal areas and the importer's blood-test categories to English; names the person chose stay |
 | 037 | `drop_second_brain` | Removes queued markdown export jobs and the scheduled-export settings left from the Second Brain folder |
+| 038 | `queue_every_wod_parse` | Lets every captured training note queue its own parse; the other paid kinds keep one queued job each |
+| 039 | `goal_trash_and_history` | Adds `deleted_goals` (a deleted goal can be restored for a while) and `goal_changes` (which fields changed, never their values) |
+| 040 | `finance` | Adds the Finance fortress: layers, accounts, monthly balances, score rules, essential cost, income sources and policies |
 
 Central registry migrations:
 | Version | Name | Description |
 |---|---|---|
 | 001 | `baseline` | Records the existing users and webhook routing schema as the central baseline |
 | 002 | `provider_subscriptions` | Adds desired-state subscription registrations, item-level renewal metadata, fenced claims and user lifecycle leases |
+| 003 | `session_epoch_and_mfa_lockout` | Revocable sessions and a per-account limit on failed MFA codes |
+| 004 | `auth_events_and_shared_llm` | A short log of security events, and whether an account may spend the server's LLM key |
+| 005 | `invites` | Single-use invites while registration is closed |
+| 006 | `password_resets` | Admin-issued password reset links |
+| 007 | `api_tokens` | Personal API tokens for the REST API and `/mcp` |
+| 008 | `user_language` | Each account's interface language |
+| 009 | `sign_in_links_and_recovery_codes` | Emailed sign-in links and MFA recovery codes, stored as SHA-256 hashes |
+| 010 | `server_settings` | Server settings and AI keys an admin changes in the app, and when each account accepted the terms |
+| 011 | `terms_version` | Which version of the terms and the privacy policy an account accepted |
 
 ## Data Model
 
@@ -872,92 +881,20 @@ Settings > Data downloads a readable markdown summary, for reading or pasting in
 
 ## Project Structure
 
-```
-virgil/
-├── app/
-│   ├── __main__.py           # Entrypoint: uvicorn with reload (local) or without (prod)
-│   ├── main.py              # FastAPI app, Jinja2 setup, markdown filters, SW route
-│   ├── config.py             # Environment variable configuration (VIRGIL_ENV, port, paths)
-│   ├── db.py                 # Schema constants, seeds, connection management
-│   ├── auth.py               # AuthMiddleware (cookie session verification)
-│   ├── csrf.py               # CSRF double-submit cookie middleware (with exempt paths)
-│   ├── rate_limit.py         # Per-IP sliding window rate limiter
-│   ├── security_headers.py   # Security response headers middleware (nonce-based CSP)
-│   ├── validation.py         # Shared input validation helpers
-│   ├── mcp_endpoint.py       # Hosted MCP over Streamable HTTP at /mcp
-│   ├── migrations/
-│   │   ├── runner.py         # Migration discovery + execution engine
-│   │   ├── 001_initial_schema.py
-│   │   ├── 002_migrate_llm_api_keys.py
-│   │   ├── 003_experiment_sources.py
-│   │   ├── 004_add_webhook_columns.py
-│   │   ├── 005_feature_flags.py
-│   │   └── 006_training_overhaul.py
-│   ├── central_migrations/    # Versioned central registry migrations
-│   ├── routers/
-│   │   ├── auth.py           # /login, /signup, /logout, /mfa routes
-│   │   ├── dashboard.py      # / route + sparkline data + /offline
-│   │   ├── daily.py          # /daily routes + A.N.D.Y. AI generation
-│   │   ├── training.py       # /training routes + exercise CRUD + KPIs
-│   │   ├── freedom.py        # /freedom routes (and the /feniks redirect)
-│   │   ├── oura.py           # /oura routes + daily trends
-│   │   ├── oura_webhook.py   # /api/oura/webhook/{id} (HMAC-verified, CSRF-exempt)
-│   │   ├── bloodwork.py      # /bloodwork routes
-│   │   ├── life_scores.py    # /life-scores routes
-│   │   ├── goals.py          # /goals routes
-│   │   ├── experiments.py    # /experiments routes
-│   │   ├── jobs.py           # /api/jobs status partial + explicit retry
-│   │   └── settings.py       # /settings routes + theme API + webhook mgmt
-│   ├── services/
-│   │   ├── encryption.py     # Fernet encrypt/decrypt for secrets
-│   │   ├── oura_api.py       # Oura OAuth2 + API v2 client + sync
-│   │   ├── oura_subscriptions.py # Oura subscription lifecycle adapter
-│   │   ├── subscriptions.py  # Provider-neutral lifecycle coordinator
-│   │   ├── llm.py            # LLM API client (Claude/OpenAI/Gemini) + thinking level
-│   │   ├── llm_jobs.py       # Paid-LLM durability: publication ledger, one-attempt producers
-│   │   ├── jobs.py           # Durable job state transitions (enqueue/claim/complete/retry)
-│   │   ├── job_producers.py  # Canonical producers for operational workloads
-│   │   ├── job_handlers.py   # Trusted handlers, one per job kind
-│   │   ├── job_worker.py     # Bounded execution, lease fencing, handler registry
-│   │   ├── briefing.py       # AI morning briefing generation
-│   │   ├── andy.py           # A.N.D.Y. daily suggestions (context + prompts)
-│   │   ├── medical_import.py # Staged blood-panel upload, extraction and storage
-│   │   ├── markdown_export.py # Scoped markdown download
-│   │   ├── scheduler.py      # Background task loop (enqueues due work, runs the job worker)
-│   │   ├── backup.py         # SQLite backup with rolling retention
-│   │   ├── experiment_summary.py # AI weekly summaries for experiments
-│   │   ├── habits.py         # Freedom habit catalog, tracking and settings
-│   │   ├── freedom_log.py    # Freedom day logs, bricks and per-habit overview
-│   │   ├── daily_log.py      # Daily-log persistence shared by forms, REST and the dashboard
-│   │   └── streak.py         # Freedom streak and weekly clean rate per habit
-│   ├── templates/
-│   │   ├── base.html         # Layout with nav, theme toggle, SW registration
-│   │   ├── offline.html      # Standalone offline fallback page
-│   │   ├── auth_*.html       # Login, signup, MFA templates
-│   │   ├── partials/         # HTMX partial templates
-│   │   └── *.html            # Page templates
-│   └── static/
-│       ├── css/app.css       # Design system with dark/light theme via CSS vars
-│       ├── js/app.js         # Theme toggle, keyboard shortcuts, swipe gestures, toggles, toasts
-│       ├── js/charts.js      # Theme-aware Chart.js wrappers with chart registry
-│       ├── service-worker.js # PWA service worker (cache-first, stale-while-revalidate, network-first)
-│       ├── manifest.json     # PWA manifest
-│       ├── icons/            # PWA icons + favicons
-│       └── img/              # A.N.D.Y. icons + branding
-├── data/                     # SQLite databases + encryption key (gitignored)
-├── backups/                  # Backups and pre-migration snapshots in compose (gitignored)
-├── docker-compose.yml        # Virgil + Cloudflare Tunnel (QNAP-compatible)
-├── Dockerfile                # Python 3.14 + uv, prod mode
-├── .env.example              # Environment variable template
-├── pyproject.toml
-├── CHANGELOG.md
-├── SPEC.md
-├── CONTRIBUTING.md
-├── SECURITY.md
-├── CODE_OF_CONDUCT.md
-├── LICENSE
-└── README.md
-```
+The map of entry points, and where each kind of change goes, is in
+[SPEC.md](SPEC.md#architecture). In short:
+
+- `app/main.py` builds the FastAPI app and its middleware; `app/__main__.py` runs it.
+- `app/user_db.py` opens each account's own SQLite database; `app/central_db.py`
+  is the central registry (users, sessions, tokens, webhook routes).
+- `app/routers/` handles requests, `app/services/` holds the logic,
+  `app/templates/` and `app/static/` are the UI.
+- `app/migrations/` and `app/central_migrations/` are the numbered schema
+  migrations of the two kinds of database.
+- `mcp_server/virgil_mcp.py` is the MCP server; `app/mcp_endpoint.py` hosts the
+  same tools at `/mcp`.
+- `scripts/` holds the release, recovery, demo-seed and i18n tools; `infra/`
+  the hosted instance's Ansible and Compose files; `docs/` the runbooks.
 
 ## Contributing
 

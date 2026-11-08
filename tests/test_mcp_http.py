@@ -76,7 +76,7 @@ def test_hosted_mcp_tool_client_follows_bind_host_and_port(monkeypatch, host, po
             current.close()
 
 
-def test_freedom_tools_write_through_the_new_paths_and_the_old_names_still_work(auth_client, client, monkeypatch):
+def test_freedom_tools_write_through_the_freedom_paths_and_the_no_porn_names_are_gone(auth_client, client, monkeypatch):
     from conftest import track_porn
 
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
@@ -88,9 +88,13 @@ def test_freedom_tools_write_through_the_new_paths_and_the_old_names_still_work(
     new_day = (date.today() - timedelta(days=62)).isoformat()
 
     calls = (
-        ("log_feniks_day", {"date": old_day, "used": True, "minutes": 9}),
+        # An empty habit is the first tracked one.
+        ("log_freedom_day", {"habit": "", "date": old_day, "slipped": True, "amount": 9}),
         ("log_freedom_day", {"habit": "porn", "date": new_day, "slipped": False, "note": "ZZ clean"}),
     )
+    tools = {tool["name"] for tool in _rpc(client, "tools/list").json()["result"]["tools"]}
+    assert "log_freedom_day" in tools
+    assert not tools & {"log_feniks_day", "delete_feniks_day", "update_feniks_config"}, "removed in #215"
     try:
         for name, arguments in calls:
             call = _rpc(client, "tools/call", {"name": name, "arguments": arguments})

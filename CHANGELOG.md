@@ -85,6 +85,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the REST API, MCP and exports stay as they are.
 
 ### Changed
+- The project map lives in one place (#216). SPEC.md's Architecture lists the
+  stable entry points (`user_db.py`, `central_db.py`, `server_settings.py`,
+  `routers/`, `services/`, both migration folders, `mcp_server/`, `scripts/`,
+  `infra/`) instead of a file list that stopped at migration 034, and the README
+  points to it instead of keeping its own tree, which stopped at migration 006
+  and described `app/db.py` as the schema. The README's migration tables list
+  038-040 and central 003-011. The package no longer claims Python 3.13; it
+  requires 3.14.
 - The hosted instance's tunnel runs cloudflared 2026.10.5, and Dependabot now
   watches `infra/compose` as well as the self-hosting Compose file (#208).
 - The image, CI and the documented setup move to Python 3.14.9 and uv 0.13.5
@@ -133,10 +141,46 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Edit, sections collapsed and hidden exercises in their own group.
 
 ### Removed
+- The No Porn API names, deprecated in 0.8.0 for one release (#215): the
+  `/api/feniks/daily/{date}`, `/api/feniks/bricks[/{id}]` and
+  `/api/feniks/config` paths and the MCP tools `log_feniks_day`,
+  `delete_feniks_day` and `update_feniks_config`, on the stdio server and the
+  hosted `/mcp` alike. Use `/api/freedom/{habit}/days/{date}`,
+  `/api/freedom/{habit}/bricks`, `/api/freedom/bricks/{id}`,
+  `PATCH /api/freedom/{habit}` and the tools `log_freedom_day`,
+  `delete_freedom_day` and `update_habit`. An old path is no longer an API-key
+  path, so a caller with only a key is redirected to sign in instead of
+  writing. `/api/noporn` and the `feniks` key of `/api/summary` stay.
 - The Sync Log card in Settings, which nothing wrote to, and the database
   path shown on the General tab.
+- Helpers nothing called (#214): `clamp`, `clamp_float` and `clamp_int` in
+  `app/validation.py`, and `has_subscription_registrations` and
+  `get_all_webhook_ids` in `app/central_db.py`. The latter's comment described
+  a list of every account's webhook ids that subscription reconcile must keep;
+  reconcile has not used it since it decides ownership per account
+  (`owns_remote`), which leaves other accounts' callbacks alone.
 
 ### Fixed
+- A Freedom reset record says what it is (#211). The streak and the week have
+  only ever counted relapses (and near misses), yet the record list called
+  itself what the streak is counted from, a record's type could be switched to
+  reset, which silently took a relapse out of the streak, and deleting a reset
+  promised a recount that never came. A reset now shows "not counted in the
+  streak", its delete says so, and a correction changes only a record's date
+  and note, as the README now says (it said date, type and note, from #52).
+  A relapse that an earlier correction turned into a reset stays a reset; to
+  count that day again, delete the reset and log the day as slipped.
+- A morning briefing describes the day it is filed under (#213). The text used
+  the logs, Oura row, streak and experiment weeks of the day the worker ran, so a
+  briefing queued just before midnight and run after it put the next day's data
+  on the earlier day. The day log, Oura, streak and experiment weeks are now read
+  as of the job's day; which habits and experiments are active is still read
+  when it runs.
+- The life-score history chart no longer draws a line through an area that an
+  assessment left blank (#212): the line breaks there, as the table's dash
+  does. The cushion chart breaks the same way at a date without an essential
+  cost; today such dates can only come before the first cost, so nothing
+  visible changes there. The radar still crosses a missing area.
 - Design re-check (#200). Onboarding no longer shows a "saved" toast over Next, a
   success toast never takes a click anywhere, and the Summary lists the habits to
   build and break. Personal Bests match a movement through its aliases, so

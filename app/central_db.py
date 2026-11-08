@@ -974,22 +974,6 @@ async def get_webhook_route(webhook_id: str, provider: str = "oura") -> dict | N
     return dict(rows[0]) if rows else None
 
 
-async def get_all_webhook_ids(provider: str = "oura") -> set[str]:
-    """Every existing user's webhook ids — reconcile must not delete these
-    when users share one Oura OAuth app. Deliberately NOT filtered on
-    is_active: a temporarily disabled account keeps its Oura subscription and
-    resumes syncing on re-enable; hard-deleted users vanish via the JOIN
-    (webhook_routes rows cascade on user deletion)."""
-    db = await get_central_db()
-    rows = await db.execute_fetchall(
-        """SELECT wr.webhook_id FROM webhook_routes wr
-           JOIN users u ON u.id = wr.user_id
-           WHERE wr.provider = ?""",
-        (provider,),
-    )
-    return {r["webhook_id"] for r in rows}
-
-
 async def get_webhook_id_for_user(user_id: str, provider: str) -> str | None:
     db = await get_central_db()
     rows = await db.execute_fetchall(
@@ -1220,15 +1204,6 @@ async def get_subscription_registration(user_id: str, provider: str) -> dict | N
         (user_id, provider),
     )
     return dict(rows[0]) if rows else None
-
-
-async def has_subscription_registrations(user_id: str) -> bool:
-    db = await get_central_db()
-    rows = await db.execute_fetchall(
-        "SELECT 1 FROM provider_subscription_registrations WHERE user_id = ? LIMIT 1",
-        (user_id,),
-    )
-    return bool(rows)
 
 
 async def list_due_subscription_registrations(limit: int, now: datetime | None = None) -> list[dict]:

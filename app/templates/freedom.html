@@ -272,9 +272,10 @@
 </div>
 {% endif %}
 
-<!-- Relapse records: what the streak is counted from. A slipped day writes
-     its own, which follows the day; any other (older or imported) is corrected
-     here. -->
+<!-- Relapse records: a relapse breaks the streak, a reset (an import, or an
+     older correction, made it) is listed and never counted. A slipped day
+     writes its own relapse, which follows the day; any other record (older or
+     imported) gets its date and note corrected here. -->
 {% if relapse_records %}
 <details class="card freedom-records" id="relapse-records"{% if request.query_params.get('records') == 'open' %} open{% endif %}>
     <summary>{% trans count=relapse_records|length, more='+' if relapse_records_more else '' %}Relapse records ({{ count }}{{ more }}){% endtrans %}</summary>
@@ -287,23 +288,18 @@
             <small class="text-muted">{{ _("from the day log") }}</small>
             <a href="/freedom?habit={{ habit.slug }}&amp;date={{ r.date }}#day-card" class="btn-link">{{ _("Correct the day") }}</a>
             {% else %}
+            {% if r.event_type != 'relapse' %}<small class="text-muted">{{ _("not counted in the streak") }}</small>{% endif %}
             {% if r.notes %}<small class="text-muted">{{ r.notes }}</small>{% endif %}
             <details class="freedom-record-edit">
                 <summary aria-label="{% if r.event_type == 'relapse' %}{% trans date=r.date %}Edit the relapse record from {{ date }}{% endtrans %}{% else %}{% trans date=r.date %}Edit the reset record from {{ date }}{% endtrans %}{% endif %}">{{ _("Edit") }}</summary>
                 <form method="POST" action="/freedom/{{ habit.slug }}/relapses/{{ r.id }}/edit" class="freedom-record-form">
                     <label>{{ _("Date") }} <input type="date" name="date" value="{{ r.date }}" max="{{ today }}" required></label>
-                    <label>{{ _("Type") }}
-                        <select name="event_type">
-                            <option value="relapse" {{ 'selected' if r.event_type == 'relapse' else '' }}>{{ _("Relapse") }}</option>
-                            <option value="reset" {{ 'selected' if r.event_type == 'reset' else '' }}>{{ _("Reset") }}</option>
-                        </select>
-                    </label>
                     <label>{{ _("Note") }} <input type="text" name="notes" value="{{ r.notes or '' }}" maxlength="500"></label>
                     <button type="submit" class="btn btn-secondary btn-sm">{{ _("Save") }}</button>
                 </form>
             </details>
             <form method="POST" action="/freedom/{{ habit.slug }}/relapses/{{ r.id }}/delete"
-                  data-confirm="{% if r.event_type == 'relapse' %}{% trans date=r.date %}Delete the relapse record from {{ date }}? The streak is counted again without it.{% endtrans %}{% else %}{% trans date=r.date %}Delete the reset record from {{ date }}? The streak is counted again without it.{% endtrans %}{% endif %}">
+                  data-confirm="{% if r.event_type == 'relapse' %}{% trans date=r.date %}Delete the relapse record from {{ date }}? The streak is counted again without it.{% endtrans %}{% else %}{% trans date=r.date %}Delete the reset record from {{ date }}? It is not counted in the streak.{% endtrans %}{% endif %}">
                 <button type="submit" class="exp-delete-btn" aria-label="{% if r.event_type == 'relapse' %}{% trans date=r.date %}Delete the relapse record from {{ date }}{% endtrans %}{% else %}{% trans date=r.date %}Delete the reset record from {{ date }}{% endtrans %}{% endif %}">&times;</button>
             </form>
             {% endif %}

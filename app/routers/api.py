@@ -8,7 +8,7 @@ which serves that account with the scopes it was created with. The API is
 disabled while neither exists. `/mcp` uses this same resolution. Writes cover canonical goals/reps, experiment logging,
 exercise-library CRUD,
 the daily log (habits and A.N.D.Y.), Freedom (/api/freedom: habits, their days, bricks and
-settings; the /api/feniks paths are deprecated aliases), training
+settings), training
 sessions, body measurements, life scores and the optional modules' flags (/api/features).
 """
 
@@ -21,7 +21,7 @@ from uuid import uuid4
 
 import aiosqlite
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import AliasChoices, BaseModel, ConfigDict, Field, StrictFloat, StrictInt
+from pydantic import BaseModel, ConfigDict, StrictFloat, StrictInt
 
 from app.central_db import get_central_db
 from app.config import API_KEY, API_USER_EMAIL
@@ -1030,7 +1030,7 @@ async def api_library_delete(db: ApiDb, entry_id: int):
         raise HTTPException(status_code=exc.status, detail=exc.message) from exc
 
 
-# --- Daily log, Feniks and training writes -------------------------------------
+# --- Daily log, Freedom and training writes ------------------------------------
 # A morning check-in agent records yesterday's day without opening the forms.
 
 
@@ -1041,15 +1041,12 @@ def _iso_day(value: str) -> str:
         raise HTTPException(status_code=422, detail="date must be an ISO date (YYYY-MM-DD)") from exc
 
 
-async def _habit(db, slug: str | None) -> dict:
-    """The habit a Freedom call is about: ?habit=<slug>, else the first one tracked."""
+async def _habit(db, slug: str) -> dict:
+    """The habit a Freedom call is about, by its slug."""
     try:
         return await resolve_habit(db, slug)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-
-
-HabitParam = Annotated[str | None, Query(description="Habit slug; defaults to the first tracked habit")]
 
 
 @router.get("/freedom")
@@ -1113,14 +1110,6 @@ class ApiFreedomDay(BaseModel):
     note: str = ""
 
 
-class ApiFeniksDay(ApiFreedomDay):
-    """The deprecated /api/feniks/daily body: the No Porn names (used, minutes, edging) still work."""
-
-    slipped: bool = Field(validation_alias=AliasChoices("slipped", "used"))
-    amount: int | None = Field(None, validation_alias=AliasChoices("amount", "minutes"))
-    near_miss: bool = Field(False, validation_alias=AliasChoices("near_miss", "edging"))
-
-
 class ApiBrick(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1164,18 +1153,6 @@ async def api_put_freedom_day(habit: str, day: str, payload: ApiFreedomDay, db: 
 @router.post("/freedom/{habit}/bricks", status_code=201)
 async def api_add_freedom_brick(habit: str, payload: ApiBrick, db: SensitiveDb):
     """One urge survived for one habit."""
-    return await _add_brick(db, await _habit(db, habit), payload)
-
-
-@router.put("/feniks/daily/{day}", deprecated=True)
-async def api_put_feniks_day(day: str, payload: ApiFeniksDay, db: SensitiveDb, habit: HabitParam = None):
-    """Deprecated: PUT /api/freedom/{habit}/days/{day}."""
-    return await _put_day(db, await _habit(db, habit), day, payload)
-
-
-@router.post("/feniks/bricks", status_code=201, deprecated=True)
-async def api_add_brick(payload: ApiBrick, db: SensitiveDb, habit: HabitParam = None):
-    """Deprecated: POST /api/freedom/{habit}/bricks."""
     return await _add_brick(db, await _habit(db, habit), payload)
 
 
@@ -1294,12 +1271,6 @@ async def api_delete_freedom_day(habit: str, day: str, db: SensitiveDb):
     return await _delete_day(db, await _habit(db, habit), day)
 
 
-@router.delete("/feniks/daily/{day}", deprecated=True)
-async def api_delete_feniks_day(day: str, db: SensitiveDb, habit: HabitParam = None):
-    """Deprecated: DELETE /api/freedom/{habit}/days/{day}."""
-    return await _delete_day(db, await _habit(db, habit), day)
-
-
 class ApiBrickPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1310,9 +1281,8 @@ class ApiBrickPatch(BaseModel):
 
 
 @router.patch("/freedom/bricks/{brick_id}")
-@router.patch("/feniks/bricks/{brick_id}", deprecated=True)
 async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: SensitiveDb):
-    """Edit a brick; /api/feniks/bricks/{brick_id} is the deprecated path."""
+    """Edit a brick."""
     changes = payload.model_dump(exclude_unset=True)
     if not changes:
         raise HTTPException(status_code=422, detail="Provide at least one brick field")
@@ -1325,22 +1295,13 @@ async def api_update_brick(brick_id: int, payload: ApiBrickPatch, db: SensitiveD
 
 
 @router.delete("/freedom/bricks/{brick_id}")
-@router.delete("/feniks/bricks/{brick_id}", deprecated=True)
 async def api_delete_brick(brick_id: int, db: SensitiveDb):
-    """Delete a brick; /api/feniks/bricks/{brick_id} is the deprecated path."""
+    """Delete a brick."""
     try:
         await delete_brick(db, brick_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     return {"deleted": True, "brick_id": brick_id}
-
-
-class ApiFeniksConfig(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    start_date: str | None = None
-    target_days: int | None = None
-    big_why: str | None = None
 
 
 class ApiHabitPatch(BaseModel):
@@ -1370,20 +1331,6 @@ async def api_update_habit(habit: str, payload: ApiHabitPatch, db: SensitiveDb):
         return await update_habit(db, target["slug"], changes)
     except HabitError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-
-
-@router.patch("/feniks/config", deprecated=True)
-async def api_update_feniks_config(payload: ApiFeniksConfig, db: SensitiveDb, habit: HabitParam = None):
-    """Deprecated: PATCH /api/freedom/{habit}. One habit's start date, target and "why"."""
-    changes = payload.model_dump(exclude_unset=True)
-    if not changes:
-        raise HTTPException(status_code=422, detail="Provide at least one config field")
-    target = await _habit(db, habit)
-    try:
-        updated = await update_habit(db, target["slug"], changes)
-    except HabitError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
-    return {key: updated[key] for key in ("slug", "start_date", "target_days", "big_why")}
 
 
 @router.get("/training/sessions/{session_id}")

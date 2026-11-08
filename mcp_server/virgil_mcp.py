@@ -605,16 +605,6 @@ def log_freedom_day(
 
 
 @mcp.tool()
-def log_feniks_day(
-    date: str, used: bool, minutes: int | None = None, edging: bool = False, note: str = "", habit: str = ""
-) -> dict:
-    """Deprecated: use log_freedom_day. Same write with the No Porn names: used=slipped,
-    minutes=amount, edging=near_miss. Edging is stored when used is false and that day is
-    not clean; it does not write a relapse marker. Empty `habit` means the first tracked habit."""
-    return log_freedom_day(habit, date, used, minutes, edging, note)
-
-
-@mcp.tool()
 def add_brick(date: str, hook: str, craving: int | None = None, story: str = "", habit: str = "") -> dict:
     """Add a Freedom brick: one urge survived for one habit (`habit` slug from get_habits;
     empty means the first tracked habit). `hook` is the short memorable name (required),
@@ -698,12 +688,6 @@ def delete_freedom_day(habit: str, date: str) -> dict:
 
 
 @mcp.tool()
-def delete_feniks_day(date: str, habit: str = "") -> dict:
-    """Deprecated: use delete_freedom_day. Empty `habit` means the first tracked habit."""
-    return delete_freedom_day(habit, date)
-
-
-@mcp.tool()
 def update_brick(
     brick_id: int,
     date: str | None = None,
@@ -760,17 +744,6 @@ def update_habit(
     if not payload:
         raise ToolError("update_habit needs at least one field to change")
     return _patch(f"/api/freedom/{_habit_slug(habit)}", payload)
-
-
-@mcp.tool()
-def update_feniks_config(
-    start_date: str | None = None, target_days: int | None = None, big_why: str | None = None, habit: str = ""
-) -> dict:
-    """Deprecated: use update_habit. Changes one habit's start date, target and why; empty
-    `habit` means the first tracked habit."""
-    if start_date is None and target_days is None and big_why is None:
-        raise ToolError("update_feniks_config needs at least one field to change")
-    return update_habit(habit, start_date=start_date, target_days=target_days, big_why=big_why)
 
 
 @mcp.tool()
