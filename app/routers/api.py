@@ -1080,13 +1080,13 @@ async def api_freedom_history(habit: str, db: SensitiveDb, days: int = Query(30,
     streak_days, last_relapse = await get_streak(db, habit_id)
     clean, elapsed, pct = await get_week_clean(db, habit_id)
     events = await db.execute_fetchall(
-        "SELECT date, event_type, notes FROM pmo_events WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
-        (habit_id, since),
+        "SELECT date, event_type, notes FROM pmo_events WHERE habit_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC",
+        (habit_id, since, today.isoformat()),
     )
     days_logged = await db.execute_fetchall(
         "SELECT date, slipped, amount, near_miss, note FROM feniks_daily "
-        "WHERE habit_id = ? AND date >= ? ORDER BY date DESC",
-        (habit_id, since),
+        "WHERE habit_id = ? AND date BETWEEN ? AND ? ORDER BY date DESC",
+        (habit_id, since, today.isoformat()),
     )
     bricks = await db.execute_fetchall(
         "SELECT id, date, hook, craving, story FROM feniks_bricks "

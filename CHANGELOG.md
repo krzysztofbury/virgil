@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - One Freedom habit's history under its own name (#218):
   `GET /api/freedom/{habit}/history?range=N` and the MCP tool
-  `get_freedom_history` return any tracked habit's settings, streak, this week,
+  `get_freedom_history` return any habit's settings, streak, this week,
   relapse and reset records, day log (`slipped`, `amount`, `near_miss`, `note`)
   and bricks. The Porn habit also carries the No Porn program's journal and
   pleasures. Needs the `sensitive` scope. `/api/summary` reports the first

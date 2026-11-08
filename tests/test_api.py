@@ -580,7 +580,8 @@ def _set_flag(key, value):
 
 
 def test_freedom_history_serves_any_habit_with_the_freedom_names(auth_client, monkeypatch):
-    """/api/noporn knew only the Porn habit and the No Porn names (#218)."""
+    """/api/noporn knew only the Porn habit and the No Porn names (#218). Cannabis is a
+    habit no other test logs, so its streak is this test's own."""
     from datetime import timedelta
 
     monkeypatch.setattr("app.config.API_SENSITIVE", True)
@@ -588,33 +589,35 @@ def test_freedom_history_serves_any_habit_with_the_freedom_names(auth_client, mo
     flag = _flag("feature_freedom")
     _set_flag("feature_freedom", "1")
     token = csrf_token(auth_client, "/freedom")
-    auth_client.post("/freedom/habits", data={"slug": "alcohol", "_csrf_token": token}, follow_redirects=False)
+    auth_client.post("/freedom/habits", data={"slug": "cannabis", "_csrf_token": token}, follow_redirects=False)
     day = (date.today() - timedelta(days=5)).isoformat()
     try:
-        written = auth_client.put(f"/api/freedom/alcohol/days/{day}", json={"slipped": True, "amount": 3}, headers=KEY)
+        written = auth_client.put(
+            f"/api/freedom/cannabis/days/{day}", json={"slipped": True, "note": "ZZ history"}, headers=KEY
+        )
         assert written.status_code == 200, written.text
 
-        alcohol = auth_client.get("/api/freedom/alcohol/history?range=30", headers=KEY).json()
+        cannabis = auth_client.get("/api/freedom/cannabis/history?range=30", headers=KEY).json()
         porn = auth_client.get("/api/freedom/porn/history", headers=KEY).json()
         missing = auth_client.get("/api/freedom/no-such-habit/history", headers=KEY)
-        too_long = auth_client.get("/api/freedom/alcohol/history?range=999", headers=KEY)
+        too_long = auth_client.get("/api/freedom/cannabis/history?range=999", headers=KEY)
     finally:
-        auth_client.delete(f"/api/freedom/alcohol/days/{day}", headers=KEY)
+        auth_client.delete(f"/api/freedom/cannabis/days/{day}", headers=KEY)
         auth_client.post(
-            "/freedom/alcohol/untrack",
+            "/freedom/cannabis/untrack",
             data={"_csrf_token": csrf_token(auth_client, "/freedom")},
             follow_redirects=False,
         )
         _set_flag("feature_freedom", flag)
 
-    assert alcohol["habit"] == "alcohol" and alcohol["range_days"] == 30
-    [logged] = [entry for entry in alcohol["days"] if entry["date"] == day]
-    assert (logged["slipped"], logged["amount"]) == (1, 3)
+    assert cannabis["habit"] == "cannabis" and cannabis["range_days"] == 30
+    [logged] = [entry for entry in cannabis["days"] if entry["date"] == day]
+    assert (logged["slipped"], logged["note"]) == (1, "ZZ history")
     assert not {"used", "minutes", "edging"} & logged.keys(), "the Freedom names only"
-    assert any(event["date"] == day and event["event_type"] == "relapse" for event in alcohol["events"])
-    assert {"start_date", "target_days", "big_why"} == alcohol["settings"].keys()
-    assert alcohol["streak_days"] == 5 and alcohol["last_relapse"] == day
-    assert "journal" not in alcohol and "pleasures" not in alcohol, "the No Porn program belongs to the Porn habit"
+    assert any(event["date"] == day and event["event_type"] == "relapse" for event in cannabis["events"])
+    assert {"start_date", "target_days", "big_why"} == cannabis["settings"].keys()
+    assert cannabis["streak_days"] == 5 and cannabis["last_relapse"] == day
+    assert "journal" not in cannabis and "pleasures" not in cannabis, "the No Porn program belongs to the Porn habit"
     assert isinstance(porn["journal"], list) and isinstance(porn["pleasures"], list)
     assert missing.status_code == 404
     assert too_long.status_code == 422
