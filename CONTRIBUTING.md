@@ -85,6 +85,12 @@ stop it; `--allow-unpriced` runs one anyway. It writes
 `docs/evals/wod-YYYY-MM-DD.md` and `.json`. Commit both, then write the report's
 known failure modes from its failing cases.
 
+A report's JSON keeps every model's raw response, so a change to the parser can
+be measured without paid calls: answer each case with its recorded response
+and score the parse again. Check first that the current parser reproduces the
+recorded summary exactly. The result is measured on the cases the change was
+written against, so the next live run is still the independent check.
+
 Cases tagged `ambiguous` have a defensible second reading and get their own
 rate. An equipment word in a note (barbell, sztanga, DB, KB, wall balls) sets
 that equipment, also when it is part of the movement's name.
