@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
+  the project board, `.agents/escalation.md` lists what the approver role must
+  hand to the owner, and `.agents/retro.jsonl` keeps the retro history in the
+  repository (union merge in `.gitattributes`).
+
 ### Changed
 - The WOD parser refuses an entry for a movement the note never writes by its
   name or an alias, and lists it as not recognised with the words the note used
