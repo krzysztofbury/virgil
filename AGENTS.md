@@ -42,6 +42,12 @@ release, a host or Settings > Server change, external evidence), write
 - Load `test-audit` before designing, adding, pruning or reviewing substantive
   Python or SQL tests.
 
+## Agent workflow
+
+Queued work runs through the role skills on the project board named in
+`.agents/cos.json`. The approver escalates by `.agents/escalation.md`; retro
+appends to `.agents/retro.jsonl` and proposes rule changes as pull requests.
+
 ## Work rhythm
 
 - Work in small, coherent chunks with explicit acceptance criteria. After each,
