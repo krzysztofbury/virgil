@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- The escalation policy sends any change to agent rules (`.agents/**`,
+  `AGENTS.md`, `CLAUDE.md`) to the owner instead of merging it on its own.
 - The WOD parser refuses an entry for a movement the note never writes by its
   name or an alias, and lists it as not recognised with the words the note used
   ("pul ups 3x8"), instead of logging the model's guess (#187). Equipment is kept
