@@ -7,6 +7,8 @@ what the owner keeps waving through, and give the reason in the PR.
 
 ## Always escalate
 
+- Agent rules: `.agents/**`, `AGENTS.md` and `CLAUDE.md`. Agent rules and the
+  policy that gates merges do not change without the owner.
 - Authentication, sessions, CSRF, TOTP, rate limiting, security headers, API
   tokens and scopes: `app/auth.py`, `app/csrf.py`, `app/rate_limit.py`,
   `app/security_headers.py`, `app/routers/api.py`, `app/mcp_endpoint.py`,
