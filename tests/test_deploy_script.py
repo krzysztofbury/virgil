@@ -161,3 +161,25 @@ def test_a_release_prints_the_evidence_after_the_public_check_from_one_host_read
     captured = capsys.readouterr()
     assert "203.0.113.7" not in captured.out + captured.err
     assert captured.out.count("unavailable") == 3
+
+
+def test_a_failed_public_check_still_prints_the_evidence_and_fails(monkeypatch, capsys):
+    """The pin changed before the public check; its record needs the host fields from this run."""
+
+    def fake_ssh(command, *args, stdin=None):
+        stdout = _HOST_OUTPUT.encode() if command == "sh -s" else b""
+        return subprocess.CompletedProcess([], 0, stdout=stdout, stderr=b"")
+
+    def public_check_fails(base_url, revision):
+        raise DeployError(f"{base_url} does not serve {revision} yet")
+
+    digests = {_SHA: _IMAGE.split("@", 1)[1], _PREVIOUS_SHA: _PREVIOUS_DIGEST}
+    monkeypatch.setattr(deploy, "require_green_main", lambda revision: None)
+    monkeypatch.setattr(deploy, "published_digest", lambda revision: digests[revision])
+    monkeypatch.setattr(deploy, "wait_for_public_revision", public_check_fails)
+    monkeypatch.setattr(deploy, "ssh", fake_ssh)
+
+    with pytest.raises(DeployError, match="does not serve"):
+        deploy.release(_SHA, "https://virgil.example")
+
+    assert capsys.readouterr().out.splitlines()[1:] == _EVIDENCE

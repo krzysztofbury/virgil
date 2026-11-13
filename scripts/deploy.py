@@ -83,6 +83,7 @@ docker image prune --force >/dev/null
 # key=value; release_evidence() prints a value only when it has the expected
 # shape, so nothing else the host says reaches the output.
 _EVIDENCE_SCRIPT = r"""
+export LC_ALL=C
 cd /opt/virgil || exit 1
 [ -f release.env.previous ] && grep -E '^VIRGIL_(IMAGE|REVISION)=' release.env.previous | sed 's/^/previous_/'
 printf 'startup=%s\n' "$(docker logs virgil 2>&1 | grep -F 'Virgil version=' | tail -n 1)"
@@ -268,12 +269,17 @@ def release(revision: str | None, base_url: str, *, public_check: bool = True) -
     print(f"Releasing {revision} as {image}")
     ssh("install -m 0600 -o root -g root /dev/stdin /opt/virgil/compose.yaml", stdin=COMPOSE.read_bytes())
     ssh("sh -s --", image, revision, stdin=_RELEASE_SCRIPT.encode())
-    if not public_check:
-        print(f"Released {revision}; the container is healthy. Public check skipped.")
-    else:
-        wait_for_public_revision(base_url, revision)
-        print(f"{base_url} serves {revision}.")
-    print_release_evidence(image)
+    try:
+        if not public_check:
+            print(f"Released {revision}; the container is healthy. Public check skipped.")
+        else:
+            wait_for_public_revision(base_url, revision)
+            print(f"{base_url} serves {revision}.")
+    finally:
+        # The new pin is live even when the public check fails; the record of
+        # that release needs the host fields too, and a re-run would report
+        # this pin as the previous one.
+        print_release_evidence(image)
 
 
 def print_release_evidence(image: str) -> None:
@@ -282,7 +288,7 @@ def print_release_evidence(image: str) -> None:
         host_output = ssh("sh -s", stdin=_EVIDENCE_SCRIPT.encode()).stdout.decode(errors="replace")
     except DeployError, OSError, subprocess.TimeoutExpired:
         # The error text can carry the host address; it stays out of the output.
-        print("The host read for the evidence failed; read the fields on the host.", file=sys.stderr)
+        print("The host read for the evidence failed; its fields below are unavailable.", file=sys.stderr)
         host_output = ""
     for line in release_evidence(host_output, image, published_digest):
         print(line)
