@@ -26,6 +26,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2026-10-28 evaluation's recorded responses, 27 of 180 case runs become exact
   and none stop being exact; the dataset is the one the controls were tuned on.
 
+- WOD parser evaluation harness (#187): `--cost-map published` and
+  `--price MODEL=IN/OUT` price models the bundled LiteLLM map lacks, and the
+  report names the price source. Each run records the reasoning effort sent, or
+  that LiteLLM dropped it for the model, and the model that answered, and an unknown `--efforts` value or a model without
+  a provider prefix is refused. A refused key stops that model, a timed-out call
+  counts against the budget at its worst case, and no report is written when
+  every case errored. The report adds a Cases column, lists the configs that did
+  not run, flags uncommitted changes, marks calls without a response as
+  `no_response` and keeps em dashes out of error text. Aliases no longer count
+  as off-list names, and an unknown name mapped onto an expected movement counts
+  as hallucinated. The harness refuses to run when the app's database is outside
+  its scratch directory. Five new cases cover "15 + bar", a per-side load, a
+  load without units, a ladder and "3 minutes rowing".
+
 ### Removed
 - The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
   /api/noporn`, the MCP tool `get_noporn` (on the stdio server and the hosted
