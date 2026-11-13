@@ -38,6 +38,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hover overrides, since the vendored flatpickr stylesheet hovers on touch too.
 - Transitions name the properties they animate instead of `all`, so a layout
   change no longer animates; the phone menu still fades out.
+- The browser smoke test for press feedback and the theme colour no longer fails
+  now and then (#226): it released its press over a submit button, which posted
+  the form and navigated the page under the next check. It now releases the
+  press off the button and waits for the pressed state instead of a fixed 200 ms.
 
 ## [0.10.0] - 2026-11-08
 
