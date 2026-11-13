@@ -679,16 +679,18 @@ def test_fixed_bars_clear_the_notch_and_the_home_indicator(site):
         nav, bar, tab = page.locator(".top-nav"), page.locator(".bottom-bar"), page.locator(".bottom-bar .tab-item").first
         assert nav.evaluate(_BOX)["height"] == 70
         assert bar.evaluate(_BOX)["height"] == 64
+        tab_height = tab.evaluate(_BOX)["height"]
 
         page.evaluate(_INSETS, {"top": 47, "bottom": 34})
         nav_box = nav.evaluate(_BOX)
         assert nav_box["height"] == 70 + 47
         assert page.locator(".nav-logo").evaluate(_BOX)["top"] >= 47, "the logo sits under the status bar"
+        assert page.locator(".skip-link").evaluate(_BOX)["bottom"] <= 0, "the skip link shows unfocused"
         first = page.locator("main.container > *:not(script)").first
         assert first.evaluate(_BOX)["top"] >= nav_box["bottom"], "the page starts under the nav"
         bar_box, tab_box = bar.evaluate(_BOX), tab.evaluate(_BOX)
         assert bar_box["height"] == 64 + 34
-        assert tab_box["height"] == 64, "the inset squeezed the tab row"
+        assert tab_box["height"] == tab_height, "the inset squeezed the tab row"
         assert tab_box["bottom"] <= 844 - 34, "a tab sits on the home indicator"
         tray = page.locator(".feedback-error").evaluate(_BOX)
         assert tray["bottom"] <= bar_box["top"], "the notification sits on the bottom bar"

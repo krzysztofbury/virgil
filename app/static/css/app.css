@@ -2942,7 +2942,8 @@ kbd {
   background: var(--accent);
   color: #fff;
   font-weight: 700;
-  transform: translateY(-200%);
+  /* Its height and its offset above the screen edge, inset included. */
+  transform: translateY(calc(-100% - 1rem - var(--safe-top)));
 }
 .skip-link:focus { transform: none; }
 main.container:focus { outline: none; }
