@@ -78,6 +78,13 @@ table { border-collapse: separate; border-spacing: 0; width: 100%; }
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
   --offline-banner-height: 2.25rem;
   --bottom-bar-height: 64px;
+  /* The screen's unsafe edges (notch, home indicator, rounded corners). They
+     are 0 until the viewport meta has viewport-fit=cover; every fixed bar adds
+     them through these names, so a test can set them off the device. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
 
   /* Theme-aware surfaces */
   --bg-nav: rgba(6, 8, 13, 0.75);
@@ -192,11 +199,11 @@ strong { font-weight: 600; color: var(--text-primary); }
   width: 100%;
   max-width: 1024px; /* Wider for dashboard view */
   margin: 0 auto;
-  padding: 0 1.5rem;
+  padding: 0 max(1.5rem, var(--safe-right)) 0 max(1.5rem, var(--safe-left));
 }
 
 main.container {
-  padding-top: calc(var(--nav-height) + 2rem);
+  padding-top: calc(var(--nav-height) + var(--safe-top) + 2rem);
   padding-bottom: 4rem;
   animation: fadeIn 0.6s ease-out;
 }
@@ -212,7 +219,8 @@ main.container {
   top: 0;
   left: 0;
   right: 0;
-  height: var(--nav-height);
+  /* --nav-height is the bar's content; the status bar's inset sits above it. */
+  height: calc(var(--nav-height) + var(--safe-top));
   background: var(--bg-nav);
   backdrop-filter: var(--backdrop-blur);
   -webkit-backdrop-filter: var(--backdrop-blur);
@@ -220,7 +228,7 @@ main.container {
   z-index: 1000;
   display: flex;
   align-items: center;
-  padding: 0 1.5rem;
+  padding: var(--safe-top) max(1.5rem, var(--safe-right)) 0 max(1.5rem, var(--safe-left));
   transition: background-color 0.3s ease, box-shadow 0.3s ease;
 }
 .top-nav.scrolled {
@@ -334,13 +342,14 @@ main.container {
     bottom: 0;
     left: 0;
     right: 0;
-    height: var(--bottom-bar-height);
+    /* The tab row keeps its height; the home indicator's inset is added below it. */
+    height: calc(var(--bottom-bar-height) + var(--safe-bottom));
     background: var(--bg-bottom-bar);
     backdrop-filter: blur(20px);
     border-top: 1px solid var(--border);
     z-index: 1000;
     justify-content: space-around;
-    padding-bottom: env(safe-area-inset-bottom);
+    padding: 0 var(--safe-right) var(--safe-bottom) var(--safe-left);
   }
   .tab-item {
     flex: 1;
@@ -775,12 +784,12 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
    regions collapse so the tray adds no gap. */
 .notification-tray {
   position: fixed;
-  bottom: 1rem;
-  right: 1rem;
+  bottom: calc(1rem + var(--safe-bottom));
+  right: calc(1rem + var(--safe-right));
   z-index: 2000;
   display: grid;
   gap: 0.5rem;
-  width: min(24rem, calc(100vw - 2rem));
+  width: min(24rem, calc(100vw - 2rem - var(--safe-left) - var(--safe-right)));
   max-height: 45vh;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -800,15 +809,15 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .notification-tray .feedback-pending { pointer-events: none; }
 @media (max-width: 768px) {
   .notification-tray {
-    left: 0.75rem;
-    right: 0.75rem;
+    left: calc(0.75rem + var(--safe-left));
+    right: calc(0.75rem + var(--safe-right));
     width: auto;
-    bottom: 0.75rem;
+    bottom: calc(0.75rem + var(--safe-bottom));
     /* The bottom bar's menu opens where the tray sits, and must stay on top of it. */
     z-index: 900;
   }
   body:has(.bottom-bar) .notification-tray {
-    bottom: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom, 0px) + 0.5rem);
+    bottom: calc(var(--bottom-bar-height) + var(--safe-bottom) + 0.5rem);
   }
 }
 
@@ -870,7 +879,7 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
    amount so the banner covers nothing at its top. */
 .offline-banner {
   position: fixed;
-  top: var(--nav-height);
+  top: calc(var(--nav-height) + var(--safe-top));
   height: var(--offline-banner-height);
   left: 0;
   right: 0;
@@ -891,7 +900,7 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
 .offline-banner span { overflow: hidden; text-overflow: ellipsis; }
 .offline-banner:empty { display: none; }
 .offline-banner svg { width: 16px; height: 16px; flex: 0 0 auto; }
-body.is-offline main.container { padding-top: calc(var(--nav-height) + var(--offline-banner-height) + 2rem); }
+body.is-offline main.container { padding-top: calc(var(--nav-height) + var(--safe-top) + var(--offline-banner-height) + 2rem); }
 body.is-offline [data-offline-disabled] { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Mutation Feedback ── */
@@ -2914,7 +2923,7 @@ kbd {
   .exp-log-form .grid { grid-template-columns: 1fr; }
 
   main.container {
-    padding-bottom: calc(var(--bottom-bar-height) + env(safe-area-inset-bottom, 0) + 1.5rem);
+    padding-bottom: calc(var(--bottom-bar-height) + var(--safe-bottom) + 1.5rem);
   }
 }
 
@@ -2925,8 +2934,8 @@ kbd {
 /* ── Skip link: off screen until a keyboard focuses it ── */
 .skip-link {
   position: fixed;
-  top: 0.5rem;
-  left: 0.5rem;
+  top: calc(0.5rem + var(--safe-top));
+  left: calc(0.5rem + var(--safe-left));
   z-index: 3000;
   padding: 0.6rem 1rem;
   border-radius: var(--radius-sm);
@@ -3573,7 +3582,7 @@ details.library-hidden > summary { border: none; padding: 0.35rem 0.25rem; font-
   .legal-body { padding: 1.1rem 1rem; }
 }
 /* A link to one setting lands below the sticky top bar. */
-.server-setting, #server-ai, #life-scores { scroll-margin-top: 5rem; }
+.server-setting, #server-ai, #life-scores { scroll-margin-top: calc(5rem + var(--safe-top)); }
 
 /* Touch past the phone breakpoint: a tablet, or a phone held sideways. */
 @media (pointer: coarse) {
