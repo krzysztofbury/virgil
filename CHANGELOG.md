@@ -14,6 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- `AGENTS.md` points reviews and test work at the `reviewer` and `developer`
+  role skills, which replaced the `pair-programmer` and `test-audit` skills.
 - The escalation policy sends any change to agent rules (`.agents/**`,
   `AGENTS.md`, `CLAUDE.md`) to the owner instead of merging it on its own.
 - The WOD parser refuses an entry for a movement the note never writes by its
