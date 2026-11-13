@@ -80,10 +80,19 @@ ANTHROPIC_API_KEY=... uv run --locked --extra dev python -m evals.wod.run \
   --models anthropic/claude-haiku-4-5 --efforts low,medium --budget-usd 2
 ```
 
-It stops at once on a model LiteLLM has no price for, since the cap could not
-stop it; `--allow-unpriced` runs one anyway. It writes
-`docs/evals/wod-YYYY-MM-DD.md` and `.json`. Commit both, then write the report's
-known failure modes from its failing cases.
+Give each model with its provider prefix. Prices come from LiteLLM's bundled
+cost map, which lags new models: `--cost-map published` loads the current
+published map instead (the run stops if it cannot), and
+`--price openai/MODEL=IN/OUT` sets a price in USD per million input and output
+tokens. The report names the price source. The run stops at once on a model it
+has no price for, since the cap could not stop it; `--allow-unpriced` runs one
+anyway. A timed-out call may still be billed, so it counts against the cap at
+its worst case. A model whose key is refused is not run further, and no report
+is written when every case errored.
+
+It writes `docs/evals/wod-YYYY-MM-DD.md` and `.json`, with the effort each call
+sent, the model that answered and whether the tree had uncommitted changes.
+Commit both, then write the report's known failure modes from its failing cases.
 
 A report's JSON keeps every model's raw response, so a change to the parser can
 be measured without paid calls: answer each case with its recorded response
