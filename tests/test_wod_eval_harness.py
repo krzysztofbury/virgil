@@ -211,10 +211,14 @@ def test_the_report_shows_seconds_and_dollars_as_numbers(client, tmp_path):
 def registered_prices():
     """load_prices writes into LiteLLM's global cost map; take its entries out
     again so the unpriced tests above stay unpriced."""
-    before = set(litellm.model_cost)
+    before = {key: dict(value) for key, value in litellm.model_cost.items() if isinstance(value, dict)}
+    keys = set(litellm.model_cost)
     yield
-    for key in set(litellm.model_cost) - before:
+    for key in set(litellm.model_cost) - keys:
         del litellm.model_cost[key]
+    for key, value in before.items():
+        if litellm.model_cost.get(key) != value:
+            litellm.model_cost[key] = value
     litellm.utils._invalidate_model_cost_lowercase_map()
 
 
@@ -228,6 +232,23 @@ def test_a_price_from_the_command_line_prices_an_unmapped_model(client, tmp_path
     assert spent > 0 and result["summary"]["cost_known_for"] == f"{len(CASES)}/{len(CASES)}"
     report = render_markdown([result], {**META, "prices": source})
     assert f"`{model}` from the command line, 1.0 USD in and 2.0 USD out per million tokens." in report
+
+
+def test_a_command_line_price_overrides_the_map_also_for_a_dated_answer(client, tmp_path, registered_prices):
+    """Providers answer with a dated snapshot name; the price typed for the
+    model asked for must still be the one charged, not the map's."""
+    load_prices("bundled", [f"{MODEL}=100/200"])
+    inner = _provider()
+
+    async def dated(**kwargs):
+        response = await inner(**kwargs)
+        response.model = "gpt-4o-mini-2024-07-18"
+        return response
+
+    (result,), _cut, spent, _skipped = _run(tmp_path, dated)
+    run = result["runs"][0]
+    assert run["response_model"] == "gpt-4o-mini-2024-07-18"
+    assert run["cost_usd"] == pytest.approx((run["prompt_tokens"] * 100 + run["output_tokens"] * 200) / 1e6, rel=1e-9)
 
 
 def test_the_published_cost_map_prices_a_model_the_bundled_one_lacks(client, tmp_path, registered_prices):
@@ -270,10 +291,19 @@ def test_each_run_records_the_effort_sent_and_the_model_that_answered(client, tm
     model = "gemini/gemini-2.5-flash"
     (result,), _cut, _spent, _skipped = _run(tmp_path, _provider(model=model), efforts=("xhigh",), model=model)
     assert {run["effort_sent"] for run in result["runs"]} == {"high"}
+    assert result["summary"]["effort_dropped"] == 0
     assert result["summary"]["efforts_sent"] == ["high"]
     assert result["summary"]["response_models"] == ["gemini-2.5-flash"]
     report = render_markdown([result], META)
     assert f"- {model}, effort xhigh: sent `high`, answered by `gemini-2.5-flash`, 0 errors" in report
+
+
+def test_an_effort_litellm_drops_is_not_reported_as_sent(client, tmp_path):
+    """gpt-4o-mini takes no reasoning_effort, and call_llm's drop_params removes
+    it, so a low and a medium row would be the same request."""
+    (result,), _cut, _spent, _skipped = _run(tmp_path, _provider())
+    assert result["summary"]["efforts_sent"] == [] and result["summary"]["effort_dropped"] == len(CASES)
+    assert f"sent none, dropped by LiteLLM in {len(CASES)} calls" in render_markdown([result], META)
 
 
 def test_an_unknown_effort_is_refused():

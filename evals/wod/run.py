@@ -202,6 +202,20 @@ def worst_case_cost(request: dict) -> float | None:
     return (prompt_cost + output_cost) or None
 
 
+def effort_reaches_provider(model: str) -> bool:
+    """Whether LiteLLM passes reasoning_effort on for this model. call_llm sets
+    drop_params, which silently removes it for a model LiteLLM has no mapping
+    for, so two efforts of that model send the same request."""
+    import litellm
+
+    try:
+        name, provider, _key, _base = litellm.get_llm_provider(model)
+        supported = litellm.get_supported_openai_params(model=name, custom_llm_provider=provider) or []
+    except Exception:  # noqa: BLE001 - an unknown model cannot be shown to take it
+        return False
+    return "reasoning_effort" in supported
+
+
 class Meter:
     """Wraps litellm.acompletion for the run: latency, cost, the effort sent,
     the model that answered and the raw text of each call, read by the harness
@@ -217,7 +231,9 @@ class Meter:
         import litellm
 
         started = time.perf_counter()
-        sent = {"effort_sent": kwargs.get("reasoning_effort"), "response_model": None}
+        effort = kwargs.get("reasoning_effort")
+        dropped = effort is not None and not effort_reaches_provider(kwargs.get("model") or "")
+        sent = {"effort_sent": None if dropped else effort, "effort_dropped": dropped, "response_model": None}
         try:
             response = await self.inner(*args, **kwargs)
         except litellm.AuthenticationError:
@@ -256,6 +272,7 @@ class Meter:
             "raw": choice.message.content,
             "responded": True,
             "finish_reason": str(getattr(choice, "finish_reason", "") or ""),
+            "prompt_tokens": getattr(usage, "prompt_tokens", None),
             "output_tokens": getattr(usage, "completion_tokens", None),
             **sent,
             "response_model": getattr(response, "model", None),
@@ -281,6 +298,7 @@ _NO_CALL = {
     "finish_reason": "",
     "output_tokens": None,
     "effort_sent": None,
+    "effort_dropped": False,
     "response_model": None,
 }
 
@@ -474,8 +492,11 @@ def render_markdown(results: list[dict], meta: dict) -> str:
     ]
     for result in results:
         summary = result["summary"]
+        dropped = summary.get("effort_dropped", 0)
         lines.append(
-            f"- {result['model']}, effort {result['effort']}: sent {_list(summary.get('efforts_sent'))}, "
+            f"- {result['model']}, effort {result['effort']}: sent {_list(summary.get('efforts_sent'))}"
+            + (f", dropped by LiteLLM in {dropped} calls" if dropped else "")
+            + ", "
             f"answered by {_list(summary.get('response_models'))}, "
             f"{summary.get('errors', 0)} errors, {summary.get('json_no_response', 0)} without a response."
         )

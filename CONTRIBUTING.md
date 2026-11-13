@@ -91,7 +91,7 @@ its worst case. A model whose key is refused is not run further, and no report
 is written when every case errored.
 
 It writes `docs/evals/wod-YYYY-MM-DD.md` and `.json`, with the effort each call
-sent, the model that answered and whether the tree had uncommitted changes.
+sent (or that LiteLLM dropped it for that model), the model that answered and whether the tree had uncommitted changes.
 Commit both, then write the report's known failure modes from its failing cases.
 
 A report's JSON keeps every model's raw response, so a change to the parser can

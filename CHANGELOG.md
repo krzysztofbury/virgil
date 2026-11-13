@@ -28,8 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - WOD parser evaluation harness (#187): `--cost-map published` and
   `--price MODEL=IN/OUT` price models the bundled LiteLLM map lacks, and the
-  report names the price source. Each run records the reasoning effort sent and
-  the model that answered, and an unknown `--efforts` value or a model without
+  report names the price source. Each run records the reasoning effort sent, or
+  that LiteLLM dropped it for the model, and the model that answered, and an unknown `--efforts` value or a model without
   a provider prefix is refused. A refused key stops that model, a timed-out call
   counts against the budget at its worst case, and no report is written when
   every case errored. The report adds a Cases column, lists the configs that did

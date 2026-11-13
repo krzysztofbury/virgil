@@ -231,5 +231,6 @@ def aggregate(scores: list[CaseScore], runs: list[dict]) -> dict:
         "cost_known_for": f"{len(costs)}/{len(runs)}",
         "cost_estimated": sum(1 for r in runs if r.get("cost_estimated")),
         "efforts_sent": sorted({r["effort_sent"] for r in runs if r.get("effort_sent")}),
+        "effort_dropped": sum(1 for r in runs if r.get("effort_dropped")),
         "response_models": sorted({r["response_model"] for r in runs if r.get("response_model")}),
     }
