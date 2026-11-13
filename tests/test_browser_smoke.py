@@ -676,7 +676,11 @@ def test_fixed_bars_clear_the_notch_and_the_home_indicator(site):
         page.goto(f"{base}/settings?tab=data&err=Stays+until+dismissed")
         page.locator(".feedback-error").wait_for()
         assert "viewport-fit=cover" in page.get_attribute("meta[name=viewport]", "content")
-        nav, bar, tab = page.locator(".top-nav"), page.locator(".bottom-bar"), page.locator(".bottom-bar .tab-item").first
+        nav, bar, tab = (
+            page.locator(".top-nav"),
+            page.locator(".bottom-bar"),
+            page.locator(".bottom-bar .tab-item").first,
+        )
         assert nav.evaluate(_BOX)["height"] == 70
         assert bar.evaluate(_BOX)["height"] == 64
         tab_height = tab.evaluate(_BOX)["height"]
