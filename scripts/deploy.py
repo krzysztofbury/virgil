@@ -11,6 +11,12 @@ healthy. It then checks that the public site serves that commit. There is no
 automatic rollback: migrations are one-way and an older image refuses a newer
 database (RELEASE.md). The previous pin stays in release.env.previous.
 
+At the end, a release reads the host once more and prints the evidence the
+release record needs (docs/post-deploy-evidence.md): the previous pin and the
+commit GHCR published it for, the container's startup line, memory against
+mem_limit and host disk. Only values of an expected shape are printed, never an
+env value or the host address.
+
 Order on a new host: run `env` before the first `release`, because Compose
 requires /etc/virgil/virgil.env. Until the tunnel routes the public name, pass
 `--no-public-check`; the release then ends once the container is healthy.
@@ -28,6 +34,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +79,26 @@ docker image prune --force >/dev/null
 """
 
 
+# Runs on the host as root after a release, and only reads. Each line is
+# key=value; release_evidence() prints a value only when it has the expected
+# shape, so nothing else the host says reaches the output.
+_EVIDENCE_SCRIPT = r"""
+cd /opt/virgil || exit 1
+[ -f release.env.previous ] && grep -E '^VIRGIL_(IMAGE|REVISION)=' release.env.previous | sed 's/^/previous_/'
+printf 'startup=%s\n' "$(docker logs virgil 2>&1 | grep -F 'Virgil version=' | tail -n 1)"
+printf 'memory=%s\n' "$(docker stats --no-stream --format '{{.MemUsage}}' virgil)"
+df -P -h /var/lib/virgil | awk 'NR == 2 { print "disk=" $3 " of " $2 " (" $5 ")" }'
+exit 0
+"""
+_STARTUP = re.compile(
+    r"Virgil version=\S+ \u2014 central migration=\w+, user migrations OK for \d+ DB\(s\), \d+ failed"
+)
+_SIZE = r"\d+(?:\.\d+)?\s?[KMGTP]?i?B?"
+_MEMORY = re.compile(rf"{_SIZE} / {_SIZE}")
+_DISK = re.compile(rf"{_SIZE} of {_SIZE} \(\d+%\)")
+_UNAVAILABLE = "unavailable"
+
+
 class DeployError(RuntimeError):
     pass
 
@@ -88,6 +115,54 @@ def release_env(image: str, revision: str) -> str:
 def serves_revision(html: str, revision: str) -> bool:
     """The page links its assets with the build's commit as the cache-buster."""
     return f"/static/css/app.css?v={revision}" in html
+
+
+def release_evidence(host_output: str, image: str, published: Callable[[str], str]) -> list[str]:
+    """The release record's host fields from one read of the host.
+
+    `published` maps a commit to the digest GHCR serves as `sha-<commit>`; it
+    confirms which commit the previous digest was built from.
+    """
+    values: dict[str, str] = {}
+    for line in host_output.splitlines():
+        key, sep, value = line.partition("=")
+        if sep:
+            values[key.strip()] = value.strip()
+
+    previous_image = values.get("previous_VIRGIL_IMAGE", "")
+    previous_revision = values.get("previous_VIRGIL_REVISION", "")
+    if not previous_image and not previous_revision:
+        previous = "none (no release.env.previous on the host)"
+    elif not previous_image.startswith(f"{IMAGE}@") or _DIGEST.fullmatch(previous_image.split("@", 1)[1]) is None:
+        previous = f"{_UNAVAILABLE} (release.env.previous holds no pinned {IMAGE} image)"
+    else:
+        previous_digest = previous_image.split("@", 1)[1]
+        previous = previous_digest
+        if _SHA.fullmatch(previous_revision) is None:
+            previous += ", its commit is not recorded"
+        else:
+            try:
+                confirmed = published(previous_revision) == previous_digest
+            except OSError, DeployError, ValueError, KeyError:
+                confirmed = None
+            if confirmed:
+                previous += f", published as sha-{previous_revision}"
+            elif confirmed is None:
+                previous += f", recorded for {previous_revision}; GHCR could not be asked to confirm it"
+            else:
+                previous += f", recorded for {previous_revision}, but GHCR's sha-{previous_revision} is another digest"
+
+    startup = _STARTUP.search(values.get("startup", ""))
+    memory = _MEMORY.fullmatch(values.get("memory", ""))
+    disk = _DISK.fullmatch(values.get("disk", ""))
+    return [
+        "Evidence for the release record (docs/post-deploy-evidence.md):",
+        f"  Image: {image}",
+        f"  Previous pin: {previous}",
+        f"  Startup log: {startup.group(0) if startup else _UNAVAILABLE}",
+        f"  Memory (used / mem_limit): {memory.group(0) if memory else _UNAVAILABLE}",
+        f"  Host disk (used of size): {disk.group(0) if disk else _UNAVAILABLE}",
+    ]
 
 
 def host_target() -> tuple[str, str]:
@@ -195,9 +270,22 @@ def release(revision: str | None, base_url: str, *, public_check: bool = True) -
     ssh("sh -s --", image, revision, stdin=_RELEASE_SCRIPT.encode())
     if not public_check:
         print(f"Released {revision}; the container is healthy. Public check skipped.")
-        return
-    wait_for_public_revision(base_url, revision)
-    print(f"{base_url} serves {revision}.")
+    else:
+        wait_for_public_revision(base_url, revision)
+        print(f"{base_url} serves {revision}.")
+    print_release_evidence(image)
+
+
+def print_release_evidence(image: str) -> None:
+    """The release is done by now; a failed read leaves the fields unavailable instead of failing it."""
+    try:
+        host_output = ssh("sh -s", stdin=_EVIDENCE_SCRIPT.encode()).stdout.decode(errors="replace")
+    except DeployError, OSError, subprocess.TimeoutExpired:
+        # The error text can carry the host address; it stays out of the output.
+        print("The host read for the evidence failed; read the fields on the host.", file=sys.stderr)
+        host_output = ""
+    for line in release_evidence(host_output, image, published_digest):
+        print(line)
 
 
 def render_env() -> None:
