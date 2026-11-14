@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- The app, sign-in and offline pages set `viewport-fit=cover`, so an iPhone
+  reports its notch and home indicator (#201). The top nav grows by the status
+  bar's inset instead of sitting under it, the bottom bar's tab row keeps its
+  height above the home indicator, and the page, nav, tray, offline banner and
+  sign-in card keep clear of the left and right edges in landscape. The training
+  day dialog is sized and centred inside the safe area.
 - `AGENTS.md` points reviews and test work at the `reviewer` and `developer`
   role skills, which replaced the `pair-programmer` and `test-audit` skills.
 - The escalation policy sends any change to agent rules (`.agents/**`,

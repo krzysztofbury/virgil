@@ -2,7 +2,7 @@
 <html lang="{{ current_language() }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>{{ _("Virgil - Reset password") }}</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
@@ -49,7 +49,7 @@
 </div>
 
 <style>
-.auth-wrapper { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:1rem; }
+.auth-wrapper { display:flex; align-items:center; justify-content:center; min-height:100vh; padding:max(1rem, var(--safe-top)) max(1rem, var(--safe-right)) max(1rem, var(--safe-bottom)) max(1rem, var(--safe-left)); }
 .auth-card { width:100%; max-width:380px; }
 .auth-logo { display:flex; align-items:center; gap:0.75rem; margin-bottom:0.25rem; }
 .auth-logo h1 { margin:0; font-size:1.5rem; }

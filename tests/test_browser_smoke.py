@@ -656,3 +656,107 @@ def test_signed_out_pages_run_their_scripts(site, path):
         assert problems == []
     finally:
         context.close()
+
+
+_INSETS = """insets => Object.entries(insets).forEach(
+    ([edge, px]) => document.documentElement.style.setProperty(`--safe-${edge}`, `${px}px`))"""
+_BOX = "el => { const r = el.getBoundingClientRect(); return {top: r.top, bottom: r.bottom, left: r.left, right: r.right, height: r.height}; }"
+
+
+def test_fixed_bars_clear_the_notch_and_the_home_indicator(site):
+    """With viewport-fit=cover an iPhone reports its unsafe edges (#201). Chromium
+    reports none, so the test sets the inset properties the stylesheet reads:
+    this proves the layout arithmetic, not that a device reports the insets."""
+    browser, base, session, _log = site
+    context = _new_context(
+        browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
+    )
+    try:
+        page = context.new_page()
+        page.goto(f"{base}/settings?tab=data&err=Stays+until+dismissed")
+        page.locator(".feedback-error").wait_for()
+        assert "viewport-fit=cover" in page.get_attribute("meta[name=viewport]", "content")
+        nav, bar, tab = (
+            page.locator(".top-nav"),
+            page.locator(".bottom-bar"),
+            page.locator(".bottom-bar .tab-item").first,
+        )
+        assert nav.evaluate(_BOX)["height"] == 70
+        assert bar.evaluate(_BOX)["height"] == 64
+        tab_height = tab.evaluate(_BOX)["height"]
+
+        page.evaluate(_INSETS, {"top": 47, "bottom": 34})
+        nav_box = nav.evaluate(_BOX)
+        assert nav_box["height"] == 70 + 47
+        assert page.locator(".nav-logo").evaluate(_BOX)["top"] >= 47, "the logo sits under the status bar"
+        assert page.locator(".skip-link").evaluate(_BOX)["bottom"] <= 0, "the skip link shows unfocused"
+        first = page.locator("main.container > *:not(script)").first
+        assert first.evaluate(_BOX)["top"] >= nav_box["bottom"], "the page starts under the nav"
+        bar_box, tab_box = bar.evaluate(_BOX), tab.evaluate(_BOX)
+        assert bar_box["height"] == 64 + 34
+        assert tab_box["height"] == tab_height, "the inset squeezed the tab row"
+        assert tab_box["bottom"] <= 844 - 34, "a tab sits on the home indicator"
+        tray = page.locator(".feedback-error").evaluate(_BOX)
+        assert tray["bottom"] <= bar_box["top"], "the notification sits on the bottom bar"
+
+        # Sideways: the notch and the rounded corners are at the left and right.
+        page.set_viewport_size({"width": 844, "height": 390})
+        page.evaluate(_INSETS, {"top": 0, "bottom": 21, "left": 47, "right": 47})
+        assert page.locator(".nav-logo").evaluate(_BOX)["left"] >= 47
+        assert page.locator(".nav-end").evaluate(_BOX)["right"] <= 844 - 47
+        assert first.evaluate(_BOX)["left"] >= 47
+        tray = page.locator(".feedback-error").evaluate(_BOX)
+        assert tray["right"] <= 844 - 47
+        assert tray["bottom"] <= 390 - 21
+
+        # The sign-in card fills a phone's width, so the wrapper's padding is what keeps it clear.
+        signed_out = _new_context(browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True)
+        try:
+            page = signed_out.new_page()
+            page.goto(f"{base}/login")
+            assert "viewport-fit=cover" in page.get_attribute("meta[name=viewport]", "content")
+            page.evaluate(_INSETS, {"left": 30, "right": 30})
+            card = page.locator(".auth-card").evaluate(_BOX)
+            assert card["left"] >= 30 and card["right"] <= 390 - 30
+        finally:
+            signed_out.close()
+    finally:
+        context.close()
+
+
+def test_the_training_dialog_stays_inside_the_safe_area(site):
+    """viewport-fit=cover lets the top layer reach under the notch and the home
+    indicator, so the modal day dialog must size and centre itself from the insets."""
+    browser, base, session, _log = site
+    context = _new_context(
+        browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
+    )
+    try:
+        page = context.new_page()
+        page.goto(f"{base}/training")
+        page.goto(base + page.locator("a[data-calendar-dialog]").first.get_attribute("href"))
+        dialog = page.locator("dialog.training-dialog")
+        assert dialog.evaluate("d => d.matches(':modal')")
+        close = page.locator(".training-dialog-close")
+
+        page.evaluate(_INSETS, {"top": 47, "bottom": 34})
+        box, button = dialog.evaluate(_BOX), close.evaluate(_BOX)
+        assert box["top"] >= 47 and button["top"] >= 47, "the dialog sits under the status bar"
+        assert box["bottom"] <= 844 - 34, "the dialog runs onto the home indicator"
+        assert box["left"] >= 0 and box["right"] <= 390
+
+        page.set_viewport_size({"width": 844, "height": 390})
+        page.evaluate(_INSETS, {"top": 0, "bottom": 21, "left": 47, "right": 47})
+        box, button = dialog.evaluate(_BOX), close.evaluate(_BOX)
+        assert box["left"] >= 47 and box["right"] <= 844 - 47, "the dialog sits under the side notch"
+        assert button["right"] <= 844 - 47
+        assert box["top"] >= 0 and box["bottom"] <= 390 - 21
+        assert abs((box["left"] - 47) - (844 - 47 - box["right"])) <= 1, "the dialog is off centre in the safe area"
+
+        # The offline banner spans the screen; its text keeps clear of the side insets.
+        padding = page.locator("#offline-banner").evaluate(
+            "el => { const s = getComputedStyle(el); return [parseFloat(s.paddingLeft), parseFloat(s.paddingRight)]; }"
+        )
+        assert padding == [47, 47]
+    finally:
+        context.close()
