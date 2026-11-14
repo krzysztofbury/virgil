@@ -14,6 +14,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- `scripts/deploy.py release` ends with the evidence the release record needs,
+  read from the host in the same run: the previous pin's digest and the commit
+  GHCR published it for, the container's `Virgil version=` startup line, memory
+  against `mem_limit` and host disk. Only values of the expected shape are
+  printed, never env values or the host address, and a failed read leaves the
+  fields `unavailable` without failing the finished release. The post-deploy
+  evidence template takes these fields from that output, so a release needs one
+  approved production run instead of extra SSH reads (#228).
 - The app, sign-in and offline pages set `viewport-fit=cover`, so an iPhone
   reports its notch and home indicator (#201). The top nav grows by the status
   bar's inset instead of sitting under it, the bottom bar's tab row keeps its
