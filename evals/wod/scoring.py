@@ -36,7 +36,8 @@ def _covers(returned: str, expected: str) -> bool:
 def json_health(raw: str | None) -> str:
     """'valid' when the model's text parses as JSON, 'extracted' when a whole
     object sits inside a code fence or prose, 'repaired' when only the parser's
-    truncation repair recovers it, 'unusable' otherwise."""
+    truncation repair recovers it, 'unusable' otherwise. A call that
+    never answered is 'no_response', which the harness records without asking."""
     if raw is None:
         return "unusable"
     try:
@@ -61,7 +62,8 @@ def json_health(raw: str | None) -> str:
 
 
 def off_list_names(raw: str | None, vocabulary: set[str]) -> int:
-    """Entries in the model's own JSON naming a movement outside the vocabulary.
+    """Entries in the model's own JSON naming a movement outside the vocabulary,
+    which holds the listed names and their aliases.
 
     The parser moves these to `unmatched` itself, so this counts how often that
     control had to act, not a user-visible error.
@@ -126,12 +128,18 @@ def score_case(case: dict, entries: list[dict], unmatched: list[str], error: str
     rejected = [name for name in expected_unmatched if any(_covers(r, _norm(name)) for r in returned_unmatched)]
     not_rejected = [name for name in expected_unmatched if name not in rejected]
     # An out-of-vocabulary name that is not reported either became an entry it
-    # should not have (hallucinated) or vanished (dropped). Its only trace is an
-    # extra entry for a movement the case never expects; an extra set of an
-    # expected movement is a counting error, not a mapped name.
+    # should not have (hallucinated) or vanished (dropped). Its trace is an extra
+    # entry for a movement the case never expects, or an expected movement that
+    # took its numbers instead of its own: "pul ups 3x8, push ups 3x15" read as
+    # Push-up 3x8 pairs with the expected Push-up sets and shows only as wrong
+    # reps. An extra set of an expected movement is a counting error, and a
+    # wrong equipment says nothing about a mapped name.
     expected_movements = {want["movement"] for want in expected}
     foreign = sum(1 for entry in extra if entry["movement"] not in expected_movements)
-    hallucinated = min(len(not_rejected), foreign)
+    took_numbers = len(
+        {want["movement"] for want, got in pairs if any(not _same(want[name], got.get(name)) for name in NUMERIC)}
+    )
+    hallucinated = min(len(not_rejected), foreign + took_numbers) if not_rejected else 0
     expected_norm = [_norm(name) for name in expected_unmatched]
     unexpected = sorted(name for name in unmatched if not any(_covers(_norm(name), e) for e in expected_norm))
 
@@ -185,11 +193,13 @@ def _percentile(values: list[float], share: float) -> float | None:
 
 def aggregate(scores: list[CaseScore], runs: list[dict]) -> dict:
     """One row of the comparison table. `runs` holds per-call measurements:
-    latency_s, cost_usd (None when the provider has no price) and json_health."""
+    latency_s, cost_usd (None when the provider has no price, an upper bound
+    when cost_estimated), json_health, effort_sent and response_model."""
     expected = sum(s.expected_entries for s in scores)
     returned = sum(s.returned_entries for s in scores)
     paired = sum(s.paired for s in scores)
-    costs = [r["cost_usd"] for r in runs if r.get("cost_usd") is not None]
+    # A timed-out call's worst case counts against the budget, not as a price.
+    costs = [r["cost_usd"] for r in runs if r.get("cost_usd") is not None and not r.get("cost_estimated")]
     latencies = [r["latency_s"] for r in runs if r.get("latency_s") is not None]
     health = [r.get("json_health") for r in runs]
     # A case tagged ambiguous has a defensible second reading, so it gets its
@@ -213,9 +223,14 @@ def aggregate(scores: list[CaseScore], runs: list[dict]) -> dict:
         "json_extracted": health.count("extracted"),
         "json_repaired": health.count("repaired"),
         "json_unusable": health.count("unusable"),
+        "json_no_response": health.count("no_response"),
         "off_list_names": sum(r.get("off_list_names", 0) for r in runs),
         "latency_p50_s": round(median(latencies), 2) if latencies else None,
         "latency_p95_s": _percentile(latencies, 0.95),
         "cost_per_100_usd": round(sum(costs) / len(costs) * 100, 4) if costs else None,
         "cost_known_for": f"{len(costs)}/{len(runs)}",
+        "cost_estimated": sum(1 for r in runs if r.get("cost_estimated")),
+        "efforts_sent": sorted({r["effort_sent"] for r in runs if r.get("effort_sent")}),
+        "effort_dropped": sum(1 for r in runs if r.get("effort_dropped")),
+        "response_models": sorted({r["response_model"] for r in runs if r.get("response_model")}),
     }
