@@ -722,3 +722,41 @@ def test_fixed_bars_clear_the_notch_and_the_home_indicator(site):
             signed_out.close()
     finally:
         context.close()
+
+
+def test_the_training_dialog_stays_inside_the_safe_area(site):
+    """viewport-fit=cover lets the top layer reach under the notch and the home
+    indicator, so the modal day dialog must size and centre itself from the insets."""
+    browser, base, session, _log = site
+    context = _new_context(
+        browser, viewport={"width": 390, "height": 844}, is_mobile=True, has_touch=True, storage_state=session
+    )
+    try:
+        page = context.new_page()
+        page.goto(f"{base}/training")
+        page.goto(base + page.locator("a[data-calendar-dialog]").first.get_attribute("href"))
+        dialog = page.locator("dialog.training-dialog")
+        assert dialog.evaluate("d => d.matches(':modal')")
+        close = page.locator(".training-dialog-close")
+
+        page.evaluate(_INSETS, {"top": 47, "bottom": 34})
+        box, button = dialog.evaluate(_BOX), close.evaluate(_BOX)
+        assert box["top"] >= 47 and button["top"] >= 47, "the dialog sits under the status bar"
+        assert box["bottom"] <= 844 - 34, "the dialog runs onto the home indicator"
+        assert box["left"] >= 0 and box["right"] <= 390
+
+        page.set_viewport_size({"width": 844, "height": 390})
+        page.evaluate(_INSETS, {"top": 0, "bottom": 21, "left": 47, "right": 47})
+        box, button = dialog.evaluate(_BOX), close.evaluate(_BOX)
+        assert box["left"] >= 47 and box["right"] <= 844 - 47, "the dialog sits under the side notch"
+        assert button["right"] <= 844 - 47
+        assert box["top"] >= 0 and box["bottom"] <= 390 - 21
+        assert abs((box["left"] - 47) - (844 - 47 - box["right"])) <= 1, "the dialog is off centre in the safe area"
+
+        # The offline banner spans the screen; its text keeps clear of the side insets.
+        padding = page.locator("#offline-banner").evaluate(
+            "el => { const s = getComputedStyle(el); return [parseFloat(s.paddingLeft), parseFloat(s.paddingRight)]; }"
+        )
+        assert padding == [47, 47]
+    finally:
+        context.close()

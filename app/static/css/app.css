@@ -888,7 +888,7 @@ td:last-child { border-right: 1px solid var(--border); border-top-right-radius: 
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  padding: 0 1rem;
+  padding: 0 max(1rem, var(--safe-right)) 0 max(1rem, var(--safe-left));
   background: rgba(146, 64, 14, 0.97);
   border-bottom: 1px solid rgba(251, 191, 36, 0.5);
   color: #fff;
@@ -2367,10 +2367,13 @@ details > :not(summary) { margin-top: 1rem; }
 .pb-record strong { font-family: var(--font-mono); color: var(--text-primary); }
 .pb-record span { color: var(--text-secondary); }
 
-/* Full training-day details live in the top layer, outside card clipping. */
+/* Full training-day details live in the top layer, outside card clipping.
+   The top layer spans the whole screen under viewport-fit=cover, so the sizes
+   subtract the insets and a modal is centred inside the safe area. */
 .training-dialog {
-  width: min(900px, calc(100vw - 2rem));
-  max-height: min(85vh, 900px);
+  --dialog-room: calc(100dvh - var(--safe-top) - var(--safe-bottom));
+  width: min(900px, calc(100vw - 2rem - var(--safe-left) - var(--safe-right)));
+  max-height: min(85vh, 900px, calc(var(--dialog-room) - 1rem));
   margin: auto;
   padding: 0;
   overflow: hidden;
@@ -2380,6 +2383,7 @@ details > :not(summary) { margin-top: 1rem; }
   border-radius: var(--radius-md);
   box-shadow: 0 24px 80px rgba(0, 0, 0, 0.55);
 }
+.training-dialog:modal { inset: var(--safe-top) var(--safe-right) var(--safe-bottom) var(--safe-left); }
 .training-dialog::backdrop { background: var(--dialog-backdrop); backdrop-filter: blur(4px); }
 .training-dialog-head {
   display: flex;
@@ -2400,7 +2404,7 @@ details > :not(summary) { margin-top: 1rem; }
   font-size: 1.35rem;
 }
 @media (hover: hover) and (pointer: fine) { .training-dialog-close:hover { color: var(--text-primary); border-color: var(--accent); } }
-.training-dialog-body { max-height: calc(85vh - 5rem); overflow-y: auto; padding: 1rem 1.25rem 1.25rem; }
+.training-dialog-body { max-height: calc(min(85vh, 900px, var(--dialog-room) - 1rem) - 5rem); overflow-y: auto; padding: 1rem 1.25rem 1.25rem; }
 .training-session { padding: 1rem 0; }
 .training-session + .training-session { border-top: 1px solid var(--border); }
 .training-session-head { display: flex; align-items: baseline; gap: 0.75rem; margin-bottom: 0.6rem; }
@@ -2434,8 +2438,11 @@ details > :not(summary) { margin-top: 1rem; }
   }
   .training-date-jump label { margin: 0; }
   .pb-grid { grid-template-columns: 1fr; }
-  .training-dialog { width: calc(100vw - 1rem); max-height: calc(100dvh - 1rem); }
-  .training-dialog-body { max-height: calc(100dvh - 6rem); padding: 0.75rem; }
+  .training-dialog {
+    width: calc(100vw - 1rem - var(--safe-left) - var(--safe-right));
+    max-height: calc(var(--dialog-room) - 1rem);
+  }
+  .training-dialog-body { max-height: calc(var(--dialog-room) - 6rem); padding: 0.75rem; }
   .training-dialog-head { padding: 0.75rem; }
 }
 /* ── Heatmap ── */
