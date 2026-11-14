@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Virgil - Offline / Brak połączenia</title>
     {% include "partials/head_assets.html" %}
     <link rel="stylesheet" href="/static/css/app.css?v={{ app_version }}">
@@ -12,7 +12,7 @@
     <link rel="apple-touch-icon" href="/static/icons/icon-192x192.png">
 </head>
 <body>
-    <main class="container" style="padding-top:4rem;text-align:center;">
+    <main class="container" style="padding-top:calc(4rem + var(--safe-top));padding-bottom:var(--safe-bottom);text-align:center;">
         <div class="card" style="max-width:400px;margin:3rem auto;padding:3rem 2rem;">
             <img src="/static/icons/logo.png" alt="" width="56" height="56" style="margin-bottom:1rem;opacity:0.6;">
             {# The service worker caches this one page for every visitor, so it
