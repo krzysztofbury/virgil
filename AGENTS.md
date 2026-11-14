@@ -37,10 +37,12 @@ release, a host or Settings > Server change, external evidence), write
 
 ## Skills
 
-- Load `pair-programmer` for a review of substantial or safety-sensitive
-  changes (auth, migrations, recovery, deploy, server settings), not every edit.
-- Load `test-audit` before designing, adding, pruning or reviewing substantive
-  Python or SQL tests.
+- Review substantial or safety-sensitive changes (auth, migrations, recovery,
+  deploy, server settings) with the `reviewer` skill and its review method,
+  not every edit.
+- Follow the test audit in the `developer` skill (`references/test-audit.md`)
+  before designing, adding, pruning or reviewing substantive Python or SQL
+  tests.
 
 ## Agent workflow
 
