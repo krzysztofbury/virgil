@@ -281,13 +281,23 @@ def test_controls_answer_on_press_and_a_confirmation_never_takes_a_click(site):
         toast.wait_for()
         assert toast.evaluate("el => getComputedStyle(el).pointerEvents") == "none"
 
+        # The first button on this tab is a submit button: releasing the press over it is a
+        # click, which posts the form and navigates the page away mid-test. Release outside it.
+        page.evaluate("window.submitted = 0; document.addEventListener('submit', () => window.submitted++, true)")
         button = page.locator("main .btn").first
         button.hover()
         page.mouse.down()
-        page.wait_for_timeout(200)
-        transform = button.evaluate("el => getComputedStyle(el).transform")
-        page.mouse.up()
-        assert transform.startswith("matrix(0.97"), transform
+        try:
+            # Poll for the end of the 120 ms transition instead of sleeping a fixed time.
+            page.wait_for_function(
+                "el => getComputedStyle(el).transform.startsWith('matrix(0.97')",
+                arg=button.element_handle(),
+                timeout=2000,
+            )
+        finally:
+            page.mouse.move(0, 0)
+            page.mouse.up()
+        assert page.evaluate("window.submitted") == 0, "the press must not submit the form"
 
         color = "document.querySelector('meta[name=theme-color]').content"
         assert page.evaluate(color) == "#06080d"
