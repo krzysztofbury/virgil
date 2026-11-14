@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Agent workflow files: `.agents/cos.json` points the chief-of-staff role at
+  the project board, `.agents/escalation.md` lists what the approver role must
+  hand to the owner, and `.agents/retro.jsonl` keeps the retro history in the
+  repository (union merge in `.gitattributes`).
+
 ### Changed
+- `AGENTS.md` points reviews and test work at the `reviewer` and `developer`
+  role skills, which replaced the `pair-programmer` and `test-audit` skills.
+- The escalation policy sends any change to agent rules (`.agents/**`,
+  `AGENTS.md`, `CLAUDE.md`) to the owner instead of merging it on its own.
 - The WOD parser refuses an entry for a movement the note never writes by its
   name or an alias, and lists it as not recognised with the words the note used
   ("pul ups 3x8"), instead of logging the model's guess (#187). Equipment is kept
@@ -15,6 +25,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   swings", "wall balls") sets that movement's equipment. Replaying the
   2026-10-28 evaluation's recorded responses, 27 of 180 case runs become exact
   and none stop being exact; the dataset is the one the controls were tuned on.
+
+- WOD parser evaluation harness (#187): `--cost-map published` and
+  `--price MODEL=IN/OUT` price models the bundled LiteLLM map lacks, and the
+  report names the price source. Each run records the reasoning effort sent, or
+  that LiteLLM dropped it for the model, and the model that answered, and an unknown `--efforts` value or a model without
+  a provider prefix is refused. A refused key stops that model, a timed-out call
+  counts against the budget at its worst case, and no report is written when
+  every case errored. The report adds a Cases column, lists the configs that did
+  not run, flags uncommitted changes, marks calls without a response as
+  `no_response` and keeps em dashes out of error text. Aliases no longer count
+  as off-list names, and an unknown name mapped onto an expected movement counts
+  as hallucinated. The harness refuses to run when the app's database is outside
+  its scratch directory. Five new cases cover "15 + bar", a per-side load, a
+  load without units, a ladder and "3 minutes rowing".
 
 ### Removed
 - The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
@@ -30,6 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   hover overrides, since the vendored flatpickr stylesheet hovers on touch too.
 - Transitions name the properties they animate instead of `all`, so a layout
   change no longer animates; the phone menu still fades out.
+- The browser smoke test for press feedback and the theme colour no longer fails
+  now and then (#226): it released its press over a submit button, which posted
+  the form and navigated the page under the next check. It now releases the
+  press off the button and waits for the pressed state instead of a fixed 200 ms.
+- `opentelemetry-api` moves to 1.45.2 in both lockfiles for CVE-2026-126360,
+  ahead of the `exclude-newer` cutoff.
 
 ## [0.10.0] - 2026-11-08
 

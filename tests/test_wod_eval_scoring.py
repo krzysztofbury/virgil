@@ -128,3 +128,39 @@ def test_ambiguous_cases_are_kept_out_of_the_headline_rate():
     missed = score_case(ambiguous, [], ["sled push"])
     row = aggregate([clear, missed], [{"json_health": "valid"}, {"json_health": "valid"}])
     assert row["case_exact"] == 1.0 and row["ambiguous_exact"] == 0.0
+
+
+TYPO = {
+    "id": "typo",
+    "tags": ["english"],
+    "note": "pul ups 3x8, push ups 3x15",
+    "expected": {"entries": [_entry("Push-up", n, 15) for n in (1, 2, 3)], "unmatched": ["pul ups"]},
+}
+
+
+def test_an_unknown_movement_mapped_onto_an_expected_one_is_hallucinated():
+    """The model reads "pul ups 3x8" as Push-up and misses the real push-ups:
+    the mapped sets pair with the expected ones, so their only trace is the
+    wrong reps, and there is no extra entry to count."""
+    score = score_case(TYPO, [_entry("Push-up", n, 8) for n in (1, 2, 3)], [])
+    assert (score.oov_rejected, score.oov_hallucinated, score.oov_dropped) == (0, 1, 0)
+
+
+def test_a_wrong_number_alone_is_not_a_mapped_name():
+    reported = score_case(TYPO, [_entry("Push-up", n, 8) for n in (1, 2, 3)], ["pul ups"])
+    assert (reported.oov_rejected, reported.oov_hallucinated) == (1, 0), "the name was reported"
+    equipment = score_case(TYPO, [_entry("Push-up", n, 15, equipment="bodyweight") for n in (1, 2, 3)], [])
+    assert (equipment.oov_hallucinated, equipment.oov_dropped) == (0, 1), "equipment carries no mapped numbers"
+
+
+def test_aggregate_keeps_worst_cases_and_missing_responses_apart():
+    score = score_case(CASE, [_entry("Thruster", 1, 21, 43), _entry("Thruster", 2, 15, 43)], ["sled push"])
+    runs = [
+        {"cost_usd": 0.002, "json_health": "valid", "effort_sent": "low", "response_model": "m-2026"},
+        {"cost_usd": 0.5, "cost_estimated": True, "json_health": "no_response", "effort_sent": "low"},
+        {"cost_usd": None, "json_health": "no_response"},
+    ]
+    row = aggregate([score, score, score], runs)
+    assert row["cost_per_100_usd"] == 0.2 and row["cost_known_for"] == "1/3" and row["cost_estimated"] == 1
+    assert (row["json_no_response"], row["json_unusable"]) == (2, 0)
+    assert row["efforts_sent"] == ["low"] and row["response_models"] == ["m-2026"]
