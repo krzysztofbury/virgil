@@ -14,6 +14,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- The WOD parser matches a written word to a listed one only when it is the
+  same word or takes a plural or Polish ending ("pull-upy", "rowing"). A longer
+  word that merely starts with it ("backpack", "wallet", "cleaner") no longer
+  accepts the model's Back Squat, Wall Ball or Clean, and the note's own text is
+  listed as not recognised (#238).
 - The escalation policy sends any change to agent rules (`.agents/**`,
   `AGENTS.md`, `CLAUDE.md`) to the owner instead of merging it on its own.
 - The WOD parser refuses an entry for a movement the note never writes by its
