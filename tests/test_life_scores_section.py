@@ -4,14 +4,17 @@ changed, and a form that adds to a date instead of overwriting it (#196)."""
 import json
 import re
 import sqlite3
+from datetime import date, timedelta
 
 import pytest
 from conftest import csrf_token, user_db_path
 
 from app.db import LIFE_AREAS
 
-LATEST = "2999-03-01"
-PREVIOUS = "2999-01-01"
+# Recent past days: a day after today never leads the section (#240), and
+# History shows only the chosen window.
+LATEST = (date.today() - timedelta(days=7)).isoformat()
+PREVIOUS = (date.today() - timedelta(days=14)).isoformat()
 
 
 @pytest.fixture

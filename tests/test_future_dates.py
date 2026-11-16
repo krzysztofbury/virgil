@@ -1,0 +1,157 @@
+"""Days after today are refused on the daily log, measurements and life scores,
+and the streak and "latest" reads stop at today, as Freedom does (#240).
+
+One accidental tap on tomorrow's daily page used to store a pending day that
+reset every habit streak, and a measurement or life score dated ahead became
+the dashboard's "latest".
+"""
+
+import re
+import sqlite3
+from datetime import date, timedelta
+
+import pytest
+from conftest import csrf_token, user_db_path
+
+KEY = {"X-API-Key": "test-key-123"}
+TABLES = ("daily_logs", "body_measurements", "life_scores")
+
+
+def _day(offset: int) -> str:
+    return (date.today() + timedelta(days=offset)).isoformat()
+
+
+@pytest.fixture
+def db():
+    """The three tables emptied for the test and restored after it."""
+    conn = sqlite3.connect(user_db_path())
+    saved = {table: conn.execute(f"SELECT * FROM {table}").fetchall() for table in TABLES}  # noqa: S608
+    for table in TABLES:
+        conn.execute(f"DELETE FROM {table}")  # noqa: S608
+    conn.commit()
+    yield conn
+    for table, rows in saved.items():
+        conn.execute(f"DELETE FROM {table}")  # noqa: S608
+        if rows:
+            conn.executemany(f"INSERT INTO {table} VALUES ({', '.join('?' * len(rows[0]))})", rows)  # noqa: S608
+    conn.commit()
+    conn.close()
+
+
+def _count(conn, table: str, day: str) -> int:
+    return conn.execute(f"SELECT COUNT(*) FROM {table} WHERE date = ?", (day,)).fetchone()[0]  # noqa: S608
+
+
+API_WRITES = [
+    ("/api/daily/{day}", {"water": "done"}, "daily_logs"),
+    ("/api/measurements/{day}", {"weight": 80.0}, "body_measurements"),
+    ("/api/life-scores/{day}", {"health": 7}, "life_scores"),
+]
+
+
+@pytest.mark.parametrize(("path", "body", "table"), API_WRITES, ids=[w[2] for w in API_WRITES])
+def test_an_api_write_for_a_day_after_today_is_refused(auth_client, db, path, body, table):
+    for day in (_day(1), _day(400), "2099-12-31"):
+        resp = auth_client.put(path.format(day=day), json=body, headers=KEY)
+        assert resp.status_code == 422, (day, resp.text)
+        assert "today or earlier" in resp.json()["detail"]
+    assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0  # noqa: S608
+
+    # Today is the boundary and still accepted.
+    assert auth_client.put(path.format(day=_day(0)), json=body, headers=KEY).status_code == 200
+    assert _count(db, table, _day(0)) == 1
+
+
+FORM_WRITES = [
+    ("/daily/save", {"water": "done"}, "daily_logs"),
+    ("/daily/measurements", {"weight": "80"}, "body_measurements"),
+    ("/life-scores/save", {"health": "7"}, "life_scores"),
+]
+
+
+@pytest.mark.parametrize(("path", "fields", "table"), FORM_WRITES, ids=[w[2] for w in FORM_WRITES])
+def test_a_form_save_for_a_day_after_today_is_refused(auth_client, db, path, fields, table):
+    token = csrf_token(auth_client, "/daily")
+    for headers in ({}, {"HX-Request": "true"}):
+        resp = auth_client.post(
+            path, data={**fields, "date": _day(1), "_csrf_token": token}, headers=headers, follow_redirects=False
+        )
+        assert resp.status_code in (200, 303), resp.text
+        assert "err=" in (resp.headers.get("location") or resp.headers.get("HX-Redirect") or ""), resp.headers
+    assert _count(db, table, _day(1)) == 0
+
+
+def test_a_tap_on_tomorrow_changes_nothing(auth_client, db):
+    token = csrf_token(auth_client, "/")
+    resp = auth_client.post(
+        f"/daily/{_day(1)}/cycle", data={"field": "water"}, headers={"X-CSRF-Token": token, "HX-Request": "true"}
+    )
+    assert resp.status_code == 422
+    assert _count(db, "daily_logs", _day(1)) == 0
+
+
+def _water_streak(html: str) -> int:
+    match = re.search(r'<div class="stat-value"[^>]*>(\d+)</div>\s*<div class="stat-label">Water</div>', html)
+    assert match, "the Water streak card"
+    return int(match.group(1))
+
+
+def test_a_stored_day_after_today_does_not_reset_a_streak(auth_client, db):
+    """Rows dated ahead may already exist from before the fix, and A.N.D.Y. used to
+    store one; the streak must count back from today regardless."""
+    for offset in (-1, -2, -3):
+        db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'done')", (_day(offset),))
+    db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'pending')", (_day(1),))
+    db.commit()
+    # Today is still pending: the day is not over, so it neither counts nor breaks.
+    assert _water_streak(auth_client.get("/daily").text) == 3
+
+
+def test_the_daily_page_stops_at_today(auth_client, db):
+    resp = auth_client.get(f"/daily/{_day(1)}", follow_redirects=False)
+    assert resp.status_code == 303 and resp.headers["location"] == "/daily"
+
+    today = auth_client.get("/daily").text
+    assert f'href="/daily/{_day(1)}"' not in today
+    assert f'href="/daily/{_day(-1)}"' in today
+    assert f'href="/daily/{_day(0)}"' in auth_client.get(f"/daily/{_day(-1)}").text
+
+
+def test_a_future_measurement_or_life_score_never_leads_the_dashboard(auth_client, db):
+    db.execute("INSERT INTO body_measurements (date, weight) VALUES (?, 81.5)", (_day(-2),))
+    db.execute("INSERT INTO body_measurements (date, weight) VALUES (?, 199.5)", (_day(3),))
+    db.execute("INSERT INTO life_scores (date, power_level, health) VALUES (?, 6.0, 5)", (_day(-2),))
+    db.execute("INSERT INTO life_scores (date, power_level, health) VALUES (?, 9.0, 9)", (_day(3),))
+    db.commit()
+
+    html = auth_client.get("/").text
+    assert "81.5" in html and "199.5" not in html
+    section = html[html.index('id="life-scores"') :]
+    assert _day(-2) in section and _day(3) not in section
+    assert f'max="{_day(0)}"' in section, "the life-score date field stops at today"
+
+    summary = auth_client.get("/api/summary", headers=KEY).json()
+    assert summary["measurements_latest"]["weight"] == 81.5
+    measurements = auth_client.get("/api/measurements", headers=KEY).json()["measurements"]
+    assert [row["date"] for row in measurements] == [_day(-2)]
+    scores = auth_client.get("/api/life-scores", headers=KEY).json()["assessments"]
+    assert [row["date"] for row in scores] == [_day(-2)]
+
+
+def test_the_habit_range_read_stops_at_today(auth_client, db):
+    db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'done')", (_day(-1),))
+    db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'pending')", (_day(1),))
+    db.commit()
+    logs = auth_client.get("/api/habits", headers=KEY).json()["logs"]
+    assert [row["date"] for row in logs] == [_day(-1)]
+
+
+def test_suggestions_for_a_day_after_today_are_not_queued(auth_client, db):
+    token = csrf_token(auth_client, "/daily")
+    resp = auth_client.post(
+        "/daily/generate-andy",
+        data={"date": _day(1), "job_nonce": "a" * 32, "_csrf_token": token},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 303
+    assert "today+or+earlier" in resp.headers["location"]

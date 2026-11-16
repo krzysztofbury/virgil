@@ -102,13 +102,18 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     day_names = [weekday_short(index) for index in range(7)]
 
     # Latest body measurements (prefer body_measurements, fallback to life_scores)
-    meas = await db.execute_fetchall("SELECT * FROM body_measurements ORDER BY date DESC LIMIT 2")
+    # "Latest" stops at today: a row dated ahead must never pass for the current one.
+    meas = await db.execute_fetchall(
+        "SELECT * FROM body_measurements WHERE date <= ? ORDER BY date DESC LIMIT 2", (today.isoformat(),)
+    )
     latest_meas = dict(meas[0]) if meas else None
     prev_meas = dict(meas[1]) if len(meas) > 1 else None
 
     if not latest_meas:
         ls_meas = await db.execute_fetchall(
-            "SELECT date, weight, waist FROM life_scores WHERE weight IS NOT NULL ORDER BY date DESC LIMIT 2"
+            "SELECT date, weight, waist FROM life_scores WHERE weight IS NOT NULL AND date <= ? "
+            "ORDER BY date DESC LIMIT 2",
+            (today.isoformat(),),
         )
         if ls_meas:
             latest_meas = dict(ls_meas[0])
@@ -146,7 +151,8 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     # the second is what its changes and the radar's dashed outline compare against.
     # A note on its own date stays in History rather than blanking this card.
     score_rows = await db.execute_fetchall(
-        f"SELECT * FROM life_scores WHERE {SCORED} ORDER BY date DESC LIMIT 2"  # noqa: S608
+        f"SELECT * FROM life_scores WHERE date <= ? AND ({SCORED}) ORDER BY date DESC LIMIT 2",  # noqa: S608
+        (today.isoformat(),),
     )
     scores = [dict(r) for r in score_rows]
     latest_score = scores[0] if scores else None
@@ -183,8 +189,8 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     # its line and a dash in the table, never a 0.
     life_range = range_context(request, "life-scores")
     history_rows = await db.execute_fetchall(
-        f"SELECT * FROM life_scores WHERE date >= ? AND ({ASSESSED}) ORDER BY date",  # noqa: S608
-        (range_start(life_range["range_weeks"], today).isoformat(),),
+        f"SELECT * FROM life_scores WHERE date BETWEEN ? AND ? AND ({ASSESSED}) ORDER BY date",  # noqa: S608
+        (range_start(life_range["range_weeks"], today).isoformat(), today.isoformat()),
     )
     life_history = [dict(r) for r in history_rows]
     # Nine lines: Chart.js repeats its own seven colours, so each gets its own.
