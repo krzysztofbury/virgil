@@ -19,6 +19,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   word that merely starts with it ("backpack", "wallet", "cleaner") no longer
   accepts the model's Back Squat, Wall Ball or Clean, and the note's own text is
   listed as not recognised (#238).
+- `scripts/deploy.py release` ends with the evidence the release record needs,
+  read from the host in the same run: the previous pin's digest and the commit
+  GHCR published it for, the container's `Virgil version=` startup line, memory
+  against `mem_limit` and host disk. Only values of the expected shape are
+  printed, never env values or the host address, and a failed read leaves the
+  fields `unavailable` without failing the finished release. The post-deploy
+  evidence template takes these fields from that output, so a release needs one
+  approved production run instead of extra SSH reads (#228).
+- The app, sign-in and offline pages set `viewport-fit=cover`, so an iPhone
+  reports its notch and home indicator (#201). The top nav grows by the status
+  bar's inset instead of sitting under it, the bottom bar's tab row keeps its
+  height above the home indicator, and the page, nav, tray, offline banner and
+  sign-in card keep clear of the left and right edges in landscape. The training
+  day dialog is sized and centred inside the safe area.
+- `AGENTS.md` points reviews and test work at the `reviewer` and `developer`
+  role skills, which replaced the `pair-programmer` and `test-audit` skills.
 - The escalation policy sends any change to agent rules (`.agents/**`,
   `AGENTS.md`, `CLAUDE.md`) to the owner instead of merging it on its own.
 - The WOD parser refuses an entry for a movement the note never writes by its
@@ -29,6 +45,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   2026-10-28 evaluation's recorded responses, 27 of 180 case runs become exact
   and none stop being exact; the dataset is the one the controls were tuned on.
 
+- WOD parser evaluation harness (#187): `--cost-map published` and
+  `--price MODEL=IN/OUT` price models the bundled LiteLLM map lacks, and the
+  report names the price source. Each run records the reasoning effort sent, or
+  that LiteLLM dropped it for the model, and the model that answered, and an unknown `--efforts` value or a model without
+  a provider prefix is refused. A refused key stops that model, a timed-out call
+  counts against the budget at its worst case, and no report is written when
+  every case errored. The report adds a Cases column, lists the configs that did
+  not run, flags uncommitted changes, marks calls without a response as
+  `no_response` and keeps em dashes out of error text. Aliases no longer count
+  as off-list names, and an unknown name mapped onto an expected movement counts
+  as hallucinated. The harness refuses to run when the app's database is outside
+  its scratch directory. Five new cases cover "15 + bar", a per-side load, a
+  load without units, a ladder and "3 minutes rowing".
+
 ### Removed
 - The No Porn reads, deprecated in 0.10.0 for one release (#218): `GET
   /api/noporn`, the MCP tool `get_noporn` (on the stdio server and the hosted
@@ -37,12 +67,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
 
 ### Fixed
+- An archived finance account stops counting on any day after its last
+  balance, whatever other accounts recorded, so closing it takes it out of the
+  cushion, total and score at once and no longer makes open accounts look stale
+  (#239). Days up to its last balance are computed as before.
 - A tapped control no longer keeps its hover style on a phone (#201). Hover
   styles apply only where a pointer can hover, and a touch tablet shows the
   goal delete button that only hover used to reveal. The datepicker keeps its
   hover overrides, since the vendored flatpickr stylesheet hovers on touch too.
 - Transitions name the properties they animate instead of `all`, so a layout
   change no longer animates; the phone menu still fades out.
+- The browser smoke test for press feedback and the theme colour no longer fails
+  now and then (#226): it released its press over a submit button, which posted
+  the form and navigated the page under the next check. It now releases the
+  press off the button and waits for the pressed state instead of a fixed 200 ms.
+- `opentelemetry-api` moves to 1.45.2 in both lockfiles for CVE-2026-126360,
+  ahead of the `exclude-newer` cutoff.
 
 ## [0.10.0] - 2026-11-08
 
