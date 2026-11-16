@@ -62,6 +62,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
 
 ### Fixed
+- An archived finance account stops counting on any day after its last
+  balance, whatever other accounts recorded, so closing it takes it out of the
+  cushion, total and score at once and no longer makes open accounts look stale
+  (#239). Days up to its last balance are computed as before.
 - A tapped control no longer keeps its hover style on a phone (#201). Hover
   styles apply only where a pointer can hover, and a touch tablet shows the
   goal delete button that only hover used to reveal. The datepicker keeps its
