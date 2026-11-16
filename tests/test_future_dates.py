@@ -96,15 +96,18 @@ def _water_streak(html: str) -> int:
     return int(match.group(1))
 
 
-def test_a_stored_day_after_today_does_not_reset_a_streak(auth_client, db):
+@pytest.mark.parametrize(("today_water", "streak"), [("pending", 3), ("done", 4)])
+def test_a_stored_day_after_today_does_not_reset_a_streak(auth_client, db, today_water, streak):
     """Rows dated ahead may already exist from before the fix, and A.N.D.Y. used to
-    store one; the streak must count back from today regardless."""
+    store one; the streak must count back from today regardless, and today itself
+    is inside the bound."""
     for offset in (-1, -2, -3):
         db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'done')", (_day(offset),))
+    db.execute("INSERT INTO daily_logs (date, water) VALUES (?, ?)", (_day(0), today_water))
     db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'pending')", (_day(1),))
     db.commit()
-    # Today is still pending: the day is not over, so it neither counts nor breaks.
-    assert _water_streak(auth_client.get("/daily").text) == 3
+    # A pending today neither counts nor breaks (the day is not over); a done today counts.
+    assert _water_streak(auth_client.get("/daily").text) == streak
 
 
 def test_the_daily_page_stops_at_today(auth_client, db):
@@ -117,33 +120,53 @@ def test_the_daily_page_stops_at_today(auth_client, db):
     assert f'href="/daily/{_day(0)}"' in auth_client.get(f"/daily/{_day(-1)}").text
 
 
+def _weight_on_dashboard(html: str) -> str:
+    match = re.search(r'<div class="stat-value">([^<]*)</div>\s*<div class="stat-label">Weight \(kg\)</div>', html)
+    assert match, "the Weight card"
+    return match.group(1)
+
+
 def test_a_future_measurement_or_life_score_never_leads_the_dashboard(auth_client, db):
-    db.execute("INSERT INTO body_measurements (date, weight) VALUES (?, 81.5)", (_day(-2),))
-    db.execute("INSERT INTO body_measurements (date, weight) VALUES (?, 199.5)", (_day(3),))
-    db.execute("INSERT INTO life_scores (date, power_level, health) VALUES (?, 6.0, 5)", (_day(-2),))
-    db.execute("INSERT INTO life_scores (date, power_level, health) VALUES (?, 9.0, 9)", (_day(3),))
+    """Today is inside the bound and leads; a row dated ahead never does."""
+    for offset, weight in ((-2, 81.5), (0, 82.25), (3, 199.5)):
+        db.execute("INSERT INTO body_measurements (date, weight) VALUES (?, ?)", (_day(offset), weight))
+    for offset, power in ((-2, 6.0), (0, 7.5), (3, 9.0)):
+        db.execute("INSERT INTO life_scores (date, power_level, health) VALUES (?, ?, 5)", (_day(offset), power))
     db.commit()
 
     html = auth_client.get("/").text
-    assert "81.5" in html and "199.5" not in html
+    assert _weight_on_dashboard(html) == "82.25"
+    assert "199.5" not in html
     section = html[html.index('id="life-scores"') :]
-    assert _day(-2) in section and _day(3) not in section
+    assert '<div class="life-power">7.5</div>' in section
+    assert f"<strong>{_day(0)}</strong>" in section
+    assert _day(3) not in section
     assert f'max="{_day(0)}"' in section, "the life-score date field stops at today"
 
     summary = auth_client.get("/api/summary", headers=KEY).json()
-    assert summary["measurements_latest"]["weight"] == 81.5
+    assert summary["measurements_latest"]["weight"] == 82.25
     measurements = auth_client.get("/api/measurements", headers=KEY).json()["measurements"]
-    assert [row["date"] for row in measurements] == [_day(-2)]
+    assert [row["date"] for row in measurements] == [_day(0), _day(-2)]
     scores = auth_client.get("/api/life-scores", headers=KEY).json()["assessments"]
-    assert [row["date"] for row in scores] == [_day(-2)]
+    assert [row["date"] for row in scores] == [_day(0), _day(-2)]
+
+
+def test_the_life_score_weight_fallback_stops_at_today(auth_client, db):
+    """With no body measurements the dashboard falls back to life-score weights."""
+    for offset, weight in ((-2, 81.5), (0, 82.25), (3, 199.5)):
+        db.execute("INSERT INTO life_scores (date, weight) VALUES (?, ?)", (_day(offset), weight))
+    db.commit()
+    html = auth_client.get("/").text
+    assert _weight_on_dashboard(html) == "82.25"
+    assert "199.5" not in html
 
 
 def test_the_habit_range_read_stops_at_today(auth_client, db):
-    db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'done')", (_day(-1),))
-    db.execute("INSERT INTO daily_logs (date, water) VALUES (?, 'pending')", (_day(1),))
+    for offset, water in ((-1, "done"), (0, "done"), (1, "pending")):
+        db.execute("INSERT INTO daily_logs (date, water) VALUES (?, ?)", (_day(offset), water))
     db.commit()
     logs = auth_client.get("/api/habits", headers=KEY).json()["logs"]
-    assert [row["date"] for row in logs] == [_day(-1)]
+    assert [row["date"] for row in logs] == [_day(0), _day(-1)]
 
 
 def test_suggestions_for_a_day_after_today_are_not_queued(auth_client, db):
