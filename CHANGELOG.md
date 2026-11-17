@@ -67,6 +67,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
 
 ### Fixed
+- The daily log, body measurements and life scores refuse a date after today,
+  as Freedom does, on the forms, the REST `PUT` routes and MCP (#240). The
+  daily page stops at today (a later date opens today), so one tap on tomorrow
+  can no longer store a pending day that resets every habit streak. The habit
+  streaks, the dashboard's latest measurement and life score, its week strip
+  and year calendar, the life-score history and `GET /api/summary`,
+  `/api/habits`, `/api/measurements` and `/api/life-scores` read up to today,
+  so a row already stored with a later date never passes for the current one;
+  such rows are kept, not deleted. The life-score date field carries `max` =
+  today.
 - An archived finance account stops counting on any day after its last
   balance, whatever other accounts recorded, so closing it takes it out of the
   cushion, total and score at once and no longer makes open accounts look stale

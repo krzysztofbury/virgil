@@ -5,6 +5,7 @@ stored value, and an explicit None clears one.
 """
 
 from app.i18n import N_, LocalizedError
+from app.validation import past_or_today
 
 FIELDS = ("weight", "arm", "waist", "hips", "thighs")
 BOUNDS = {
@@ -45,6 +46,9 @@ def _validate(changes: dict) -> dict:
 
 async def upsert_measurements(db, day: str, changes: dict) -> dict:
     clean = _validate(changes)
+    day = past_or_today(day)
+    if day is None:
+        raise MeasurementError(N_("Choose a date of today or earlier."))
     if db.in_transaction:
         raise RuntimeError("Measurement writes require a connection without pending writes")
     # The read and the write share one transaction, so two concurrent merges into
@@ -68,8 +72,10 @@ async def upsert_measurements(db, day: str, changes: dict) -> dict:
     return dict(stored[0])
 
 
-async def list_measurements(db, since: str) -> list[dict]:
-    rows = await db.execute_fetchall("SELECT * FROM body_measurements WHERE date >= ? ORDER BY date DESC", (since,))
+async def list_measurements(db, since: str, until: str) -> list[dict]:
+    rows = await db.execute_fetchall(
+        "SELECT * FROM body_measurements WHERE date BETWEEN ? AND ? ORDER BY date DESC", (since, until)
+    )
     return [dict(row) for row in rows]
 
 
