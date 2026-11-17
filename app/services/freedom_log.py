@@ -18,6 +18,7 @@ means the person slipped.
 from datetime import date as calendar_date
 
 from app.i18n import N_, LocalizedError, LocalizedLookupError
+from app.validation import past_or_today
 
 AMOUNT_MAX = 1440
 NOTE_MAX = 500
@@ -28,19 +29,6 @@ DAILY_MARKER = "via daily log"
 
 class FreedomWriteError(LocalizedError):
     pass
-
-
-def past_or_today(value: str) -> str | None:
-    """Normalise an ISO date, or None if it is unparseable or still ahead.
-
-    Normalising matters because date.fromisoformat also accepts compact and
-    week forms, which no longer compare correctly as plain text.
-    """
-    try:
-        parsed = calendar_date.fromisoformat(value)
-    except TypeError, ValueError:
-        return None
-    return parsed.isoformat() if parsed <= calendar_date.today() else None
 
 
 def _require_idle(db) -> None:

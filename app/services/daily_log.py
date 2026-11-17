@@ -9,6 +9,7 @@ does not exist yet starts from the schema defaults.
 from datetime import date, timedelta
 
 from app.i18n import N_, LocalizedError, month_short
+from app.validation import past_or_today
 
 STATUSES = ("done", "skipped", "pending")
 NEXT_STATUS = {"pending": "done", "done": "skipped", "skipped": "pending"}
@@ -81,6 +82,10 @@ async def cycle_status(db, day: str, field: str) -> dict:
 
 async def _rewrite(db, day: str, apply) -> dict:
     """Load the day (or the defaults), let `apply` change it in place, store it."""
+    # A day still ahead has nothing to record, and a stored one would reset every streak.
+    day = past_or_today(day)
+    if day is None:
+        raise DailyLogError(N_("Choose a date of today or earlier."))
     if db.in_transaction:
         raise RuntimeError("Daily-log writes require a connection without pending writes")
     await db.execute("BEGIN IMMEDIATE")

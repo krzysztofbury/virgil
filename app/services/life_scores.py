@@ -10,6 +10,7 @@ The same table still holds metrics older forms stored beside an assessment
 
 from app.db import LIFE_AREA_LABELS, LIFE_AREAS
 from app.i18n import N_, LocalizedError
+from app.validation import past_or_today
 
 TEXT_FIELDS = ("diagnostic", "priorities")
 FIELDS = (*LIFE_AREAS, "power_level", *TEXT_FIELDS)
@@ -66,6 +67,9 @@ def _assessment(row) -> dict:
 
 async def upsert_life_scores(db, day: str, changes: dict) -> dict:
     clean = _validate(changes)
+    day = past_or_today(day)
+    if day is None:
+        raise LifeScoreError(N_("Choose a date of today or earlier."))
     columns = ", ".join(clean)
     # Column names come from FIELDS through _validate, never from the caller.
     await db.execute(
@@ -81,10 +85,10 @@ async def upsert_life_scores(db, day: str, changes: dict) -> dict:
     return {"date": day, **dict.fromkeys(FIELDS), **dict.fromkeys(TEXT_FIELDS, "")}
 
 
-async def list_life_scores(db, since: str) -> list[dict]:
+async def list_life_scores(db, since: str, until: str) -> list[dict]:
     rows = await db.execute_fetchall(
-        f"SELECT * FROM life_scores WHERE date >= ? AND ({ASSESSED}) ORDER BY date DESC",  # noqa: S608
-        (since,),
+        f"SELECT * FROM life_scores WHERE date BETWEEN ? AND ? AND ({ASSESSED}) ORDER BY date DESC",  # noqa: S608
+        (since, until),
     )
     return [_assessment(row) for row in rows]
 

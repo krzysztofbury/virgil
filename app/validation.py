@@ -67,6 +67,20 @@ def valid_date(s: str) -> str | None:
         return None
 
 
+def past_or_today(value: str) -> str | None:
+    """Normalise an ISO date, or None if it is unparseable or still ahead.
+
+    Normalising matters because date.fromisoformat also accepts compact and
+    week forms, which no longer compare correctly as plain text. Freedom, the
+    daily log, measurements and life scores record only days that happened.
+    """
+    try:
+        parsed = date.fromisoformat(value)
+    except TypeError, ValueError:
+        return None
+    return parsed.isoformat() if parsed <= date.today() else None
+
+
 def valid_month(s: str) -> bool:
     """Return True if s matches YYYY-MM format."""
     if not s or len(s) != 7 or s[4] != "-":

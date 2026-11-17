@@ -232,7 +232,9 @@ async def api_summary(request: Request, db: ApiDb):
         (week_start,),
     )
 
-    meas_rows = await db.execute_fetchall("SELECT * FROM body_measurements ORDER BY date DESC LIMIT 1")
+    meas_rows = await db.execute_fetchall(
+        "SELECT * FROM body_measurements WHERE date <= ? ORDER BY date DESC LIMIT 1", (today_iso,)
+    )
 
     return {
         "date": today_iso,
@@ -259,12 +261,13 @@ async def api_habits(
     days: int = Query(7, ge=1, le=90, alias="range"),
 ):
     """Habit completion for the last N days (?range=7)."""
-    since = (date.today() - timedelta(days=days - 1)).isoformat()
+    today = date.today()
+    since = (today - timedelta(days=days - 1)).isoformat()
     rows = await db.execute_fetchall(
         "SELECT date, energy, morning_routine, evening_routine, water, "
         "andy_body_status, andy_spirit_status, andy_account_status, andy_relations_status "
-        "FROM daily_logs WHERE date >= ? ORDER BY date DESC",
-        (since,),
+        "FROM daily_logs WHERE date BETWEEN ? AND ? ORDER BY date DESC",
+        (since, today.isoformat()),
     )
     return {"range_days": days, "since": since, "logs": [dict(r) for r in rows]}
 
@@ -1349,8 +1352,9 @@ class ApiMeasurements(BaseModel):
 
 @router.get("/measurements")
 async def api_measurements(db: ApiDb, days: int = Query(90, ge=1, le=3650, alias="range")):
-    since = (date.today() - timedelta(days=days - 1)).isoformat()
-    return {"range_days": days, "since": since, "measurements": await list_measurements(db, since)}
+    today = date.today()
+    since = (today - timedelta(days=days - 1)).isoformat()
+    return {"range_days": days, "since": since, "measurements": await list_measurements(db, since, today.isoformat())}
 
 
 @router.put("/measurements/{day}")
@@ -1391,8 +1395,9 @@ class ApiLifeScores(BaseModel):
 
 @router.get("/life-scores")
 async def api_life_scores(db: ApiDb, days: int = Query(365, ge=1, le=3650, alias="range")):
-    since = (date.today() - timedelta(days=days - 1)).isoformat()
-    return {"range_days": days, "since": since, "assessments": await list_life_scores(db, since)}
+    today = date.today()
+    since = (today - timedelta(days=days - 1)).isoformat()
+    return {"range_days": days, "since": since, "assessments": await list_life_scores(db, since, today.isoformat())}
 
 
 @router.put("/life-scores/{day}")
