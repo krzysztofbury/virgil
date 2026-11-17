@@ -77,7 +77,8 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         "SELECT date, energy, andy_body_status, andy_spirit_status, "
         "andy_account_status, andy_relations_status, morning_routine, "
         "evening_routine, water FROM daily_logs WHERE date BETWEEN ? AND ?",
-        (monday.isoformat(), sunday.isoformat()),
+        # A day still ahead shows as not logged, even if a row was stored for it.
+        (monday.isoformat(), min(sunday, today).isoformat()),
     )
     logs_by_date = {row["date"]: dict(row) for row in week_rows}
     week_logs = []
@@ -223,7 +224,7 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         "SELECT date, morning_routine, evening_routine, water, "
         "andy_body_status, andy_spirit_status, andy_account_status, andy_relations_status "
         "FROM daily_logs WHERE date >= ? AND date <= ?",
-        (date(current_year, 1, 1).isoformat(), date(current_year, 12, 31).isoformat()),
+        (date(current_year, 1, 1).isoformat(), today.isoformat()),
     )
     completion_map: dict[str, dict] = {}
     for row in year_logs:

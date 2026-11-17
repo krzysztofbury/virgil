@@ -169,6 +169,32 @@ def test_the_habit_range_read_stops_at_today(auth_client, db):
     assert [row["date"] for row in logs] == [_day(0), _day(-1)]
 
 
+DONE_DAY = (
+    "INSERT INTO daily_logs (date, energy, morning_routine, evening_routine, water, andy_body_status, "
+    "andy_spirit_status, andy_account_status, andy_relations_status) "
+    "VALUES (?, ?, 'done', 'done', 'done', 'done', 'done', 'done', 'done')"
+)
+
+
+def test_the_week_strip_and_year_calendar_stop_at_today(auth_client, db):
+    """A day already stored ahead shows as not logged; today's own day still counts."""
+    today = date.today()
+    ahead = {_day(1), date(today.year, 12, 31).isoformat()} - {_day(0)}
+    db.execute(DONE_DAY, (_day(0), 6))
+    for day in ahead:
+        db.execute(DONE_DAY, (day, 9))
+    db.commit()
+
+    html = auth_client.get("/").text
+    assert f"{_day(0)}: energy 6, 7 of 7 habits done" in html
+    assert f"{_day(0)}: 100%" in html
+    for day in ahead:
+        assert f"{day}: 100%" not in html, f"the year calendar shows {day}"
+    if today.weekday() < 6:  # tomorrow is still in this week's strip
+        assert f"{_day(1)}: energy not logged, 0 of 7 habits done" in html
+    assert "energy 9" not in html
+
+
 def test_suggestions_for_a_day_after_today_are_not_queued(auth_client, db):
     token = csrf_token(auth_client, "/daily")
     resp = auth_client.post(
