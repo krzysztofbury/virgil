@@ -183,3 +183,73 @@ def test_a_failed_public_check_still_prints_the_evidence_and_fails(monkeypatch, 
         deploy.release(_SHA, "https://virgil.example")
 
     assert capsys.readouterr().out.splitlines()[1:] == _EVIDENCE
+
+
+# A stand-in for the host's `docker`, answering only the calls the image
+# cleanup makes. Its replies follow Docker 29: `inspect --format {{.Image}}`
+# and `image inspect --format {{.Id}}` print full sha256 image IDs, and
+# `image ls --quiet --no-trunc` lists the same full IDs. The real host was
+# checked with the same selection, read-only, before this cleanup shipped.
+_FAKE_DOCKER = r"""#!/bin/sh
+echo "$*" >> "$DOCKER_LOG"
+case "$1 $2" in
+  "ps --all") printf 'virgil\nvirgil-cloudflared\n' ;;
+  "inspect --format")
+    [ -n "${FAIL_INSPECT:-}" ] && exit 1
+    for name in "$4" "$5"; do
+      case "$name" in
+        virgil) echo sha256:current ;;
+        virgil-cloudflared) echo sha256:cloudflared ;;
+      esac
+    done ;;
+  "image inspect") echo sha256:previous ;;
+  "image ls") printf 'sha256:current\nsha256:previous\nsha256:old1\nsha256:cloudflared\nsha256:stuck\nsha256:old2\n' ;;
+  "image rm") [ "$3" = sha256:stuck ] && exit 1 ;;
+esac
+exit 0
+"""
+
+
+def _run_cleanup(tmp_path, *, previous: str | None, fail_inspect: bool = False):
+    bin_dir = tmp_path / "bin"
+    bin_dir.mkdir()
+    fake = bin_dir / "docker"
+    fake.write_text(_FAKE_DOCKER)
+    fake.chmod(0o755)
+    if previous is not None:
+        (tmp_path / "release.env.previous").write_text(f"VIRGIL_IMAGE={previous}\nVIRGIL_REVISION={_SHA}\n")
+    log = tmp_path / "docker.log"
+    result = subprocess.run(  # noqa: S603
+        ["/bin/sh", "-c", "set -eu\n" + deploy._IMAGE_CLEANUP],  # noqa: S607
+        cwd=tmp_path,
+        env={
+            "PATH": f"{bin_dir}:/usr/bin:/bin",
+            "DOCKER_LOG": str(log),
+            **({"FAIL_INSPECT": "1"} if fail_inspect else {}),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    removed = [line.split()[-1] for line in log.read_text().splitlines() if line.startswith("image rm ")]
+    return result, removed
+
+
+def test_a_release_removes_every_image_but_the_running_ones_and_the_rollback_pin(tmp_path):
+    """Images pulled by digest are never dangling, so a plain prune kept every old release."""
+    result, removed = _run_cleanup(tmp_path, previous=_IMAGE)
+    assert sorted(removed) == ["sha256:old1", "sha256:old2", "sha256:stuck"]
+    assert result.returncode == 0, "an image that cannot be removed must not fail a finished release"
+    assert "sha256:stuck" in result.stderr
+
+
+def test_without_a_previous_pin_only_the_running_images_stay(tmp_path):
+    _, removed = _run_cleanup(tmp_path, previous=None)
+    assert sorted(removed) == ["sha256:old1", "sha256:old2", "sha256:previous", "sha256:stuck"]
+
+
+def test_when_the_images_in_use_cannot_be_listed_nothing_is_removed_and_the_release_stands(tmp_path):
+    result, removed = _run_cleanup(tmp_path, previous=_IMAGE, fail_inspect=True)
+    assert removed == []
+    assert result.returncode == 0
+    assert "skipped" in result.stderr
