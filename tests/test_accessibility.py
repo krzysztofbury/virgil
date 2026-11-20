@@ -39,7 +39,10 @@ def test_every_chart_has_a_text_alternative():
 def test_the_radar_reads_out_each_assessment(auth_client):
     """The radar has no table of its own, so its label carries the numbers."""
     conn = sqlite3.connect(user_db_path())
-    day = "2999-01-01"  # newer than anything else, so it is the radar's first dataset
+    # Today is the newest day the dashboard reads, so this is the radar's first dataset.
+    day = date.today().isoformat()
+    saved = conn.execute("SELECT * FROM life_scores WHERE date = ?", (day,)).fetchall()
+    conn.execute("DELETE FROM life_scores WHERE date = ?", (day,))
     conn.execute(
         f"INSERT INTO life_scores (date, {', '.join(LIFE_AREAS)}) VALUES (?{', ?' * len(LIFE_AREAS)})",  # noqa: S608
         (day, *range(1, len(LIFE_AREAS) + 1)),
@@ -49,12 +52,14 @@ def test_the_radar_reads_out_each_assessment(auth_client):
         html = auth_client.get("/").text
     finally:
         conn.execute("DELETE FROM life_scores WHERE date = ?", (day,))
+        if saved:
+            conn.executemany(f"INSERT INTO life_scores VALUES ({', '.join('?' * len(saved[0]))})", saved)  # noqa: S608
         conn.commit()
         conn.close()
 
     label = re.search(r'<canvas id="radarChart" role="img" aria-label="([^"]*)"', html).group(1)
     assert label.startswith(
-        "Life scores out of 10 on 2999-01-01: Life Planning 1, Spirituality 2, Health 3, Work 4, Social Life 5, Growth 6, Relaxation 7, Family 8."
+        f"Life scores out of 10 on {day}: Life Planning 1, Spirituality 2, Health 3, Work 4, Social Life 5, Growth 6, Relaxation 7, Family 8."
     )
 
 

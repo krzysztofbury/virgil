@@ -5,7 +5,8 @@ feniks_milestones: a fixed 90-day list from the original program with a done fla
 per day; no page, API or export has shown it since the single-flow rework.
 
 feniks_journal and feniks_pleasures stay: they hold the person's own writing and
-/api/noporn, the markdown export and the importer still read them.
+GET /api/freedom/porn/history, the markdown export and the data import/export
+(app/services/data_transfer.py) still read them.
 """
 
 import aiosqlite

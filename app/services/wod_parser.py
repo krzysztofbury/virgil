@@ -102,14 +102,13 @@ _SHORT_ENDINGS = ("", "s", "es", "ing", "ed", "y", "i", "a", "e", "u", "ów", "o
 
 
 def _same_word(written: str, listed: str) -> bool:
-    """A written word for a listed one, whatever its ending.
+    """A written word for a listed one: the same word, or the listed word plus
+    one allowed ending (_SHORT_ENDINGS).
 
-    A listed word of four letters or more may take any ending (a plural, a
-    Polish case ending). A shorter one takes only a listed ending, so "DU" does
-    not match "dumbbell" and "Run" does not match "rundy".
+    Any other extra letters make another word: "DU" does not match "dumbbell",
+    "Run" does not match "rundy", "Back" does not match "backpack" and "Clean"
+    does not match "cleaner" (#238).
     """
-    if len(listed) >= 4:
-        return written.startswith(listed)
     return any(written == listed + ending for ending in _SHORT_ENDINGS)
 
 

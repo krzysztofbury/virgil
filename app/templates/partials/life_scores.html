@@ -92,7 +92,7 @@
     <details class="life-details"{% if not latest_score %} open{% endif %}>
         <summary>{{ _("New assessment") }}</summary>
         <form method="POST" action="/life-scores/save" class="life-form">
-            <label class="life-form-date">{{ _("Date") }} <input type="date" name="date" value="{{ today }}" required></label>
+            <label class="life-form-date">{{ _("Date") }} <input type="date" name="date" value="{{ today }}" max="{{ today }}" required></label>
             <p class="settings-note">{{ _("Leave a field blank to keep what that date already holds.") }}</p>
 
             <h4>{{ _("Areas (1-10)") }}</h4>

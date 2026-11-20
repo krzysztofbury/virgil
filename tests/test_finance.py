@@ -205,6 +205,35 @@ def test_a_closed_account_stops_counting_after_its_last_balance(finance):
     assert [p["cushion"] for p in points] == [40000, 31000]
 
 
+def test_a_closed_account_leaves_a_later_day_with_no_new_rows(finance):
+    """Archived on the day it was last recorded with its peers: the next viewed day drops it at once."""
+    _setup(finance)
+    _record(finance, "2026-08-31", [{"account": "Savings", "amount": 30000}, {"account": "Bonds", "amount": 10000}])
+    _account(finance, name="Bonds", archived=True)
+    later = finance.get("/api/finance", params={"date": "2026-09-15"}, headers=KEY).json()
+    assert later["cushion"] == later["total"] == 30000
+    names = [a["name"] for layer in later["layers"] for a in layer["accounts"]]
+    assert "Savings" in names and "Bonds" not in names
+    assert later["cushion_months"] == 3.0
+    assert later["score"]["points"] == 20 + 20 + 23, "cushion 3 months, independent income 30%, policies 20 of 30"
+    on_the_day = finance.get("/api/finance", params={"date": "2026-08-31"}, headers=KEY).json()
+    assert on_the_day["cushion"] == 40000, "the day before closing is unchanged"
+
+
+def test_a_closed_account_does_not_make_live_ones_look_stale(finance):
+    _setup(finance)
+    _record(finance, "2026-08-31", [{"account": "Savings", "amount": 30000}, {"account": "Bonds", "amount": 10000}])
+    _record(finance, "2026-09-30", [{"account": "Bonds", "amount": 10500}])
+    _account(finance, name="Bonds", archived=True)
+    later = finance.get("/api/finance", params={"date": "2026-10-15"}, headers=KEY).json()
+    assert later["latest_snapshot"] == "2026-08-31", "taken from accounts that still count"
+    assert later["stale_accounts"] == []
+    assert later["cushion"] == 30000
+    on_the_day = finance.get("/api/finance", params={"date": "2026-09-30"}, headers=KEY).json()
+    assert on_the_day["cushion"] == 40500, "the day it was last recorded still counts it"
+    assert on_the_day["stale_accounts"] == ["Savings"]
+
+
 def test_amounts_are_exact(finance):
     _account(finance, name="A", layer="Cash cushion")
     _account(finance, name="B", layer="Cash cushion")
