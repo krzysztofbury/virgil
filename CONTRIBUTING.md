@@ -5,12 +5,12 @@ checks to run, and where production evidence is recorded.
 
 ## Setup
 
-Use Python 3.14.9 (pinned in `.python-version`) and uv 0.13.5, matching the
+Use Python 3.14.10 (pinned in `.python-version`) and uv 0.13.8, matching the
 production image and CI; `tests/test_toolchain_pins.py` keeps the three in step.
 
 ```bash
-uv python install 3.14.9
-uv sync --locked --extra dev --python 3.14.9
+uv python install 3.14.10
+uv sync --locked --extra dev --python 3.14.10
 uv run --locked --extra dev pre-commit install
 git switch -c your-change
 ```
