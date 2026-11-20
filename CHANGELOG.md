@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- The image, CI and `.python-version` move to Python 3.14.10 and uv 0.13.8
+  together; uv 0.13.5 cannot install 3.14.10, so Dependabot's Dockerfile-only
+  bump failed the toolchain pin test. Both lockfiles are unchanged.
 - The WOD parser matches a written word to a listed one only when it is the
   same word or takes a plural or Polish ending ("pull-upy", "rowing"). A longer
   word that merely starts with it ("backpack", "wallet", "cleaner") no longer

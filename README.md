@@ -42,7 +42,7 @@ Virgil tracks daily habits, training sessions, health metrics, goals, experiment
 
 ```bash
 # Install dependencies
-uv sync --locked --extra dev --python 3.14.9
+uv sync --locked --extra dev --python 3.14.10
 
 # Run the app (hot reload enabled, port 8123)
 uv run python -m app

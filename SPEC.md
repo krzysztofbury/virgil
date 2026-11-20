@@ -71,7 +71,7 @@ tests/                  - pytest suite; snapshots/ holds the schema snapshots
 ### Setup
 
 ```bash
-uv sync --locked --extra dev --python 3.14.9
+uv sync --locked --extra dev --python 3.14.10
 cp .env.example .env  # Fill in optional API keys
 ```
 
