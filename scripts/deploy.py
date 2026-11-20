@@ -20,8 +20,9 @@ env value or the host address.
 Order on a new host: run `env` before the first `release`, because Compose
 requires /etc/virgil/virgil.env. Until the tunnel routes the public name, pass
 `--no-public-check`; the release then ends once the container is healthy.
-Pruning removes the previous image, so going back to release.env.previous
-pulls it from GHCR again.
+After the container is healthy, a release removes every image no container
+uses except the previous pin, so going back to release.env.previous needs no
+pull from GHCR.
 
 The host address comes from the materialized, ignored host variables
 (infra/ansible/README.md). Nothing here holds a secret.
@@ -60,9 +61,31 @@ _MANIFEST_TYPES = ", ".join(
     ]
 )
 
+# Runs on the host in /opt/virgil after the new container is healthy. Images
+# pulled by digest are never dangling, so `docker image prune` keeps them all;
+# this removes every image no container uses except the rollback pin in
+# release.env.previous. An image that cannot be removed is reported, never fatal.
+_IMAGE_CLEANUP = r"""
+if keep=$(docker ps --all --quiet | xargs -r docker inspect --format '{{.Image}}'); then
+  previous=$(sed -n 's/^VIRGIL_IMAGE=//p' release.env.previous 2>/dev/null || true)
+  if [ -n "$previous" ]; then
+    keep="$keep $(docker image inspect --format '{{.Id}}' "$previous" 2>/dev/null || true)"
+  fi
+  for id in $(docker image ls --quiet --no-trunc | sort -u); do
+    case " $(echo $keep) " in
+      *" $id "*) ;;
+      *) docker image rm "$id" >/dev/null 2>&1 || echo "could not remove image $id" >&2 ;;
+    esac
+  done
+else
+  echo "image cleanup skipped: the images in use could not be listed" >&2
+fi
+"""
+
 # Runs on the host as root. One release at a time; the new pin replaces the
 # old one only after the image is on disk.
-_RELEASE_SCRIPT = r"""
+_RELEASE_SCRIPT = (
+    r"""
 set -eu
 image="$1"
 revision="$2"
@@ -75,8 +98,9 @@ umask 077
 printf 'VIRGIL_IMAGE=%s\nVIRGIL_REVISION=%s\n' "$image" "$revision" > release.env.new
 mv release.env.new release.env
 docker compose --file compose.yaml --env-file release.env up --detach --remove-orphans --wait --wait-timeout 420
-docker image prune --force >/dev/null
 """
+    + _IMAGE_CLEANUP
+)
 
 
 # Runs on the host as root after a release, and only reads. Each line is

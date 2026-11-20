@@ -14,6 +14,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- `AGENTS.md`: a pull request whose merge finishes its issue apart from the
+  routine release says `Closes #N`, and the release record goes on the closed
+  issue. `Refs #N` stays for host, Settings > Server and external-evidence steps.
+- `tests/test_toolchain_pins.py` says which files to move when the image's
+  Python or uv drifts from CI, including when uv must move to install a new
+  Python patch release.
 - The image, CI and `.python-version` move to Python 3.14.10 and uv 0.13.8
   together; uv 0.13.5 cannot install 3.14.10, so Dependabot's Dockerfile-only
   bump failed the toolchain pin test. Both lockfiles are unchanged.
@@ -70,6 +76,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
 
 ### Fixed
+- `scripts/deploy.py release` removes every image no container uses except the
+  rollback pin in `release.env.previous`, once the new container is healthy.
+  The old `docker image prune` removed only dangling images, and images pulled
+  by digest never are, so each release left its image behind (17 had filled the
+  hosted instance's disk to 60%). An image that cannot be removed is reported
+  and does not fail the release.
 - The daily log, body measurements and life scores refuse a date after today,
   as Freedom does, on the forms, the REST `PUT` routes and MCP (#240). The
   daily page stops at today (a later date opens today), so one tap on tomorrow
