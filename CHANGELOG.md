@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- `AGENTS.md`: a pull request whose merge finishes its issue apart from the
+  routine release says `Closes #N`, and the release record goes on the closed
+  issue. `Refs #N` stays for host, Settings > Server and external-evidence steps.
 - `tests/test_toolchain_pins.py` says which files to move when the image's
   Python or uv drifts from CI, including when uv must move to install a new
   Python patch release.

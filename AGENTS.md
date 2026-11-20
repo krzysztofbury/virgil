@@ -17,10 +17,11 @@ the conflict on the issue instead.
 
 Do not claim that a fix, migration, MCP tool, deploy or release step works until
 it has been exercised on the changed path, and name the command, its scope and
-the revision when you report it. Write `Closes #N` only when the merge itself
-finishes the issue. When an owner step remains after the merge (a production
-release, a host or Settings > Server change, external evidence), write
-`Refs #N` and close the issue after that step.
+the revision when you report it. Write `Closes #N` when the merge finishes the
+issue apart from the routine release; the release record then goes on the
+closed issue. When another owner step remains after the merge (a host or
+Settings > Server change, external evidence), write `Refs #N` and close the
+issue after that step.
 
 ## This is not evidence
 
