@@ -20,7 +20,7 @@ from app.services.daily_log import (
 from app.services.llm import llm_available
 from app.services.measurements import MeasurementError, upsert_measurements
 from app.user_db import get_user_db_from_request
-from app.validation import OptionalFormInt, truncate, valid_date
+from app.validation import OptionalFormInt, past_or_today, truncate, valid_date
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -37,6 +37,10 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
         target = date_module.fromisoformat(day) if day else date_module.today()
     except ValueError, TypeError:
         return RedirectResponse("/daily", status_code=303)
+    today = date_module.today()
+    # A day still ahead has nothing to record: every write refuses it.
+    if target > today:
+        return RedirectResponse("/daily", status_code=303)
     db = get_user_db_from_request(request)
 
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (target.isoformat(),))
@@ -48,7 +52,7 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
     is_saturday = target.weekday() == 5
 
     prev_day = (target - timedelta(days=1)).isoformat()
-    next_day = (target + timedelta(days=1)).isoformat()
+    next_day = (target + timedelta(days=1)).isoformat() if target < today else None
     day_name = weekday_name(target.weekday())
 
     llm_configured = await llm_available(db)
@@ -70,10 +74,11 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
     all_logs = await db.execute_fetchall(
         "SELECT date, morning_routine, evening_routine, water, "
         "andy_body_status, andy_spirit_status, andy_account_status, andy_relations_status "
-        "FROM daily_logs ORDER BY date DESC LIMIT 90"
+        "FROM daily_logs WHERE date <= ? ORDER BY date DESC LIMIT 90",
+        (today.isoformat(),),
     )
     habit_streaks = {}
-    today_str = date_module.today().isoformat()
+    today_str = today.isoformat()
     for field, label in habit_fields:
         streak = 0
         expected = None
@@ -194,25 +199,28 @@ async def save_daily(
     andy_account_status = andy_account_status if andy_account_status in valid_statuses else "pending"
     andy_relations_status = andy_relations_status if andy_relations_status in valid_statuses else "pending"
     db = get_user_db_from_request(request)
-    await upsert_daily_log(
-        db,
-        date,
-        {
-            "energy": energy,
-            "morning_routine": morning_routine,
-            "evening_routine": evening_routine,
-            "water": water,
-            "andy_body_status": andy_body_status,
-            "andy_body_desc": andy_body_desc,
-            "andy_spirit_status": andy_spirit_status,
-            "andy_spirit_desc": andy_spirit_desc,
-            "andy_account_status": andy_account_status,
-            "andy_account_desc": andy_account_desc,
-            "andy_relations_status": andy_relations_status,
-            "andy_relations_desc": andy_relations_desc,
-            "notes": notes,
-        },
-    )
+    try:
+        await upsert_daily_log(
+            db,
+            date,
+            {
+                "energy": energy,
+                "morning_routine": morning_routine,
+                "evening_routine": evening_routine,
+                "water": water,
+                "andy_body_status": andy_body_status,
+                "andy_body_desc": andy_body_desc,
+                "andy_spirit_status": andy_spirit_status,
+                "andy_spirit_desc": andy_spirit_desc,
+                "andy_account_status": andy_account_status,
+                "andy_account_desc": andy_account_desc,
+                "andy_relations_status": andy_relations_status,
+                "andy_relations_desc": andy_relations_desc,
+                "notes": notes,
+            },
+        )
+    except DailyLogError as exc:
+        return error_redirect(request, "/daily", exc.localized())
 
     if request.headers.get("HX-Request"):
         return Response(
@@ -231,6 +239,8 @@ async def generate_andy(request: Request, date: str = Form(...), job_nonce: str 
     day = valid_date(date)
     if not day:
         return error_redirect(request, "/daily", _("Invalid planning date."))
+    if not past_or_today(day):
+        return error_redirect(request, "/daily", _("Choose a date of today or earlier."))
 
     db = get_user_db_from_request(request)
     if not await llm_available(db):

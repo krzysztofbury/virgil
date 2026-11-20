@@ -695,7 +695,7 @@ def test_the_same_name_written_another_way_still_matches(monkeypatch, note):
 
 def test_a_short_alias_matches_only_a_whole_word(tmp_path, monkeypatch):
     """A prefix match let "DU" (Double-under) claim "dumbbell", and "Row" take
-    "rundy". Words under four letters take only an English ending."""
+    "rundy". A word takes only a listed ending (#238)."""
     result = _parse_with_aliases(
         tmp_path,
         monkeypatch,
@@ -709,6 +709,59 @@ def test_a_short_alias_matches_only_a_whole_word(tmp_path, monkeypatch):
         ("Row", None),
     ]
     assert result.unmatched == ["4 rundy"]
+
+
+_LONGER_WORD_LIBRARY = [
+    *_LIBRARY,
+    {"name": "Wall Ball", "section": "Core", "metric": "reps"},
+    {"name": "Clean", "section": "Core", "metric": "reps"},
+    {"name": "Power Clean", "section": "Core", "metric": "reps"},
+]
+
+
+def test_a_word_that_only_starts_with_a_listed_word_does_not_match(monkeypatch):
+    """ "backpack" is not "back": the listed word may take an ending, not any
+    extra letters. The model's guess is refused and the note's own part is
+    reported, instead of the guess hiding it."""
+    result = _parse(
+        monkeypatch,
+        "backpack squats 5x5, 10 pull-ups",
+        [_entry("Back Squat"), _entry("Pull-up")],
+        library=_LONGER_WORD_LIBRARY,
+    )
+    assert [e.movement for e in result.entries] == ["Pull-up"]
+    assert result.unmatched == ["backpack squats 5x5"]
+
+
+@pytest.mark.parametrize(
+    ("note", "guesses", "unmatched"),
+    [
+        ("wallet balls 20", ["Wall Ball"], ["wallet balls 20"]),
+        # Two refused guesses, one part: the second is named by its own name.
+        ("powerful cleaner", ["Clean", "Power Clean"], ["powerful cleaner", "Power Clean"]),
+    ],
+)
+def test_a_longer_unrelated_word_takes_no_library_movement(monkeypatch, note, guesses, unmatched):
+    result = _parse(monkeypatch, note, [_entry(name) for name in guesses], library=_LONGER_WORD_LIBRARY)
+    assert result.entries == []
+    assert result.unmatched == unmatched
+
+
+@pytest.mark.parametrize(
+    ("note", "movement"),
+    [
+        ("rowing 500m", "Row"),
+        ("cleaning 10 min", "Clean"),
+        ("3x8 pull-upy", "Pull-up"),
+        ("pull-ups 3x8", "Pull-up"),
+        ("wall balls 20", "Wall Ball"),
+        ("power cleans 5x3", "Power Clean"),
+    ],
+)
+def test_a_listed_word_with_an_allowed_ending_still_matches(monkeypatch, note, movement):
+    result = _parse(monkeypatch, note, [_entry(movement)], library=_LONGER_WORD_LIBRARY)
+    assert [e.movement for e in result.entries] == [movement]
+    assert result.unmatched == []
 
 
 def test_every_expected_answer_in_the_eval_cases_passes_the_controls(tmp_path, monkeypatch):

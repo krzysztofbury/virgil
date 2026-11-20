@@ -1156,6 +1156,9 @@ form[aria-busy="true"] { cursor: progress; }
   border: 1px solid var(--border);
   color: var(--text-secondary);
 }
+.date-nav .date-nav-spacer {
+  visibility: hidden;
+}
 @media (hover: hover) and (pointer: fine) {
   .date-nav .btn-icon:hover {
     border-color: var(--accent);

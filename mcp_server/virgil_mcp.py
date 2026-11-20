@@ -556,7 +556,7 @@ def log_daily(
     notes: str | None = None,
     clear_energy: bool = False,
 ) -> dict:
-    """Write one day of the daily log (YYYY-MM-DD): energy 1-10, the routines and the four
+    """Write one day of the daily log (YYYY-MM-DD, today or earlier): energy 1-10, the routines and the four
     A.N.D.Y. tasks (body/spirit/account/relations), each a done/skipped/pending status plus
     a short description. Only the supplied fields change; the rest of the day keeps its
     stored value, so planning today's A.N.D.Y. and later ticking it off are separate calls.
@@ -771,7 +771,7 @@ def log_measurements(
     hips: float | None = None,
     thighs: float | None = None,
 ) -> dict:
-    """Record body measurements for one date (YYYY-MM-DD): weight in kg, circumferences in
+    """Record body measurements for one date (YYYY-MM-DD, today or earlier): weight in kg, circumferences in
     cm. Only the supplied fields change; the rest of that date keeps its values."""
     fields = {"weight": weight, "arm": arm, "waist": waist, "hips": hips, "thighs": thighs}
     payload = {key: value for key, value in fields.items() if value is not None}
@@ -809,7 +809,7 @@ def log_life_scores(
     diagnostic: str | None = None,
     priorities: str | None = None,
 ) -> dict:
-    """Record a life assessment for one date (YYYY-MM-DD) and return it. Only the supplied
+    """Record a life assessment for one date (YYYY-MM-DD, today or earlier) and return it. Only the supplied
     fields change, so build an assessment over several calls on the same date; a score cannot
     be cleared here, and an empty diagnostic or priorities clears that text. Areas are whole
     numbers 1-10; power_level (0-10) is the person's own figure, so pass what they declared and

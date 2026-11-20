@@ -226,18 +226,22 @@ async def _last_balance_dates(db: aiosqlite.Connection) -> dict[int, str]:
 async def _state(db: aiosqlite.Connection, day: str, layers: list[dict], accounts: list[dict]) -> dict:
     balances = await _balances_as_of(db, day)
     last_dates = await _last_balance_dates(db)
-    snapshot = max((balance["date"] for balance in balances.values()), default=None)
+
+    # A closed account's last balance holds on the day it was recorded, not on
+    # any later day, whatever other accounts recorded. Earlier days are unchanged.
+    def counts(account: dict) -> bool:
+        balance = balances.get(account["id"])
+        if not account["archived"]:
+            return True
+        return balance is not None and not (balance["date"] == last_dates.get(account["id"]) and balance["date"] < day)
+
+    counted = [account for account in accounts if counts(account)]
+    snapshot = max((balances[a["id"]]["date"] for a in counted if a["id"] in balances), default=None)
     layer_by_id = {layer["id"]: layer for layer in layers}
     totals = {layer["id"]: 0 for layer in layers}
     rows, cushion, total, excluded = [], 0, 0, 0
-    for account in accounts:
+    for account in counted:
         balance = balances.get(account["id"])
-        # A closed account's last balance holds for the snapshot it was recorded
-        # in, not for every month after it.
-        if account["archived"] and (
-            balance is None or (balance["date"] == last_dates.get(account["id"]) and balance["date"] != snapshot)
-        ):
-            continue
         amount = balance["amount_minor"] if balance else None
         if amount is not None:
             if account["ownership"] == "excluded":

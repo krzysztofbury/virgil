@@ -525,7 +525,9 @@ Time-boxed experiments over 1..N tracked **metrics**. Each metric has a kind:
 - Day check-in via MCP/REST, for an agent that talks the day through instead of
   opening the forms:
   - `log_daily` → `PUT /api/daily/{date}` merges only the supplied fields: energy,
-    routines, and the four A.N.D.Y. statuses and descriptions
+    routines, and the four A.N.D.Y. statuses and descriptions. As with Freedom,
+    the daily log, measurements and life scores take today or an earlier date,
+    and a later one is refused with 422
   - `get_habits` → `GET /api/freedom` lists every tracked habit with its slug,
     streak, this week, today's entry, bricks, slip definition and settings
   - `get_freedom_history` → `GET /api/freedom/{habit}/history?range=N` gives one

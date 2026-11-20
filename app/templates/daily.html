@@ -7,7 +7,13 @@
 <div class="date-nav">
     <a href="/daily/{{ prev_day }}" class="btn btn-icon" aria-label="{{ _("Previous day") }}"><i data-lucide="chevron-left" style="width:20px;height:20px;"></i></a>
     <h2>{{ day_name }} {{ date }}</h2>
+    {% if next_day %}
     <a href="/daily/{{ next_day }}" class="btn btn-icon" aria-label="{{ _("Next day") }}"><i data-lucide="chevron-right" style="width:20px;height:20px;"></i></a>
+    {% else %}
+    {# Today is the last day with anything to record. The spacer keeps the date centred;
+       it is no link, so the arrow keys and a swipe find nothing to follow. #}
+    <span class="btn btn-icon date-nav-spacer" aria-hidden="true"></span>
+    {% endif %}
 </div>
 
 <form id="daily-form"
