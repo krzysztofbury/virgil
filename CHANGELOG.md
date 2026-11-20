@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository (union merge in `.gitattributes`).
 
 ### Changed
+- `tests/test_toolchain_pins.py` says which files to move when the image's
+  Python or uv drifts from CI, including when uv must move to install a new
+  Python patch release.
 - The image, CI and `.python-version` move to Python 3.14.10 and uv 0.13.8
   together; uv 0.13.5 cannot install 3.14.10, so Dependabot's Dockerfile-only
   bump failed the toolchain pin test. Both lockfiles are unchanged.
