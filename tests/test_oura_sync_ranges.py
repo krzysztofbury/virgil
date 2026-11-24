@@ -48,10 +48,11 @@ class FakeOura:
 
     def _sleep(self, params):
         # Each day: a 7.5 hour night from 22:00 the evening before, and a half
-        # hour nap at 14:00. Oura returns the periods that start inside the range.
+        # hour nap at 14:00. Oura returns the periods that start inside the range;
+        # tonight's has not started yet, so the last day is today.
         start, end = date.fromisoformat(params["start_date"]), date.fromisoformat(params["end_date"])
         periods = []
-        for n in range(-1, (self.today - start).days + 3):
+        for n in range(-1, (self.today - start).days + 1):
             day = start + timedelta(days=n)
             night = datetime(day.year, day.month, day.day, 22) - timedelta(days=1)
             nap = datetime(day.year, day.month, day.day, 14)

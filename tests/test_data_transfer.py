@@ -281,6 +281,36 @@ def test_an_account_whose_columns_were_added_in_another_order_is_restored(tmp_pa
 
 
 @pytest.mark.parametrize(
+    "change",
+    [
+        "ALTER TABLE daily_logs ADD COLUMN added_by_an_update TEXT",
+        "ALTER TABLE daily_logs DROP COLUMN andy_body_desc",
+    ],
+    ids=["column added", "column removed"],
+)
+def test_a_server_update_between_check_and_confirm_refuses_the_restore(tmp_path, import_dir, change):
+    async def run():
+        source = await _database(tmp_path / "source.db")
+        target = await _database(tmp_path / "target.db")
+        try:
+            await source.execute("INSERT INTO daily_logs (date) VALUES ('2026-03-01')")
+            await source.commit()
+            token = await _stage(await export_document(source))
+            await target.execute("INSERT INTO daily_logs (date) VALUES ('2001-01-01')")
+            await target.execute(change)
+            await target.commit()
+            with pytest.raises(ImportRefused, match="server was updated"):
+                await apply_staged(target, STEM, token)
+            rows = await target.execute_fetchall("SELECT date FROM daily_logs")
+            return [row[0] for row in rows]
+        finally:
+            await source.close()
+            await target.close()
+
+    assert asyncio.run(run()) == ["2001-01-01"], "a refused restore changes nothing"
+
+
+@pytest.mark.parametrize(
     ("key", "value"),
     [
         ("backup_interval_hours", "0.001"),
