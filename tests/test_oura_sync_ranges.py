@@ -2,10 +2,13 @@
 
 Two gaps from production: resting_hr stayed empty because /heartrate takes
 start_datetime/end_datetime and silently ignored start_date/end_date, and
-today's activity never arrived because Oura leaves the end_date day out.
+today's activity never arrived because Oura leaves the end_date day out. A
+third: /sleep picks periods by the date they start, so the night that began the
+evening before the range was left out, and its first day stored a nap or nothing.
 
 The fake below answers the way Oura does for those cases. Daily endpoints leave
-the end_date day out, /heartrate ignores date parameters, refuses ranges longer
+the end_date day out, /sleep selects periods by the date they start,
+/heartrate ignores date parameters, refuses ranges longer
 than a week and pages its samples, and the sync runs against it end to end.
 """
 
@@ -39,7 +42,35 @@ class FakeOura:
             days = [start + timedelta(days=n) for n in range((end - start).days)]  # end_date excluded
             data = [{"day": d.isoformat(), "score": 80, "steps": 9000 + n} for n, d in enumerate(days)]
             return httpx.Response(200, json={"data": data, "next_token": None})
+        if endpoint == "sleep":
+            return self._sleep(params)
         return httpx.Response(200, json={"data": [], "next_token": None})
+
+    def _sleep(self, params):
+        # Each day: a 7.5 hour night from 22:00 the evening before, and a half
+        # hour nap at 14:00. Oura returns the periods that start inside the range;
+        # tonight's has not started yet, so the last day is today.
+        start, end = date.fromisoformat(params["start_date"]), date.fromisoformat(params["end_date"])
+        periods = []
+        for n in range(-1, (self.today - start).days + 1):
+            day = start + timedelta(days=n)
+            night = datetime(day.year, day.month, day.day, 22) - timedelta(days=1)
+            nap = datetime(day.year, day.month, day.day, 14)
+            for kind, begins, seconds in (("long_sleep", night, 27000), ("sleep", nap, 1800)):
+                if start <= begins.date() < end:
+                    periods.append(
+                        {
+                            "day": day.isoformat(),
+                            "type": kind,
+                            "bedtime_start": begins.isoformat() + "+01:00",
+                            "total_sleep_duration": seconds,
+                            "deep_sleep_duration": seconds // 5,
+                            "rem_sleep_duration": seconds // 4,
+                            "lowest_heart_rate": 50 if kind == "long_sleep" else 70,
+                            "average_hrv": 30 if kind == "long_sleep" else 60,
+                        }
+                    )
+        return httpx.Response(200, json={"data": periods, "next_token": None})
 
     def _heartrate(self, params):
         if "start_datetime" not in params:
@@ -125,6 +156,17 @@ def test_resting_hr_comes_from_heartrate_samples_on_their_local_day(tmp_path, mo
     assert rows[yesterday]["resting_hr"] == 48
     first_day = (date.today() - timedelta(days=20)).isoformat()
     assert rows.get(first_day, {}).get("resting_hr") is None, "nothing was stamped late on the day before the range"
+
+
+def test_the_first_day_keeps_its_night_that_began_the_evening_before(tmp_path, monkeypatch, warsaw):
+    fake, rows = _sync(tmp_path, monkeypatch, days_back=2)
+
+    first_day = (date.today() - timedelta(days=2)).isoformat()
+    window = [(date.today() - timedelta(days=n)).isoformat() for n in range(3)]
+    assert {day: rows[day]["sleep_duration_hours"] for day in window} == dict.fromkeys(window, 7.5)
+    assert rows[first_day]["lowest_hr"] == 50 and rows[first_day]["avg_hrv"] == 30, "not the nap's"
+    day_before = (date.today() - timedelta(days=3)).isoformat()
+    assert day_before not in rows, "the day before the range has only part of its periods"
 
 
 def test_endless_pages_end_the_fetch_with_an_error(monkeypatch):

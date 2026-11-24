@@ -239,6 +239,77 @@ def test_an_export_from_an_older_schema_is_upgraded(tmp_path, import_dir):
     assert dropped == 1
 
 
+def test_an_account_whose_columns_were_added_in_another_order_is_restored(tmp_path, import_dir):
+    """An account created before a column existed got it appended by ALTER TABLE,
+    so its column order differs from a freshly migrated copy. Restore names every
+    column it copies; the order must not refuse the file."""
+
+    async def run():
+        source = await _database(tmp_path / "source.db")
+        target = await _database(tmp_path / "target.db")
+        try:
+            await _seed(source)
+            exported = await export_document(source)
+            await target.execute("PRAGMA foreign_keys=OFF")
+            await target.executescript(
+                """
+                CREATE TABLE experiments_rebuilt (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    start_date TEXT NOT NULL,
+                    num_weeks INTEGER NOT NULL,
+                    status TEXT NOT NULL DEFAULT 'active'
+                        CHECK(status IN ('active','completed','abandoned')),
+                    created_at TEXT DEFAULT (datetime('now')),
+                    goal_id INTEGER REFERENCES goals(id) ON DELETE SET NULL
+                );
+                DROP TABLE experiments;
+                ALTER TABLE experiments_rebuilt RENAME TO experiments;
+                """
+            )
+            await target.execute("PRAGMA foreign_keys=ON")
+            await apply_staged(target, STEM, await _stage(exported))
+            return exported, await export_document(target)
+        finally:
+            await source.close()
+            await target.close()
+
+    exported, restored = asyncio.run(run())
+    assert exported["tables"]["experiments"]
+    assert _comparable(restored) == _comparable(exported)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "ALTER TABLE daily_logs ADD COLUMN added_by_an_update TEXT",
+        "ALTER TABLE daily_logs DROP COLUMN andy_body_desc",
+    ],
+    ids=["column added", "column removed"],
+)
+def test_a_server_update_between_check_and_confirm_refuses_the_restore(tmp_path, import_dir, change):
+    async def run():
+        source = await _database(tmp_path / "source.db")
+        target = await _database(tmp_path / "target.db")
+        try:
+            await source.execute("INSERT INTO daily_logs (date) VALUES ('2026-03-01')")
+            await source.commit()
+            token = await _stage(await export_document(source))
+            await target.execute("INSERT INTO daily_logs (date) VALUES ('2001-01-01')")
+            await target.execute(change)
+            await target.commit()
+            with pytest.raises(ImportRefused, match="server was updated"):
+                await apply_staged(target, STEM, token)
+            rows = await target.execute_fetchall("SELECT date FROM daily_logs")
+            return [row[0] for row in rows]
+        finally:
+            await source.close()
+            await target.close()
+
+    assert asyncio.run(run()) == ["2001-01-01"], "a refused restore changes nothing"
+
+
 @pytest.mark.parametrize(
     ("key", "value"),
     [
