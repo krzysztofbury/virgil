@@ -410,13 +410,17 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
                 daily[d]["stress_low"] = summary[2]
                 daily[d]["stress_rest"] = summary[3]
 
-        # Sleep periods for duration/deep/REM breakdown
-        sleep_periods = await _fetch_optional(client, "sleep", access_token, start_date, end_date, ok_endpoints)
+        # Sleep periods for duration/deep/REM breakdown. Oura picks them by the
+        # date they start, so a night that began the evening before start_date
+        # is only returned when the range starts a day earlier. The extra day
+        # is fetched for that and not stored: its own night is missing.
+        sleep_from = (date.fromisoformat(start_date) - timedelta(days=1)).isoformat()
+        sleep_periods = await _fetch_optional(client, "sleep", access_token, sleep_from, end_date, ok_endpoints)
         # Group by day, pick longest period per day
         sleep_by_day: dict[str, dict] = {}
         for item in sleep_periods:
             d = item.get("day", "")
-            if not d:
+            if not d or d < start_date:
                 continue
             duration = item.get("total_sleep_duration", 0) or 0
             if d not in sleep_by_day or duration > (sleep_by_day[d].get("total_sleep_duration", 0) or 0):

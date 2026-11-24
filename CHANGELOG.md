@@ -81,6 +81,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   freshly migrated copy. The check before the swap compares which columns each
   table has, not their order; the copy already names every column. Before, the
   confirm step answered "The server was updated after this file was checked".
+- The Oura sync fetches sleep periods from one day before its range. Oura picks
+  periods by the date they start, so the night that began the evening before
+  the range's first day was left out, and that day stored a nap as its night or
+  emptied its sleep, lowest heart rate and HRV. With three-day webhook syncs
+  most days ended as some sync's first day. Days synced before this keep the
+  wrong values until they are synced again or restored from Oura's export.
 - `scripts/deploy.py release` removes every image no container uses except the
   rollback pin in `release.env.previous`, once the new container is healthy.
   The old `docker image prune` removed only dangling images, and images pulled
