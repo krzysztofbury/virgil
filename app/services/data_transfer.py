@@ -528,8 +528,10 @@ async def apply_staged(db: aiosqlite.Connection, stem: str, token: str) -> None:
         rows = await db.execute_fetchall("SELECT name FROM staged.sqlite_master WHERE type = 'table'")
         incoming = {row[0] for row in rows}
         tables = [table for table in DATA_TABLES if table in await _tables(db)]
+        # Compared as sets: an account older than a column got it appended by
+        # ALTER TABLE, and the copy below names every column anyway.
         for table in tables:
-            if table not in incoming or await _columns(db, table) != await _columns(db, table, "staged"):
+            if table not in incoming or set(await _columns(db, table)) != set(await _columns(db, table, "staged")):
                 raise ImportRefused(N_("The server was updated after this file was checked. Upload it again."))
 
         await db.execute("BEGIN IMMEDIATE")

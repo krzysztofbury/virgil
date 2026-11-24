@@ -76,6 +76,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names (`slipped`, `amount`, `near_miss`) and the `freedom` key.
 
 ### Fixed
+- Restoring a JSON export no longer refuses an account whose tables got a
+  column by `ALTER TABLE`, so their columns sit in another order than in a
+  freshly migrated copy. The check before the swap compares which columns each
+  table has, not their order; the copy already names every column. Before, the
+  confirm step answered "The server was updated after this file was checked".
 - `scripts/deploy.py release` removes every image no container uses except the
   rollback pin in `release.env.previous`, once the new container is healthy.
   The old `docker image prune` removed only dangling images, and images pulled
