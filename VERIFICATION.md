@@ -13,6 +13,30 @@ Coverage, a test count or green CI alone is not an entry
 [the recovery guide](docs/recovery.md#restore-drill-record) and load checks to
 [docs/load-check.md](docs/load-check.md).
 
+## Release of 7551d24: restore column order and Oura sleep range (#254, 2026-11-24)
+
+- **Revision:** [`7551d24`](https://github.com/krzysztofbury/virgil/commit/7551d247f13ef9b26c03939967ccf52744976884),
+  the merge of [#254](https://github.com/krzysztofbury/virgil/pull/254). Main
+  [CI run](https://github.com/krzysztofbury/virgil/actions/runs/45435532350)
+  succeeded after its image job was rerun; the first attempt failed exporting
+  to the GitHub Actions cache (503 "no healthy upstream").
+- **Command:** with the owner's approval,
+  `uv run python scripts/deploy.py release 7551d247f13ef9b26c03939967ccf52744976884`.
+- **Outcome:**
+  - The release pinned
+    `sha256:510bbd5beb4a9b0836a69934876764776b235142db74d22c7757aa74d7245051`,
+    replacing the pin of `02e1fa5`, and its public check passed.
+  - `/livez` 200, `/healthz` 200 `{"status":"ok"}`. The startup log reported
+    `Virgil version=7551d247…` with no failed migration. Memory was 266 MiB of
+    640 MiB.
+  - Settings > Data > Restore, which had refused an account's own export
+    with "The server was updated after this file was checked", applied it. The
+    preview changed only the Oura tables, and an export read back afterwards
+    matched the restored file's counts.
+- **Not proved by this record:** the Oura sleep range change against the live
+  API. Its evidence is a comparison of stored days with Oura's data export and
+  the PR's tests ([#254](https://github.com/krzysztofbury/virgil/pull/254)).
+
 ## Release of 8977d9f: 0.10.0 plus #223, #224, #225 (2026-11-08)
 
 - **Revision:** [`8977d9f`](https://github.com/krzysztofbury/virgil/commit/8977d9f065d28bf5123efa9e4425e6a609dea64f),
