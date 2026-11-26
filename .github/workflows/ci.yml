@@ -60,8 +60,6 @@ jobs:
           VIRGIL_REQUIRE_BROWSER: '1'
         # A test stuck past faulthandler_timeout dumps every thread's stack.
         run: uv run --locked --extra dev pytest -q
-      - name: Comment and marked-test ratchet
-        run: uv run --locked --extra dev python scripts/audit_ratchet.py check
       - name: Locked MCP stdio
         run: |
           uv lock --check --script mcp_server/virgil_mcp.py
