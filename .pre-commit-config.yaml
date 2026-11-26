@@ -40,6 +40,12 @@ repos:
         entry: uv run --locked --extra dev ruff format
         language: system
         types: [python]
+      - id: audit-ratchet
+        name: Comment and marked-test ratchet
+        entry: uv run --locked --extra dev python scripts/audit_ratchet.py check
+        language: system
+        pass_filenames: false
+        always_run: true
       - id: bandit
         name: Bandit
         entry: uv run --locked --extra dev bandit -c pyproject.toml

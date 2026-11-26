@@ -1,1 +1,2 @@
 .agents/retro.jsonl merge=union
+app/static/vendor/** linguist-vendored

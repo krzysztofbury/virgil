@@ -56,9 +56,12 @@ issue after that step.
   one line starting `# Why: ` that records a non-obvious reason, such as what
   Oura or another integration sends; a reason that spans modules goes in
   `docs/adr/`.
-- Name a shortcut in an issue, not a comment.
-- `scripts/audit_ratchet.py check` runs in CI and counts both comments and
-  `to_delete` markers per file; neither may rise. After a change that lowers
+- Name a shortcut in an issue, not a comment; Ruff's `FIX` (TODO, FIXME,
+  XXX, HACK) and `ERA001` (commented-out code) rules enforce it.
+- `scripts/audit_ratchet.py check` runs as a pre-commit hook (CI runs the
+  hooks) and counts comments in Python, JavaScript, CSS and templates, and
+  `to_delete` markers, per file; neither may rise. `app/static/vendor/` is
+  marked `linguist-vendored` and not counted. After a change that lowers
   a count, run `uv run python scripts/audit_ratchet.py update` and commit
   `.agents/audit-baseline.json`.
 
