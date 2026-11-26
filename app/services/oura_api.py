@@ -416,6 +416,7 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
         # is fetched for that and not stored: its own night is missing.
         sleep_from = (date.fromisoformat(start_date) - timedelta(days=1)).isoformat()
         sleep_periods = await _fetch_optional(client, "sleep", access_token, sleep_from, end_date, ok_endpoints)
+        # Why: Oura returns naps and rest periods as separate sleep periods on the same day; only the longest counts.
         sleep_by_day: dict[str, dict] = {}
         for item in sleep_periods:
             d = item.get("day", "")
