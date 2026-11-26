@@ -51,7 +51,6 @@ def test_a_card_logs_today_in_place_and_shows_what_is_logged(auth_client):
         assert tapped.text.lstrip().startswith(f'<div class="card exp-card-dash" id="exp-card-{exp_id}"')
         assert 'aria-pressed="true"' in tapped.text, "today's answer shows on the redrawn card"
 
-        # Without htmx the form posts and lands back on the dashboard.
         plain = auth_client.post(
             f"/experiments/{exp_id}/entry",
             data={"date": today, "metric_id": urges, "value": "1", "view": "dashboard", "_csrf_token": token},

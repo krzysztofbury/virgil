@@ -33,7 +33,6 @@ def _create_ad_hoc_exercise_with_entry(auth_client) -> int:
         )
         ex_id = cursor.lastrowid
 
-        # Insert a session and entry for the ad_hoc exercise (dated to this week)
         cursor = conn.execute(
             "INSERT INTO training_sessions (date) VALUES (?)",
             (_get_monday().isoformat(),),

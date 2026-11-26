@@ -56,6 +56,7 @@ def _make_source_db(path: Path) -> None:
     conn.close()
 
 
+@pytest.mark.to_delete(issue=263)
 def test_db_main_path_resolves_file(tmp_path):
     src = tmp_path / "user-abc.db"
     _make_source_db(src)

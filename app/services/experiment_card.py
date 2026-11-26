@@ -28,7 +28,6 @@ async def experiment_card(db, experiment: dict, today: date) -> dict:
     )
     minutes = totals[0]["minutes"] if totals else 0
     entries = totals[0]["entries"] if totals else 0
-    # Kind-aware label: minutes for training-style experiments, entry count otherwise.
     card["total_minutes"] = minutes
     card["logged_label"] = f"{minutes}m" if minutes else f"{entries} logged"
 

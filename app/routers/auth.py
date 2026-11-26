@@ -127,9 +127,6 @@ async def registration_allowed() -> bool:
     return await count_users() == 0
 
 
-# --- Signup ---
-
-
 INVITE_UNUSABLE = N_("This invite link is invalid, used or expired. Ask for a new one.")
 RESERVED_ADDRESS = N_("This address is reserved on this server. Ask an admin for an invite made for it.")
 RESET_UNUSABLE = N_("This reset link is invalid, used or expired. Ask an admin for a new one.")
@@ -329,9 +326,6 @@ async def _start_account(request: Request, user: dict, *, used_invite: bool, lan
     return response
 
 
-# --- Password reset (an admin hands over the link; there is no mailer) ---
-
-
 def _reset_response(request: Request, **context):
     """The reset form carries the link's secret, so nothing may cache it."""
     return templates.TemplateResponse(request, "auth_reset.html", {"request": request, **context}, headers=_NO_STORE)
@@ -371,9 +365,6 @@ async def reset_submit(
         return error_redirect(request, "/login", _(RESET_UNUSABLE))
     await _event(request, "password_reset", user_id)
     return success_redirect(request, "/login", _("Password set. Sign in with the new one."))
-
-
-# --- Login ---
 
 
 async def _login_page(request: Request, step: str = "email", email: str = "", **context):
@@ -496,14 +487,12 @@ async def login_submit(
         await _event(request, "login_fail", user["id"], "account disabled")
         return await _login_page(request, "password", email, error=_("This account has been deactivated."))
 
-    # If MFA is enabled, redirect to MFA verification
     if user["totp_enabled"]:
         token = create_mfa_pending_session(user["id"], user["session_epoch"])
         response = RedirectResponse("/mfa/verify", status_code=303)
         response.headers["set-cookie"] = session_cookie_header(token)
         return response
 
-    # No MFA — create full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"])
     return await _signed_in_response(request, user)
@@ -596,9 +585,6 @@ async def _signed_in_response(request: Request, user: dict) -> RedirectResponse:
     return response
 
 
-# --- Logout ---
-
-
 @router.post("/logout")
 async def logout(request: Request):
     # Clearing the cookie is not enough: a copied token would stay valid for its
@@ -610,9 +596,6 @@ async def logout(request: Request):
     response = RedirectResponse(feedback_url("/login", msg=_("Signed out.")), status_code=303)
     response.headers["set-cookie"] = clear_session_cookie()
     return response
-
-
-# --- MFA Setup ---
 
 
 @router.get("/settings/mfa", response_class=HTMLResponse)
@@ -760,9 +743,6 @@ def _resign(request: Request, user_id: str, epoch: int, message: str, target: st
     return response
 
 
-# --- Password change ---
-
-
 @router.post("/settings/password")
 async def change_password(
     request: Request,
@@ -847,9 +827,6 @@ async def remove_password(request: Request, current_password: str = Form("")):
     return _resign(request, user["id"], epoch, _("Password removed. You sign in with emailed links now."), SECURITY)
 
 
-# --- MFA Verify (during login) ---
-
-
 @router.get("/mfa/verify", response_class=HTMLResponse)
 async def mfa_verify_page(request: Request):
     if not mfa_pending_user_id(request.cookies.get(SESSION_COOKIE, "")):
@@ -904,13 +881,9 @@ async def mfa_verify_submit(request: Request, totp_code: str = Form(""), recover
             {"request": request, "error": _("Invalid code. Please try again.")},
         )
 
-    # MFA verified — upgrade to full session and record login time
     await update_user(user["id"], last_login_at=datetime.now(UTC).isoformat())
     await _event(request, "login_ok", user["id"], "with MFA")
     return await _signed_in_response(request, user)
-
-
-# --- Interface language (#152) ---
 
 
 async def _signed_in_language(request: Request, user: dict) -> str:
@@ -942,9 +915,6 @@ async def choose_language(request: Request, language: str = Form(""), next: str 
     response.headers.append("set-cookie", language_cookie_header(chosen))
     response.headers.append("set-cookie", language_chosen_cookie_header(clear=bool(user)))
     return response
-
-
-# --- QR Code image endpoint ---
 
 
 @router.get("/mfa/qr.png")

@@ -100,6 +100,7 @@ def test_success_feedback_self_dismisses_but_an_error_waits_for_the_user(auth_cl
     assert "data-feedback-dismiss" in error_box
 
 
+@pytest.mark.to_delete(issue=261)
 def test_shared_js_dismisses_only_successful_and_named_job_notifications():
     """Job cards; tests/test_browser_smoke.py covers the feedback toasts."""
     js = Path("app/static/js/app.js").read_text()

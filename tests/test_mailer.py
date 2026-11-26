@@ -77,6 +77,7 @@ def test_smtp_needs_a_host_and_a_sender(monkeypatch, smtp_config):
     assert mailer.mail_enabled() is False
 
 
+@pytest.mark.to_delete(issue=263)
 def test_the_log_backend_counts_as_configured(monkeypatch):
     monkeypatch.setattr(config, "MAIL_BACKEND", "log")
     assert mailer.mail_enabled() is True

@@ -76,7 +76,6 @@ def _md_block(text: str) -> markupsafe.Markup:
                 in_list = False
             html_lines.append("")
             continue
-        # Headers
         if stripped.startswith("### "):
             if in_list:
                 html_lines.append("</ul>")
@@ -235,7 +234,6 @@ async def _start_application(app: FastAPI):
     from app import config as _config
 
     if _config.IS_PROD and _config.MAIL_BACKEND == "log":
-        # The log backend writes whole messages, sign-in links included.
         _log.warning("VIRGIL_MAIL_BACKEND=log writes every email, sign-in links included, to the log")
 
     _log.info(

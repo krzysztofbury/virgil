@@ -40,7 +40,6 @@ async def build_week_summary(db, experiment_id: int, week_number: int) -> str:
     week_start = start_monday + timedelta(weeks=week_number - 1)
     week_end = week_start + timedelta(days=6)
 
-    # Collect experiment entries for this week
     entries = await db.execute_fetchall(
         """SELECT ee.date, ee.value, ee.notes, ee.source,
                   eat.name as activity_name, eat.kind
@@ -62,38 +61,32 @@ async def build_week_summary(db, experiment_id: int, week_number: int) -> str:
         )
     ]
 
-    # Week targets
     week_cfg = await db.execute_fetchall(
         "SELECT * FROM experiment_weeks WHERE experiment_id = ? AND week_number = ?",
         (experiment_id, week_number),
     )
     week_cfg = dict(week_cfg[0]) if week_cfg else {"target_min": 0, "target_max": 0, "label": ""}
 
-    # Oura daily data for the week
     oura = await db.execute_fetchall(
         "SELECT * FROM oura_daily WHERE date >= ? AND date <= ? ORDER BY date",
         (week_start.isoformat(), week_end.isoformat()),
     )
     oura = [dict(r) for r in oura]
 
-    # Daily logs (energy, routines)
     daily_logs = await db.execute_fetchall(
         "SELECT * FROM daily_logs WHERE date >= ? AND date <= ? ORDER BY date",
         (week_start.isoformat(), week_end.isoformat()),
     )
     daily_logs = [dict(r) for r in daily_logs]
 
-    # Body measurements
     measurements = await db.execute_fetchall(
         "SELECT * FROM body_measurements WHERE date >= ? AND date <= ? ORDER BY date",
         (week_start.isoformat(), week_end.isoformat()),
     )
     measurements = [dict(r) for r in measurements]
 
-    # Is this the final week?
     is_final = week_number == exp["num_weeks"]
 
-    # Build the prompt — render each entry value in its metric's unit
     def _fmt_value(kind: str, value: int) -> str:
         if kind == "duration":
             return f"{value}m"

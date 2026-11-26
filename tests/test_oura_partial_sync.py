@@ -18,6 +18,7 @@ from app.services.oura_api import (
 )
 
 
+@pytest.mark.to_delete(issue=260)
 def test_update_clause_limited_to_successful_endpoints():
     sql = _daily_upsert_sql({"daily_activity"})
     _, update_clause = sql.split("DO UPDATE SET", 1)
@@ -27,6 +28,7 @@ def test_update_clause_limited_to_successful_endpoints():
     assert "avg_hrv" not in update_clause
 
 
+@pytest.mark.to_delete(issue=260)
 def test_update_clause_covers_all_when_everything_succeeds():
     sql = _daily_upsert_sql(set(DAILY_ENDPOINT_ORDER))
     _, update_clause = sql.split("DO UPDATE SET", 1)
@@ -35,6 +37,7 @@ def test_update_clause_covers_all_when_everything_succeeds():
             assert f"{col}=excluded.{col}" in update_clause
 
 
+@pytest.mark.to_delete(issue=260)
 def test_no_successful_endpoints_refused():
     with pytest.raises(AssertionError):
         _daily_upsert_sql(set())
@@ -52,11 +55,9 @@ def test_failed_endpoint_columns_preserved_in_db(tmp_path):
         db.row_factory = aiosqlite.Row
         await run_migrations(db)
 
-        # Day already synced with a sleep score.
         await _upsert_daily(db, "2026-07-01", {"sleep_score": 80, "steps": 1000}, set(DAILY_ENDPOINT_ORDER))
         await db.commit()
 
-        # Next sync: daily_sleep endpoint failed, activity succeeded.
         await _upsert_daily(db, "2026-07-01", {"activity_score": 70, "steps": 5000}, {"daily_activity"})
         await db.commit()
 

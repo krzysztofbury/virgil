@@ -2,6 +2,8 @@
 
 import json
 
+import pytest
+
 from evals.wod.scoring import aggregate, json_health, off_list_names, score_case
 
 
@@ -60,6 +62,7 @@ def test_an_unknown_movement_that_vanishes_is_dropped():
     assert (score.oov_rejected, score.oov_hallucinated, score.oov_dropped) == (0, 0, 1)
 
 
+@pytest.mark.to_delete(issue=258)
 def test_a_failed_parse_scores_nothing_and_keeps_its_error():
     score = score_case(CASE, [], [], error="ValueError: no JSON")
     assert not score.case_exact and score.paired == 0

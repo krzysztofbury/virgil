@@ -25,7 +25,7 @@ CSRF_EXEMPT_PREFIXES = ("/api/oura/webhook/",)
 # Hard caps on buffered form body size to prevent memory exhaustion.
 # Multipart gets a higher cap: onboarding accepts medical PDFs up to 20 MB
 # (app/services/medical_import.py MEDICAL_UPLOAD_MAX_BYTES) plus multipart framing overhead.
-MAX_URLENCODED_BODY_BYTES = 10 * 1024 * 1024  # 10 MB
+MAX_URLENCODED_BODY_BYTES = 10 * 1024 * 1024
 MAX_MULTIPART_BODY_BYTES = 21 * 1024 * 1024  # 20 MB payload + framing
 
 
@@ -65,7 +65,6 @@ class CSRFMiddleware:
             csrf_token = secrets.token_urlsafe(32)
         scope["state"] = {**scope.get("state", {}), "csrf_token": csrf_token}
 
-        # Wrap send to set CSRF cookie on response
         async def send_with_cookie(message: Message):
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
@@ -90,7 +89,6 @@ class CSRFMiddleware:
                 await response(scope, receive, send)
                 return
 
-            # Check header first (HTMX)
             submitted = ""
             for header_name, header_value in scope.get("headers", []):
                 if header_name == CSRF_HEADER.encode():
@@ -106,8 +104,6 @@ class CSRFMiddleware:
 
                 is_multipart = "multipart/form-data" in content_type
                 if "form" in content_type:
-                    # Buffer the body, extract CSRF token, then replay it.
-                    # Bounded to prevent memory exhaustion.
                     max_bytes = MAX_MULTIPART_BODY_BYTES if is_multipart else MAX_URLENCODED_BODY_BYTES
                     body_chunks = []
                     total_size = 0

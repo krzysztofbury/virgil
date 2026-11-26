@@ -210,6 +210,7 @@ def test_a_step_with_no_input_is_reported_as_not_needed(auth_client):
     assert progress["habit_experiment"] == "not_needed"
 
 
+@pytest.mark.to_delete(issue=263)
 def test_the_feniks_trigger_is_a_word_match_not_a_purchase():
     assert onboarding_service.apply_feniks_trigger_words({"habits_break": "porno every night"}) is True
     assert onboarding_service.apply_feniks_trigger_words({"habits_bad": "nofap"}) is True

@@ -77,7 +77,6 @@ def test_only_a_refused_refresh_disconnects_the_integration(tmp_path, monkeypatc
     token, stored = asyncio.run(scenario())
 
     assert token is None
-    # A transient failure keeps the refresh token for the next attempt.
     assert stored == (status, "old-refresh")
 
 

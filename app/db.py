@@ -1,6 +1,5 @@
 from app.i18n import N_
 
-# Shared life area constants used by dashboard, life_scores, and export
 LIFE_AREAS = ["planning", "spirituality", "health", "work", "social", "growth", "relaxation", "family"]
 LIFE_AREA_LABELS = [
     N_("Life Planning"),

@@ -64,7 +64,6 @@ def test_freedom_routes_refuse_the_key_without_the_sensitive_scope(auth_client, 
     response = auth_client.request(method, _url(path), json=body, headers=KEY)
     assert response.status_code == 403
     assert "Sensitive scope" in response.json()["detail"]
-    # Refused before anything was written for the sample day.
     conn = sqlite3.connect(user_db_path())
     try:
         written = conn.execute(

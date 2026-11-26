@@ -648,8 +648,6 @@ async def complete_password_reset(token: str, password: str) -> str | None:
     return user_id
 
 
-# --- Emailed sign-in links (#168) ---
-
 SIGN_IN_LINK_TTL_MINUTES = 15
 # Links per address per TTL window: enough for a retry or two, not a mail bomb.
 SIGN_IN_LINKS_PER_WINDOW = 3
@@ -761,8 +759,6 @@ async def void_sign_in_links(user_id: str) -> None:
     )
     await db.commit()
 
-
-# --- MFA recovery codes (#168) ---
 
 RECOVERY_CODE_COUNT = 10
 # No 0/o, 1/l/i: a code is read off a screen or a printout and typed back.
@@ -925,9 +921,6 @@ async def count_users() -> int:
     return rows[0]["n"]
 
 
-# ── Webhook routing (public callbacks → per-user database) ──
-
-
 async def create_webhook_route(
     user_id: str,
     provider: str = "oura",
@@ -998,9 +991,6 @@ async def delete_webhook_routes(user_id: str, provider: str = "oura") -> None:
     db = await get_central_db()
     await db.execute("DELETE FROM webhook_routes WHERE user_id = ? AND provider = ?", (user_id, provider))
     await db.commit()
-
-
-# ── Provider subscription lifecycle ──
 
 
 async def _require_no_user_lifecycle_lease(

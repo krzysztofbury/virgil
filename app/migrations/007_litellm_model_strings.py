@@ -46,7 +46,6 @@ async def up(db: aiosqlite.Connection) -> None:
         old_model = row["model"]
         if old_provider in PROVIDER_MAP:
             new_provider, prefix = PROVIDER_MAP[old_provider]
-            # Only prefix if not already in LiteLLM format.
             new_model = f"{prefix}{old_model}" if not old_model.startswith(prefix) else old_model
             await db.execute(
                 "UPDATE llm_providers SET provider = ?, model = ? WHERE id = ?",

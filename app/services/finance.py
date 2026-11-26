@@ -80,9 +80,6 @@ def _text(value: object, field: str, limit: int, *, required: bool = False) -> s
     return text
 
 
-# --- Reading ---------------------------------------------------------------
-
-
 async def base_currency(db: aiosqlite.Connection) -> str:
     return await get_setting(db, BASE_CURRENCY_SETTING, "PLN") or "PLN"
 
@@ -375,9 +372,6 @@ async def history(db: aiosqlite.Connection, months: int = 12) -> dict:
             }
         )
     return {"months": months, "since": since, "currency": await base_currency(db), "points": points}
-
-
-# --- Writing ---------------------------------------------------------------
 
 
 async def _find(db: aiosqlite.Connection, table: str, ref: object, what: str) -> dict:

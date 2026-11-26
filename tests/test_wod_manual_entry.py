@@ -102,7 +102,6 @@ def test_add_exercise_control_is_offered(auth_client, monkeypatch):
     assert "+ add exercise" in resp.text
     assert "addExercise()" in resp.text
     assert "+ add set" in resp.text, "and adding a set must still exist"
-    # addExercise must start a fresh exercise, not clone-and-increment.
     assert "addRow('', 1)" in Path("app/static/js/components.js").read_text()
 
 
@@ -117,7 +116,6 @@ def test_manual_rows_are_written_for_several_different_movements(auth_client, mo
         "_csrf_token": token,
         "session_id": str(session_id),
         "entry_count": "4",
-        # Two sets of one movement, then two other movements.
         "entry_0_movement": "Pull-up",
         "entry_0_set_number": "1",
         "entry_0_reps": "5",

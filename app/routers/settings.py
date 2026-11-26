@@ -84,7 +84,6 @@ async def render_settings(request: Request, tab: str, job_id: int | None = None,
 
     db = get_user_db_from_request(request)
 
-    # Always needed for tab nav
     context: dict = {
         "request": request,
         "active_tab": tab,
@@ -221,8 +220,6 @@ async def render_settings(request: Request, tab: str, job_id: int | None = None,
     return response
 
 
-# --- Feedback (#167) ---
-
 FEEDBACK_KINDS = {"bug": N_("Something does not work"), "idea": N_("A feature idea"), "other": N_("Something else")}
 FEEDBACK_MAX_LENGTH = 4000
 FEEDBACK_PER_HOUR = 5
@@ -288,8 +285,6 @@ async def send_feedback(request: Request, kind: str = Form(""), message: str = F
     mailer.schedule(dataclasses.replace(mail, reply_to=user["email"]))
     return success_redirect(request, back, _("Sent. Thank you."))
 
-
-# --- Personal API tokens ---
 
 _TOKEN_EXPIRY_DAYS = {"30": 30, "90": 90, "365": 365, "never": None}
 
@@ -464,9 +459,6 @@ async def library_archive(request: Request, entry_id: int = Form(...), archived:
     return success_redirect(request, "/settings?tab=configuration", message)
 
 
-# --- Training schedule ---
-
-
 @router.post("/settings/training-schedule")
 async def save_training_schedule(request: Request):
     """Persist the weekly schedule the A.N.D.Y. planner reads.
@@ -542,9 +534,6 @@ async def save_training_schedule(request: Request):
     return success_redirect(request, "/settings?tab=configuration", _("Training schedule saved."))
 
 
-# --- Backups, Oura sync and the briefing (one endpoint, per-card saves) ---
-
-
 @router.post("/settings/automation")
 async def save_automation(request: Request):
     """Backups, Oura sync and the briefing, each saved from the card on its own tab.
@@ -608,9 +597,6 @@ async def save_automation(request: Request):
     return success_redirect(request, redirect_path, message)
 
 
-# --- Feature Flags ---
-
-
 async def _freedom_choices(db) -> list[dict]:
     """The Freedom checklist: the catalog, then the person's own habits."""
     from app.services.habits import PRESETS, PRESETS_BY_SLUG, list_habits
@@ -660,9 +646,6 @@ async def save_features(request: Request):
     return success_redirect(request, "/settings?tab=general", _("Modules saved."))
 
 
-# --- Backup ---
-
-
 @router.post("/settings/backup/now")
 async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
     from app.services.job_producers import BACKUP_JOB_KIND, enqueue_backup_job, manual_job_key
@@ -686,9 +669,6 @@ async def trigger_backup_now(request: Request, job_nonce: str = Form(...)):
         f"/settings?tab=data&job_id={result.job_id}",
         _("Backup queued."),
     )
-
-
-# --- Export ---
 
 
 @router.post("/settings/export")
@@ -903,9 +883,6 @@ async def export_csv(request: Request):
     )
 
 
-# --- LLM Providers ---
-
-
 @router.post("/settings/llm/add")
 async def add_llm_provider(
     request: Request,
@@ -964,9 +941,6 @@ async def delete_llm_provider(request: Request, provider_id: int = Form(...)):
     return success_redirect(request, "/settings?tab=ai", _("AI key removed."))
 
 
-# --- Reset all data ---
-
-
 @router.post("/settings/factory-reset")
 async def factory_reset(request: Request, password: str = Form(""), totp_code: str = Form("")):
     """Wipe the current user's data and restart onboarding.
@@ -1019,9 +993,6 @@ async def factory_reset(request: Request, password: str = Form(""), totp_code: s
         logger.info("Factory reset completed for user %s", user["email"])
         await record_auth_event("factory_reset", user_id=user["id"], ip=client_ip(request))
         return success_redirect(request, "/onboarding", _("Factory reset completed. Start onboarding again."))
-
-
-# --- Oura Integration ---
 
 
 @router.post("/settings/oura/save")
@@ -1195,9 +1166,6 @@ async def oura_sync(request: Request, job_nonce: str = Form(...)):
         f"/settings?tab=integrations&job_id={result.job_id}",
         _("Oura sync queued."),
     )
-
-
-# --- Oura Webhook ---
 
 
 async def _oura_client_credentials(db) -> tuple[str, str] | None:

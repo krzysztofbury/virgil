@@ -101,6 +101,5 @@ def test_central_backup_age_guard(tmp_path, monkeypatch):
     assert first is not None
     assert first.exists()
 
-    # Fresh copy exists → the next call must be a no-op (once per 24h).
     second = asyncio.run(maybe_backup_central())
     assert second is None

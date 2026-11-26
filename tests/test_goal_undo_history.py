@@ -201,7 +201,7 @@ def test_the_goals_page_deletes_restores_and_shows_changes(auth_client):
     trash = deleted[deleted.index('id="recently-deleted"') :]
     assert "ZZ undo me" in trash[: trash.index("</details>")]
     assert "Restore it under Recently deleted for 30 days." in deleted
-    assert "Goal restored." in restored and 'value="ZZ undo me"' not in restored  # a textarea, not an input
+    assert "Goal restored." in restored and 'value="ZZ undo me"' not in restored
     assert ">ZZ undo me</textarea>" in restored, "back on its own horizon"
     changes = restored[restored.index(">ZZ undo me</textarea>") :]
     changes = changes[changes.index('<div class="goal-changes">') : changes.index("</ol>")]

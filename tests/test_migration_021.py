@@ -11,6 +11,7 @@ import asyncio
 import importlib
 
 import aiosqlite
+import pytest
 
 from app.services.wod_parser import canonical_movements
 
@@ -142,6 +143,7 @@ def test_rerunning_does_not_duplicate_or_overwrite(tmp_path):
     asyncio.run(run())
 
 
+@pytest.mark.to_delete(issue=262)
 def test_missing_exercise_library_is_tolerated(tmp_path):
     """A database predating 009 has no vocabulary to extend; the migration must
     return quietly rather than raise and block every later migration."""
@@ -170,7 +172,6 @@ def test_full_migration_chain_yields_air_squat(tmp_path):
             await run_migrations(db)
             movements = {m["name"] for m in await canonical_movements(db)}
             assert "Air Squat" in movements
-            # The loaded variants must survive alongside it, not be replaced.
             assert {"Back Squat", "Front Squat", "Overhead Squat"} <= movements
             rows = await db.execute_fetchall(
                 "SELECT COUNT(*) AS c FROM exercise_library WHERE lower(name) = 'air squat'"

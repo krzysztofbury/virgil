@@ -12,7 +12,6 @@ BASELINE_DAYS = 7
 # this the honest word is "steady", which is why a threshold exists rather than a
 # strict comparison.
 BASELINE_TOLERANCE = 3
-# How far back the previous scored days may be looked for.
 BASELINE_LOOKBACK_DAYS = 30
 
 

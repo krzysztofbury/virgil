@@ -40,8 +40,6 @@ def test_today_block_carries_the_cta_and_the_count(auth_client):
     today = date.today().isoformat()
     conn = sqlite3.connect(user_db_path())
     try:
-        # INSERT OR IGNORE then UPDATE: the user DB is session-scoped, and OR
-        # REPLACE would wipe columns another test wrote on today's row.
         conn.execute("INSERT OR IGNORE INTO daily_logs (date) VALUES (?)", (today,))
         conn.execute(
             "UPDATE daily_logs SET energy = 7, andy_body_status = 'done', andy_spirit_status = 'done', "

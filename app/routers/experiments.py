@@ -145,15 +145,12 @@ def _build_week_grid(
     """Build the week-by-week grid data for the template."""
     today = date.today()
     start = date.fromisoformat(experiment["start_date"])
-    # Align start to Monday
     start_monday = start - timedelta(days=start.weekday())
 
-    # Index entries by date
     entries_by_date: dict[str, list[dict]] = {}
     for e in entries:
         entries_by_date.setdefault(e["date"], []).append(e)
 
-    # Index weeks by week_number
     weeks_by_num = {w["week_number"]: w for w in weeks}
 
     type_colors = {at["id"]: at["color"] for at in activity_types}
@@ -184,13 +181,11 @@ def _build_week_grid(
             duration_mins = sum(e["value"] for e in day_entries if e["activity_type_id"] in duration_ids)
             week_total += duration_mins
 
-            # Track per-type minute totals for the "need X" status hints (duration only)
             for e in day_entries:
                 if e["activity_type_id"] in duration_ids:
                     tid = e["activity_type_id"]
                     week_entries_by_type[tid] = week_entries_by_type.get(tid, 0) + e["value"]
 
-            # Cell fill: dominated by duration; single-boolean experiments fill on ✓
             color = None
             label = ""
             if duration_mins:
@@ -201,7 +196,6 @@ def _build_week_grid(
                 color = activity_types[0]["color"]
                 label = "✓"
 
-            # Compact per-metric markers for non-duration metrics
             dots = []
             for at in activity_types:
                 if at["kind"] == "duration" or (single_boolean and color):
@@ -213,7 +207,7 @@ def _build_week_grid(
                     text = "✓" if es[-1]["value"] == 1 else "✗"
                 elif at["kind"] == "count":
                     text = str(sum(e["value"] for e in es))
-                else:  # scale — day average
+                else:
                     text = str(round(sum(e["value"] for e in es) / len(es)))
                 dots.append({"color": at["color"], "text": text, "title": at["name"]})
 
@@ -230,13 +224,11 @@ def _build_week_grid(
                 }
             )
 
-        # Progress calculation (weekly minutes window — duration metrics only)
         target_min = week_cfg["target_min"] or 0
         target_max = week_cfg["target_max"] or 0
         target_mid = (target_min + target_max) / 2 if target_max > 0 else 0
         progress_pct = min(100, round(week_total / target_mid * 100)) if target_mid > 0 else 0
 
-        # Status text
         is_current = monday <= today <= sunday
         is_future = monday > today
         is_past = sunday < today
@@ -259,9 +251,7 @@ def _build_week_grid(
                 status = _("{num}m left").format(num=remaining)
                 status_class = "warning"
         else:
-            # Current week, in progress
             remaining = target_min - week_total
-            # Build smart status: which duration types are missing
             parts = []
             if remaining > 0:
                 parts.append(_("{num}m left").format(num=remaining))
@@ -311,7 +301,6 @@ async def experiments_list(request: Request):
     )
     experiments = [dict(r) for r in rows]
 
-    # Batch-load related data for all experiments
     today = date.today()
     exp_ids = [e["id"] for e in experiments]
 
@@ -323,7 +312,6 @@ async def experiments_list(request: Request):
     if exp_ids:
         ph = ",".join("?" * len(exp_ids))
 
-        # Duration minutes + raw entry counts per experiment
         total_rows = await db.execute_fetchall(
             f"SELECT ee.experiment_id, "
             f"COALESCE(SUM(CASE WHEN eat.kind = 'duration' THEN ee.value ELSE 0 END), 0) as minutes, "
@@ -335,7 +323,6 @@ async def experiments_list(request: Request):
         minutes_by_exp = {r["experiment_id"]: r["minutes"] for r in total_rows}
         entries_by_exp = {r["experiment_id"]: r["entries"] for r in total_rows}
 
-        # Metrics per experiment
         type_rows = await db.execute_fetchall(
             f"SELECT experiment_id, name, color, kind FROM experiment_activity_types "
             f"WHERE experiment_id IN ({ph}) ORDER BY display_order",
@@ -344,7 +331,6 @@ async def experiments_list(request: Request):
         for r in type_rows:
             types_by_exp.setdefault(r["experiment_id"], []).append(dict(r))
 
-        # Target totals per experiment
         week_rows = await db.execute_fetchall(
             f"SELECT experiment_id, target_min, target_max FROM experiment_weeks WHERE experiment_id IN ({ph})",
             exp_ids,
@@ -482,10 +468,8 @@ async def create_experiment(
             ),
         )
 
-    # Parse week labels (comma-separated: ",,DELOAD,,,,TAPER,")
     labels = [part.strip() for part in week_labels.split(",")] if week_labels.strip() else []
 
-    # Create weeks with targets
     for wn in range(1, num_weeks + 1):
         label = labels[wn - 1] if wn - 1 < len(labels) else ""
         await db.execute(
@@ -532,7 +516,6 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
 
     grid = _build_week_grid(experiment, activity_types, weeks, entries)
 
-    # Compute stats
     start = date.fromisoformat(experiment["start_date"])
     _start, end = experiment_calendar(start, experiment["num_weeks"])
     today = date.today()
@@ -547,7 +530,6 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
     current_week = experiment_week_number(start, experiment["num_weeks"], today)
     elapsed_weeks = 0 if today < start else experiment["num_weeks"] if today > end else current_week - 1
 
-    # Kind-aware per-metric stats
     type_stats = []
     for at in activity_types:
         es = [e for e in entries if e["activity_type_id"] == at["id"]]
@@ -557,7 +539,7 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
             display = f"{sum(e['value'] for e in es)}×"
         elif at["kind"] == "boolean":
             display = f"{len({e['date'] for e in es if e['value'] == 1})}d"
-        else:  # scale
+        else:
             display = f"~{sum(e['value'] for e in es) / len(es):.1f}" if es else "—"
         type_stats.append({"name": at["name"], "color": at["color"], "kind": at["kind"], "display": display})
 
@@ -587,11 +569,9 @@ async def experiment_detail(request: Request, experiment_id: int, job_id: int | 
         "has_duration": has_duration,
     }
 
-    # Precompute kind-aware value rendering for the entries table
     for e in entries:
         e["display"] = _entry_display(kinds_by_id.get(e["activity_type_id"], "duration"), e["value"])
 
-    # Check Oura connection
     oura_rows = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     oura_connected = bool(oura_rows and oura_rows[0]["status"] == "connected")
 

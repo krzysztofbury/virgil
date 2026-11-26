@@ -27,7 +27,6 @@ BILINGUAL_TEMPLATES = {"offline.html", "partials/language_switch.html"}
 # picked by the reader's language (#179).
 BILINGUAL_TEMPLATES |= {f"legal/{page}_{lang}.html" for page in ("privacy", "terms") for lang in ("en", "pl")}
 
-# Words that are the same in both languages: product names and units.
 SAME_IN_BOTH = re.compile(
     r"\b(English|Polski|Virgil|A\.N\.D\.Y\.|Oura|WOD|MCP|API|AI|OK|kg|cm|bpm|ms|h|min|kcal|PLN)\b"
 )
@@ -411,6 +410,7 @@ def test_template_gettext_strings_escape_a_literal_percent():
     assert bare == []
 
 
+@pytest.mark.to_delete(issue=261)
 def test_every_onboarding_step_renders_in_english(auth_client):
     for step in range(1, 7):
         response = auth_client.get(f"/onboarding?step={step}", follow_redirects=False)

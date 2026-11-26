@@ -16,7 +16,6 @@ class _FakeDB:
         self._rows = rows
 
     async def execute_fetchall(self, sql="", *_args, **_kwargs):
-        # The alias lookup is a separate query; this double has no aliases.
         return [] if "exercise_aliases" in sql else self._rows
 
 
@@ -91,6 +90,7 @@ def test_movement_match_is_case_insensitive(monkeypatch):
     assert result.entries[0].movement == "Back Squat", "must normalise to the canonical spelling"
 
 
+@pytest.mark.to_delete(issue=258)
 def test_llm_unmatched_list_is_preserved(monkeypatch):
     _stub_llm(monkeypatch, {"entries": [], "unmatched": ["jakiś dziwny ruch"]})
     result = asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "jakiś dziwny ruch"))
@@ -112,6 +112,7 @@ def test_malformed_entry_is_skipped_not_crashing(monkeypatch):
     assert [e.movement for e in result.entries] == ["Pull-up"]
 
 
+@pytest.mark.to_delete(issue=258)
 def test_empty_text_raises(monkeypatch):
     with pytest.raises(ValueError, match="empty"):
         asyncio.run(wod_parser.parse_wod(_FakeDB(_LIBRARY), "   "))
@@ -130,6 +131,7 @@ def test_prompt_carries_the_closed_vocabulary(monkeypatch):
     assert "Row" in seen["system"]
 
 
+@pytest.mark.to_delete(issue=258)
 def test_set_number_zero_is_clamped_with_warning(monkeypatch, caplog):
     _stub_llm(
         monkeypatch,
@@ -153,6 +155,7 @@ def test_set_number_zero_is_clamped_with_warning(monkeypatch, caplog):
     assert "clamped set_number" in caplog.text
 
 
+@pytest.mark.to_delete(issue=258)
 def test_container_type_guard_prevents_string_iteration(monkeypatch):
     _stub_llm(
         monkeypatch,
@@ -253,6 +256,7 @@ def test_warmup_section_movement_is_in_the_vocabulary(tmp_path):
     asyncio.run(run())
 
 
+@pytest.mark.to_delete(issue=258)
 def test_duplicate_library_name_is_rejected_by_unique_constraint(tmp_path):
     """Before migration 019, UNIQUE was (category, name), so 'Back Squat' could
     exist under both Gym classics and CrossFit — canonical_movements() then
@@ -336,6 +340,7 @@ def test_seen_dedupe_collapses_non_ascii_case_duplicates(tmp_path):
     asyncio.run(run())
 
 
+@pytest.mark.to_delete(issue=258)
 def test_canonical_movements_orders_by_display_order(tmp_path):
     """The dedupe-by-first-seen-name loop in canonical_movements() only does
     something observable if the query itself returns rows in display_order —
@@ -592,9 +597,6 @@ def test_alias_reaches_the_prompt_and_maps_to_the_library_name(tmp_path, monkeyp
         ("Back Squat", "dumbbell"),
     ], "an alias maps to its library name; equipment outside the list is dropped, not stored"
     assert result.unmatched == []
-
-
-# ── Parser controls from the first live evaluation (#187) ──────────────────────
 
 
 def _entry(movement, equipment=None, set_number=1):

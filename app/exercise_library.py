@@ -6,7 +6,6 @@ Sections match LIBRARY_SECTIONS: Warmup / Core / Cardio / Stretching.
 """
 
 EXERCISE_LIBRARY: list[dict] = [
-    # ── Workout A (kettlebell full-body) ─────────────────────────────
     {
         "category": "Workout A (KB full-body)",
         "section": "Core",
@@ -55,7 +54,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "45s",
         "notes": "Glutes and abs tight, straight line, no hip sag",
     },
-    # ── Workout B (kettlebell full-body) ─────────────────────────────
     {
         "category": "Workout B (KB full-body)",
         "section": "Core",
@@ -104,7 +102,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "8/side",
         "notes": "Slow opposite arm+leg, lower back GLUED to floor",
     },
-    # ── Kettlebell — more ────────────────────────────────────────────
     {
         "category": "Kettlebell",
         "section": "Core",
@@ -145,7 +142,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "8/side",
         "notes": "Circle the head, ribs down, slow",
     },
-    # ── Bodyweight ───────────────────────────────────────────────────
     {
         "category": "Bodyweight",
         "section": "Core",
@@ -194,7 +190,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "10/side",
         "notes": "Anti-rotation — resist the twist",
     },
-    # ── Gym classics (barbell/machines) ──────────────────────────────
     {
         "category": "Gym classics",
         "section": "Core",
@@ -259,7 +254,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "10-15",
         "notes": "Elbows still, slow eccentric",
     },
-    # ── Warmup / Mobility ────────────────────────────────────────────
     {
         "category": "Warmup",
         "section": "Warmup",
@@ -300,7 +294,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "30s",
         "notes": "Raise the pulse gently",
     },
-    # ── Cardio ───────────────────────────────────────────────────────
     {
         "category": "Cardio",
         "section": "Cardio",
@@ -341,7 +334,6 @@ EXERCISE_LIBRARY: list[dict] = [
         "reps": "45-60 min",
         "notes": "Easy technique focus",
     },
-    # ── Stretching / Cooldown ────────────────────────────────────────
     {
         "category": "Stretching",
         "section": "Stretching",

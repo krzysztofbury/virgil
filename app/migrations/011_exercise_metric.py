@@ -20,9 +20,7 @@ async def up(db: aiosqlite.Connection) -> None:
         if not any(c["name"] == "metric" for c in cols):
             await db.execute(f"ALTER TABLE {table} ADD COLUMN metric TEXT NOT NULL DEFAULT 'reps'")
 
-    # reps column is named differently per table
     for table, reps_col in (("training_exercises", "target_reps"), ("exercise_library", "reps")):
-        # time-like rep spec: ends in 's' ('45s', '30-45s') or contains 'min'
         await db.execute(f"UPDATE {table} SET metric = 'time' WHERE {reps_col} LIKE '%s' OR {reps_col} LIKE '%min%'")
         for pat in _TIME_NAME_PATTERNS:
             await db.execute(f"UPDATE {table} SET metric = 'time' WHERE lower(name) LIKE ?", (pat,))

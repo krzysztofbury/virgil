@@ -569,13 +569,13 @@ def test_wod_redirects_to_confirm_and_get_does_not_reparse(auth_client, monkeypa
     assert 'value="Thruster" selected' in first.text
     assert calls["n"] == 1, "the confirm GET must not re-invoke the parser"
 
-    # A refresh (second GET on the same URL) must still not re-parse.
     second = auth_client.get(location)
     assert second.status_code == 200
     assert 'value="Thruster" selected' in second.text
     assert calls["n"] == 1, "a refresh of the confirm screen must never cost another LLM call"
 
 
+@pytest.mark.to_delete(issue=258)
 def test_confirm_get_unknown_session_redirects_to_training(auth_client):
     resp = auth_client.get("/training/wod/confirm/999999", follow_redirects=False)
     assert resp.status_code == 303
@@ -771,7 +771,6 @@ def test_blank_submit_does_not_strand_the_session(auth_client, monkeypatch):
     still_pending = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"]
     assert still_pending, "a submission that writes nothing must not consume the pending parse"
 
-    # And the screen must still be reachable, not 303 away.
     assert auth_client.get(f"/training/wod/confirm/{session_id}").status_code == 200
 
 
@@ -1210,14 +1209,12 @@ def test_discard_on_a_settled_session_is_a_logged_no_op(auth_client, monkeypatch
             follow_redirects=False,
         )
 
-    # First discard: a real one. Must not log a no-match.
     with caplog.at_level("WARNING", logger="app.routers.training"):
         caplog.clear()
         assert urlsplit(discard().headers["location"]).path == "/training"
         assert "matched nothing" not in caplog.text, "a discard that consumed a parse is not a no-match"
     assert _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]["wod_parsed"] is None
 
-    # Replay against the now-settled session: same 303, but reported as a no-match.
     with caplog.at_level("WARNING", logger="app.routers.training"):
         caplog.clear()
         assert urlsplit(discard().headers["location"]).path == "/training"

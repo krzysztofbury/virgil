@@ -229,7 +229,6 @@ async def _expand_goals(db, llm_summary: str | None) -> list:
         max_tokens=2048,
     )
 
-    # Parse response.
     cleaned = _strip_fences(raw)
 
     try:

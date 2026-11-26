@@ -95,7 +95,6 @@ def test_verification_challenge_get(auth_client):
         assert resp.status_code == 200
         assert resp.json() == {"challenge": "abc123"}
 
-        # Wrong token → 401; missing params → 400.
         assert auth_client.get(url, params={"verification_token": "wrong", "challenge": "abc"}).status_code == 401
         assert auth_client.get(url).status_code == 400
     finally:
@@ -108,7 +107,6 @@ def test_event_hmac_and_durable_coalescing(auth_client):
     public (no session) and CSRF-exempt — no token is sent here."""
     webhook_id = uuid.uuid4().hex
     _seed_webhook(webhook_id)
-    # A sync another test left queued would debounce this one: start from none.
     db = sqlite3.connect(user_db_path())
     db.execute("DELETE FROM jobs WHERE kind = 'oura_sync'")
     db.commit()
@@ -117,11 +115,9 @@ def test_event_hmac_and_durable_coalescing(auth_client):
         url = f"/api/oura/webhook/{webhook_id}"
         body = json.dumps({"event_type": "update", "data_type": "daily_sleep"}).encode()
 
-        # No signature headers → 403.
         resp = auth_client.post(url, content=body, headers={"content-type": "application/json"})
         assert resp.status_code == 403
 
-        # Signature keyed with the wrong secret → 403.
         resp = auth_client.post(url, content=body, headers=_signed_headers(body, secret="wrong-secret"))
         assert resp.status_code == 403
 
@@ -129,7 +125,6 @@ def test_event_hmac_and_durable_coalescing(auth_client):
         assert auth_client.post(url, content=body, headers=_signed_headers(body, stale)).status_code == 403
         assert auth_client.post(url, content=body, headers=_signed_headers(body, "not-a-time")).status_code == 403
 
-        # Valid signature creates one durable job without running Oura inline.
         resp = auth_client.post(url, content=body, headers=_signed_headers(body))
         assert resp.status_code == 200
         assert resp.json() == {"status": "accepted"}
@@ -143,7 +138,6 @@ def test_event_hmac_and_durable_coalescing(auth_client):
             db.close()
         assert jobs == [("oura_sync", '{"days_back":2,"trigger":"webhook"}', "automatic", "queued")]
 
-        # Lowercase hex signatures are equivalent (case-insensitive compare).
         lower = {**_signed_headers(body)}
         lower["x-oura-signature"] = lower["x-oura-signature"].lower()
         resp = auth_client.post(url, content=body, headers=lower)
@@ -167,7 +161,6 @@ def test_event_hmac_and_durable_coalescing(auth_client):
         assert resp.status_code == 200
         assert resp.json() == {"status": "accepted"}
 
-        # Unsupported data type is ignored before any sync is scheduled.
         body = json.dumps({"event_type": "update", "data_type": "tag"}).encode()
         resp = auth_client.post(url, content=body, headers=_signed_headers(body))
         assert resp.status_code == 200

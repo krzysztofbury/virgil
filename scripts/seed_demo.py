@@ -43,7 +43,6 @@ DEMO_LOADS_KG = {"Double KB Swing": 24.0, "Double KB Front Squat": 20.0, "KB Pre
 
 
 async def _seed(db) -> None:
-    # --- account state: skip onboarding, enable the Freedom module ---
     await db.executemany(
         "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)",
         [("onboarding_completed", "1"), ("feature_freedom", "1")],
@@ -65,16 +64,16 @@ async def _seed(db) -> None:
         oura.append(
             (
                 day,
-                round(78 + 8 * wave),  # sleep_score
-                round(76 + 7 * math.sin(i / 6 + 1)),  # readiness
-                round(80 + 6 * math.sin(i / 4)),  # activity
-                round(8500 + 3000 * math.sin(i / 3)),  # steps
-                round(7.0 + 0.9 * wave, 2),  # sleep hours
-                round(1.3 + 0.3 * wave, 2),  # deep
-                round(1.5 + 0.4 * math.sin(i / 4), 2),  # rem
-                round(54 - 3 * wave),  # resting_hr
-                round(50 - 2 * wave),  # lowest_hr
-                round(45 + 15 * math.sin(i / 5)),  # avg_hrv
+                round(78 + 8 * wave),
+                round(76 + 7 * math.sin(i / 6 + 1)),
+                round(80 + 6 * math.sin(i / 4)),
+                round(8500 + 3000 * math.sin(i / 3)),
+                round(7.0 + 0.9 * wave, 2),
+                round(1.3 + 0.3 * wave, 2),
+                round(1.5 + 0.4 * math.sin(i / 4), 2),
+                round(54 - 3 * wave),
+                round(50 - 2 * wave),
+                round(45 + 15 * math.sin(i / 5)),
             )
         )
     await db.executemany(
@@ -219,7 +218,7 @@ async def _seed(db) -> None:
         )
         sid = cur.lastrowid
         for ex in core_ex:
-            for s in range(1, 5):  # 4 sets each
+            for s in range(1, 5):
                 if ex["metric"] == "time":
                     await db.execute(
                         "INSERT INTO training_entries (session_id, exercise_id, set_number, reps, weight, duration) "
@@ -240,7 +239,6 @@ async def _seed(db) -> None:
         [(d(140), 3, 2, 4, 6, 3, 3, 2, 4, 3.0), (d(2), 8, 5, 6, 5, 4, 6, 8, 7, 7.0)],
     )
 
-    # --- Experiment: active 4-week consistency sprint ---
     cur = await db.execute(
         "INSERT INTO experiments (title, description, start_date, num_weeks, status) VALUES (?,?,?,?,'active')",
         ("5/7 Consistency Sprint", "A 30-minute focus block on at least 5 of 7 days: 150 minutes a week.", d(4), 4),

@@ -22,7 +22,6 @@ def test_json_export_includes_all_user_tables(auth_client):
     ):
         assert table in data["tables"], f"{table} missing from JSON export"
     assert data["settings"]["onboarding_completed"] == "1"
-    # Credentials must never be exported.
     assert "llm_providers" not in data["tables"]
     assert "integrations" not in data["tables"]
 

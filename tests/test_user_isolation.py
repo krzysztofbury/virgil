@@ -52,7 +52,6 @@ def test_one_accounts_writes_never_reach_another_account(auth_client, monkeypatc
     users_dir = os.path.join(os.environ["_VIRGIL_TEST_TMP"], "users")
     second = TestClient(app)
     second.portal = auth_client.portal
-    # Read before the second database exists: user_db_path() expects exactly one.
     first_db = user_db_path()
     conn = sqlite3.connect(first_db)
     alcohol_before = conn.execute("SELECT tracked FROM habits WHERE slug = 'alcohol'").fetchone()
@@ -83,8 +82,6 @@ def test_one_accounts_writes_never_reach_another_account(auth_client, monkeypatc
         assert auth_client.get(f"/api/daily/{DAY}", headers={"X-API-Key": "test-key-123"}).status_code == 404
     finally:
         second.close()
-        # Files and the registry row first: a second database left on disk breaks
-        # every later test that expects exactly one.
         central = _central()
         central.execute("DELETE FROM users WHERE email = 'second@example.com'")
         central.commit()

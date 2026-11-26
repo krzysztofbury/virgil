@@ -7,11 +7,13 @@ action sat off-screen inside a scroll container with no visible affordance.
 
 import sqlite3
 
+import pytest
 from conftest import user_db_path
 
 from app.routers.bloodwork import marker_summary
 
 
+@pytest.mark.to_delete(issue=263)
 def test_summary_is_empty_without_results():
     assert marker_summary({}) == {
         "date": "",
@@ -75,6 +77,7 @@ def test_the_trend_says_whether_a_move_is_good_news_for_that_marker():
     assert _trend(50, 50, 30, 100) == ""
 
 
+@pytest.mark.to_delete(issue=263)
 def test_summary_has_no_change_for_a_single_result():
     summary = marker_summary({"2026-06-10": {"value": 5.4, "value_text": "", "flag": ""}})
     assert summary["value"] == "5.4"
@@ -121,7 +124,6 @@ def test_bloodwork_page_renders_a_mobile_list(auth_client):
     try:
         html = auth_client.get("/bloodwork").text
     finally:
-        # Shared database: another module's fixture adds a marker of this name.
         conn = sqlite3.connect(user_db_path())
         conn.execute("DELETE FROM blood_results WHERE marker_id = ?", (marker_id,))
         conn.execute("DELETE FROM blood_markers WHERE id = ?", (marker_id,))
@@ -134,7 +136,6 @@ def test_bloodwork_page_renders_a_mobile_list(auth_client):
     assert "bw-trend-neutral" in html, "a move inside the range is neither good nor bad"
     assert "on-desktop" in html, "the full matrix must stay, switched off on a phone"
     assert "All results" in html, "the matrix must stay reachable on a phone"
-    # One macro, two call sites: the table markup must not be copied.
     from pathlib import Path
 
     template = Path("app/templates/bloodwork.html").read_text(encoding="utf-8")

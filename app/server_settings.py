@@ -36,7 +36,7 @@ class SettingError(ValueError):
 class Setting:
     attribute: str
     group: str
-    kind: str  # text, int, bool, email, mailbox, https, recipient, choice
+    kind: str
     label: str
     secret: bool = False
     choices: tuple[str, ...] = ()
@@ -237,7 +237,6 @@ async def reset(attribute: str) -> None:
     setting(attribute)
     address = next((name for name, credential in _CREDENTIAL_OF.items() if credential == attribute), None)
     if address and str(getattr(current, address) or "") != str(getattr(config, address) or ""):
-        # The environment's credential belongs to the environment's address.
         raise SettingError(N_("Reset the address first: the environment's credential belongs to its own address."))
     # Back to the environment's address: a credential saved for the app's one
     # goes too, or it would be sent to the environment's server.

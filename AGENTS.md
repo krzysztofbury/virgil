@@ -41,9 +41,26 @@ issue after that step.
 - Review substantial or safety-sensitive changes (auth, migrations, recovery,
   deploy, server settings) with the `reviewer` skill and its review method,
   not every edit.
-- Follow the test audit in the `developer` skill (`references/test-audit.md`)
-  before designing, adding, pruning or reviewing substantive Python or SQL
-  tests.
+
+## Tests
+
+- A test earns its place when a plausible wrong change makes it fail for the
+  reason it exists; follow the `test-audit` skill's test proof before
+  designing, adding, pruning or reviewing substantive Python or SQL tests.
+- Write Business Tests at the owning boundary. Never add a `to_delete`
+  marker; a marked test goes when its issue is done.
+
+## Comments
+
+- Let names and structure carry the meaning. A comment is a tool pragma or
+  one line starting `# Why: ` that records a non-obvious reason, such as what
+  Oura or another integration sends; a reason that spans modules goes in
+  `docs/adr/`.
+- Name a shortcut in an issue, not a comment.
+- `scripts/audit_ratchet.py check` runs in CI and counts both comments and
+  `to_delete` markers per file; neither may rise. After a change that lowers
+  a count, run `uv run python scripts/audit_ratchet.py update` and commit
+  `.agents/audit-baseline.json`.
 
 ## Agent workflow
 

@@ -140,7 +140,6 @@ async def authenticate(secret: str) -> ApiCredential:
     raise HTTPException(status_code=401, detail="Invalid API key")
 
 
-# What the server key needs for each scope it may lack.
 _SERVER_KEY_SCOPE = {
     "sensitive": "Sensitive scope disabled (set VIRGIL_API_SENSITIVE=true to use Freedom data)",
     "finance": "Finance scope disabled (set VIRGIL_API_FINANCE=true to use finance data)",
@@ -685,7 +684,7 @@ async def api_log_entry(experiment_id: int, payload: ApiEntryIn, db: ApiDb):
         raise HTTPException(status_code=404, detail="Metric not found in this experiment")
     if len(matches) > 1:
         raise HTTPException(status_code=409, detail="Metric name is ambiguous; use its numeric id")
-    metric = matches[0]  # deterministic: first by display_order
+    metric = matches[0]
 
     entry_date = payload.date or date.today().isoformat()
     entry_date = valid_date(entry_date)
@@ -1236,9 +1235,6 @@ async def api_delete_training(session_id: int, db: ApiDb):
     return {"deleted": True, "session_id": session_id}
 
 
-# --- Remaining reads and deletes for the same records -------------------------
-
-
 @router.get("/daily/{day}")
 async def api_get_daily(day: str, db: ApiDb):
     log = await get_daily_log(db, _iso_day(day))
@@ -1415,9 +1411,6 @@ async def api_delete_life_scores(day: str, db: ApiDb):
     return {"deleted": True, "date": _iso_day(day)}
 
 
-# --- Feature flags: only the modules Settings offers, each behind its data's scope ---
-
-
 class ApiFeature(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -1449,9 +1442,6 @@ async def feature_db(feature: str, request: Request, db: ApiDb):
 async def api_set_feature(feature: str, payload: ApiFeature, db: Annotated[aiosqlite.Connection, Depends(feature_db)]):
     await set_setting(db, f"feature_{feature}", "1" if payload.enabled else "0")
     return {"name": feature, "enabled": payload.enabled}
-
-
-# --- Finance ---
 
 
 async def finance_db(request: Request, db: ApiDb):

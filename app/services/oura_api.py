@@ -416,7 +416,6 @@ async def fetch_oura_daily(access_token: str, start_date: str, end_date: str) ->
         # is fetched for that and not stored: its own night is missing.
         sleep_from = (date.fromisoformat(start_date) - timedelta(days=1)).isoformat()
         sleep_periods = await _fetch_optional(client, "sleep", access_token, sleep_from, end_date, ok_endpoints)
-        # Group by day, pick longest period per day
         sleep_by_day: dict[str, dict] = {}
         for item in sleep_periods:
             d = item.get("day", "")
@@ -463,7 +462,6 @@ async def fetch_oura_workouts(access_token: str, start_date: str, end_date: str)
         day = item.get("day", "")
         if not oura_id or not day:
             continue
-        # Compute duration from start/end datetimes
         start_dt = item.get("start_datetime", "")
         end_dt = item.get("end_datetime", "")
         duration = 0
@@ -508,7 +506,6 @@ async def _auto_populate_experiments(db):
         if not type_rows:
             continue
 
-        # Build mapping: oura activity name → activity_type_id
         match_map: dict[str, int] = {}
         for tr in type_rows:
             at = dict(tr)
@@ -517,7 +514,6 @@ async def _auto_populate_experiments(db):
                 if name:
                     match_map[name] = at["id"]
 
-        # Get Oura workouts in the experiment date range
         workout_rows = await db.execute_fetchall(
             "SELECT * FROM oura_workouts WHERE date >= ? AND date <= ?",
             (start.isoformat(), end.isoformat()),
@@ -625,7 +621,6 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
         count += 1
         affected_months.add(day_str[:7])
 
-    # Recompute oura_monthly for affected months
     for month in affected_months:
         rows = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date LIKE ?", (f"{month}%",))
         if not rows:
@@ -700,7 +695,6 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
         )
     await _auto_populate_experiments(db)
 
-    # Update last_sync_at
     now = datetime.now(UTC).isoformat()
     await db.execute("UPDATE integrations SET last_sync_at = ? WHERE provider = 'oura'", (now,))
     await db.commit()
@@ -709,9 +703,6 @@ async def sync_oura_from_api(db, days_back: int = 30) -> OuraSyncResult:
         failed_daily_endpoints=tuple(sorted(failed)),
         workouts_synced=workouts_synced,
     )
-
-
-# ── Webhook Subscription API ──
 
 
 def _webhook_auth_headers(client_id: str, client_secret: str) -> dict[str, str]:

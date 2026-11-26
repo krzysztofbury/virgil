@@ -23,6 +23,7 @@ is created at `/signup`. Local mode enables reload; production mode disables it.
 ```bash
 uv run --locked --extra dev pre-commit run --all-files
 uv run --locked --extra dev pytest -q
+uv run --locked --extra dev python scripts/audit_ratchet.py check
 uv lock --check --script mcp_server/virgil_mcp.py
 uv run --locked --extra dev python scripts/check_mcp.py
 ```

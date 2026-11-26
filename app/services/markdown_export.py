@@ -41,7 +41,6 @@ def _date_range_for_scope(scope: str) -> tuple[str, str]:
         return monday.isoformat(), sunday.isoformat()
     elif scope == "monthly":
         start = today.replace(day=1)
-        # Last day of month
         if today.month == 12:
             end = today.replace(year=today.year + 1, month=1, day=1) - timedelta(days=1)
         else:
@@ -49,7 +48,7 @@ def _date_range_for_scope(scope: str) -> tuple[str, str]:
         return start.isoformat(), end.isoformat()
     elif scope == "yearly":
         return f"{today.year}-01-01", f"{today.year}-12-31"
-    else:  # all
+    else:
         return "0000-01-01", "9999-12-31"
 
 
@@ -92,7 +91,6 @@ async def _section_training(db, start: str, end: str) -> list[str]:
     if not sessions:
         return []
 
-    # Batch-load all entries for these sessions
     session_ids = [s["id"] for s in sessions]
     ph = ",".join("?" * len(session_ids))
     all_entries = await db.execute_fetchall(
@@ -321,7 +319,6 @@ async def _section_experiments(db, start: str, end: str) -> list[str]:
     exp_ids = [r["id"] for r in experiments]
     ph = ",".join("?" * len(exp_ids))
 
-    # Batch-load entries and summaries for all experiments
     all_entries = await db.execute_fetchall(
         f"""SELECT ee.experiment_id, ee.date, ee.value, ee.notes, eat.name as activity_name, eat.kind
            FROM experiment_entries ee
@@ -381,7 +378,6 @@ async def _section_bloodwork(db, start: str, end: str) -> list[str]:
     if not markers:
         return []
 
-    # Batch-load all results in date range
     marker_ids = [m["id"] for m in markers]
     ph = ",".join("?" * len(marker_ids))
     all_results = await db.execute_fetchall(
@@ -486,7 +482,6 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
         "",
     ]
 
-    # Weekly sections
     if _include("daily_logs"):
         lines.extend(await _section_daily_logs(db, start, end))
     if _include("training"):
@@ -496,7 +491,6 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
     if _include("feniks") and feniks_enabled:
         lines.extend(await _section_feniks(db, start, end))
 
-    # Monthly+ sections
     if scope in ("monthly", "yearly", "all"):
         if _include("oura"):
             lines.extend(await _section_oura(db, start, end))
@@ -505,7 +499,6 @@ async def export_markdown(db, scope: str = "weekly", sections: set[str] | None =
         if _include("experiments"):
             lines.extend(await _section_experiments(db, start, end))
 
-    # Yearly+ sections
     if scope in ("yearly", "all"):
         if _include("bloodwork"):
             lines.extend(await _section_bloodwork(db, start, end))

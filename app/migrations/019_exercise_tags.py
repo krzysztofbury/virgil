@@ -234,14 +234,6 @@ async def up(db: aiosqlite.Connection) -> None:
     )
     await db.execute("CREATE INDEX IF NOT EXISTS idx_library_tags_tag ON exercise_library_tags(tag)")
 
-    # INSERT OR IGNORE silently skips a CHECK-constraint violation on this
-    # table (verified: no exception, row simply not written) -- unlike the
-    # runtime write paths (routers/api.py, routers/settings.py), which use a
-    # plain INSERT and so raise on the same violation. Harmless today: a
-    # fuzz of 20,035 legacy category strings through `_tag_for` produced zero
-    # violations. But if a future change to `_tag_for` ever produced a tag
-    # the CHECK rejects, this loop would drop it silently instead of failing
-    # loudly like every other write path does.
     for key, tags in tags_for.items():
         if not tags:
             continue

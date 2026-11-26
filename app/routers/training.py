@@ -31,7 +31,6 @@ from app.validation import truncate, valid_date
 
 WOD_PARSE_JOB_KIND = "wod_parse"
 
-# Labels for the confirm form's equipment picker and for records.
 EQUIPMENT_LABELS = {
     "barbell": "barbell",
     "dumbbell": "dumbbell",
@@ -476,8 +475,6 @@ async def training_page(
     previous_year = max((value for value in available_years if value < selected_year), default=None)
     next_year = min((value for value in available_years if value > selected_year), default=None)
 
-    # --- KPIs: This Week ---
-    # Monday of current week
     monday = today - timedelta(days=today.weekday())
     monday_str = monday.isoformat()
 
@@ -488,7 +485,6 @@ async def training_page(
     )
     kpi_sessions = session_count_row[0]["cnt"] if session_count_row else 0
 
-    # Volume (Core only) and total reps (all sections)
     week_stats = await db.execute_fetchall(
         """SELECT
                SUM(CASE WHEN tex.section = 'Core' AND tex.metric = 'reps'
@@ -507,7 +503,6 @@ async def training_page(
         kpi_volume = round(row["core_volume"] or 0)
         kpi_reps = row["total_reps"] or 0
 
-    # --- Personal Bests (the chosen window, Core exercises only) ---
     pb_range = range_context(request, "personal-bests", drop=("before_id", "after_id"))
     pb_since = range_start(pb_range["range_weeks"], today).isoformat()
     pb_rows = await db.execute_fetchall(
@@ -568,9 +563,6 @@ async def training_page(
         pb["records"] = records[:MAX_PB_RECORDS_PER_MOVEMENT]
         personal_bests.append(pb)
 
-    # The exercise library is no longer read here either. It is still the
-    # parser's vocabulary (canonical_movements) and is still edited in
-    # Settings → Exercise Library — this page just has no picker to feed.
     return templates.TemplateResponse(
         request,
         "training.html",

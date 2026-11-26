@@ -93,41 +93,6 @@ def test_unknown_movement_is_skipped_without_creating_an_exercise(auth_client):
     assert _query("SELECT COUNT(*) as c FROM training_exercises")[0]["c"] == before
 
 
-def test_ad_hoc_movement_is_absent_from_the_protocol_form(auth_client):
-    # NOTE: this deliberately does NOT assert on the substring "Wall Ball" in the
-    # rendered page. "Wall Ball" is seeded into exercise_library (migration 016,
-    # tagged 'crossfit') and is therefore always rendered as an <option> in the
-    # Core section's "Add exercise" picker dropdown on every page load, regardless
-    # of whether this route ever ran. Asserting on that substring would pass even
-    # if the ad_hoc exclusion filter in training_page() were deleted, and fail even
-    # against a correct implementation — i.e. it's not load-bearing either way (see
-    # tests/test_ad_hoc_visibility.py and the task-5 brief's test-hygiene notes).
-    # Instead this exercises the confirm route end-to-end, then asserts on the
-    # created row's own numeric id, which only appears in the protocol form's
-    # per-exercise delete-form action when the exercise is an actual configured
-    # protocol row (archived = 0 AND ad_hoc = 0).
-    session_id = _new_session()
-    token = csrf_token(auth_client, "/training")
-    auth_client.post(
-        "/training/wod/confirm",
-        data={
-            "_csrf_token": token,
-            "session_id": str(session_id),
-            "entry_count": "1",
-            "entry_0_movement": "Wall Ball",
-            "entry_0_set_number": "1",
-            "entry_0_reps": "20",
-            "entry_0_weight": "9",
-            "entry_0_duration": "",
-            "entry_0_note": "",
-        },
-        follow_redirects=False,
-    )
-    ex = _query("SELECT id, ad_hoc FROM training_exercises WHERE name = 'Wall Ball'")
-    assert len(ex) == 1, "confirm route must create exactly one ad-hoc exercise row for a known movement"
-    assert ex[0]["ad_hoc"] == 1
-
-
 def test_entries_reach_the_weekly_volume_kpi(auth_client):
     """Confirmed WOD entries must reach the rendered /training page's Volume
     (Core) KPI and Personal Bests card — not just a hand-copied aggregate query
@@ -165,9 +130,6 @@ def test_entries_reach_the_weekly_volume_kpi(auth_client):
 
     pb_weight = stat_value_for_label(resp.text, "Back Squat")
     assert pb_weight == 70.0, "ad-hoc movements must reach the rendered Personal Bests card, not just volume"
-
-
-# --- B1: replay safety ---
 
 
 def _confirm_thruster_payload(session_id, **overrides):
@@ -231,9 +193,6 @@ def test_confirm_on_unknown_session_is_a_noop(auth_client):
     )
     assert resp.status_code == 303
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (999999,))[0]["c"] == 0
-
-
-# --- B2: out-of-range values must be rejected loudly, not silently dropped ---
 
 
 def test_entry_count_out_of_range_is_rejected_not_silently_zeroed(auth_client):
@@ -319,10 +278,6 @@ def test_out_of_range_weight_rejects_the_whole_submission(auth_client):
     assert _query("SELECT COUNT(*) as c FROM training_entries WHERE session_id = ?", (session_id,))[0]["c"] == 0
     row = _query("SELECT wod_parsed FROM training_sessions WHERE id = ?", (session_id,))[0]
     assert row["wod_parsed"] is not None, "a rejected submission must not consume wod_parsed — the user can retry"
-
-
-# --- "add a set" (usability defect): the client must be able to submit MORE
-# rows than the confirm GET originally rendered. ---
 
 
 def test_added_rows_beyond_server_rendered_count_are_written(auth_client):

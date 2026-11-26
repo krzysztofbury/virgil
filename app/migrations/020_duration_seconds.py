@@ -80,13 +80,6 @@ _LEGACY_MINUTES = """
 async def up(db: aiosqlite.Connection) -> None:
     # A fresh install has nothing to convert and must not error — the count is
     # logged rather than asserted for exactly that reason.
-    cols = await db.execute_fetchall("PRAGMA table_info(training_exercises)")
-    if not any(c["name"] == "metric" for c in cols):
-        # Pre-011 schema: no metric column, so the rule cannot be evaluated.
-        # Such a database also predates every row this migration targets.
-        logger.info("020: training_exercises.metric absent — nothing to convert")
-        return
-
     rows = await db.execute_fetchall(_LEGACY_MINUTES, (MAX_LEGACY_ENTRY_ID, MAX_LEGACY_SESSION_DATE))
     ids = [r["id"] for r in rows]
     if not ids:

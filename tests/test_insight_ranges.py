@@ -20,6 +20,7 @@ IN_TWENTY_SIX = (TODAY - timedelta(weeks=20)).isoformat()
 @pytest.mark.parametrize(
     ("value", "weeks"), [("4", 4), ("12", 12), ("26", 26), ("7", 12), ("-4", 12), ("x", 12), (None, 12)]
 )
+@pytest.mark.to_delete(issue=259)
 def test_only_the_offered_windows_are_accepted(value, weeks):
     assert range_weeks(value) == weeks
 

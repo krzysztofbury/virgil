@@ -18,7 +18,7 @@ from app.validation import valid_uuid
 logger = logging.getLogger(__name__)
 
 SESSION_COOKIE = "virgil_session"
-SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
+SESSION_MAX_AGE_SECONDS = 86400 * 7
 
 # Paths that bypass session auth entirely. X-API-Key routes (REST and /mcp) are
 # found by app.api_paths from the routes themselves, so a new API route cannot
@@ -263,12 +263,10 @@ class AuthMiddleware:
                 scope = {**scope, "path": "/welcome", "raw_path": b"/welcome"}
                 path = "/welcome"
 
-        # Allow public paths.
         if path in PUBLIC_PATHS or any(path.startswith(p) for p in PUBLIC_PREFIXES) or is_api_key_path(path):
             await self.app(scope, receive, send)
             return
 
-        # Check session cookie — contains user UUID.
         request = Request(scope)
         identity = session_identity(request.cookies.get(SESSION_COOKIE, ""))
         if not identity:
@@ -277,12 +275,10 @@ class AuthMiddleware:
             return
         user_id, session_epoch = identity
 
-        # Validate UUID format before DB lookup.
         if not valid_uuid(user_id):
             await _stale_session_response(scope)(scope, receive, send)
             return
 
-        # Look up user in central DB.
         from app.central_db import get_user_by_id
 
         user = await get_user_by_id(user_id)
@@ -348,7 +344,6 @@ class AuthMiddleware:
                 await _login_response(scope, "/settings/mfa")(scope, receive, send)
                 return
 
-            # Check onboarding for this user.
             done = await get_setting(user_db, "onboarding_completed", "0")
             # The TOTP setup stays reachable before onboarding, or the two gates
             # would send each other's pages back forever.

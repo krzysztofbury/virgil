@@ -49,9 +49,6 @@ def test_format_never_prints_minutes_for_a_sub_minute_value():
     assert "min" not in format_duration_seconds(45)
 
 
-# --- Migration 020 -------------------------------------------------------
-
-
 async def _legacy_db(tmp_path, entries):
     """A database shaped like the deployed one: both writers' rows side by side.
 
@@ -172,35 +169,9 @@ def test_null_and_zero_durations_are_untouched(tmp_path):
     assert after == {1: None, 2: 0.0}
 
 
+@pytest.mark.to_delete(issue=262)
 def test_a_fresh_install_converts_nothing(tmp_path):
     assert _run(tmp_path, []) == {}
-
-
-def test_pre_011_schema_without_metric_is_skipped(tmp_path):
-    """A database predating the metric column cannot have the rule evaluated —
-    and also predates every row this targets. It must not raise."""
-
-    async def go():
-        db = await aiosqlite.connect(tmp_path / "old.db")
-        db.row_factory = aiosqlite.Row
-        await db.executescript(
-            """
-            CREATE TABLE training_exercises (id INTEGER PRIMARY KEY, name TEXT, section TEXT);
-            CREATE TABLE training_sessions (id INTEGER PRIMARY KEY, date TEXT);
-            CREATE TABLE training_entries (id INTEGER PRIMARY KEY, session_id INTEGER,
-                                           exercise_id INTEGER, duration REAL);
-            """
-        )
-        await db.commit()
-        try:
-            await _MIGRATION.up(db)
-        finally:
-            await db.close()
-
-    asyncio.run(go())
-
-
-# --- End to end: the rendered page ---------------------------------------
 
 
 def test_training_page_renders_seconds_as_readable_minutes(auth_client):

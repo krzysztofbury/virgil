@@ -3,6 +3,7 @@
 import sqlite3
 from datetime import date
 
+import pytest
 from conftest import csrf_token, track_porn, user_db_path
 
 KEY = {"X-API-Key": "test-key-123"}
@@ -102,7 +103,6 @@ def test_disabled_owner_does_not_hand_the_api_key_to_the_next_admin(auth_client,
         user_conn.commit()
         user_conn.close()
 
-        # The email pin still reaches that account. The fallback below must not.
         monkeypatch.setattr(api_module, "API_USER_EMAIL", other_email)
         mapped = client.get("/api/summary", headers=KEY)
         assert mapped.status_code == 200
@@ -160,6 +160,7 @@ def test_summary_shows_freedom_status_only_in_the_sensitive_scope(auth_client, m
     assert "streak_days" in shown["freedom"]
 
 
+@pytest.mark.to_delete(issue=256)
 def test_habits_range(auth_client):
     resp = auth_client.get("/api/habits?range=7", headers=KEY)
     assert resp.status_code == 200
@@ -168,6 +169,7 @@ def test_habits_range(auth_client):
     assert isinstance(body["logs"], list)
 
 
+@pytest.mark.to_delete(issue=256)
 def test_habits_range_out_of_bounds_422(auth_client):
     assert auth_client.get("/api/habits?range=999", headers=KEY).status_code == 422
 
@@ -183,6 +185,7 @@ def _far_future(monkeypatch):
     monkeypatch.setattr("app.routers.api.date", FarFuture)
 
 
+@pytest.mark.to_delete(issue=256)
 def test_training_empty(auth_client, monkeypatch):
     _far_future(monkeypatch)
     resp = auth_client.get("/api/training", headers=KEY)
@@ -190,14 +193,15 @@ def test_training_empty(auth_client, monkeypatch):
     assert resp.json()["sessions"] == []
 
 
+@pytest.mark.to_delete(issue=256)
 def test_experiments_active(auth_client):
     resp = auth_client.get("/api/experiments/active", headers=KEY)
     assert resp.status_code == 200
     assert "experiments" in resp.json()
 
 
+@pytest.mark.to_delete(issue=256)
 def test_oura_today_404_when_no_data(auth_client):
-    # Other tests sync Oura days into the shared database; set them aside.
     conn = sqlite3.connect(user_db_path())
     try:
         conn.execute("CREATE TEMP TABLE oura_daily_aside AS SELECT * FROM oura_daily")
@@ -210,6 +214,7 @@ def test_oura_today_404_when_no_data(auth_client):
         conn.close()
 
 
+@pytest.mark.to_delete(issue=256)
 def test_training_detail_empty(auth_client, monkeypatch):
     _far_future(monkeypatch)
     resp = auth_client.get("/api/training/detail", headers=KEY)
@@ -217,6 +222,7 @@ def test_training_detail_empty(auth_client, monkeypatch):
     assert resp.json()["sessions"] == []
 
 
+@pytest.mark.to_delete(issue=256)
 def test_training_detail_range_out_of_bounds_422(auth_client):
     assert auth_client.get("/api/training/detail?range=999", headers=KEY).status_code == 422
 
@@ -303,9 +309,6 @@ def test_freedom_history_and_training_detail_with_data(auth_client, monkeypatch)
         cur.execute("DELETE FROM feniks_journal WHERE date = '2026-07-05'")
         conn.commit()
         conn.close()
-
-
-# --- General experiments: per-metric progress + the API's single write ---
 
 
 def _seed_api_experiment(exp_title="API Exp"):
@@ -463,15 +466,12 @@ def test_api_post_entry_boolean_upsert(auth_client):
 def test_api_post_entry_validation(auth_client):
     exp_id, metric_id, _ = _seed_api_experiment()
     try:
-        # Unknown metric name → 404
         resp = auth_client.post(f"/api/experiments/{exp_id}/entries", json={"metric": "ghost"}, headers=KEY)
         assert resp.status_code == 404
-        # Out-of-bounds value → 422
         resp = auth_client.post(
             f"/api/experiments/{exp_id}/entries", json={"metric": metric_id, "value": 100000}, headers=KEY
         )
         assert resp.status_code == 422
-        # Bad date → 422
         resp = auth_client.post(
             f"/api/experiments/{exp_id}/entries",
             json={"metric": metric_id, "date": "not-a-date"},
@@ -486,11 +486,9 @@ def test_api_post_entry_validation(auth_client):
             headers=KEY,
         )
         assert resp.status_code == 422
-        # Unknown experiment → 404
         resp = auth_client.post("/api/experiments/999999/entries", json={"metric": "x"}, headers=KEY)
         assert resp.status_code == 404
 
-        # Inactive experiment → 409
         conn = sqlite3.connect(user_db_path())
         conn.execute("UPDATE experiments SET status = 'completed' WHERE id = ?", (exp_id,))
         conn.commit()

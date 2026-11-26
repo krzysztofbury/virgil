@@ -63,7 +63,6 @@ async def freedom_page(request: Request):
     tracked = await habit_service.list_habits(db)
     everything = await habit_service.list_habits(db, tracked_only=False)
     tracked_slugs = {h["slug"] for h in tracked}
-    # What can still be added: the catalog plus custom habits no longer tracked.
     catalog = [p for p in habit_service.PRESETS if p["slug"] not in tracked_slugs]
     catalog += [h for h in everything if not h["tracked"] and h["slug"] not in habit_service.PRESETS_BY_SLUG]
     context = {"request": request, "today": today.isoformat(), "habits": tracked, "catalog": catalog}
@@ -116,7 +115,6 @@ async def freedom_page(request: Request):
         )
         form_daily = dict(rows[0]) if rows else None
 
-    # One timeline: bricks surface above the day row they belong to
     timeline_dates = sorted({d["date"] for d in daily} | {b["date"] for b in bricks}, reverse=True)
     daily_by_date = {d["date"]: d for d in daily}
     timeline = [

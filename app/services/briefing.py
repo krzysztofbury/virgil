@@ -21,14 +21,12 @@ async def _gather_context(db, today: date) -> str:
     today_iso = today.isoformat()
     parts = []
 
-    # Freedom streaks, one per tracked habit (only if the module is on)
     if await get_setting(db, "feature_freedom", "0") == "1":
         for habit in await list_habits(db):
             streak_days, _ = await get_streak(db, habit["id"], today)
             # Clean days: a near miss breaks the streak as a slip does.
             parts.append(f"{habit['name']}: {streak_days} clean days in a row")
 
-    # Yesterday's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (yesterday,))
     if row:
         log = dict(row[0])
@@ -42,7 +40,6 @@ async def _gather_context(db, today: date) -> str:
         if log.get("notes"):
             parts.append(f"  Notes: {log['notes']}")
 
-    # Today's Oura
     oura = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date = ?", (today_iso,))
     if oura:
         o = dict(oura[0])
@@ -58,7 +55,6 @@ async def _gather_context(db, today: date) -> str:
         if metrics:
             parts.append(f"Today's Oura: {', '.join(metrics)}")
 
-    # Active experiments
     exps = await db.execute_fetchall(
         "SELECT title, num_weeks, start_date FROM experiments WHERE status = 'active' LIMIT 3"
     )

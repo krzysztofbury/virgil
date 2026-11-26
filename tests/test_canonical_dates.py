@@ -23,6 +23,7 @@ def test_valid_date_returns_the_canonical_day(spelling):
 
 
 @pytest.mark.parametrize("spelling", ["", "2026-13-01", "yesterday", None])
+@pytest.mark.to_delete(issue=259)
 def test_valid_date_rejects_what_is_not_a_date(spelling):
     assert valid_date(spelling) is None
 

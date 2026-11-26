@@ -26,7 +26,6 @@ _SYSTEM_PROMPT = (
 async def _context_parts(db, target_date: date_module) -> list[str]:
     context_parts: list[str] = []
 
-    # 1. Goals context
     areas = await db.execute_fetchall("SELECT * FROM goal_areas ORDER BY display_order")
     goals = await db.execute_fetchall("SELECT * FROM goals ORDER BY area_id, horizon, display_order")
     if goals:
@@ -45,7 +44,6 @@ async def _context_parts(db, target_date: date_module) -> list[str]:
                         goal_lines.append(f"  - {item}")
         context_parts.append("\n".join(goal_lines))
 
-    # 2. Current week daily logs
     monday = target_date - timedelta(days=target_date.weekday())
     sunday = monday + timedelta(days=6)
     week_logs = await db.execute_fetchall(

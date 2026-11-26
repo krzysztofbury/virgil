@@ -27,7 +27,6 @@ from app.services.training_schedule import (
     ("raw", "expected"),
     [
         ("mon,wed,fri", ["mon", "wed", "fri"]),
-        # Canonical weekday order, not input order.
         ("fri,mon", ["mon", "fri"]),
         ("Monday, WEDNESDAY , fri", ["mon", "wed", "fri"]),
         ("mon,mon,mon", ["mon"]),
@@ -43,6 +42,7 @@ def test_normalize_days(raw, expected):
     assert normalize_days(raw) == expected
 
 
+@pytest.mark.to_delete(issue=257)
 def test_normalize_days_covers_every_weekday():
     """Guards the [:3] prefix trick against a day whose abbreviation it breaks."""
     full = "monday,tuesday,wednesday,thursday,friday,saturday,sunday"
@@ -53,10 +53,12 @@ def test_normalize_days_covers_every_weekday():
     ("raw", "expected"),
     [("1", 1), ("0", 0), ("", 0), ("abc", 0), ("-3", 0), ("99", 7), (" 2 ", 2)],
 )
+@pytest.mark.to_delete(issue=257)
 def test_parse_swim_per_week(raw, expected):
     assert parse_swim_per_week(raw) == expected
 
 
+@pytest.mark.to_delete(issue=257)
 def test_format_days():
     assert format_days(["mon", "wed", "fri"]) == "Mon, Wed, Fri"
 
@@ -168,6 +170,7 @@ def test_unscheduled_day_is_named_as_such(tmp_path):
     assert "Today is Tuesday - not a scheduled training day." in block
 
 
+@pytest.mark.to_delete(issue=257)
 def test_zero_swim_target_drops_the_swim_sentence(tmp_path):
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: "mon", SETTING_SWIM: "0"})
@@ -175,6 +178,7 @@ def test_zero_swim_target_drops_the_swim_sentence(tmp_path):
     assert "Training days: Mon." in block, "the rest of the plan must survive"
 
 
+@pytest.mark.to_delete(issue=257)
 def test_no_days_configured_still_produces_a_usable_block(tmp_path):
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 3), {SETTING_DAYS: "", SETTING_SWIM: "1"})
@@ -247,15 +251,12 @@ def test_empty_week_falls_back_to_the_previous_session(tmp_path):
     assert "Last session before this week: 2026-07-31 (45 min)." in block
 
 
+@pytest.mark.to_delete(issue=257)
 def test_empty_week_and_no_history_omits_the_fallback_line(tmp_path):
     path = _make_db(tmp_path)
     block = _block(path, date(2026, 8, 5), {SETTING_DAYS: "mon,wed"})
     assert "Logged this week (since Monday): nothing yet." in block
     assert "Last session before this week" not in block
-
-
-# --- Alignment and boundary coverage (added after review: three mutants survived
-#     the first pass — the Monday cut-off, and DAY_FULL/DAY_SHORT's weekend slots) ---
 
 
 @pytest.mark.parametrize(
@@ -294,6 +295,7 @@ def test_every_weekday_is_named_correctly(tmp_path, target, expected_full):
         ("sun", "Sun"),
     ],
 )
+@pytest.mark.to_delete(issue=257)
 def test_every_day_abbreviation_is_aligned(day_key, expected_short):
     """Same gap as above, for DAY_SHORT: only Mon/Wed/Fri were ever formatted."""
     assert format_days([day_key]) == expected_short
@@ -317,6 +319,7 @@ def test_week_starts_on_monday_at_the_boundary(tmp_path):
     assert "2026-08-02" not in block, "the Sunday before the week must fall outside it"
 
 
+@pytest.mark.to_delete(issue=257)
 def test_blank_day_list_clears_the_schedule(tmp_path):
     """Pins the deliberate asymmetry in save_training_schedule: a blank field is
     an explicit "no fixed days" and is stored; a field that parses to nothing is
@@ -373,6 +376,7 @@ def test_several_tags_on_one_movement_count_the_session_once(tmp_path):
     assert block.count("2026-08-24") == 1
 
 
+@pytest.mark.to_delete(issue=257)
 def test_swim_count_is_absent_without_a_target(tmp_path):
     path = _make_db(tmp_path)
     block = _block(

@@ -92,7 +92,6 @@ def test_seeds_crossfit_movements_with_sections_and_metrics(tmp_path):
             assert by_name["Air Squat"]["section"] == "Core"
             assert by_name["Air Squat"]["metric"] == "reps"
             assert all(r["builtin"] == 0 for r in rows)
-            # Verify the full vocabulary split
             assert Counter((r["section"], r["metric"]) for r in rows) == {
                 ("Core", "reps"): 26,
                 ("Cardio", "time"): 4,
@@ -181,7 +180,6 @@ def test_017_flips_crossfit_rows_to_user_editable(tmp_path):
             )
             await db.commit()
 
-            # Verify initial state
             rows_before = await db.execute_fetchall(
                 "SELECT category, name, builtin FROM exercise_library ORDER BY name"
             )
@@ -189,12 +187,10 @@ def test_017_flips_crossfit_rows_to_user_editable(tmp_path):
             assert by_cat_name[("CrossFit", "Thruster")] == 1, "CrossFit row starts at builtin=1"
             assert by_cat_name[("Gym classics", "Back Squat")] == 1, "Non-CrossFit row is builtin=1"
 
-            # Run 017
             mod = importlib.import_module("app.migrations.017_crossfit_editable")
             await mod.up(db)
             await db.commit()
 
-            # Verify 017 changed only the CrossFit row
             rows_after = await db.execute_fetchall("SELECT category, name, builtin FROM exercise_library ORDER BY name")
             by_cat_name = {(r["category"], r["name"]): r["builtin"] for r in rows_after}
             assert by_cat_name[("CrossFit", "Thruster")] == 0, "CrossFit row flipped to builtin=0"
@@ -202,7 +198,6 @@ def test_017_flips_crossfit_rows_to_user_editable(tmp_path):
                 "Non-CrossFit row still builtin=1 (catches WHERE-clause typo)"
             )
 
-            # Run 017 again and verify idempotency
             await mod.up(db)
             await db.commit()
 

@@ -10,9 +10,6 @@ from app.config import TRUST_CLOUDFLARE_HEADERS, TRUSTED_PROXY_IPS
 
 logger = logging.getLogger(__name__)
 
-# Sliding window rate limiter: per-IP, in-memory
-# General endpoints: 120 req/min, auth endpoints: 10 req/min, LLM-backed endpoints: 10 req/min.
-# Static files are not counted.
 GENERAL_LIMIT = 120
 GENERAL_WINDOW_SECONDS = 60
 AUTH_LIMIT = 10
@@ -44,7 +41,6 @@ LLM_PATHS = frozenset({"/training/wod"})
 
 MAX_BUCKETS = 10_000
 
-# {ip: [(timestamp, ...), ...]}
 _buckets: dict[str, list[float]] = {}
 
 

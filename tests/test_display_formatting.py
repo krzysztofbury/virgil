@@ -21,5 +21,6 @@ def test_ref_range(low, high, expected):
 
 
 @pytest.mark.parametrize(("value", "expected"), [(11089, "11,089"), (11089.0, "11,089"), (950, "950"), (None, "")])
+@pytest.mark.to_delete(issue=259)
 def test_thousands(value, expected):
     assert format_thousands(value) == expected

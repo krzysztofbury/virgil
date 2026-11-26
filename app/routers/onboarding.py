@@ -74,11 +74,9 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
     db = get_user_db_from_request(request)
     profile = await ensure_profile(db)
 
-    # If no step specified, resume from where user left off.
     if step == 0:
         step = min(profile["onboarding_step"] + 1, 6)
 
-    # Load goals for step 3 display and step 6 summary.
     goals = {}
     if step in (3, 6):
         rows = await db.execute_fetchall(
@@ -104,7 +102,6 @@ async def onboarding_page(request: Request, step: int = 0, job_id: int | None = 
         }
         end_goal_areas = {category: area_names.get(orders[0], "") for category, orders in GOAL_CATEGORY_MAP.items()}
 
-    # Whether this account has an LLM at all: its own key, or the server's when allowed.
     from app.services.llm import llm_available
     from app.services.onboarding import enrichment_progress
 
@@ -188,7 +185,6 @@ async def save_step3(
 ):
     db = get_user_db_from_request(request)
 
-    # Save end goals (Level 3 / 10yr) to goals table.
     category_goals = {
         "mind": truncate(goal_mind, 1000),
         "body": truncate(goal_body, 1000),
@@ -199,7 +195,6 @@ async def save_step3(
     for category, content in category_goals.items():
         if not content.strip():
             continue
-        # Map to the first goal area in the category.
         area_order = GOAL_CATEGORY_MAP[category][0]
         area_row = await db.execute_fetchall("SELECT id FROM goal_areas WHERE display_order = ?", (area_order,))
         if area_row:

@@ -5,6 +5,8 @@ whether today is different from the last week. By decision this states numbers
 and one rule-derived word: no generated advice, no LLM call.
 """
 
+import pytest
+
 from app.routers.oura import BASELINE_DAYS, BASELINE_TOLERANCE, readiness_baseline
 
 
@@ -12,6 +14,7 @@ def _rows(*scores):
     return [{"readiness_score": s} for s in scores]
 
 
+@pytest.mark.to_delete(issue=260)
 def test_no_baseline_without_history():
     result = readiness_baseline([], 80)
     assert result["baseline"] is None
@@ -19,6 +22,7 @@ def test_no_baseline_without_history():
     assert result["days"] == 0
 
 
+@pytest.mark.to_delete(issue=260)
 def test_no_baseline_without_today():
     result = readiness_baseline(_rows(70, 72, 74), None)
     assert result["today"] is None

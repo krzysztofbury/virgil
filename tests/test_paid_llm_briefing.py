@@ -133,7 +133,6 @@ def test_the_handler_publishes_the_briefing_and_its_marker_together(monkeypatch)
             )
             context = JobContext(db=db, user_id="user", job_id=queued.job_id, attempt=1)
             first = await handle_morning_briefing(context, {"day": _TODAY, "trigger": "manual", "key_part": "a" * 32})
-            # A replayed attempt after a crash must not buy the answer twice.
             second = await handle_morning_briefing(context, {"day": _TODAY, "trigger": "manual", "key_part": "a" * 32})
             return first, second, await llm_result_published(db, _KIND, key)
         finally:

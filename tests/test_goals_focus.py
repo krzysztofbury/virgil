@@ -9,6 +9,7 @@ be lost to a cap.
 import re
 import sqlite3
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 from app.routers.goals import FOCUS_SOFT_LIMIT
@@ -43,6 +44,7 @@ def _is_active(goal_id):
         conn.close()
 
 
+@pytest.mark.to_delete(issue=262)
 def test_migration_adds_the_active_column(auth_client):
     conn = sqlite3.connect(user_db_path())
     try:
@@ -96,7 +98,6 @@ def test_page_shows_one_horizon_and_one_add_flow(auth_client):
     bad = auth_client.get("/goals?horizon=nonsense").text
     assert "ZZ one year goal" in bad, "an unknown horizon falls back to 1yr"
 
-    # One add flow that asks for area and horizon, instead of one input per pair.
     assert default.count("New goal...") == 1, "the 24-input empty state must be gone"
     assert 'name="area_id"' in default and 'name="horizon"' in default
 

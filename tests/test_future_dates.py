@@ -57,7 +57,6 @@ def test_an_api_write_for_a_day_after_today_is_refused(auth_client, db, path, bo
         assert "today or earlier" in resp.json()["detail"]
     assert db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0  # noqa: S608
 
-    # Today is the boundary and still accepted.
     assert auth_client.put(path.format(day=_day(0)), json=body, headers=KEY).status_code == 200
     assert _count(db, table, _day(0)) == 1
 

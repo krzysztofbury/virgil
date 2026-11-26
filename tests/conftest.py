@@ -21,7 +21,6 @@ if os.environ.get("_VIRGIL_TEST_TMP"):
 else:
     _TMP = tempfile.mkdtemp(prefix="virgil-test-")
     os.environ["_VIRGIL_TEST_TMP"] = _TMP
-    # Only the import that created the directory removes it, after the run.
     atexit.register(shutil.rmtree, _TMP, ignore_errors=True)
     os.environ["VIRGIL_CENTRAL_DB_PATH"] = f"{_TMP}/central.db"
     os.environ["VIRGIL_API_KEY"] = "test-key-123"  # pragma: allowlist secret - synthetic fixture
