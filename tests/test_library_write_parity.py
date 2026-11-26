@@ -251,7 +251,6 @@ def test_update_omitting_metric_leaves_it_unchanged_not_reset(auth_client):
     assert "err=" not in resp.headers["location"]
     entry_id = _row("Parity Stale Form")["id"]
     try:
-        # No "metric" key at all in this POST body.
         auth_client.post(
             "/settings/library/update",
             data={

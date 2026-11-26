@@ -7,7 +7,6 @@ from app.services.encryption import decrypt
 
 logger = logging.getLogger(__name__)
 
-# Suppress litellm's verbose default logging.
 litellm.suppress_debug_info = True
 
 
@@ -85,7 +84,6 @@ async def resolve_provider(db) -> tuple[str, str]:
     account without the flag never bills the operator. Raises ValueError if
     no provider is available.
     """
-    # 1. Try user-configured provider from DB.
     provider = await get_active_provider(db)
     if provider:
         api_key = decrypt(provider["api_key_enc"])
@@ -93,7 +91,6 @@ async def resolve_provider(db) -> tuple[str, str]:
         if api_key and model:
             return model, api_key
 
-    # 2. The server's key: the one an admin put in use, else VIRGIL_INTERNAL_LLM_*.
     from app.services.server_llm import server_model_and_key
 
     server = await server_model_and_key()
@@ -174,7 +171,6 @@ async def call_llm(
     choice = response.choices[0]
     finish = str(getattr(choice, "finish_reason", "") or "").lower()
     content = choice.message.content
-    # Ground-truth diagnostics: finish reason + token usage (incl. reasoning tokens).
     logger.info("LLM %s finish=%s usage=%s", model, finish, getattr(response, "usage", None))
     if finish in {"length", "max_tokens", "maxtokens"}:
         if json_mode and content:

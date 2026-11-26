@@ -129,8 +129,6 @@ def test_llm_path_rate_limited_while_general_path_stays_open(auth_client):
     try:
         _post_probes(auth_client, token, statuses)
     finally:
-        # The captures queue a WOD parse, and a queued parse makes every later
-        # capture in the suite skip its own: leave the shared database as found.
         conn = sqlite3.connect(user_db_path())
         conn.execute(
             "DELETE FROM jobs WHERE kind = 'wod_parse' AND json_extract(payload_json, '$.session_id') IN "

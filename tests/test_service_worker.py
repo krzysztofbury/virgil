@@ -28,5 +28,5 @@ def test_static_links_carry_build_version(auth_client):
     assert "/static/css/app.css?v=" in html
     assert "/static/js/app.js?v=" in html
     login = auth_client.get("/login", follow_redirects=False)
-    if login.status_code == 200:  # logged-in sessions get redirected; standalone pages checked via signup
+    if login.status_code == 200:
         assert "/static/css/app.css?v=" in login.text

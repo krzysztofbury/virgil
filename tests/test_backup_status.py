@@ -82,7 +82,6 @@ def _status(tmp_path, monkeypatch, *, files=(), jobs=(), settings=()) -> dict:
 @pytest.mark.parametrize(
     ("files", "jobs", "settings", "state", "age"),
     [
-        # Another account's backup is not this account's.
         ([(_named(_OTHER_ACCOUNT, _HOUR), _HOUR)], [], [], "none", None),
         ([(_named(_STEM, 3 * _HOUR), 3 * _HOUR)], [], [], "ok", "3 hours ago"),
         # A job queued three days ago that only ran a minute ago: the age is

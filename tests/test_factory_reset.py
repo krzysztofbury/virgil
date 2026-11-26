@@ -32,7 +32,6 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
     ):
         path.write_bytes(b"")
 
-    # Seed a row so we can prove the wipe actually happened.
     conn = sqlite3.connect(user_db_path())
     conn.execute("INSERT INTO daily_logs (date, energy) VALUES ('2026-07-01', 7)")
     conn.commit()
@@ -52,8 +51,6 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
         assert _backups_of(old_stem) == []
         assert kept.exists()
 
-        # The recreated DB must be fully migrated (schema_migrations populated,
-        # seeded data present) and the seeded daily_log gone.
         conn = sqlite3.connect(user_db_path())
         try:
             versions = [r[0] for r in conn.execute("SELECT version FROM schema_migrations").fetchall()]
@@ -66,7 +63,6 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
         finally:
             conn.close()
 
-        # Session survives; the app forces onboarding instead of crashing.
         home = auth_client.get("/", follow_redirects=False)
         assert home.status_code == 303
         assert home.headers["location"] == "/onboarding"
@@ -74,7 +70,6 @@ def test_factory_reset_recreates_db_and_restarts_onboarding(auth_client):
         onboarding_page = auth_client.get("/onboarding")
         assert onboarding_page.status_code == 200
     finally:
-        # Restore state for the rest of the (session-scoped) suite.
         kept.unlink(missing_ok=True)
         _complete_onboarding()
 

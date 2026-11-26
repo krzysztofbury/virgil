@@ -285,7 +285,6 @@ async def enable_user(request: Request, user_id: str):
 async def delete_user_route(request: Request, user_id: str):
     admin = _require_admin(request)
     _validate_user_id(user_id)
-    # Prevent self-deletion.
     if user_id == admin["id"]:
         return error_redirect(request, USERS_TAB, _("Your account cannot be deleted from the admin panel."))
     if email := await _protected(user_id):
@@ -306,8 +305,6 @@ async def delete_user_route(request: Request, user_id: str):
     await _event(request, "user_delete", user_id, admin)
     return success_redirect(request, USERS_TAB, _("User account deleted."))
 
-
-# --- Server settings (#179) ---
 
 _pending_alerts: set = set()
 

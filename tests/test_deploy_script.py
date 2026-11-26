@@ -133,7 +133,7 @@ def test_a_release_prints_the_evidence_after_the_public_check_from_one_host_read
 
     def fake_ssh(command, *args, stdin=None):
         host_commands.append(command)
-        if command == "sh -s":  # the evidence read
+        if command == "sh -s":
             return subprocess.CompletedProcess([], 0, stdout=_HOST_OUTPUT.encode(), stderr=b"")
         return subprocess.CompletedProcess([], 0, stdout=b"", stderr=b"")
 

@@ -552,7 +552,7 @@ def test_survives_crash_right_after_create_table_new(tmp_path):
             assert "exercise_library_new" in tables, "the crash must actually leave the leftover table behind"
 
             mod = importlib.import_module("app.migrations.019_exercise_tags")
-            await mod.up(db)  # must NOT raise "table already exists"
+            await mod.up(db)
             await db.commit()
 
             survivors = await db.execute_fetchall("SELECT * FROM exercise_library ORDER BY name")

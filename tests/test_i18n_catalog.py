@@ -77,10 +77,12 @@ def test_polish_plural_forms():
 
 
 @pytest.mark.parametrize("value", [None, "", "de", "PL", "x" * 5000])
+@pytest.mark.to_delete(issue=263)
 def test_unknown_language_is_english(value):
     assert normalize_language(value) == "en"
 
 
+@pytest.mark.to_delete(issue=263)
 def test_polish_is_polish():
     assert normalize_language("pl") == "pl"
 

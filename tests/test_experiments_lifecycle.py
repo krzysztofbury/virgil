@@ -15,7 +15,7 @@ def test_inverted_targets_normalized_and_reopen_allowed(auth_client):
             "start_date": "2026-07-06",
             "num_weeks": "4",
             "target_min": "200",
-            "target_max": "100",  # inverted on purpose
+            "target_max": "100",
             "metric_names": "Zone 2",
             "metric_colors": "#22c55e",
             "metric_kinds": "duration",
@@ -41,7 +41,6 @@ def test_inverted_targets_normalized_and_reopen_allowed(auth_client):
     finally:
         conn.close()
 
-    # Complete, then reopen (undo).
     for status in ("completed", "active"):
         resp = auth_client.post(
             f"/experiments/{exp_id}/complete",
@@ -56,7 +55,6 @@ def test_inverted_targets_normalized_and_reopen_allowed(auth_client):
         finally:
             conn.close()
 
-    # Bogus status is ignored.
     resp = auth_client.post(
         f"/experiments/{exp_id}/complete",
         data={"new_status": "exploded", "_csrf_token": token},

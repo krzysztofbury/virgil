@@ -22,8 +22,8 @@ def test_migration_classifies_time_vs_reps():
             [
                 ("Farmer's Walk", "Core", "30-45s"),  # ends in 's' -> time
                 ("Plank", "Core", "max"),  # name-based -> time
-                ("Goblet Squat", "Core", "10-12"),  # reps
-                ("Bent-over Row", "Core", "10-12"),  # reps
+                ("Goblet Squat", "Core", "10-12"),
+                ("Bent-over Row", "Core", "10-12"),
                 ("Zone 2 Walk", "Cardio", "2 min"),  # 'min' -> time
             ],
         )
@@ -55,7 +55,7 @@ def test_migration_is_idempotent():
         await db.execute("CREATE TABLE exercise_library (id INTEGER PRIMARY KEY, name TEXT, section TEXT, reps TEXT)")
         await db.execute("INSERT INTO training_exercises (name, section, target_reps) VALUES ('Plank','Core','max')")
         await _mod.up(db)
-        await _mod.up(db)  # second run must not raise (column already exists)
+        await _mod.up(db)
         rows = await db.execute_fetchall("SELECT metric FROM training_exercises WHERE name='Plank'")
         assert rows[0]["metric"] == "time"
         await db.close()

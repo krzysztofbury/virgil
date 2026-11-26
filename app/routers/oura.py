@@ -46,7 +46,6 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
 
     metric_info = next((m for m in METRICS if m[0] == metric), METRICS[0])
 
-    # Check Oura connection status
     oura_row = await db.execute_fetchall("SELECT status FROM integrations WHERE provider = 'oura'")
     oura_connected = oura_row[0]["status"] == "connected" if oura_row else False
 
@@ -90,7 +89,7 @@ async def oura_page(request: Request, metric: str = "sleep_score", job_id: int |
     daily_data = [dict(r) for r in daily_rows]
     has_daily = bool(daily_data) or bool(await db.execute_fetchall("SELECT 1 FROM oura_daily LIMIT 1"))
     trend_data = daily_data[::-1]
-    trend_labels = [r["date"][5:] for r in trend_data]  # MM-DD format
+    trend_labels = [r["date"][5:] for r in trend_data]
     trend_hrv = [r.get("avg_hrv") for r in trend_data]
     trend_sleep = [r.get("sleep_score") for r in trend_data]
     trend_readiness = [r.get("readiness_score") for r in trend_data]

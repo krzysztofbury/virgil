@@ -13,7 +13,7 @@ if _env_path.exists():
                 _key, _, _val = _line.partition("=")
                 os.environ.setdefault(_key.strip(), _val.strip())
 
-ENV = os.environ.get("VIRGIL_ENV", "local")  # "local" or "prod"
+ENV = os.environ.get("VIRGIL_ENV", "local")
 IS_PROD = ENV == "prod"
 
 ENCRYPTION_KEY = os.environ.get("VIRGIL_ENCRYPTION_KEY", "")
@@ -31,7 +31,6 @@ INTERNAL_LLM_KEY = os.environ.get("VIRGIL_INTERNAL_LLM_KEY", "")
 # net. Tests turn this off so queue state stays deterministic.
 WORKER_WAKE = os.environ.get("VIRGIL_WORKER_WAKE", "true").lower() == "true"
 
-# Multi-user settings.
 CENTRAL_DB_PATH = os.environ.get(
     "VIRGIL_CENTRAL_DB_PATH",
     str(Path(__file__).parent.parent / "data" / "virgil-central.db"),
@@ -120,7 +119,6 @@ def parse_trusted_proxies(raw: str) -> tuple[ipaddress.IPv4Network | ipaddress.I
 
 TRUSTED_PROXY_IPS = parse_trusted_proxies(os.environ.get("VIRGIL_TRUSTED_PROXY_IPS", ""))
 
-# Machine-to-machine REST API. Empty key = API disabled.
 API_KEY = os.environ.get("VIRGIL_API_KEY", "")
 API_USER_EMAIL = os.environ.get("VIRGIL_API_USER_EMAIL", "").strip().lower()
 # /api/freedom returns intimate journal/relapse content — a leaked API key should

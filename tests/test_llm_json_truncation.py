@@ -76,7 +76,6 @@ def test_repair_keeps_every_complete_entry():
     result = parse_andy_response(truncated)
 
     recovered = result["entries"]
-    # The 25 entries before the cut must all survive, byte-identical.
     assert recovered[:25] == payload["entries"][:25]
     assert len(recovered) >= 25
 
@@ -107,8 +106,6 @@ def test_truncation_mid_key_falls_back_to_the_last_complete_pair():
 @pytest.mark.parametrize(
     "text, expected",
     [
-        # Regressions: the shapes the pre-existing one-level repair handled must
-        # keep working.
         ('{"andy_body_desc": "x"', {"andy_body_desc": "x"}),
         # A cut mid-VALUE keeps the partial string (what the old '"}' suffix did):
         # a truncated free-text note is harmless, losing the field is not.

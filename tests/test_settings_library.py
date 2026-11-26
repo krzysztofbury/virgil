@@ -25,6 +25,7 @@ def _any_builtin_id():
         conn.close()
 
 
+@pytest.mark.to_delete(issue=259)
 def test_configuration_tab_renders(auth_client):
     resp = auth_client.get("/settings?tab=configuration")
     assert resp.status_code == 200
@@ -32,6 +33,7 @@ def test_configuration_tab_renders(auth_client):
     assert "built-in" in resp.text
 
 
+@pytest.mark.to_delete(issue=259)
 def test_add_edit_delete_user_row(auth_client):
     token = csrf_token(auth_client, "/settings?tab=configuration")
     resp = auth_client.post(
@@ -52,7 +54,6 @@ def test_add_edit_delete_user_row(auth_client):
     assert row["builtin"] == 0
     assert row["archived"] == 0
 
-    # Edit own row.
     auth_client.post(
         "/settings/library/update",
         data={
@@ -70,7 +71,6 @@ def test_add_edit_delete_user_row(auth_client):
     edited = _row("Nordic Curl (band)")
     assert edited["sets"] == 4
 
-    # Delete own row.
     auth_client.post(
         "/settings/library/delete",
         data={"entry_id": str(edited["id"]), "_csrf_token": token},
@@ -318,7 +318,6 @@ def test_archive_removes_the_movement_from_the_parser_vocabulary(auth_client):
     assert _row(name)["archived"] == 1
     assert name not in vocabulary(), "archived entries must leave the parser vocabulary"
 
-    # Restore.
     auth_client.post(
         "/settings/library/archive",
         data={"entry_id": str(builtin["id"]), "archived": "0", "_csrf_token": token},
@@ -344,9 +343,6 @@ def test_archive_missing_entry_redirects_with_error(auth_client):
     assert "err=" in resp.headers["location"], (
         "archiving a nonexistent entry must redirect with an error, not silently no-op"
     )
-
-
-# --- Training schedule (Settings -> Configuration) ---
 
 
 def _setting(key: str):
@@ -411,13 +407,13 @@ def _save_schedule(client, days: str, swim: str):
 @pytest.mark.parametrize(
     ("days", "swim"),
     [
-        ("qqq,zzz", "1"),  # all garbage must not silently wipe the schedule
+        ("qqq,zzz", "1"),
         ("mon", "99"),  # rejected, not clamped to 7: never store a number nobody typed
         ("mon", "abc"),  # used to store 0 and drop swimming on a typo
         ("mon", "-1"),
         ("mon", "\u00b2"),  # isdigit() is True, int() raises: was a 500
         ("mon", "1" * 5000),  # trips CPython's int-conversion limit: was a 500
-        ("tue,thu", "abc"),  # valid days must not land when the swim target is refused
+        ("tue,thu", "abc"),
     ],
     ids=["garbage-days", "swim-99", "swim-abc", "swim-negative", "swim-superscript", "swim-huge", "half-valid"],
 )

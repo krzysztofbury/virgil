@@ -138,7 +138,6 @@ def test_logout_revokes_every_session_of_the_account(auth_client, client):
         assert client.get("/login", follow_redirects=False).status_code == 200
     finally:
         client.cookies.clear()
-    # Restore the session for the rest of the shared-fixture suite.
     _login(auth_client)
     assert not _session_is_refused(client, auth_client.cookies[SESSION_COOKIE])
 
@@ -188,7 +187,6 @@ def test_totp_secret_encrypted_at_rest(auth_client):
         assert stored != plain_secret, "TOTP secret stored in plaintext"
         assert decrypt(stored) == plain_secret
     finally:
-        # Leave MFA unconfigured for other tests even if an assert fired.
         central.execute("UPDATE users SET totp_secret = '', totp_enabled = 0 WHERE email = ?", (TEST_EMAIL,))
         central.commit()
         central.close()
@@ -299,7 +297,6 @@ def test_mfa_setup_never_puts_the_totp_secret_in_a_url(auth_client, client):
         # Since #168 the answer is the page with the recovery codes, shown once.
         assert enabled.status_code == 200
         assert enabled.text.count("<code>") == 10
-        # Turning MFA on signs out every other session; this browser keeps going.
         assert _session_is_refused(client, other_browser)
         assert auth_client.get("/settings").status_code == 200
         stored = central.execute(
@@ -336,7 +333,6 @@ def test_an_unfinished_mfa_login_can_start_over_instead_of_looping(client, monke
         assert client.get("/", follow_redirects=False).headers["location"] == "/login"
         assert client.get("/mfa/verify", follow_redirects=False).status_code == 200
 
-        # A pending login lives minutes, not the full session lifetime.
         monkeypatch.setattr("app.auth.MFA_PENDING_MAX_AGE_SECONDS", -1)
         expired = client.get("/mfa/verify", follow_redirects=False)
         assert expired.status_code == 303 and expired.headers["location"].startswith("/login")
@@ -372,7 +368,6 @@ def test_mfa_verification_locks_the_account_after_repeated_wrong_codes(client):
 
     try:
         _login(client)
-        # The password alone yields a pending login that only reaches /mfa/verify.
         assert client.get("/", follow_redirects=False).headers["location"] == "/login"
         # One GET: /mfa/verify shares the per-IP limit of 10 a minute with /login.
         token = csrf_token(client, "/mfa/verify")
@@ -389,7 +384,6 @@ def test_mfa_verification_locks_the_account_after_repeated_wrong_codes(client):
         assert locked.status_code == 429
         assert "Too many invalid codes" in locked.text
 
-        # Once the lock expires, the right code signs in and clears the count.
         central.execute("UPDATE users SET mfa_locked_until = '2000-01-01T00:00:00Z' WHERE email = ?", (TEST_EMAIL,))
         central.commit()
         rate_limit._buckets.clear()

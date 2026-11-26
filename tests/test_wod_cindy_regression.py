@@ -114,7 +114,6 @@ def test_complete_response_maps_the_whole_session(auth_client, monkeypatch):
     assert 'name="entry_count"' in resp.text
     assert 'value="28"' in resp.text
 
-    # The bodyweight squat resolves rather than landing in `unmatched`.
     assert 'value="Air Squat" selected' in resp.text
     assert 'value="Row" selected' in resp.text
     # 3 minutes of rowing, stored and rendered in SECONDS (migration 020's unit).
@@ -149,7 +148,6 @@ def test_truncated_response_still_delivers_the_movements_that_arrived(auth_clien
     assert 'value="Air Squat" selected' in resp.text
     assert 'name="entry_0_duration" value="180.0"' in resp.text
 
-    # The raw note is intact regardless - that guarantee predates this fix.
     conn = sqlite3.connect(user_db_path())
     try:
         conn.row_factory = sqlite3.Row

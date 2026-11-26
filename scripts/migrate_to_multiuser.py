@@ -54,13 +54,11 @@ async def main():
         print(f"No existing database at {old_db_path} — nothing to migrate.")
         return
 
-    # 1. Create central DB.
     os.makedirs(os.path.dirname(CENTRAL_DB_PATH), exist_ok=True)
     async with aiosqlite.connect(CENTRAL_DB_PATH) as central:
         central.row_factory = aiosqlite.Row
         await migrate_central_db(central)
 
-        # 2. Read existing user.
         async with aiosqlite.connect(old_db_path) as old_db:
             old_db.row_factory = aiosqlite.Row
             try:
@@ -75,7 +73,6 @@ async def main():
 
         user = dict(rows[0])
 
-        # 3. Create user in central DB.
         user_id = str(uuid.uuid4())
         db_filename = f"{user_id}.db"
         email = user["username"]
@@ -109,7 +106,6 @@ async def main():
                 _restore_database_bundle(moved)
             raise
 
-    # 5. Drop auth_users from the moved DB.
     async with aiosqlite.connect(new_path) as moved_db:
         await moved_db.execute("DROP TABLE IF EXISTS auth_users")
         await moved_db.commit()

@@ -111,6 +111,7 @@ def test_enqueueing_starts_the_work_now_instead_of_at_the_next_tick(auth_client,
     assert stored == ("row 2k",)
 
 
+@pytest.mark.to_delete(issue=263)
 def test_a_wake_is_bounded_and_never_runs_without_a_loop(monkeypatch):
     from app.services import job_worker
 

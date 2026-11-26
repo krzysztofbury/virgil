@@ -50,6 +50,7 @@ def test_feedback_url_preserves_destination_query_and_bounds_message():
     assert "err" not in query
 
 
+@pytest.mark.to_delete(issue=261)
 def test_feedback_url_requires_exactly_one_outcome():
     from app.feedback import feedback_url
 
@@ -162,6 +163,7 @@ def test_oura_sync_htmx_queues_with_hx_redirect(auth_client, connected_oura):
     assert response.text == ""
 
 
+@pytest.mark.to_delete(issue=261)
 def test_shared_js_distinguishes_transport_and_http_failures(client):
     source = client.get("/static/js/app.js").text
 

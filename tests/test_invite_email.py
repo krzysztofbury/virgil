@@ -53,6 +53,7 @@ def test_with_mail_off_the_admin_hands_the_link_over_as_today(auth_client, monke
     assert "Send this link to guest@example.com." in page.text
 
 
+@pytest.mark.to_delete(issue=261)
 def test_the_invite_form_offers_both_languages(auth_client, sent_mail):
     page = auth_client.get("/admin/users").text
     assert 'name="language"' in page and 'value="pl"' in page and 'value="en"' in page

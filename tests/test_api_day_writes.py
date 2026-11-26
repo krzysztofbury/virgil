@@ -74,7 +74,6 @@ def test_freedom_day_keeps_relapse_marker_in_step_with_the_outcome(auth_client, 
         assert _fetchall("SELECT slipped, amount, near_miss FROM feniks_daily WHERE date = ?", (day,)) == [(0, None, 0)]
         assert _fetchall("SELECT COUNT(*) FROM pmo_events WHERE date = ?", (day,)) == [(0,)]
 
-        # A relapse recorded by another path is history the day log must not erase.
         _execute(
             "INSERT INTO pmo_events (habit_id, date, event_type, notes) VALUES (?, ?, 'relapse', 'manual')",
             (porn, other),

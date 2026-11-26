@@ -53,6 +53,7 @@ def test_a_connected_account_that_never_synced_says_so(tmp_path):
 
 
 @pytest.mark.parametrize("status", [None, "configured", "error"])
+@pytest.mark.to_delete(issue=260)
 def test_nothing_is_said_without_a_connected_oura(tmp_path, status):
     assert _freshness(tmp_path, status, _NOW.isoformat()) is None
 

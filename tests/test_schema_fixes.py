@@ -2,6 +2,7 @@
 
 import sqlite3
 
+import pytest
 from conftest import user_db_path
 
 
@@ -25,6 +26,7 @@ def test_llm_provider_accepts_litellm_names(auth_client):
         conn.close()
 
 
+@pytest.mark.to_delete(issue=262)
 def test_backup_enabled_on_after_migration_014(auth_client):
     """Existing installs carried a seeded '0' that masked the new default —
     migration 014 must flip it so backups actually run everywhere."""

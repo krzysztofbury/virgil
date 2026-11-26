@@ -129,7 +129,6 @@ def test_a_run_restores_every_account_and_only_with_the_secret_key(instance):
         "virgil-central.db.gz.age",
         "virgil.key.gz.age",
     ]
-    # Nothing is stored readable, the encryption key least of all.
     key = (instance["data"] / "virgil.key").read_bytes()
     assert all(key not in body and b"first account" not in body for body in bucket.objects.values())
 
@@ -144,7 +143,6 @@ def test_a_run_restores_every_account_and_only_with_the_secret_key(instance):
         unseal(tmp / "download", stranger, tmp / "refused")
     assert not (tmp / "refused").exists()
 
-    # The month's first run is also kept as the monthly copy.
     assert bucket.runs("monthly/") == ["2026-10"]
     unseal(bucket.download("monthly/2026-10/", tmp / "monthly"), instance["identity"], tmp / "from-monthly")
 
@@ -200,7 +198,7 @@ def test_deleting_an_account_deletes_its_copies_and_makes_a_whole_run(instance):
     later = DAY + timedelta(hours=2)
     asyncio.run(offsite.offsite_tick(later))
     assert not [k for k in bucket.objects if TWO in k]
-    assert [k for k in bucket.objects if ONE in k]  # the other account's copies stay
+    assert [k for k in bucket.objects if ONE in k]
     assert offsite.offsite_status(later)["pending_deletions"] == 0
 
     # The older run is now short a file, so a whole run is made straight away.
@@ -255,7 +253,7 @@ def test_a_deletion_while_turned_off_waits_for_copies_to_return(instance, monkey
     asyncio.run(offsite.offsite_tick(DAY))
     names = ("ENDPOINT", "BUCKET", "ACCESS_KEY_ID", "SECRET_ACCESS_KEY", "RECIPIENT")
     saved = {name: getattr(config, f"OFFSITE_{name}") for name in names}
-    for name in names:  # turned off entirely
+    for name in names:
         monkeypatch.setattr(config, f"OFFSITE_{name}", "")
     with sqlite3.connect(data / "virgil-central.db") as db:
         db.execute("DELETE FROM users WHERE db_filename = ?", (TWO,))

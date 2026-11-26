@@ -36,7 +36,7 @@ async def get_week_clean(db, habit_id: int) -> tuple[int, int, int]:
     """
     today = date.today()
     monday = today - timedelta(days=today.weekday())
-    elapsed = (today - monday).days + 1  # 1..7 inclusive
+    elapsed = (today - monday).days + 1
     relapses, near = await break_dates(db, habit_id, monday.isoformat(), today.isoformat())
     clean = max(0, elapsed - len(relapses | near))
     pct = round(clean / elapsed * 100) if elapsed else 0

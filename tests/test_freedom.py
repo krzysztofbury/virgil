@@ -397,7 +397,7 @@ def test_a_quick_check_off_keeps_the_habit_on_screen(auth_client):
 def test_dashboard_checks_a_habit_off_in_place_without_overwriting_a_logged_day(auth_client):
     ids = _enable(auth_client, "porn", "alcohol")
     today = date.today().isoformat()
-    _execute("DELETE FROM feniks_daily WHERE date = ?", (today,))  # other tests check today off too
+    _execute("DELETE FROM feniks_daily WHERE date = ?", (today,))
     try:
         page = auth_client.get("/").text
         assert 'id="freedom-today-block"' in page
@@ -413,7 +413,6 @@ def test_dashboard_checks_a_habit_off_in_place_without_overwriting_a_logged_day(
             "SELECT slipped FROM feniks_daily WHERE habit_id = ? AND date = ?", (ids["alcohol"], today)
         ) == [(0,)]
 
-        # A slip logged elsewhere survives a stale Clean tap.
         assert _day(auth_client, "porn", date=today, slipped="1", amount="20").status_code == 303
         auth_client.post("/freedom/porn/clean-today", headers=headers)
         assert _fetchall(
@@ -472,7 +471,7 @@ def test_the_dashboard_can_leave_freedom_out(auth_client):
         save(freedom_dashboard_shown="1")  # the box shown and left unchecked
         assert 'id="freedom-today-block"' not in auth_client.get("/").text
         assert "Show these habits on the dashboard" in auth_client.get("/settings?tab=general").text
-        save()  # a form without the box changes nothing
+        save()
         assert 'id="freedom-today-block"' not in auth_client.get("/").text
     finally:
         save(freedom_dashboard_shown="1", freedom_on_dashboard="1")

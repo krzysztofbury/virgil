@@ -106,7 +106,6 @@ MONTHS_SHORT = (
 )
 
 
-# Stored enumeration values a page shows as words: statuses, periods, horizons.
 _ENUM_LABELS = {
     "active": N_("Active"),
     "paused": N_("Paused"),

@@ -108,8 +108,6 @@ def truncate(s: str, max_len: int = 5000) -> str:
     return s[:max_len]
 
 
-# --- Email addresses ------------------------------------------------------
-
 EMAIL_MAX_LENGTH = 254  # RFC 5321's limit on a forward path
 
 

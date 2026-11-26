@@ -17,7 +17,6 @@ GOAL_TRASH_DAYS = 30
 # Changes kept per goal, newest first. Metadata only, so the bound is about
 # relevance, not size.
 GOAL_HISTORY_MAX = 20
-# What an edit can change, in the words the history shows.
 _TRACKED_FIELDS = {
     "area_id": "area",
     "horizon": "horizon",

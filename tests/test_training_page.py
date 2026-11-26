@@ -24,6 +24,7 @@ def _page(auth_client) -> str:
     return resp.text
 
 
+@pytest.mark.to_delete(issue=261)
 def test_capture_form_is_the_only_input(auth_client):
     html = _page(auth_client)
 
@@ -263,6 +264,7 @@ def test_personal_best_efforts_are_bounded_and_disclosed(auth_client):
         conn.close()
 
 
+@pytest.mark.to_delete(issue=261)
 def test_native_movement_picker_uses_theme_aware_popup_colors():
     css = (Path(__file__).parents[1] / "app/static/css/app.css").read_text()
     assert "select option, select optgroup" in css
@@ -271,6 +273,7 @@ def test_native_movement_picker_uses_theme_aware_popup_colors():
     assert "color-scheme: light" in css
 
 
+@pytest.mark.to_delete(issue=261)
 def test_global_csrf_injector_excludes_navigation_forms():
     script = (Path(__file__).parents[1] / "app/static/js/app.js").read_text()
     assert "form.method.toUpperCase() === 'POST'" in script

@@ -108,11 +108,9 @@ def marker_summary(marker_results: dict, marker: dict | None = None) -> dict:
 async def bloodwork_page(request: Request, category: str = "all"):
     db = get_user_db_from_request(request)
 
-    # Get all categories
     cats = await db.execute_fetchall("SELECT DISTINCT category FROM blood_markers ORDER BY display_order, category")
     categories = [r["category"] for r in cats]
 
-    # Get markers (filtered or all)
     if category != "all":
         markers = await db.execute_fetchall(
             "SELECT * FROM blood_markers WHERE category = ? ORDER BY display_order, name", (category,)
@@ -121,11 +119,9 @@ async def bloodwork_page(request: Request, category: str = "all"):
         markers = await db.execute_fetchall("SELECT * FROM blood_markers ORDER BY display_order, name")
     markers = [dict(m) for m in markers]
 
-    # Get all test dates
     dates_rows = await db.execute_fetchall("SELECT DISTINCT date FROM blood_results ORDER BY date")
     test_dates = [r["date"] for r in dates_rows]
 
-    # Get results keyed by (marker_id, date) — single query
     marker_ids = [m["id"] for m in markers]
     results: dict[int, dict[str, dict]] = {mid: {} for mid in marker_ids}
     if marker_ids:
@@ -144,7 +140,6 @@ async def bloodwork_page(request: Request, category: str = "all"):
             r["display"] = _as_display(r, decimals)
         m["summary"] = marker_summary(marker_results, m)
 
-    # Selected marker for chart (first one or from query param)
     chart_marker_id = request.query_params.get("marker")
     chart_marker = None
     chart_labels = []

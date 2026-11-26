@@ -58,6 +58,7 @@ extend-immutable-calls = ["fastapi.Form", "fastapi.Query", "fastapi.Depends"]
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+markers = ["to_delete(issue): marked by a test audit for replacement; see the issue"]
 faulthandler_timeout = 120
 
 [tool.ruff]

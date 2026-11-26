@@ -77,7 +77,6 @@ def test_create_general_experiment_kinds_and_targets(auth_client):
         bramka = metrics[1]
         assert bramka["target_value"] == 8
         assert bramka["target_period"] == "total"
-        # Targets/source_match only exist where they mean something.
         assert metrics[2]["target_value"] == 0, "scale metrics must not carry targets"
         assert metrics[2]["source_match"] == "", "source_match is duration-only"
 
@@ -167,7 +166,6 @@ def test_count_accumulates_and_scale_bounds(auth_client):
             )
         assert sum(e["value"] for e in _entries(exp_id) if e["activity_type_id"] == impuls) == 3
 
-        # Scale 11 is out of bounds → rejected, no row.
         auth_client.post(
             f"/experiments/{exp_id}/entry",
             data={"date": day, "metric_id": str(glod), "value": "11", "_csrf_token": token},
@@ -219,7 +217,6 @@ def test_edit_works_on_completed_experiment(auth_client):
 def test_num_weeks_shrink_preserves_kept_weeks(auth_client):
     exp_id, token = _create_general(auth_client, num_weeks="4")
     try:
-        # Customize week 2, then shrink to 2 weeks.
         auth_client.post(
             f"/experiments/{exp_id}/week/2/targets",
             data={"target_min": "100", "target_max": "120", "label": "DELOAD", "_csrf_token": token},
@@ -255,7 +252,6 @@ def test_num_weeks_shrink_preserves_kept_weeks(auth_client):
 def test_metric_add_update_delete(auth_client):
     exp_id, token = _create_general(auth_client)
     try:
-        # Add a boolean metric via the edit page.
         auth_client.post(
             f"/experiments/{exp_id}/metric/add",
             data={
@@ -274,7 +270,6 @@ def test_metric_add_update_delete(auth_client):
         med = next(m for m in metrics if m["name"] == "Medytacja")
         assert (med["kind"], med["target_value"], med["target_period"]) == ("boolean", 1, "day")
 
-        # Update: rename + retarget; kind must NOT change even if posted.
         auth_client.post(
             f"/experiments/{exp_id}/metric/{med['id']}/update",
             data={
@@ -293,7 +288,6 @@ def test_metric_add_update_delete(auth_client):
         assert med2["kind"] == "boolean", "kind is immutable after creation"
         assert (med2["target_value"], med2["target_period"]) == (5, "week")
 
-        # Delete cascades entries.
         day = date.today().isoformat()
         auth_client.post(
             f"/experiments/{exp_id}/entry",
@@ -347,7 +341,6 @@ def test_metric_progress_math():
     assert p["label"] == "3/5 days"
     assert p["met"] is False
 
-    # No target → no progress chip.
     none_metric = {
         "id": 4,
         "name": "Impuls",

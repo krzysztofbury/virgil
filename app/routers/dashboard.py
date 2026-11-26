@@ -55,7 +55,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     db = get_user_db_from_request(request)
     today = date.today()
 
-    # Today's log
     row = await db.execute_fetchall("SELECT * FROM daily_logs WHERE date = ?", (today.isoformat(),))
     today_log = dict(row[0]) if row else None
 
@@ -69,7 +68,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         )
     ]
 
-    # Week overview (Mon-Sun of current week)
     monday = today - timedelta(days=today.weekday())
     sunday = monday + timedelta(days=6)
     week_dates = [(monday + timedelta(days=i)) for i in range(7)]
@@ -120,7 +118,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
             latest_meas = dict(ls_meas[0])
             prev_meas = dict(ls_meas[1]) if len(ls_meas) > 1 else None
 
-    # Oura latest (prefer today's daily data, fallback to monthly)
     oura_daily_row = await db.execute_fetchall("SELECT * FROM oura_daily WHERE date = ?", (today.isoformat(),))
     oura_today = dict(oura_daily_row[0]) if oura_daily_row else None
     # Each number against its previous days, as the Oura page shows readiness:
@@ -211,7 +208,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
         )
     ]
 
-    # Year calendar (dot-matrix by month)
     current_year = today.year
     year_months = []
     days_passed = (today - date(current_year, 1, 1)).days
@@ -219,7 +215,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
     days_left = days_total - days_passed - 1
     year_pct = round(days_passed / days_total * 100)
 
-    # Build per-day completion data for the year
     year_logs = await db.execute_fetchall(
         "SELECT date, morning_routine, evening_routine, water, "
         "andy_body_status, andy_spirit_status, andy_account_status, andy_relations_status "
@@ -242,7 +237,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
 
     for m in range(1, 13):
         num_days = calendar.monthrange(current_year, m)[1]
-        # weekday of 1st: 0=Mon..6=Sun
         first_weekday = date(current_year, m, 1).weekday()
         days = []
         for d in range(1, num_days + 1):
@@ -307,7 +301,6 @@ async def dashboard(request: Request, job_id: int | None = Query(None, ge=1)):
 
         freedom_overviews = [await habit_overview(db, habit) for habit in await list_habits(db)]
 
-    # Morning briefing
     briefing_enabled = await get_setting(db, "briefing_enabled", "0") == "1"
     briefing_text = None
     if briefing_enabled:

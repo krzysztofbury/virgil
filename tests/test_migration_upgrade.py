@@ -64,13 +64,11 @@ def test_pre007_db_with_claude_provider_upgrades_cleanly(tmp_path):
         from app.migrations.runner import run_migrations
 
         db = await _legacy_pre007_db(tmp_path)
-        # Must run 007..013 without tripping the legacy CHECK.
         await run_migrations(db)
 
         provider = dict((await db.execute_fetchall("SELECT * FROM llm_providers"))[0])
         versions = [r["version"] for r in await db.execute_fetchall("SELECT version FROM schema_migrations")]
 
-        # And the constraint must be gone: LiteLLM provider names now insert.
         await db.execute(
             "INSERT INTO llm_providers (provider, api_key_enc, model, is_active) VALUES ('mistral', 'e', 'm', 0)"
         )

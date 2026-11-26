@@ -80,6 +80,6 @@ def test_the_today_toggles_keep_ids_so_focus_survives_their_redraw(auth_client):
     after = auth_client.post(
         f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token}, headers={"HX-Request": "true"}
     ).text
-    auth_client.post(f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token})  # and back
+    auth_client.post(f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token})
     auth_client.post(f"/daily/{day}/cycle", data={"field": "water", "_csrf_token": token})
     assert 'id="today-water"' in after, "the redrawn block carries the same id"

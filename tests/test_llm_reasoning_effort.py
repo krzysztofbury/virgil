@@ -165,6 +165,7 @@ def test_saving_the_level_accepts_the_allowlist_and_refuses_anything_else(auth_c
         _clear_effort()
 
 
+@pytest.mark.to_delete(issue=263)
 def test_no_call_site_pins_a_provider_specific_level():
     from pathlib import Path
 

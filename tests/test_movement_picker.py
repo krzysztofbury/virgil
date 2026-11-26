@@ -10,6 +10,7 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
 from conftest import user_db_path
 
 from app.routers.training import _confirm_rows
@@ -74,6 +75,7 @@ def test_picker_groups_by_section_and_carries_tags(auth_client):
     assert "nieznany ruch" in html, "the unmatched name must stay visible while it is resolved"
 
 
+@pytest.mark.to_delete(issue=261)
 def test_every_row_uses_the_shared_macro():
     """One picker contract for every row: the option list lives in the partial."""
     template = Path("app/templates/wod_confirm.html").read_text(encoding="utf-8")
@@ -83,6 +85,7 @@ def test_every_row_uses_the_shared_macro():
     assert 'import "partials/wod_row.html"' in template or "partials/wod_row.html" in template
 
 
+@pytest.mark.to_delete(issue=261)
 def test_parser_vocabulary_keeps_its_shape():
     """canonical_movements stays a parser function: name, section, metric.
 

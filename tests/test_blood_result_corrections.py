@@ -140,6 +140,7 @@ def test_a_text_result_is_not_flagged_from_its_stand_in_number(auth_client, mark
     assert _result(first) == ("2026-01-10", 0.0, "negative", "")
 
 
+@pytest.mark.to_delete(issue=263)
 def test_editing_a_result_that_is_gone_is_reported(auth_client, marker):
     response = _post(auth_client, "/bloodwork/result/999999/edit", date="2026-01-10", value="5", flag="auto")
 

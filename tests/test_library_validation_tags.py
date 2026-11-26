@@ -63,6 +63,7 @@ def test_normalize_tag_rejects_over_length():
         normalize_tag("x" * 41)
 
 
+@pytest.mark.to_delete(issue=259)
 def test_normalize_tag_accepts_at_the_bound():
     assert normalize_tag("x" * 40) == "x" * 40
 
@@ -83,11 +84,13 @@ def test_normalize_tags_from_comma_string():
     assert normalize_tags("crossfit, Kettle Bell , ") == ["crossfit", "kettle-bell"]
 
 
+@pytest.mark.to_delete(issue=259)
 def test_normalize_tags_empty_input_is_empty_list():
     assert normalize_tags([]) == []
     assert normalize_tags("") == []
 
 
+@pytest.mark.to_delete(issue=259)
 def test_normalize_tags_none_input_is_empty_list():
     assert normalize_tags(None) == []
 
@@ -104,6 +107,7 @@ def test_normalize_tags_drops_blank_items_silently():
     assert normalize_tags(["crossfit", "", "  ", "kettlebell"]) == ["crossfit", "kettlebell"]
 
 
+@pytest.mark.to_delete(issue=259)
 def test_normalize_tags_accepts_exactly_the_max_count():
     tags = [f"tag-{i}" for i in range(MAX_TAGS_PER_ENTRY)]
     assert normalize_tags(tags) == sorted(tags)

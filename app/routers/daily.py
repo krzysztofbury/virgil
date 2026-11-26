@@ -61,7 +61,6 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
 
     current_job = await current_job_view(db, job_id)
 
-    # Per-habit current streaks
     habit_fields = [
         ("morning_routine", _("Morning Routine")),
         ("evening_routine", _("Evening Routine")),
@@ -91,7 +90,7 @@ async def daily_page(request: Request, day: str | None = None, job_id: int | Non
             if expected is None:
                 expected = d
             if d != expected:
-                break  # Gap in dates breaks the streak
+                break
             if row[field] == "done":
                 streak += 1
                 expected = d - timedelta(days=1)

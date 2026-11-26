@@ -274,7 +274,6 @@ def test_a_permanently_failed_week_does_not_block_the_weeks_behind_it(monkeypatc
             await db.close()
 
     first = asyncio.run(scenario())
-    # The worker ran week 1 and it failed for good: terminal, no summary stored.
     db = sqlite3.connect(user_db_path())
     try:
         db.execute(

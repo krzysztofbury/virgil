@@ -94,7 +94,6 @@ def test_pending_card_is_bounded(auth_client):
         _seed(f"2017-{(day % 12) + 1:02d}-{(day % 28) + 1:02d}", parsed=PENDING, notes="ZZ pending flood")
 
     html = auth_client.get("/training").text
-    # Count links inside the pending card only.
     card = html.split("Unfinished", 1)[1].split("Workout History", 1)[0]
     listed = len(re.findall(r'href="/training/wod/confirm/\d+"', card))
     assert listed == MAX_PENDING_LISTED, f"pending card is unbounded: {listed} rows"

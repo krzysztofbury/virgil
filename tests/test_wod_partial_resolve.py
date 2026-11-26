@@ -9,6 +9,7 @@ import json
 import sqlite3
 from urllib.parse import parse_qs, urlsplit
 
+import pytest
 from conftest import csrf_token, user_db_path
 
 
@@ -84,6 +85,7 @@ def test_deliberate_skip_is_silent(auth_client):
     assert _entry_count(session_id) == 1
 
 
+@pytest.mark.to_delete(issue=258)
 def test_training_page_renders_the_message(auth_client):
     html = auth_client.get("/training?msg=zapisano%201%20z%202").text
     assert "zapisano 1 z 2" in html

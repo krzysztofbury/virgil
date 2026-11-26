@@ -12,7 +12,6 @@ def test_compute_flag_bounds():
     assert compute_flag(12.0, 4.0, 10.0) == "H"
     assert compute_flag(7.0, 4.0, 10.0) == ""
     assert compute_flag(7.0, None, None) == ""
-    # Boundary values are in range, not flagged.
     assert compute_flag(4.0, 4.0, 10.0) == ""
     assert compute_flag(10.0, 4.0, 10.0) == ""
 
@@ -44,11 +43,10 @@ def test_flag_autocomputed_and_override_respected(auth_client):
         conn.close()
 
     cases = [
-        # (date, value, submitted_flag, expected_stored_flag)
         ("2026-01-01", "2.5", "", "L"),
         ("2026-01-02", "15", "", "H"),
         ("2026-01-03", "7", "", ""),
-        ("2026-01-04", "7", "H", "H"),  # explicit lab-reported flag wins
+        ("2026-01-04", "7", "H", "H"),
     ]
     for day, value, flag, _expected in cases:
         resp = auth_client.post(

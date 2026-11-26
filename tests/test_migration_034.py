@@ -94,7 +94,6 @@ def test_an_account_that_never_used_the_module_gets_no_habit(tmp_path):
         try:
             await _migration().up(db)
             await db.commit()
-            # One day per habit: two habits may log the same date.
             await db.execute("INSERT INTO habits (slug, name, start_date) VALUES ('a', 'A', '2026-01-01')")
             await db.execute("INSERT INTO habits (slug, name, start_date) VALUES ('b', 'B', '2026-01-01')")
             await db.execute("INSERT INTO feniks_daily (habit_id, date) VALUES (1, '2026-08-01'), (2, '2026-08-01')")
@@ -193,7 +192,6 @@ def test_a_run_that_fails_midway_rolls_back_and_succeeds_on_retry(tmp_path, monk
             with pytest.raises(RuntimeError, match="injected crash"):
                 await migration.up(db)
             await db.rollback()
-            # Back at 033: the rebuilt day log and the Porn habit are gone with the transaction.
             columns = {row[1] for row in await db.execute_fetchall("PRAGMA table_info(feniks_daily)")}
             assert "habit_id" not in columns
             assert await db.execute_fetchall("SELECT 1 FROM habits") == []

@@ -2,6 +2,7 @@
 
 import sqlite3
 
+import pytest
 from conftest import user_db_path
 
 KEY = {"X-API-Key": "test-key-123"}
@@ -345,10 +346,6 @@ def test_wod_entries_surface_in_training_reads(auth_client):
         assert "Ski Erg" in blob, "ad_hoc movements must be visible to API/MCP consumers"
         assert "ski erg intervals" in blob, "the raw WOD note must reach API consumers"
     finally:
-        # Leave the shared session-scoped DB empty for other test files —
-        # tests/test_api.py's test_training_empty/test_training_detail_empty
-        # assume zero sessions, and file execution order isn't guaranteed
-        # (mirrors the cleanup in test_api.py's test_freedom_history_and_training_detail_with_data).
         conn.execute("DELETE FROM training_entries WHERE session_id = ?", (sess_id,))
         conn.execute("DELETE FROM training_sessions WHERE id = ?", (sess_id,))
         conn.execute("DELETE FROM training_exercises WHERE id = ?", (ex_id,))
@@ -456,6 +453,7 @@ def test_tag_filter_is_case_insensitive(auth_client):
         auth_client.delete(f"/api/library/{entry_id}", headers=KEY)
 
 
+@pytest.mark.to_delete(issue=256)
 def test_tags_by_library_id_sorts_regardless_of_row_order():
     """_tags_by_library_id's `sorted()` is unreachable through the real API/DB path:
     exercise_library_tags's composite PRIMARY KEY (library_id, tag) makes SQLite

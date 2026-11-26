@@ -150,7 +150,6 @@ def _sign_in(browser, base):
     try:
         page = context.new_page()
         page.goto(f"{base}/login")
-        # Email first, then the password (#168).
         page.fill("input[name=username]", DEMO_EMAIL)
         page.click("button[type=submit]")
         page.fill("input[name=password]", DEMO_PASSWORD)
@@ -223,7 +222,6 @@ def test_a_daily_change_saves_over_htmx_and_a_lost_one_is_reported(site):
         page.reload()
         assert state.inner_text() == expected, "the change did not survive a reload"
 
-        # A request that never reaches the server must not look saved.
         assert problems == []
         page.route("**/daily/save", lambda route: route.abort())
         toggle.click()
@@ -263,7 +261,6 @@ def test_the_tray_stays_clear_of_the_page_and_success_clears_itself(site, width)
         if bar.is_visible():
             assert box["y"] + box["height"] <= bar.bounding_box()["y"], "and the bottom bar stays tappable"
 
-        # Scrolling must not carry it away, and the page under an empty tray stays clickable.
         page.mouse.wheel(0, 600)
         assert abs(toast.bounding_box()["y"] - box["y"]) < 2
         toast.wait_for(state="detached", timeout=8000)

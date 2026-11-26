@@ -77,7 +77,6 @@ def test_migration_015_backfills_and_drops(tmp_path):
             metric = dict((await db.execute_fetchall("SELECT * FROM experiment_activity_types"))[0])
             lib = dict((await db.execute_fetchall("SELECT * FROM exercise_library"))[0])
 
-            # Idempotent: second run must not fail or double-apply.
             await mod.up(db)
             await db.commit()
             entry_after = dict((await db.execute_fetchall("SELECT * FROM experiment_entries"))[0])

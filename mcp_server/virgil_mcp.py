@@ -966,9 +966,6 @@ def set_finance_scoring(layers: list[dict] | None = None, remove: list[str] | No
     return _put("/api/finance/scoring", payload)
 
 
-# --- Operating Virgil: deploy health and the module switches ---
-
-
 def _probe(path: str) -> dict:
     """One health endpoint's status code and body. A 503 is the answer, so it is
     returned as data instead of raised like an API refusal."""
