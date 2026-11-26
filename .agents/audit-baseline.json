@@ -161,7 +161,6 @@
     "evals/wod/run.py": 6,
     "evals/wod/scoring.py": 10,
     "mcp_server/virgil_mcp.py": 5,
-    "scripts/audit_ratchet.py": 1,
     "scripts/check_image.py": 2,
     "scripts/deploy.py": 14,
     "scripts/load_check.py": 9,
